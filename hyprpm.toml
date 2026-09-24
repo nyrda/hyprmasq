@@ -1,12 +1,12 @@
 [repository]
 name = "hyprmasq"
-authors = ["daniel"]
+authors = ["nyrda"]
 # Hyprland commit to matching plugin commit. This repository targets Hyprland 0.56.2.
 commit_pins = []
 
 [hyprmasq]
 description = "Per-window screenshots and libei input sockets"
-authors = ["daniel"]
+authors = ["nyrda"]
 output = "hyprmasq.so"
 build = [
     "make all"

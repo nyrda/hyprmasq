@@ -75,3 +75,7 @@ dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
 ./dev.sh build     # Build hyprmasq.so and hyprmasq-input
 ./dev.sh vm-test   # Headless NixOS VM integration test
 ```
+
+## License
+
+[MIT](LICENSE)

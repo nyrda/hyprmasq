@@ -90,6 +90,7 @@ stdenv.mkDerivation {
 
   meta = {
     description = "Hyprland plugin for per-window screenshots and libei input sockets";
+    license = lib.licenses.mit;
     platforms = lib.platforms.linux;
   };
 }

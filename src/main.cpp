@@ -15,7 +15,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     HyprlandAPI::registerHyprCtlCommand(PHANDLE, SHyprCtlCommand{.name = "hyprmasq", .exact = false, .fn = hyprmasq::handleCommand});
 
-    return {"hyprmasq", "Per-window screenshots and EIS input for Hyprland", "daniel", "0.2.0"};
+    return {"hyprmasq", "Per-window screenshots and EIS input for Hyprland", "nyrda", "0.2.0"};
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
