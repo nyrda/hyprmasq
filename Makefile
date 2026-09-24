@@ -14,7 +14,7 @@ CC ?= cc
 CXXFLAGS ?= -O2 -g
 CXXFLAGS += -std=c++2b -fPIC -fno-gnu-unique -MMD -MP -Wall -Wextra -Wno-unused-parameter
 CFLAGS ?= -O2 -g
-CFLAGS += -std=c17 -Wall -Wextra
+CFLAGS += -std=gnu17 -Wall -Wextra
 CPPFLAGS += -DWLR_USE_UNSTABLE $(shell pkg-config --cflags $(PLUGIN_PKGS))
 
 .PHONY: all clean
