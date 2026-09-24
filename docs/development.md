@@ -1,0 +1,60 @@
+# Development
+
+Run `./dev.sh` from the repository root.
+
+| Command | Purpose |
+| --- | --- |
+| `./dev.sh build` | Build `hyprmasq.so` and `hyprmasq-input` inside the flake's dev shell. This is the default command. |
+| `./dev.sh vm-test` | Run the headless NixOS VM integration test. |
+| `./dev.sh vm-test-interactive` | Open the test's interactive driver. |
+
+The VM commands need Nix and KVM, and pass extra arguments to `nix-build`. The
+same test is the flake check: `nix build .#checks.x86_64-linux.vm-test`.
+
+New files must be tracked by git (`git add`) before flake builds can see them.
+
+To try a build in a running session, load it by absolute path:
+
+```sh
+hyprctl plugin load "$PWD/hyprmasq.so"
+hyprctl plugin unload "$PWD/hyprmasq.so"
+```
+
+Unloading removes every open socket and both function hooks.
+
+## Tests
+
+`nix/hyprmasq-vm-test.nix` boots NixOS with Hyprland on a headless 640×480
+output, installs the plugin through the NixOS module, and runs
+`nix/vm-test.py`:
+
+| Subtest | Checks |
+| --- | --- |
+| Screenshots | Red, green and blue foot windows on hidden workspaces have the right colors, and the first text row is at the top. |
+| Socket lifecycle | Paths, `0700` directories and a `0600` socket; `eis list`; removal on `eis close` and when the window closes. |
+| Hidden shell input | Typing into a foot shell on a hidden workspace runs the command, the active window and workspace stay unchanged, and the window repaints. |
+| Pointer events | `wev` on a hidden workspace receives enter, motion, button and axis events. |
+| Shared connection | Two `footclient` windows of one `foot --server`: the hidden one receives the text, the focused one receives nothing and stays focused. |
+| Protections | `nix/focus-probe.c`, a small xdg-shell client, answers an emulated click with a popup grab, a drag and an interactive move and resize. None of them take the real focus or change the window. |
+| Unload and reload | Unloading removes all sockets; the plugin loads again. |
+| Compositor log | After Hyprland exits and flushes its log, it shows that the move and resize serials were rejected. |
+
+The test copies the screenshots and logs into the build result, for example
+`result/hyprmasq-green.png` after `nix-build nix/hyprmasq-vm-test.nix`.
+
+## Source layout
+
+| Path | Contents |
+| --- | --- |
+| `src/main.cpp` | Plugin entry points: registers the hyprctl command, installs and removes hooks. |
+| `src/Commands.cpp` | Parses `hyprctl hyprmasq ...` and formats plain and JSON replies. |
+| `src/Screenshot.cpp` | Offscreen window rendering and PNG output. |
+| `src/Eis.cpp` | Per-window EIS sessions, input delivery, frame callbacks, and the popup-grab and drag hooks. |
+| `src/Windows.cpp` | Window address formatting and lookup. |
+| `tools/hyprmasq-input.c` | The libei sender command. |
+| `nix/package.nix` | Plugin and tool derivation, for the flake and downstream `callPackage`. |
+| `nix/module.nix` | NixOS module: matching Hyprland, `hyprmasq-input`, Lua loader. |
+| `nix/hyprmasq-vm-test.nix`, `nix/vm-test.py` | The VM test. |
+| `nix/focus-probe.c`, `nix/focus-probe.nix` | Test client for the protections. |
+
+The code follows Hyprland's `.clang-format`.
