@@ -2,3 +2,4 @@ build/
 result*
 *.so
 hyprmasq-input
+__pycache__/
