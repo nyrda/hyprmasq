@@ -15,11 +15,20 @@ let
     if pkgs.hyprland.version == "0.56.2" then pkgs.hyprland
     else throw "hyprmasq requires Hyprland 0.56.2, got ${pkgs.hyprland.version}";
   plugin = pkgs.callPackage ./package.nix { inherit hyprland; };
+
+  # The VM installs through the NixOS module, fed with the packages this test pins.
+  module = import ./module.nix {
+    packages.${system} = {
+      hyprmasq = plugin;
+      inherit hyprland;
+      inherit (pkgs) xdg-desktop-portal-hyprland;
+    };
+  };
   focusProbe = pkgs.callPackage ./focus-probe.nix { };
   python = pkgs.python3.withPackages (ps: [ ps.pillow ]);
 
   testConfig = pkgs.writeText "hyprmasq-test.lua" ''
-    hl.plugin.load("${plugin}/lib/hyprmasq.so")
+    dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
 
     hl.monitor({ output = "HYPRMASQ-TEST", mode = "640x480@60", position = "0x0", scale = "1" })
     hl.monitor({ output = "", disabled = true })
@@ -60,18 +69,19 @@ pkgs.testers.runNixOSTest {
   nodes.machine =
     { pkgs, ... }:
     {
+      imports = [ module ];
+      programs.hyprmasq.enable = true;
+
       users.users.alice = {
         isNormalUser = true;
         extraGroups = [ "video" ];
       };
 
       environment.systemPackages = [
-        hyprland
         pkgs.foot
         pkgs.jq
         pkgs.procps
         python
-        plugin
         pkgs.wev
         focusProbe
       ];
@@ -84,11 +94,6 @@ pkgs.testers.runNixOSTest {
         HYPRLAND_TRACE = "1";
         XDG_CACHE_HOME = "/tmp";
         TERM = "xterm-256color";
-      };
-
-      programs.hyprland = {
-        enable = true;
-        package = hyprland;
       };
 
       xdg.portal.enable = pkgs.lib.mkForce false;

@@ -17,8 +17,12 @@
       packages.${system} = {
         hyprmasq = pkgs.callPackage ./nix/package.nix { };
         default = self.packages.${system}.hyprmasq;
-        inherit (pkgs) hyprland;
+        # The exact Hyprland the plugin above is built and VM-tested against. Running these guarantees a match.
+        inherit (pkgs) hyprland xdg-desktop-portal-hyprland;
       };
+
+      # Runs the matching Hyprland, installs hyprmasq-input, and writes /etc/xdg/hypr/hyprmasq_plugin.lua.
+      nixosModules.default = import ./nix/module.nix self;
 
       overlays.default = final: prev: { hyprmasq = final.callPackage ./nix/package.nix { }; };
 
