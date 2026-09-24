@@ -38,7 +38,7 @@ namespace hyprmasq {
             if (!file)
                 return std::unexpected(std::format("cannot open {}", path.string()));
 
-            png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+            png_structp png  = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
             png_infop   info = png ? png_create_info_struct(png) : nullptr;
             if (!png || !info) {
                 png_destroy_write_struct(&png, &info);
@@ -54,10 +54,10 @@ namespace hyprmasq {
             png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
             png_write_info(png, info);
 
-            // GL rows start at the bottom.
+            // RPT_EXPORT already renders top-down, so rows are stored in image order.
             std::vector<png_bytep> rows(height);
             for (int y = 0; y < height; ++y)
-                rows[y] = rgba.data() + sc<size_t>(height - 1 - y) * width * 4;
+                rows[y] = rgba.data() + sc<size_t>(y) * width * 4;
 
             png_write_image(png, rows.data());
             png_write_end(png, nullptr);
@@ -95,7 +95,7 @@ namespace hyprmasq {
         const int  width   = std::max(1, sc<int>(std::round(logical.x * monitor->m_scale)));
         const int  height  = std::max(1, sc<int>(std::round(logical.y * monitor->m_scale)));
 
-        auto fb = g_pHyprRenderer->createFB("hyprmasq screenshot");
+        auto       fb = g_pHyprRenderer->createFB("hyprmasq screenshot");
         if (!fb || !fb->alloc(width, height, DRM_FORMAT_ABGR8888))
             return std::unexpected("cannot allocate framebuffer");
 
