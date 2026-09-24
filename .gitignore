@@ -1,4 +1,4 @@
 build/
-hyprmasq.so
-*.o
-*.d
+result*
+*.so
+hyprmasq-input

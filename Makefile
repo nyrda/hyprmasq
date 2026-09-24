@@ -1,32 +1,37 @@
-TARGET := hyprmasq.so
+PLUGIN := hyprmasq.so
+TOOL := hyprmasq-input
 BUILD_DIR := build
 
-SRC := main.cpp
-OBJ := $(SRC:%.cpp=$(BUILD_DIR)/%.o)
+SRC := $(wildcard src/*.cpp)
+OBJ := $(SRC:src/%.cpp=$(BUILD_DIR)/%.o)
 DEP := $(OBJ:.o=.d)
 
-PKG_CONFIG_CFLAGS := $(shell pkg-config --cflags hyprland libdrm pixman-1 egl glesv2 libpng)
-PKG_CONFIG_LIBS := $(shell pkg-config --libs egl glesv2 libpng)
+PLUGIN_PKGS := hyprland libdrm pixman-1 egl glesv2 libpng libeis-1.0 xkbcommon
+TOOL_PKGS := libei-1.0
 
 CXX ?= c++
+CC ?= cc
 CXXFLAGS ?= -O2 -g
-CXXFLAGS += -std=c++2b -fPIC -MMD -MP
-CPPFLAGS += -DWLR_USE_UNSTABLE $(PKG_CONFIG_CFLAGS)
-LDFLAGS += -shared --no-gnu-unique
-LDLIBS += $(PKG_CONFIG_LIBS)
+CXXFLAGS += -std=c++2b -fPIC -fno-gnu-unique -MMD -MP -Wall -Wextra -Wno-unused-parameter
+CFLAGS ?= -O2 -g
+CFLAGS += -std=c17 -Wall -Wextra
+CPPFLAGS += -DWLR_USE_UNSTABLE $(shell pkg-config --cflags $(PLUGIN_PKGS))
 
 .PHONY: all clean
 
-all: $(TARGET)
+all: $(PLUGIN) $(TOOL)
 
-$(TARGET): $(OBJ)
-	$(CXX) $(LDFLAGS) -o $@ $(OBJ) $(LDLIBS)
+$(PLUGIN): $(OBJ)
+	$(CXX) -shared -fPIC -o $@ $(OBJ) $(shell pkg-config --libs egl glesv2 libpng libeis-1.0 xkbcommon)
 
-$(BUILD_DIR)/%.o: %.cpp
+$(BUILD_DIR)/%.o: src/%.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
+$(TOOL): tools/hyprmasq-input.c
+	$(CC) $(CFLAGS) $(shell pkg-config --cflags $(TOOL_PKGS)) -o $@ $< $(shell pkg-config --libs $(TOOL_PKGS))
+
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR) $(PLUGIN) $(TOOL)
 
 -include $(DEP)

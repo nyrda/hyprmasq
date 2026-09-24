@@ -3,7 +3,7 @@ name = "hyprmasq"
 authors = ["daniel"]
 
 [hyprmasq]
-description = "Small Hyprland automation plugin"
+description = "Per-window screenshots and libei input sockets"
 authors = ["daniel"]
 output = "hyprmasq.so"
 build = [
