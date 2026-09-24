@@ -118,9 +118,11 @@ static bool parseButton(const char* name, uint32_t* button) {
     else if (!strcmp(name, "middle"))
         *button = BTN_MIDDLE;
     else {
-        char* end = NULL;
-        *button   = strtoul(name, &end, 0);
-        return end && *end == '\0' && *button > 0;
+        char*               end  = NULL;
+        const unsigned long code = strtoul(name, &end, 0);
+        if (!end || *end != '\0' || code == 0)
+            return false;
+        *button = code;
     }
     return true;
 }
