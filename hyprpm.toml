@@ -1,0 +1,11 @@
+[repository]
+name = "hyprmasq"
+authors = ["daniel"]
+
+[hyprmasq]
+description = "Small Hyprland automation plugin"
+authors = ["daniel"]
+output = "hyprmasq.so"
+build = [
+    "make all"
+]
