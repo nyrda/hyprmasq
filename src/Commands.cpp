@@ -1,6 +1,7 @@
 #include "Commands.hpp"
 
 #include "Screenshot.hpp"
+#include "Eis.hpp"
 #include "Windows.hpp"
 
 #include <format>
@@ -10,9 +11,11 @@
 namespace hyprmasq {
     namespace {
         constexpr std::string_view USAGE = "usage:\n"
-                                           "  hyprctl hyprmasq screenshot <window-address> <absolute-path.png>\n";
+                                           "  hyprctl hyprmasq screenshot <window-address> <absolute-path.png>\n"
+                                           "  hyprctl hyprmasq eis open|close <window-address>\n"
+                                           "  hyprctl hyprmasq eis list\n";
 
-        std::string jsonString(std::string_view in) {
+        std::string                jsonString(std::string_view in) {
             std::string out = "\"";
             for (const char c : in) {
                 switch (c) {
@@ -66,6 +69,38 @@ namespace hyprmasq {
         const std::vector<std::string> args(words.begin() + 2, words.end());
         if (words[1] == "screenshot")
             return screenshot(format, args);
+
+        if (words[1] == "eis") {
+            if (args.size() == 1 && args[0] == "list") {
+                std::string out;
+                for (const auto& [address, path] : listEis()) {
+                    if (format == FORMAT_JSON) {
+                        if (!out.empty())
+                            out += ",";
+                        out += std::format(R"({{"address":{},"path":{}}})", jsonString(address), jsonString(path));
+                    } else
+                        out += address + " " + path + "\n";
+                }
+                return format == FORMAT_JSON ? "[" + out + "]" : out;
+            }
+            if (args.size() != 2)
+                return error(format, USAGE);
+            if (args[0] == "close") {
+                if (!closeEis(args[1]))
+                    return error(format, "no open socket for " + args[1]);
+                return format == FORMAT_JSON ? R"({"ok":true})" : "ok";
+            }
+            if (args[0] == "open") {
+                const auto window = windowFromAddress(args[1]);
+                if (!window)
+                    return error(format, "no mapped window " + args[1]);
+                const auto result = openEis(window);
+                if (!result)
+                    return error(format, result.error());
+                return format == FORMAT_JSON ? std::format(R"({{"ok":true,"path":{}}})", jsonString(*result)) : *result;
+            }
+            return error(format, USAGE);
+        }
 
         return error(format, std::format("unknown subcommand {}\n{}", words[1], USAGE));
     }
