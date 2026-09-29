@@ -1,8 +1,11 @@
 #include "Eis.hpp"
+#include "Hooks.hpp"
+#include "X11.hpp"
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/state/ViewState.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
+#include <hyprland/src/desktop/view/Window.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
@@ -23,14 +26,16 @@
 #include <ranges>
 #include <map>
 #include <set>
-#include <stdexcept>
 
 namespace hyprmasq {
     namespace {
         struct Session;
         std::map<std::string, std::unique_ptr<Session>> sessions;
-        CFunctionHook*                                  popupHook = nullptr;
-        CFunctionHook*                                  dragHook  = nullptr;
+        void*                                           originalPopupGrab   = nullptr;
+        void*                                           originalStartDrag   = nullptr;
+        void*                                           originalActivateX11 = nullptr;
+        void*                                           originalWindowFocus = nullptr;
+        void*                                           originalActivate    = nullptr;
 
         // Include popup subsurfaces too. Hidden windows do not get compositor frame callbacks.
         void surfaces(const PHLWINDOW& w, const std::function<void(SP<CWLSurfaceResource>)>& fn) {
@@ -60,8 +65,13 @@ namespace hyprmasq {
             std::set<uint32_t>      keys, buttons;
             Vector2D                position  = {1, 1};
             Time::steady_tp         lastInput = Time::steadyNow();
+            bool                    force = false, paused = false, deferredKeys = false, restoreDue = false;
+            Time::steady_tp         pausedAt, holdUntil = Time::steadyNow(), lastKeys = Time::steadyNow();
+            eis_event*              stashed     = nullptr; // taken from libeis, waiting for a hold to end
+            wl_client*              server      = nullptr; // the window's X server, looked up once
+            bool                    serverKnown = false;
 
-            Session(const PHLWINDOW& w, std::string p) : window(w), path(std::move(p)) {}
+            Session(const PHLWINDOW& w, std::string p, bool f) : window(w), path(std::move(p)), force(f) {}
             ~Session() {
                 clearClient();
                 if (fdSource)
@@ -74,12 +84,7 @@ namespace hyprmasq {
             void clearDevice(eis_device*& d) {
                 if (!d)
                     return;
-                std::erase_if(pending, [&](eis_event* e) {
-                    if (eis_event_get_device(e) != d)
-                        return false;
-                    eis_event_unref(e);
-                    return true;
-                });
+                drop(d);
                 if (d == pointer)
                     leavePointer();
                 if (d == keyboard) {
@@ -107,8 +112,24 @@ namespace hyprmasq {
                 buttons.clear();
                 if (seat)
                     eis_seat_unref(seat);
-                seat   = nullptr;
-                client = nullptr;
+                seat         = nullptr;
+                client       = nullptr;
+                paused       = false;
+                deferredKeys = restoreDue = false;
+                holdUntil                 = Time::steadyNow();
+                if (stashed)
+                    eis_event_unref(stashed);
+                stashed = nullptr;
+            }
+            wl_client* xServer() {
+                if (!serverKnown) {
+                    auto w = window.lock();
+                    if (!w || !w->resource())
+                        return nullptr;
+                    server      = x11::server(w);
+                    serverKnown = true;
+                }
+                return server;
             }
             SP<CWLSeatResource> wlSeat() {
                 auto w = window.lock();
@@ -116,6 +137,7 @@ namespace hyprmasq {
                 return s ? g_pSeatManager->seatResourceForClient(s->client()) : nullptr;
             }
             void leaveKeyboard() {
+                x11::release(window.lock());
                 auto s = wlSeat();
                 if (s && enteredKeyboard)
                     for (auto& k : s->m_keyboards)
@@ -157,7 +179,8 @@ namespace hyprmasq {
                 eis_region_add(r);
                 eis_region_unref(r);
                 eis_device_add(pointer);
-                eis_device_resume(pointer);
+                if (!paused)
+                    eis_device_resume(pointer);
             }
             void makeKeyboard() {
                 auto kb = g_pSeatManager->m_keyboard.lock();
@@ -179,7 +202,138 @@ namespace hyprmasq {
                     return;
                 }
                 eis_device_add(keyboard);
-                eis_device_resume(keyboard);
+                if (!paused)
+                    eis_device_resume(keyboard);
+            }
+            // X focus and stacking are shared by every window of one X server. While another of them has the real
+            // focus, moving them would misroute input, so only the focused window itself or force may proceed.
+            bool blocked() {
+                auto  w = window.lock();
+                auto* x = w && !force ? xServer() : nullptr;
+                if (!x)
+                    return false;
+                auto active = Desktop::focusState()->window();
+                if (active == w)
+                    return false;
+                if (active && active->resource() && active->resource()->client() == x)
+                    return true;
+                auto focused = g_pSeatManager->m_state.keyboardFocus.lock();
+                return focused && focused->client() == x;
+            }
+            // Senders see paused devices, so they can tell that input was refused.
+            void setPaused(bool p) {
+                if (paused == p)
+                    return;
+                paused   = p;
+                pausedAt = Time::steadyNow();
+                for (auto* d : {pointer, keyboard}) {
+                    if (d)
+                        p ? eis_device_pause(d) : eis_device_resume(d);
+                }
+                // A pause that no focus change ends, after a failed X request, ends through tick().
+                if (p)
+                    wl_event_source_timer_update(timer, 500);
+            }
+            // libeis disconnects a sender whose events reach a resumed device before it saw the pause, so a sender still
+            // busy sending when it was paused gets time to notice first.
+            void maybeResume() {
+                if (!paused || blocked())
+                    return;
+                const auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(Time::steadyNow() - pausedAt).count();
+                if (waited >= 500)
+                    setPaused(false);
+                else
+                    wl_event_source_timer_update(timer, 500 - waited);
+            }
+            void drop(eis_device* device) {
+                std::erase_if(pending, [&](eis_event* e) {
+                    if (eis_event_get_device(e) != device)
+                        return false;
+                    eis_event_unref(e);
+                    return true;
+                });
+            }
+            // Stops taking events from the socket until `until`, 50 ms from now by default. libeis answers a sender's
+            // ping only once it is taken, so senders still learn when everything has been delivered.
+            void hold(std::optional<Time::steady_tp> until = std::nullopt) {
+                if (auto w = window.lock(); w && w->resource())
+                    wl_client_flush(w->resource()->client());
+                holdUntil = until.value_or(Time::steadyNow() + std::chrono::milliseconds(50));
+                lastInput = Time::steadyNow();
+                wl_event_source_timer_update(timer, 16);
+            }
+            // xwayland-satellite drops keys that share a batch of Wayland events with the keyboard leave that follows
+            // them. True if this event would send that leave too early.
+            bool leavesSatelliteTooSoon(eis_event* e) {
+                auto       w      = window.lock();
+                const auto type   = eis_event_get_type(e);
+                const bool leaves = (eis_event_get_device(e) == keyboard && (type == EIS_EVENT_DEVICE_STOP_EMULATING || type == EIS_EVENT_DEVICE_CLOSED)) ||
+                    (type == EIS_EVENT_CLIENT_DISCONNECT && eis_event_get_client(e) == client);
+                return leaves && enteredKeyboard && w && !w->m_isX11 && xServer() && Time::steadyNow() < lastKeys + std::chrono::milliseconds(50);
+            }
+            bool holding() const {
+                return Time::steadyNow() < holdUntil;
+            }
+            void resumeHeld() {
+                if (holding())
+                    return;
+                if (deferredKeys) {
+                    deferredKeys = false;
+                    if (keyboard)
+                        deliver(keyboard);
+                } else if (restoreDue) {
+                    restoreDue = false;
+                    auto s     = wlSeat();
+                    auto real  = g_pSeatManager->m_state.keyboardFocus.lock();
+                    if (s && enteredKeyboard && real && real->client() == s->client())
+                        restoreKeyboard(s, real);
+                }
+                process();
+            }
+            void enterKeyboard(const SP<CWLSeatResource>& s, const SP<CWLSurfaceResource>& target, bool restore) {
+                wl_array held;
+                wl_array_init(&held);
+                if (!restore && !keys.empty()) {
+                    auto* dst = static_cast<uint32_t*>(wl_array_add(&held, keys.size() * sizeof(uint32_t)));
+                    if (dst)
+                        std::ranges::copy(keys, dst);
+                }
+                for (auto& k : s->m_keyboards)
+                    if (k) {
+                        k->sendLeave();
+                        k->sendEnter(target, &held);
+                    }
+                wl_array_release(&held);
+                enteredKeyboard = target;
+                mods(s);
+            }
+            void restoreKeyboard(const SP<CWLSeatResource>& s, const SP<CWLSurfaceResource>& real) {
+                auto     pressed = g_pInputManager->getKeysFromAllKBs();
+                wl_array arr;
+                wl_array_init(&arr);
+                if (!pressed.empty()) {
+                    auto* dst = static_cast<uint32_t*>(wl_array_add(&arr, pressed.size() * sizeof(uint32_t)));
+                    if (dst)
+                        std::ranges::copy(pressed, dst);
+                }
+                for (auto& k : s->m_keyboards)
+                    if (k) {
+                        k->sendLeave();
+                        k->sendEnter(real, &arr);
+                        if (auto kb = g_pSeatManager->m_keyboard.lock()) {
+                            auto m = kb->m_modifiersState;
+                            for (const auto& other : g_pInputManager->m_keyboards) {
+                                if (!other->m_enabled || !other->shareStates() || (other->isVirtual() && g_pInputManager->shouldIgnoreVirtualKeyboard(other)))
+                                    continue;
+                                m.depressed |= other->m_modifiersState.depressed;
+                                m.latched |= other->m_modifiersState.latched;
+                                m.locked |= other->m_modifiersState.locked;
+                            }
+                            k->sendMods(m.depressed, m.latched, m.locked, m.group);
+                        }
+                    }
+                wl_array_release(&arr);
+                enteredKeyboard.reset();
             }
             void mods(const SP<CWLSeatResource>& s) {
                 const auto dep   = xkb_state_serialize_mods(state, XKB_STATE_MODS_DEPRESSED);
@@ -195,24 +349,42 @@ namespace hyprmasq {
                 auto w = window.lock();
                 auto s = wlSeat();
                 if (!w || !s) {
-                    std::erase_if(pending, [&](eis_event* e) {
-                        if (eis_event_get_device(e) != device)
-                            return false;
-                        eis_event_unref(e);
-                        return true;
-                    });
+                    drop(device);
                     return;
                 }
                 if (std::ranges::none_of(pending, [device](eis_event* e) { return eis_event_get_device(e) == device; }))
                     return;
+                if (blocked()) {
+                    drop(device);
+                    setPaused(true);
+                    return;
+                }
                 // Another socket may address a second window on this same Wayland client.
                 for (auto& [_, other] : sessions) {
                     if (other.get() != this && other->wlSeat() == s)
                         other->leave();
                 }
                 const bool isKeyboard = device == keyboard;
-                auto       real       = (isKeyboard ? g_pSeatManager->m_state.keyboardFocus : g_pSeatManager->m_state.pointerFocus).lock();
-                const bool restore    = real && real->client() == s->client();
+                // XWayland sends keys to the X focus and pointer events to the topmost X window under the pointer.
+                // If the X server does not respond, the sender learns that input was dropped.
+                std::optional<x11::SStack> stack;
+                if (w->m_isX11 && (isKeyboard ? !x11::focus(w) : !(stack = x11::raise(w)))) {
+                    drop(device);
+                    setPaused(true);
+                    return;
+                }
+                auto       real    = (isKeyboard ? g_pSeatManager->m_state.keyboardFocus : g_pSeatManager->m_state.pointerFocus).lock();
+                const bool restore = real && real->client() == s->client();
+                // xwayland-satellite moves X focus once it has handled the whole batch of Wayland events that entered the
+                // window, but forwards keys at once. Keys and the return of focus to the user's window each wait for a
+                // later batch, or they would reach whichever window had X focus before.
+                const bool satellite = isKeyboard && !w->m_isX11 && real != w->resource() && xServer();
+                if (satellite && !enteredKeyboard) {
+                    enterKeyboard(s, w->resource(), restore);
+                    deferredKeys = true;
+                    hold();
+                    return;
+                }
                 // Resource focus is client-local. Restore it before the event loop can dispatch real input.
                 const auto now = Time::millis(Time::steadyNow());
                 for (auto* e : pending) {
@@ -220,24 +392,8 @@ namespace hyprmasq {
                         continue;
                     const auto type = eis_event_get_type(e);
                     if (isKeyboard) {
-                        auto target = w->resource();
-                        if (!enteredKeyboard) {
-                            wl_array held;
-                            wl_array_init(&held);
-                            if (!restore && !keys.empty()) {
-                                auto* dst = static_cast<uint32_t*>(wl_array_add(&held, keys.size() * sizeof(uint32_t)));
-                                if (dst)
-                                    std::ranges::copy(keys, dst);
-                            }
-                            for (auto& k : s->m_keyboards)
-                                if (k) {
-                                    k->sendLeave();
-                                    k->sendEnter(target, &held);
-                                }
-                            wl_array_release(&held);
-                            enteredKeyboard = target;
-                            mods(s);
-                        }
+                        if (!enteredKeyboard)
+                            enterKeyboard(s, w->resource(), restore);
                         uint32_t code = eis_event_keyboard_get_key(e);
                         bool     down = eis_event_keyboard_get_key_is_press(e);
                         if (down ? !keys.insert(code).second : !keys.erase(code))
@@ -245,6 +401,7 @@ namespace hyprmasq {
                         for (auto& k : s->m_keyboards)
                             if (k)
                                 k->sendKey(now, code, down ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
+                        lastKeys = Time::steadyNow();
                         xkb_state_update_key(state, code + 8, down ? XKB_KEY_DOWN : XKB_KEY_UP);
                         mods(s);
                     } else {
@@ -262,8 +419,10 @@ namespace hyprmasq {
                             if (down ? buttons.contains(button) : !buttons.contains(button))
                                 continue;
                         }
-                        Vector2D local;
-                        auto     target = Desktop::viewState()->hitTest().windowSurfaceAt(w->position(Desktop::View::IGeometric::GEOMETRIC_GOAL) + position, w, local);
+                        // Like Hyprland, address X11 windows through their one surface, in XWayland's scale.
+                        Vector2D local  = position * w->m_X11SurfaceScaledBy;
+                        auto     target = w->m_isX11 ? w->resource() :
+                                                       Desktop::viewState()->hitTest().windowSurfaceAt(w->position(Desktop::View::IGeometric::GEOMETRIC_GOAL) + position, w, local);
                         if (!target)
                             continue;
                         if (enteredPointer != target) {
@@ -323,48 +482,23 @@ namespace hyprmasq {
                         }
                     }
                 }
-                std::erase_if(pending, [&](eis_event* e) {
-                    if (eis_event_get_device(e) != device)
-                        return false;
-                    eis_event_unref(e);
-                    return true;
-                });
+                drop(device);
                 if (!isKeyboard)
                     for (auto& p : s->m_pointers)
                         if (p)
                             p->sendFrame();
                 if (restore) {
-                    if (isKeyboard) {
-                        auto     pressed = g_pInputManager->getKeysFromAllKBs();
-                        wl_array arr;
-                        wl_array_init(&arr);
-                        if (!pressed.empty()) {
-                            auto* dst = static_cast<uint32_t*>(wl_array_add(&arr, pressed.size() * sizeof(uint32_t)));
-                            if (dst)
-                                std::ranges::copy(pressed, dst);
-                        }
-                        for (auto& k : s->m_keyboards)
-                            if (k) {
-                                k->sendLeave();
-                                k->sendEnter(real, &arr);
-                                if (auto kb = g_pSeatManager->m_keyboard.lock()) {
-                                    auto m = kb->m_modifiersState;
-                                    for (const auto& other : g_pInputManager->m_keyboards) {
-                                        if (!other->m_enabled || !other->shareStates() || (other->isVirtual() && g_pInputManager->shouldIgnoreVirtualKeyboard(other)))
-                                            continue;
-                                        m.depressed |= other->m_modifiersState.depressed;
-                                        m.latched |= other->m_modifiersState.latched;
-                                        m.locked |= other->m_modifiersState.locked;
-                                    }
-                                    k->sendMods(m.depressed, m.latched, m.locked, m.group);
-                                }
-                            }
-                        wl_array_release(&arr);
-                        enteredKeyboard.reset();
-                    } else {
-                        auto       surf  = Desktop::View::CWLSurface::fromResource(real);
-                        auto       box   = surf ? surf->getSurfaceBoxGlobal() : std::nullopt;
-                        const auto local = g_pInputManager->getMouseCoordsInternal() - (box ? box->pos() : Vector2D{});
+                    // Queued frames go to the target first, and the focus goes back once they run out.
+                    if (isKeyboard && satellite)
+                        restoreDue = true;
+                    else if (isKeyboard)
+                        restoreKeyboard(s, real);
+                    else {
+                        auto       surf    = Desktop::View::CWLSurface::fromResource(real);
+                        auto       box     = surf ? surf->getSurfaceBoxGlobal() : std::nullopt;
+                        auto       realWin = surf ? Desktop::View::CWindow::fromView(surf->view()) : nullptr;
+                        const auto scale   = realWin && realWin->m_isX11 ? realWin->m_X11SurfaceScaledBy : 1.0;
+                        const auto local   = (g_pInputManager->getMouseCoordsInternal() - (box ? box->pos() : Vector2D{})) * scale;
                         leavePointer();
                         for (auto& p : s->m_pointers)
                             if (p) {
@@ -375,6 +509,11 @@ namespace hyprmasq {
                         buttons.clear();
                     }
                 }
+                if (stack)
+                    x11::lower(*stack);
+                // X focus goes back along with the Wayland keyboard focus.
+                if (restore && isKeyboard)
+                    x11::release(w);
                 lastInput = Time::steadyNow();
                 wl_event_source_timer_update(timer, 16);
             }
@@ -382,6 +521,8 @@ namespace hyprmasq {
                 auto w = window.lock();
                 if (!w)
                     return 0;
+                maybeResume();
+                resumeHeld();
                 const auto now = Time::steadyNow();
                 if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInput).count() < 1000) {
                     if (!g_pHyprRenderer->shouldRenderWindow(w))
@@ -393,14 +534,34 @@ namespace hyprmasq {
             }
             int poll() {
                 eis_dispatch(context);
-                while (auto* e = eis_get_event(context)) {
+                process();
+                return 0;
+            }
+            void process() {
+                while (!holding()) {
+                    auto* e = stashed ? std::exchange(stashed, nullptr) : eis_get_event(context);
+                    if (!e) {
+                        if (restoreDue)
+                            hold(lastKeys + std::chrono::milliseconds(50));
+                        break;
+                    }
+                    if (leavesSatelliteTooSoon(e)) {
+                        stashed = e;
+                        hold(lastKeys + std::chrono::milliseconds(50));
+                        break;
+                    }
                     auto d = eis_event_get_device(e);
                     switch (eis_event_get_type(e)) {
                         case EIS_EVENT_CLIENT_CONNECT: {
                             auto c = eis_event_get_client(e);
-                            if (client || !eis_client_is_sender(c)) {
+                            if (!eis_client_is_sender(c)) {
                                 eis_client_disconnect(c);
                                 break;
+                            }
+                            // libeis can report a new sender before the exit of the previous one, so the newest one wins.
+                            if (auto* previous = client) {
+                                clearClient();
+                                eis_client_disconnect(previous);
                             }
                             client = c;
                             eis_client_connect(c);
@@ -459,19 +620,13 @@ namespace hyprmasq {
                                 }
                                 if (d == pointer)
                                     leavePointer();
-                                std::erase_if(pending, [&](eis_event* queued) {
-                                    if (eis_event_get_device(queued) != d)
-                                        return false;
-                                    eis_event_unref(queued);
-                                    return true;
-                                });
+                                drop(d);
                             }
                             break;
                         default: break;
                     }
                     eis_event_unref(e);
                 }
-                return 0;
             }
         };
 
@@ -496,7 +651,7 @@ namespace hyprmasq {
                 parent = parent->m_popup ? parent->m_popup->m_parent.lock() : nullptr;
             }
             using Fn = void (*)(CXDGShellProtocol*, SP<CXDGPopupResource>);
-            reinterpret_cast<Fn>(popupHook->m_original)(self, popup);
+            reinterpret_cast<Fn>(originalPopupGrab)(self, popup);
         }
         void startDrag(CWLDataDeviceProtocol* self, WP<CWLDataSourceResource> source, SP<CWLSurfaceResource> icon, SP<CWLSurfaceResource> origin) {
             if (protectedSurface(origin)) {
@@ -505,7 +660,51 @@ namespace hyprmasq {
                 return;
             }
             using Fn = void (*)(CWLDataDeviceProtocol*, WP<CWLDataSourceResource>, SP<CWLSurfaceResource>, SP<CWLSurfaceResource>);
-            reinterpret_cast<Fn>(dragHook->m_original)(self, source, icon, origin);
+            reinterpret_cast<Fn>(originalStartDrag)(self, source, icon, origin);
+        }
+
+        // X11 has no popup grabs to refuse. An X11 app takes focus by asking for activation, or by mapping a window
+        // that Hyprland focuses on map. Refuse both for apps with a driven window while the user is in another app.
+        // xwayland-satellite windows all come from one process, and an XWayland window need not tell its process. For
+        // activation, those count as one app per X server. New windows are only kept from focus by a known process, so
+        // that apps the user starts still get focus.
+        bool sameX11App(const PHLWINDOW& a, wl_client* aServer, const PHLWINDOW& b, wl_client* bServer, bool knownProcess) {
+            const auto pid = [](const PHLWINDOW& w) { return w->m_isX11 ? w->getPID() : 0; };
+            if (!aServer || aServer != bServer)
+                return false;
+            if (pid(a) > 0 && pid(b) > 0)
+                return pid(a) == pid(b);
+            return !knownProcess;
+        }
+        bool drivenX11App(const PHLWINDOW& w, bool knownProcess) {
+            auto* server  = x11::server(w);
+            auto  focused = Desktop::focusState()->window();
+            if (!server || (focused && sameX11App(w, server, focused, x11::server(focused), knownProcess)))
+                return false;
+            return std::ranges::any_of(sessions, [&](const auto& entry) {
+                auto driven = entry.second->window.lock();
+                return driven && sameX11App(w, server, driven, entry.second->xServer(), knownProcess);
+            });
+        }
+        void activateX11(Desktop::View::CWindow* self) {
+            if (drivenX11App(self->m_self.lock(), false))
+                return;
+            using Fn = void (*)(Desktop::View::CWindow*);
+            reinterpret_cast<Fn>(originalActivateX11)(self);
+        }
+        // xwayland-satellite forwards activation requests as xdg-activation. A forced activation comes from the user,
+        // for example through a taskbar.
+        void activate(Desktop::View::CWindow* self, bool force) {
+            if (!force && drivenX11App(self->m_self.lock(), false))
+                return;
+            using Fn = void (*)(Desktop::View::CWindow*, bool);
+            reinterpret_cast<Fn>(originalActivate)(self, force);
+        }
+        void windowFocus(Desktop::CFocusState* self, PHLWINDOW w, Desktop::eFocusReason reason, SP<CWLSurfaceResource> surface) {
+            if (w && reason == Desktop::FOCUS_REASON_NEW_WINDOW && drivenX11App(w, true))
+                return;
+            using Fn = void (*)(Desktop::CFocusState*, PHLWINDOW, Desktop::eFocusReason, SP<CWLSurfaceResource>);
+            reinterpret_cast<Fn>(originalWindowFocus)(self, w, reason, surface);
         }
 
         // Refuse symlinks and pre-existing directories accessible to another user.
@@ -523,38 +722,23 @@ namespace hyprmasq {
     }
 
     void initEis(void* handle) {
-        auto install = [&](const char* name, void* replacement) {
-            const auto matches = HyprlandAPI::findFunctionsByName(handle, name);
-            if (matches.size() != 1)
-                throw std::runtime_error(std::string("hyprmasq: ambiguous or missing hook ") + name);
-            auto* hook = HyprlandAPI::createFunctionHook(handle, matches[0].address, replacement);
-            if (!hook || !hook->hook())
-                throw std::runtime_error(std::string("hyprmasq: cannot hook ") + name);
-            return hook;
-        };
-        popupHook = install("addOrStartGrab", reinterpret_cast<void*>(&popupGrab));
-        try {
-            dragHook = install("initiateDrag", reinterpret_cast<void*>(&startDrag));
-        } catch (...) {
-            popupHook->unhook();
-            popupHook = nullptr;
-            throw;
-        }
+        originalPopupGrab   = hook(handle, "CXDGShellProtocol::addOrStartGrab", reinterpret_cast<void*>(&popupGrab));
+        originalStartDrag   = hook(handle, "CWLDataDeviceProtocol::initiateDrag", reinterpret_cast<void*>(&startDrag));
+        originalActivateX11 = hook(handle, "Desktop::View::CWindow::activateX11", reinterpret_cast<void*>(&activateX11));
+        originalWindowFocus = hook(handle, "Desktop::CFocusState::rawWindowFocus", reinterpret_cast<void*>(&windowFocus));
+        originalActivate    = hook(handle, "Desktop::View::CWindow::activate", reinterpret_cast<void*>(&activate));
     }
     void shutdownEis() {
         sessions.clear();
-        if (popupHook)
-            popupHook->unhook();
-        if (dragHook)
-            dragHook->unhook();
-        popupHook = dragHook = nullptr;
     }
-    std::expected<std::string, std::string> openEis(const PHLWINDOW& w) {
-        if (w->m_isX11)
-            return std::unexpected("X11 windows are not supported");
+    std::expected<std::string, std::string> openEis(const PHLWINDOW& w, bool force) {
         const auto address = windowAddress(w);
-        if (sessions.contains(address))
-            return sessions.at(address)->path;
+        if (sessions.contains(address)) {
+            auto& session = *sessions.at(address);
+            session.force = force;
+            session.maybeResume();
+            return session.path;
+        }
         auto kb = g_pSeatManager->m_keyboard.lock();
         if (!kb || !kb->m_xkbKeymap || !kb->m_xkbKeymapFD.isValid())
             return std::unexpected("an active Wayland seat keyboard with a keymap is required");
@@ -571,7 +755,7 @@ namespace hyprmasq {
         if (instance < 0)
             return std::unexpected("cannot create private hyprmasq socket directory");
         close(instance);
-        auto  session = std::make_unique<Session>(w, std::string(runtime) + "/hyprmasq/" + g_pCompositor->m_instanceSignature + "/" + address + ".eis");
+        auto  session = std::make_unique<Session>(w, std::string(runtime) + "/hyprmasq/" + g_pCompositor->m_instanceSignature + "/" + address + ".eis", force);
         auto* s       = session.get();
         s->context    = eis_new(nullptr);
         if (!s->context || eis_setup_backend_socket(s->context, s->path.c_str()) != 0)
@@ -592,7 +776,10 @@ namespace hyprmasq {
                 s->makePointer();
             }
         });
-        s->keyboardFocus = g_pSeatManager->m_events.keyboardFocusChange.listen([s] { s->enteredKeyboard.reset(); });
+        s->keyboardFocus = g_pSeatManager->m_events.keyboardFocusChange.listen([s] {
+            s->enteredKeyboard.reset();
+            s->maybeResume();
+        });
         s->pointerFocus  = g_pSeatManager->m_events.pointerFocusChange.listen([s] { s->enteredPointer.reset(); });
         auto path        = s->path;
         sessions.emplace(address, std::move(session));
@@ -601,10 +788,10 @@ namespace hyprmasq {
     bool closeEis(const std::string& address) {
         return sessions.erase(address) != 0;
     }
-    std::vector<std::pair<std::string, std::string>> listEis() {
-        std::vector<std::pair<std::string, std::string>> result;
+    std::vector<SEisInfo> listEis() {
+        std::vector<SEisInfo> result;
         for (const auto& [address, session] : sessions)
-            result.emplace_back(address, session->path);
+            result.push_back({.address = address, .path = session->path, .force = session->force});
         return result;
     }
 }

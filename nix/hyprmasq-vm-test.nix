@@ -50,6 +50,8 @@ let
       misc = {
         force_default_wallpaper = -1,
         disable_hyprland_logo = true,
+        -- Activation requests move focus, so the test can check that driven X11 apps cannot.
+        focus_on_activate = true,
       },
       input = {
         kb_layout = "us",
@@ -84,6 +86,10 @@ pkgs.testers.runNixOSTest {
         python
         pkgs.wev
         focusProbe
+        pkgs.xterm
+        pkgs.xev
+        pkgs.xdotool
+        pkgs.xwayland-satellite
       ];
 
       environment.etc."hyprmasq-test.lua".source = testConfig;

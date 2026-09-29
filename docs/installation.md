@@ -146,10 +146,10 @@ compatibility pins for older Hyprland releases.
 | Symptom | Check |
 | --- | --- |
 | The plugin fails to load | Rebuild against the running Hyprland. `hyprctl plugin list` shows loaded plugins, and `hyprctl version` the running build. |
-| Loading fails with a hook error | The plugin hooks two Hyprland functions and refuses to load without them. This means the Hyprland build differs from 0.56.2. |
+| Loading fails with a hook error | The plugin hooks seven Hyprland functions and refuses to load without them. This means the Hyprland build differs from 0.56.2. |
 | `hyprctl hyprmasq ...` says the command is unknown | The plugin is not loaded. Check `hyprctl plugin list`. |
 | `no mapped window 0x...` | Copy the `address` field from `hyprctl -j clients`, including the `0x`. The window must be mapped. |
-| `X11 windows are not supported` | XWayland windows cannot be captured or driven. |
 | `hyprmasq-input` cannot connect | Use the path that `eis open` printed, as the same user that runs Hyprland. |
+| `the server paused input, so some events were dropped` | The target is an X11 window and another window of the same X server has the focus. Focus a Wayland window or the target itself, or reopen the socket with `force`. See [X11 windows](usage.md#x11-windows). If no other X11 window has the focus, XWayland did not answer in time; send again. |
 | `the server did not offer a pointer and a keyboard` | Hyprland has no active keyboard with a keymap, which is normal in some headless setups. |
 | Input arrives but the screenshot looks unchanged | Some applications take longer than a second to redraw, or stop rendering while hidden. Take the screenshot again after a short wait. |

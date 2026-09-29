@@ -12,7 +12,8 @@ namespace hyprmasq {
     namespace {
         constexpr std::string_view USAGE = "usage:\n"
                                            "  hyprctl hyprmasq screenshot <window-address> <absolute-path.png>\n"
-                                           "  hyprctl hyprmasq eis open|close <window-address>\n"
+                                           "  hyprctl hyprmasq eis open <window-address> [force]\n"
+                                           "  hyprctl hyprmasq eis close <window-address>\n"
                                            "  hyprctl hyprmasq eis list\n";
 
         std::string                jsonString(std::string_view in) {
@@ -73,15 +74,25 @@ namespace hyprmasq {
         if (words[1] == "eis") {
             if (args.size() == 1 && args[0] == "list") {
                 std::string out;
-                for (const auto& [address, path] : listEis()) {
+                for (const auto& info : listEis()) {
                     if (format == FORMAT_JSON) {
                         if (!out.empty())
                             out += ",";
-                        out += std::format(R"({{"address":{},"path":{}}})", jsonString(address), jsonString(path));
+                        out += std::format(R"({{"address":{},"path":{},"force":{}}})", jsonString(info.address), jsonString(info.path), info.force);
                     } else
-                        out += address + " " + path + "\n";
+                        out += info.address + " " + info.path + (info.force ? " force" : "") + "\n";
                 }
                 return format == FORMAT_JSON ? "[" + out + "]" : out;
+            }
+            // A plain word, because hyprctl takes every argument that starts with a dash as its own flag.
+            if (!args.empty() && args[0] == "open" && (args.size() == 2 || (args.size() == 3 && args[2] == "force"))) {
+                const auto window = windowFromAddress(args[1]);
+                if (!window)
+                    return error(format, "no mapped window " + args[1]);
+                const auto result = openEis(window, args.size() == 3);
+                if (!result)
+                    return error(format, result.error());
+                return format == FORMAT_JSON ? std::format(R"({{"ok":true,"path":{}}})", jsonString(*result)) : *result;
             }
             if (args.size() != 2)
                 return error(format, USAGE);
@@ -89,15 +100,6 @@ namespace hyprmasq {
                 if (!closeEis(args[1]))
                     return error(format, "no open socket for " + args[1]);
                 return format == FORMAT_JSON ? R"({"ok":true})" : "ok";
-            }
-            if (args[0] == "open") {
-                const auto window = windowFromAddress(args[1]);
-                if (!window)
-                    return error(format, "no mapped window " + args[1]);
-                const auto result = openEis(window);
-                if (!result)
-                    return error(format, result.error());
-                return format == FORMAT_JSON ? std::format(R"({{"ok":true,"path":{}}})", jsonString(*result)) : *result;
             }
             return error(format, USAGE);
         }

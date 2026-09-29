@@ -30,6 +30,8 @@ together.
   removed when the window closes. Pointer coordinates are local to the window.
 - **Input without focus changes.** Events go straight to the target window. The
   real cursor, the focused window and the active workspace stay as they are.
+- **X11 windows too.** XWayland and xwayland-satellite windows can be captured
+  and driven while you work in a Wayland window, or with `force`.
 - **Your input stays yours.** A window driven through its socket cannot grab
   your real pointer or keyboard with a popup, start a drag, or begin an
   interactive move or resize.

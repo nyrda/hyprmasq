@@ -6,7 +6,7 @@ SRC := $(wildcard src/*.cpp)
 OBJ := $(SRC:src/%.cpp=$(BUILD_DIR)/%.o)
 DEP := $(OBJ:.o=.d)
 
-PLUGIN_PKGS := hyprland libdrm pixman-1 egl glesv2 libpng libeis-1.0 xkbcommon
+PLUGIN_PKGS := hyprland libdrm pixman-1 egl glesv2 libpng libeis-1.0 xkbcommon xcb
 TOOL_PKGS := libei-1.0
 
 CXX ?= c++
@@ -22,7 +22,7 @@ CPPFLAGS += -DWLR_USE_UNSTABLE $(shell pkg-config --cflags $(PLUGIN_PKGS))
 all: $(PLUGIN) $(TOOL)
 
 $(PLUGIN): $(OBJ)
-	$(CXX) -shared -fPIC -o $@ $(OBJ) $(shell pkg-config --libs egl glesv2 libpng libeis-1.0 xkbcommon)
+	$(CXX) -shared -fPIC -o $@ $(OBJ) $(shell pkg-config --libs egl glesv2 libpng libeis-1.0 xkbcommon xcb)
 
 $(BUILD_DIR)/%.o: src/%.cpp
 	@mkdir -p $(dir $@)

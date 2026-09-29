@@ -32,6 +32,7 @@ struct state {
     bool              pointerReady;
     bool              keyboardReady;
     bool              pong;
+    bool              paused;
     bool              disconnected;
     uint32_t          sequence;
 };
@@ -70,6 +71,9 @@ static void handleEvent(struct state* s, struct ei_event* event) {
                 s->pointerReady = false;
             else if (device == s->keyboard)
                 s->keyboardReady = false;
+            else
+                break;
+            s->paused = true;
             break;
         case EI_EVENT_PONG: s->pong = true; break;
         case EI_EVENT_DISCONNECT: s->disconnected = true; break;
@@ -305,6 +309,10 @@ int main(int argc, char** argv) {
         ei_ping(ping);
         if (!pump(&s, gotPong)) {
             fprintf(stderr, "hyprmasq-input: the server did not confirm the events\n");
+            status = 1;
+        } else if (s.paused) {
+            // hyprmasq pauses an X11 window's devices while another window of its X server has the focus.
+            fprintf(stderr, "hyprmasq-input: the server paused input, so some events were dropped\n");
             status = 1;
         }
         ei_ping_unref(ping);

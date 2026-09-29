@@ -84,9 +84,6 @@ namespace hyprmasq {
         if (!window || !window->m_isMapped)
             return std::unexpected("window is not mapped");
 
-        if (window->m_isX11)
-            return std::unexpected("X11 windows are not supported");
-
         const auto monitor = window->m_monitor.lock();
         if (!monitor)
             return std::unexpected("window has no monitor");
