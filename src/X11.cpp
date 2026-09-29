@@ -41,7 +41,8 @@ namespace hyprmasq::x11 {
             uint8_t      revertTo;
         };
 
-        xcb_connection_t*     connection = nullptr;
+        xcb_connection_t*     connection   = nullptr;
+        xcb_atom_t            activeWindow = XCB_ATOM_NONE; // _NET_ACTIVE_WINDOW on this connection
         std::optional<SFocus> held;
         Time::steady_tp       ignoreFocusInUntil = Time::steadyNow();
         CHyprSignalListener   keyboardFocus;
@@ -54,6 +55,7 @@ namespace hyprmasq::x11 {
                 xcb_disconnect(connection);
                 connection = nullptr;
                 held.reset(); // XWayland restarted, its state is gone
+                activeWindow = XCB_ATOM_NONE;
             }
             // Hyprland exports DISPLAY when XWayland is ready, and has a window manager from then on.
             const char* display = getenv("DISPLAY");
@@ -98,6 +100,25 @@ namespace hyprmasq::x11 {
 
         Reply<xcb_get_input_focus_reply_t> inputFocus(xcb_connection_t* c) {
             return reply<xcb_get_input_focus_reply_t>(c, xcb_get_input_focus(c).sequence);
+        }
+
+        // Writes _NET_ACTIVE_WINDOW back unchanged. Every write notifies X11 apps that track the active window, and Wine
+        // only gives up the foreground, which X focus from emulated input or a click gives it, when that property names
+        // a window other than its own.
+        void announceActiveWindow(xcb_connection_t* c) {
+            if (activeWindow == XCB_ATOM_NONE) {
+                constexpr std::string_view NAME = "_NET_ACTIVE_WINDOW";
+                auto                       atom = reply<xcb_intern_atom_reply_t>(c, xcb_intern_atom(c, false, NAME.size(), NAME.data()).sequence);
+                if (!atom)
+                    return;
+                activeWindow = atom->atom;
+            }
+            const auto root  = xcb_setup_roots_iterator(xcb_get_setup(c)).data->root;
+            auto       value = reply<xcb_get_property_reply_t>(c, xcb_get_property(c, false, root, activeWindow, XCB_GET_PROPERTY_TYPE_ANY, 0, 1).sequence);
+            if (!value || value->format != 32 || value->bytes_after != 0 || xcb_get_property_value_length(value.get()) != 4)
+                return;
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, root, activeWindow, value->type, 32, 1, xcb_get_property_value(value.get()));
+            xcb_flush(c);
         }
 
         // Waits until XWayland has read everything sent to it over Wayland. XWayland queues input as it reads and
@@ -259,6 +280,16 @@ namespace hyprmasq::x11 {
         }
         xcb_ungrab_server(c);
         inputFocus(c);
+        announceActiveWindow(c);
+    }
+
+    void refuseActivation(const PHLWINDOW& window) {
+        auto surface = window ? window->m_xwaylandSurface.lock() : nullptr;
+        // While X focus is held for it, the app has to stay active to receive the keys. release() tells it later.
+        if (!surface || (held && held->window == surface->m_xID))
+            return;
+        if (auto* c = x())
+            announceActiveWindow(c);
     }
 
     std::optional<SStack> raise(const PHLWINDOW& window) {

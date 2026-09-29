@@ -687,8 +687,10 @@ namespace hyprmasq {
             });
         }
         void activateX11(Desktop::View::CWindow* self) {
-            if (drivenX11App(self->m_self.lock(), false))
+            if (drivenX11App(self->m_self.lock(), false)) {
+                x11::refuseActivation(self->m_self.lock());
                 return;
+            }
             using Fn = void (*)(Desktop::View::CWindow*);
             reinterpret_cast<Fn>(originalActivateX11)(self);
         }

@@ -89,6 +89,7 @@ pkgs.testers.runNixOSTest {
         pkgs.xterm
         pkgs.xev
         pkgs.xdotool
+        pkgs.xprop
         pkgs.xwayland-satellite
       ];
 

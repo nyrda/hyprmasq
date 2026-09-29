@@ -42,6 +42,7 @@ output, installs the plugin through the NixOS module, and runs
 | XWayland pointer events | `xev` on a hidden workspace receives motion, clicks and scrolling at a point where a visible X11 window is stacked above it; the visible one receives no clicks. |
 | XWayland focus rule | Input is refused while another X11 window is active and the active window stays untouched; the active window itself can be driven; `force` drives the hidden one. |
 | X11 activation | A driven X11 app cannot activate itself; once its socket is closed, it can. |
+| X11 active window | While a Wayland window stays active, `_NET_ACTIVE_WINDOW` is written again after typing into a hidden `xterm` and after that `xterm` asks to be activated. |
 | xwayland-satellite | Screenshots and input for a hidden satellite `xterm`; refused while another satellite window is active, allowed for Hyprland's XWayland windows; `force`; no satellite app can activate itself while a satellite window is driven, but new satellite windows still get focus. |
 | Unload and reload | Unloading removes all sockets; the plugin loads again. Unloading while a screenshot is being encoded waits for it and answers it. The batch command works without the plugin, and the plugin can be unloaded from within a batch. |
 | Compositor log | After Hyprland exits and flushes its log, it shows that the move and resize serials were rejected. |

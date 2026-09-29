@@ -21,6 +21,9 @@ namespace hyprmasq::x11 {
     // Restores the X input focus that focus() replaced, unless something else has moved it since. With a window,
     // only releases a focus held for that window.
     void release(const PHLWINDOW& window = nullptr);
+    // Answers an activation request of an XWayland window that was refused, so that the app does not keep considering
+    // itself active.
+    void refuseActivation(const PHLWINDOW& window);
 
     struct SStack {
         std::vector<uint32_t> before; // root's children, bottom to top

@@ -147,6 +147,15 @@ X11 does not route input by Wayland surface:
 Before each of those X changes, the plugin waits until XWayland has read all
 pending Wayland input, so X changes and input arrive in order.
 
+X focus, or a click, makes some apps consider themselves active. Wine, for
+example, moves its window to the foreground and only leaves it when
+`_NET_ACTIVE_WINDOW` names another window. When the plugin gives X focus back,
+and when it refuses an activation request from a driven app, it writes
+`_NET_ACTIVE_WINDOW` again unchanged, so such apps read it and learn that they
+are in the background again. This needs a Hyprland that names a window there
+while a Wayland window has the focus. Stock Hyprland 0.56.2 sets it to None,
+which Wine ignores.
+
 Moving X focus and stacking would misroute input if you were working in
 another window of the same X server. So input to an X11 window is only delivered
 while the active window is a Wayland window, the target itself, or an X11

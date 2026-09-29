@@ -491,6 +491,41 @@ try:
         alice(f"env {x_env} xdotool windowactivate {xid} || true")
         wait_for("activation", lambda: snapshot()[1] == x_shell)
 
+    with subtest("X11 apps learn they are not active after input"):
+        # Wine keeps its window in the foreground until _NET_ACTIVE_WINDOW changes,
+        # so the plugin writes it again when it gives X focus back and when it
+        # refuses an activation request.
+        focus_workspace(4)
+        before_focus = snapshot()
+        spawn(
+            f"env {x_env} stdbuf -oL xprop -spy -root _NET_ACTIVE_WINDOW",
+            "x-active-spy",
+        )
+        machine.wait_until_succeeds(
+            "grep -q _NET_ACTIVE_WINDOW /tmp/hyprmasq-x-active-spy.log"
+        )
+
+        def announcements():
+            return int(machine.succeed("wc -l < /tmp/hyprmasq-x-active-spy.log"))
+
+        count = announcements()
+        path = open_socket(x_shell)
+        send(path, "type", "true", "key", 28)
+        wait_for(
+            "announcement after input", lambda: announcements() > count, timeout=10
+        )
+        assert snapshot() == before_focus
+
+        count = announcements()
+        xid = alice(f"env {x_env} xdotool search --name '^hm-x-shell$'").split()[0]
+        alice(f"env {x_env} xdotool windowactivate {xid} || true")
+        wait_for(
+            "announcement after activation", lambda: announcements() > count, timeout=10
+        )
+        assert snapshot() == before_focus
+        assert hypr(f"hyprmasq eis close {x_shell}") == "ok"
+        machine.execute("pkill -f 'xprop -spy'")
+
     with subtest("xwayland-satellite windows"):
         spawn("xwayland-satellite :5", "satellite")
         machine.wait_until_succeeds("test -S /tmp/.X11-unix/X5", timeout=60)
