@@ -633,14 +633,20 @@ try:
             f"hyprmasq-input --socket {shlex.quote(pointed_path)} click &&",
         )
         assert count_pixels(clicked, (x - 24, y - 3, x - 6, y + 3), bluish) > 0
-        time.sleep(2.5)
+        # The cursor stays 3 seconds after the last input, then fades out over 0.4 seconds.
+        time.sleep(4)
         assert count_pixels(capture_output("cursor-faded"), around, bluish) == 0
         # Input at the same point while the cursor fades out brings it back at full strength.
         send(pointed_path, "move", 200, 150)
-        time.sleep(1.65)
+        time.sleep(3.15)
         send(pointed_path, "move", 200, 150)
         time.sleep(0.2)
         assert count_pixels(capture_output("cursor-refreshed"), cursor_box, light_blue) > 20
+        hypr("eval " + shlex.quote("hl.config({ plugin = { hyprmasq = { virtual_cursor_timeout = 500 } } })"))
+        send(pointed_path, "move", 200, 150)
+        time.sleep(1.5)
+        assert count_pixels(capture_output("cursor-short"), around, bluish) == 0
+        hypr("eval " + shlex.quote("hl.config({ plugin = { hyprmasq = { virtual_cursor_timeout = 3000 } } })"))
         # Nothing is drawn for a window on a hidden workspace.
         focus_workspace(4)
         send(pointed_path, "move", 200, 150)

@@ -4,6 +4,7 @@
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/config/values/types/BoolValue.hpp>
 #include <hyprland/src/config/values/types/ColorValue.hpp>
+#include <hyprland/src/config/values/types/IntValue.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
 #include <hyprland/src/event/EventBus.hpp>
@@ -50,7 +51,7 @@ namespace hyprmasq::cursor {
         };
         template struct SManagerAccess<&Manager::m_xcursor, &Manager::m_size, &Manager::m_cursorScale>;
 
-        constexpr auto   HOLD = std::chrono::milliseconds(1500), FADE = std::chrono::milliseconds(400), RIPPLE = std::chrono::milliseconds(450);
+        constexpr auto   FADE = std::chrono::milliseconds(400), RIPPLE = std::chrono::milliseconds(450);
         constexpr double RIPPLE_FROM = 4, RIPPLE_TO = 18;
         constexpr int    RIPPLE_WIDTH = 2;
 
@@ -78,6 +79,7 @@ namespace hyprmasq::cursor {
 
         SP<Config::Values::CBoolValue>  enabled;
         SP<Config::Values::CColorValue> color;
+        SP<Config::Values::CIntValue>   timeout;
         SImage                          image;
         std::vector<SCursor>            cursors;
         wl_event_source*                timer = nullptr;
@@ -193,11 +195,16 @@ namespace hyprmasq::cursor {
             return position;
         }
 
+        // How long a cursor stays after the last input before it fades out.
+        std::chrono::milliseconds hold() {
+            return std::chrono::milliseconds(std::max<Config::INTEGER>(0, timeout->value()));
+        }
+
         float opacity(const SCursor& cursor, Time::steady_tp now) {
             const auto age = now - cursor.last;
-            if (age < HOLD)
+            if (age < hold())
                 return 1;
-            return std::max(0.F, 1.F - std::chrono::duration<float>(age - HOLD) / std::chrono::duration<float>(FADE));
+            return std::max(0.F, 1.F - std::chrono::duration<float>(age - hold()) / std::chrono::duration<float>(FADE));
         }
 
         double progress(const SRipple& ripple, Time::steady_tp now) {
@@ -235,9 +242,9 @@ namespace hyprmasq::cursor {
             std::erase_if(cursors, [&](SCursor& cursor) {
                 std::erase_if(cursor.ripples, [&](const SRipple& ripple) { return now - ripple.start >= RIPPLE; });
                 auto       window    = cursor.window.lock();
-                const bool done      = !on || !window || !window->m_isMapped || (now - cursor.last >= HOLD + FADE && cursor.ripples.empty());
+                const bool done      = !on || !window || !window->m_isMapped || (now - cursor.last >= hold() + FADE && cursor.ripples.empty());
                 const auto box       = done ? CBox{} : bounds(cursor, window, now);
-                const bool animating = !cursor.ripples.empty() || now - cursor.last >= HOLD;
+                const bool animating = !cursor.ripples.empty() || now - cursor.last >= hold();
                 if (done || animating || cursor.changed || box != cursor.damaged) {
                     damage(cursor.damaged);
                     damage(box);
@@ -292,7 +299,9 @@ namespace hyprmasq::cursor {
     void init(void* handle) {
         enabled = makeShared<Config::Values::CBoolValue>("plugin:hyprmasq:virtual_cursor", "show where emulated pointer input lands", true);
         color   = makeShared<Config::Values::CColorValue>("plugin:hyprmasq:virtual_cursor_color", "color of the virtual cursor and click ripples", 0xFF6EC6FF);
-        if (!HyprlandAPI::addConfigValueV2(handle, enabled) || !HyprlandAPI::addConfigValueV2(handle, color))
+        timeout = makeShared<Config::Values::CIntValue>("plugin:hyprmasq:virtual_cursor_timeout", "milliseconds the virtual cursor stays after the last input", 3000,
+                                                        Config::Values::SIntValueOptions{.min = 0, .max = 24 * 60 * 60 * 1000});
+        if (!HyprlandAPI::addConfigValueV2(handle, enabled) || !HyprlandAPI::addConfigValueV2(handle, color) || !HyprlandAPI::addConfigValueV2(handle, timeout))
             throw std::runtime_error("hyprmasq: cannot register config values");
         timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, tick, nullptr);
         if (!timer)
@@ -311,6 +320,7 @@ namespace hyprmasq::cursor {
         image = {};
         enabled.reset();
         color.reset();
+        timeout.reset();
     }
 
     void show(const PHLWINDOW& window, const Vector2D& position, bool click) {

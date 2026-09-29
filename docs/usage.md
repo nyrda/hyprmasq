@@ -128,7 +128,7 @@ for about a second, so the next screenshot shows the result.
 
 Where emulated pointer input lands, the plugin draws a copy of your cursor
 theme's arrow in light blue, and a ring that grows and fades at each click. The
-cursor stays for 1.5 seconds after the last pointer event, then fades out.
+cursor stays for 3 seconds after the last pointer event, then fades out.
 Keyboard input shows nothing.
 
 It is drawn only while the window is on a visible workspace, above windows and
@@ -145,6 +145,7 @@ hl.config({
     hyprmasq = {
       virtual_cursor = true, -- false turns it off
       virtual_cursor_color = "rgb(6ec6ff)", -- an alpha, as in rgba(6ec6ffaa), makes it translucent
+      virtual_cursor_timeout = 3000, -- milliseconds after the last input before it fades out, up to a day
     },
   },
 })
