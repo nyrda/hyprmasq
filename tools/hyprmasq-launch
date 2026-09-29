@@ -1,0 +1,77 @@
+#!/bin/sh
+# hyprmasq-launch: start an application on a hidden workspace and print the address of its first window.
+#
+#   hyprmasq-launch [--workspace NAME] [--timeout SECONDS] [--] COMMAND [ARG...]
+#
+# Hyprland starts COMMAND with a window rule that opens its windows silently on the named workspace, so neither the
+# focus nor the visible workspace changes. The command gets HYPRMASQ_LAUNCH set to a random token, which its child
+# processes inherit, and the first window whose process carries that token is the one printed. Applications that hand
+# the request to an instance that is already running open their window from a process without the token; the launch
+# then times out.
+#
+# Needs hyprctl and jq on PATH, and HYPRLAND_INSTANCE_SIGNATURE of the Hyprland to use.
+
+set -eu
+
+workspace=hyprmasq
+timeout=30
+
+usage() {
+    echo "usage: hyprmasq-launch [--workspace NAME] [--timeout SECONDS] [--] COMMAND [ARG...]" >&2
+    exit 2
+}
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        --workspace) [ $# -ge 2 ] || usage; workspace=$2; shift 2 ;;
+        --timeout) [ $# -ge 2 ] || usage; timeout=$2; shift 2 ;;
+        --) shift; break ;;
+        -*) usage ;;
+        *) break ;;
+    esac
+done
+[ $# -gt 0 ] || usage
+case $timeout in '' | *[!0-9]*) usage ;; esac
+case $workspace in '' | *[!A-Za-z0-9_.-]*)
+    echo "hyprmasq-launch: the workspace name may only contain letters, digits, '_', '.' and '-'" >&2
+    exit 2 ;;
+esac
+
+# Quotes one argument for /bin/sh, which Hyprland runs the command with. The x keeps command substitution from
+# dropping trailing newlines.
+quote() {
+    quoted=$(printf '%sx' "$1" | sed "s/'/'\\\\''/g")
+    printf "'%s'" "${quoted%x}"
+}
+
+token=$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')
+command="HYPRMASQ_LAUNCH=$token exec"
+for arg; do
+    command="$command $(quote "$arg")"
+done
+# The command becomes a Lua string literal with every byte written as a decimal escape, so no character of it can end
+# the string or the expression.
+lua=$(printf '%s' "$command" | od -An -v -tu1 | awk '{ for (i = 1; i <= NF; i++) printf "\\%03d", $i }')
+
+reply=$(hyprctl dispatch "hl.dsp.exec_cmd(\"$lua\", { workspace = \"name:$workspace silent\" })")
+case $reply in ok*) ;; *)
+    echo "hyprmasq-launch: hyprctl dispatch failed: $reply" >&2
+    exit 1 ;;
+esac
+
+deadline=$(($(date +%s) + timeout))
+while [ "$(date +%s)" -lt "$deadline" ]; do
+    for window in $(hyprctl -j clients | jq -r '.[] | "\(.address):\(.pid)"'); do
+        address=${window%%:*}
+        pid=${window#*:}
+        if tr '\0' '\n' < "/proc/$pid/environ" 2> /dev/null | grep -qx "HYPRMASQ_LAUNCH=$token"; then
+            echo "$address"
+            exit 0
+        fi
+    done
+    sleep 0.1
+done
+
+echo "hyprmasq-launch: no window of the command appeared within ${timeout}s." >&2
+echo "Applications that pass the request to an instance that is already running cannot be launched this way." >&2
+exit 1

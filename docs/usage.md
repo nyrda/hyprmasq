@@ -12,6 +12,7 @@ hyprctl -j clients | jq -r '.[] | "\(.address)  \(.workspace.id)  \(.class)  \(.
 | Command | Result |
 | --- | --- |
 | `hyprctl hyprmasq screenshot <addr> <path.png> [X Y WIDTH HEIGHT]` | Renders the window, or the given region of it, to a PNG at `path.png`, which must be absolute. Prints `ok`. See [Regions](#regions). |
+| `hyprctl hyprmasq wait <addr> [QUIET-MS [TIMEOUT-MS]]` | Answers once the window has settled, or when the timeout passes. Prints `settled` or `timeout`. See [Waiting for a redraw](#waiting-for-a-redraw). |
 | `hyprctl hyprmasq eis open <addr> [force]` | Creates the window's input socket and prints its path. Opening it again returns the same path. `force` drives an X11 window even while another window of its X server has the focus; see [X11 windows](#x11-windows). Each `open` sets or clears it. |
 | `hyprctl hyprmasq eis close <addr>` | Removes the socket and disconnects its client. Prints `ok`. |
 | `hyprctl hyprmasq eis list` | Prints one `address path` line per open socket, followed by `force` for sockets opened with `force`. |
@@ -25,6 +26,7 @@ With `hyprctl -j`, every command answers in JSON:
 | Command | JSON reply |
 | --- | --- |
 | `screenshot` | `{"ok":true,"path":"/tmp/w.png","width":1280,"height":960,"scale":2,"region":{"x":0,"y":0,"width":640,"height":480}}` |
+| `wait` | `{"ok":true,"settled":true,"waited":230,"frames":0,"framesSinceInput":3}` |
 | `eis open` | `{"ok":true,"path":"/run/user/1000/hyprmasq/<instance>/<addr>.eis"}` |
 | `eis close` | `{"ok":true}` |
 | `eis list` | `[{"address":"0x...","path":"...","force":false}]` |
@@ -59,6 +61,57 @@ background thread while Hyprland keeps running, and `hyprctl` answers once the
 file is complete, also within `hyprctl --batch`. The plugin compresses for speed
 rather than size: a 2560×1440 window takes roughly 30 to 130 ms, depending on
 the content.
+
+## Waiting for a redraw
+
+After input, an application takes a moment to draw the result, and a
+screenshot taken too early shows the old state. `wait` answers once the window
+has settled: nothing new was drawn, and no input arrived through its socket,
+for QUIET-MS milliseconds (default 200). Everything the window shows counts,
+including popups and subsurfaces, and popups that open or close. `wait`
+answers `timeout` after TIMEOUT-MS (default 3000) when the window keeps
+changing, for example during an animation or while it loads. A timeout is not
+an error; take the screenshot anyway, or wait again.
+
+`wait` always takes at least QUIET-MS, because it cannot know what the window
+drew before it was called. The JSON reply says how long it `waited`, how many
+`frames` the window drew in that time, and, for a window with an open socket,
+`framesSinceInput`: the frames since the last input through the socket. An
+application often draws the result of input before `wait` is called, so
+`framesSinceInput` tells whether input changed anything and `frames` does not.
+It is `null` without a socket.
+
+`hyprctl` gives up on a reply after 5 seconds, so TIMEOUT-MS is at most 4500.
+Call `wait` again for longer waits. `wait` only works through `hyprctl`, not
+through `HyprlandAPI::invokeHyprctlCommand`, because the reply has to wait for
+Hyprland's main thread.
+
+## Launching applications
+
+`hyprmasq-launch` starts an application on a hidden workspace and prints the
+address of its first window:
+
+```sh
+addr=$(hyprmasq-launch -- foot -T scratch)
+addr=$(hyprmasq-launch --workspace tests --timeout 60 -- firefox --new-instance -P test)
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--workspace NAME` | `hyprmasq` | Named workspace for the windows. It opens silently: the visible workspace and the focus stay as they are. |
+| `--timeout SECONDS` | `30` | How long to wait for the window. |
+
+Hyprland starts the command with a window rule, the way `hl.dsp.exec_cmd` does.
+The command gets a random `HYPRMASQ_LAUNCH` token in its environment, and
+`hyprmasq-launch` prints the first window whose process has that token. Child
+processes inherit it, so wrapper scripts and applications that open their
+windows from another process work. Applications that hand the request to an
+instance that is already running, such as a `footclient` of a `foot --server`
+or a browser that is already open, open the window from a process without the
+token. The launch then times out, and the window opens wherever that instance
+puts it. Start such applications with an option for a separate instance.
+
+`hyprmasq-launch` needs `hyprctl` and `jq`. The Nix package brings `jq`.
 
 ## hyprmasq-input
 
@@ -133,12 +186,12 @@ hyprmasq-input --socket "$socket" type 'if (a \< b) {<enter>'
 ### A screenshot and input loop
 
 ```sh
-addr=0x55d1c0a3e4b0
+addr=$(hyprmasq-launch -- foot)
 socket=$(hyprctl hyprmasq eis open "$addr")
 
 hyprctl hyprmasq screenshot "$addr" /tmp/before.png
 hyprmasq-input --socket "$socket" type 'ls -la<enter>'
-sleep 0.3                                 # give the application time to redraw
+hyprctl hyprmasq wait "$addr"             # until the application has drawn the result
 hyprctl hyprmasq screenshot "$addr" /tmp/after.png
 
 hyprctl hyprmasq eis close "$addr"
@@ -301,6 +354,10 @@ last queued key, and a menu opened in the target can grab your keyboard.
   Wayland connection with the focused window.
 - Screenshot paths cannot contain whitespace.
 - Applications that ignore frame callbacks while hidden, or redraw slowly, may
-  show stale content in screenshots.
+  show stale content in screenshots. `wait` cannot tell a redraw that has not
+  started yet from one that is done.
+- `wait` answers within 4.5 seconds, the limit of `hyprctl`.
+- `hyprmasq-launch` cannot find windows that an already running instance
+  opens.
 - The plugin uses Hyprland internals. Other Hyprland versions need a port and a
   passing VM test.

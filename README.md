@@ -6,11 +6,13 @@ socket for pointer and keyboard input. Both work on windows in hidden
 workspaces, and neither changes the window you are working in.
 
 ```sh
-addr=$(hyprctl -j clients | jq -r '.[] | select(.class == "foot") | .address' | head -1)
+addr=$(hyprmasq-launch -- foot)                       # start foot on a hidden workspace
 
 hyprctl hyprmasq screenshot "$addr" /tmp/window.png   # render the window to a PNG
 socket=$(hyprctl hyprmasq eis open "$addr")           # create its input socket
 hyprmasq-input --socket "$socket" type 'echo hello<enter>'
+hyprctl hyprmasq wait "$addr"                         # until foot has drawn the result
+hyprctl hyprmasq screenshot "$addr" /tmp/after.png
 hyprctl hyprmasq eis close "$addr"
 ```
 
@@ -39,13 +41,19 @@ together.
 - **Visible activity.** On visible workspaces, a light blue copy of your cursor
   shows where emulated pointer input lands, with a ripple for each click.
 - **Hidden windows keep repainting.** After input, hidden windows get frame
-  callbacks for a moment, so the next screenshot shows the result.
+  callbacks for a moment, so the next screenshot shows the result. `wait`
+  answers once the window has finished drawing.
+- **Hidden launches.** `hyprmasq-launch` starts an application on a hidden
+  workspace and prints its window's address.
+- **An agent skill.** [`skills/hyprmasq`](skills/hyprmasq/SKILL.md) teaches
+  coding agents to test GUIs and use applications in the background.
 
 ## Install
 
 The plugin must be built against the exact Hyprland build that loads it.
 [Installation](docs/installation.md) covers NixOS, a manual build, and hyprpm.
-On NixOS, the module installs the matching Hyprland, `hyprmasq-input`, and a Lua
+On NixOS, the module installs the matching Hyprland, `hyprmasq-input`,
+`hyprmasq-launch`, and a Lua
 loader:
 
 ```nix

@@ -3,6 +3,7 @@
 #include "Deferred.hpp"
 #include "Eis.hpp"
 #include "Hooks.hpp"
+#include "Wait.hpp"
 #include "X11.hpp"
 
 #include <hyprland/src/plugins/PluginAPI.hpp>
@@ -21,6 +22,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         hyprmasq::deferred::init(handle);
         hyprmasq::cursor::init(handle);
     } catch (...) {
+        hyprmasq::wait::shutdown();
         hyprmasq::cursor::shutdown();
         hyprmasq::deferred::shutdown();
         hyprmasq::x11::shutdown();
@@ -34,6 +36,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
+    // Pending waits hold threads that deferred::shutdown() joins.
+    hyprmasq::wait::shutdown();
     hyprmasq::deferred::shutdown();
     hyprmasq::shutdownEis();
     hyprmasq::cursor::shutdown();

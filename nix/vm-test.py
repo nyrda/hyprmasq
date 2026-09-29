@@ -419,6 +419,74 @@ try:
         hypr("eval " + shlex.quote('hl.config({ input = { kb_layout = "us" } })'))
         wait_for("US keymap", lambda: keymap("English"))
 
+    with subtest("waiting until a window has settled"):
+        focus_workspace(19)
+        waited = foot("hm-wait")
+        time.sleep(1)
+        focus_workspace(4)
+        before_focus = snapshot()
+        path = open_socket(waited)
+        # Typed keys redraw the hidden shell, often before wait is called, and wait answers once it has stopped.
+        send(path, "type", "echo waited")
+        reply = json.loads(hypr(f"-j hyprmasq wait {waited}"))
+        assert reply["ok"] and reply["settled"] and reply["framesSinceInput"] > 0 and reply["waited"] >= 200, reply
+        # An idle window settles after the quiet time, without drawing.
+        time.sleep(1.5)
+        reply = json.loads(hypr(f"-j hyprmasq wait {waited} 100 1000"))
+        assert reply["settled"] and reply["frames"] == 0 and 100 <= reply["waited"] < 600, reply
+        assert hypr(f"hyprmasq wait {waited} 50") == "settled"
+        assert snapshot() == before_focus
+        assert hypr(f"hyprmasq eis close {waited}") == "ok"
+        # A visible window that keeps drawing never settles.
+        focus_workspace(20)
+        busy = foot("hm-busy", "sh -c 'while :; do date +%N; sleep 0.02; done'")
+        time.sleep(0.5)
+        reply = json.loads(hypr(f"-j hyprmasq wait {busy} 200 1000"))
+        assert reply["ok"] and not reply["settled"] and reply["frames"] > 5 and reply["waited"] >= 1000, reply
+        assert reply["framesSinceInput"] is None, reply
+        assert hypr(f"hyprmasq wait {busy} 200 500") == "timeout"
+        focus_workspace(4)
+        for args, message in [
+            (f"{busy} 0", "quiet-ms"),
+            (f"{busy} 300 200", "quiet-ms"),
+            (f"{busy} 200 5000", "at most 4500"),
+            (f"{busy} soon", "quiet-ms"),
+            ("0x1", "no mapped window"),
+        ]:
+            reply = json.loads(hypr(f"-j hyprmasq wait {args}"))
+            assert not reply["ok"] and message in reply["error"], (args, reply)
+
+    with subtest("launching applications on a hidden workspace"):
+        focus_workspace(4)
+        before_focus = snapshot()
+
+        def launched(address):
+            return next(c for c in clients() if c["address"] == address)
+
+        # The title passes through the shell and a Lua string unchanged. The shell in foot changes the title later.
+        title = "hm-launched \"quoted\" it's \\ back"
+        address = alice(f"{ipc} hyprmasq-launch -- foot -T {shlex.quote(title)}").strip()
+        window = launched(address)
+        assert window["initialTitle"] == title and window["workspace"]["name"] == "hyprmasq", window
+        assert snapshot() == before_focus
+        # A window opened by a child process is found, and each of two launches at once gets its own window.
+        alice(
+            f"{ipc} hyprmasq-launch --workspace hm-launch -- sh -c 'sleep 0.5; foot -T hm-child; true' > /tmp/hm-launch-a & "
+            f"{ipc} hyprmasq-launch --workspace hm-launch -- foot -T hm-direct > /tmp/hm-launch-b & wait"
+        )
+        child = launched(machine.succeed("cat /tmp/hm-launch-a").strip())
+        direct = launched(machine.succeed("cat /tmp/hm-launch-b").strip())
+        assert child["initialTitle"] == "hm-child" and direct["initialTitle"] == "hm-direct", (child, direct)
+        assert child["workspace"]["name"] == direct["workspace"]["name"] == "hm-launch", (child, direct)
+        assert snapshot() == before_focus
+        screenshot(direct["address"], "launched")
+        status, output = machine.execute(
+            "su - alice -c " + shlex.quote(f"{ipc} hyprmasq-launch --timeout 2 -- true 2>&1")
+        )
+        assert status == 1 and "no window" in output, (status, output)
+        for window in [address, child["address"], direct["address"]]:
+            dispatch('hl.dsp.window.close({ window = "address:' + window + '" })')
+
     with subtest("hidden wev pointer events"):
         focus_workspace(6)
         spawn("stdbuf -oL wev", "wev")
@@ -765,7 +833,15 @@ try:
     with subtest("unload removes all sockets and hooks, reload succeeds"):
         paths = [s["path"] for s in json.loads(hypr("-j hyprmasq eis list"))]
         assert paths
+        # A wait on a window that keeps drawing is still pending at the unload, and gets an answer.
+        focus_workspace(20)
+        hypr_background(f"-j hyprmasq wait {busy} 200 4000", "/tmp/hm-wait-unload")
+        time.sleep(0.5)
         assert hypr(f"plugin unload {plugin}") == "ok"
+        machine.wait_until_succeeds("test -s /tmp/hm-wait-unload", timeout=10)
+        reply = json.loads(machine.succeed("cat /tmp/hm-wait-unload"))
+        assert not reply["ok"] and "unloaded" in reply["error"], reply
+        focus_workspace(4)
         for path in paths:
             machine.succeed(f"test ! -e {path} && test ! -e {path}.lock")
         assert hypr(f"plugin load {plugin}") == "ok"

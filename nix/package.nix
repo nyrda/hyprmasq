@@ -5,11 +5,14 @@
 #
 #   pkgs.callPackage "${inputs.hyprmasq}/nix/package.nix" { }
 #
-# Besides the plugin, $out/bin/hyprmasq-input is a small libei client for driving a window's socket.
+# Besides the plugin, $out/bin/hyprmasq-input is a small libei client for driving a window's socket, and
+# $out/bin/hyprmasq-launch starts an application on a hidden workspace.
 {
   lib,
   stdenv,
   pkg-config,
+  makeWrapper,
+  jq,
   hyprland,
   aquamarine,
   cairo,
@@ -54,7 +57,10 @@ stdenv.mkDerivation {
 
   src = hyprmasqSrc;
 
-  nativeBuildInputs = [ pkg-config ];
+  nativeBuildInputs = [
+    pkg-config
+    makeWrapper
+  ];
 
   buildInputs = [
     hyprland.dev
@@ -85,6 +91,9 @@ stdenv.mkDerivation {
     runHook preInstall
     install -Dm755 hyprmasq.so "$out/lib/hyprmasq.so"
     install -Dm755 hyprmasq-input "$out/bin/hyprmasq-input"
+    install -Dm755 tools/hyprmasq-launch "$out/bin/hyprmasq-launch"
+    # hyprctl comes from the user's PATH, so it matches the running Hyprland.
+    wrapProgram "$out/bin/hyprmasq-launch" --prefix PATH : ${lib.makeBinPath [ jq ]}
     runHook postInstall
   '';
 

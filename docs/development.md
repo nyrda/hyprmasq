@@ -36,6 +36,8 @@ output, installs the plugin through the NixOS module, and runs
 | Socket lifecycle | Paths, `0700` directories and a `0600` socket; `eis list`; removal on `eis close` and when the window closes. |
 | Hidden shell input | Typing into a foot shell on a hidden workspace runs the command, the active window and workspace stay unchanged, and the window repaints. |
 | Typing | Under a German keymap, `type` into a hidden shell produces `zy@€äß|{^`, a shortcut on a key that the layout moves works, named keys, keysyms, repeat counts and `<settle>` edit the line, and escaped and unknown tags are typed as text. Invalid text fails before any key is sent. |
+| Waiting | `wait` answers after typing into a hidden shell with the frames it drew, settles an idle window after the quiet time without frames, and times out on a visible window that keeps drawing; invalid arguments fail. |
+| Launching | `hyprmasq-launch` opens `foot` silently on its workspace with a title full of quotes and backslashes, finds a window opened by a child process, gives each of two launches at once its own window, and times out for a command without a window. |
 | Pointer events | `wev` on a hidden workspace receives enter, motion, button and axis events. |
 | Shared connection | Two `footclient` windows of one `foot --server`: the hidden one receives the text, the focused one receives nothing and stays focused. |
 | Protections | `nix/focus-probe.c`, a small xdg-shell client, answers an emulated click with a popup grab, a drag and an interactive move and resize. None of them take the real focus or change the window. |
@@ -47,7 +49,7 @@ output, installs the plugin through the NixOS module, and runs
 | X11 active window | While a Wayland window stays active, `_NET_ACTIVE_WINDOW` is written again after typing into a hidden `xterm`, after clicking it, and after it asks to be activated. |
 | xwayland-satellite | Screenshots and input for a hidden satellite `xterm`; refused while another satellite window is active, allowed for Hyprland's XWayland windows; `force`; no satellite app can activate itself while a satellite window is driven, but new satellite windows still get focus. |
 | Virtual cursor | A moved pointer shows a light blue cursor on the monitor, a click a ripple beside it; both fade out, and input during the fade restores the cursor. A shorter `virtual_cursor_timeout` makes it fade sooner. Nothing is drawn for a window on a hidden workspace. Changing `virtual_cursor_color` recolors it, `virtual_cursor = false` hides it. |
-| Unload and reload | Unloading removes all sockets; the plugin loads again. Unloading while a screenshot is being encoded waits for it and answers it. The batch command works without the plugin, and the plugin can be unloaded from within a batch. |
+| Unload and reload | Unloading removes all sockets and answers a pending `wait`; the plugin loads again. Unloading while a screenshot is being encoded waits for it and answers it. The batch command works without the plugin, and the plugin can be unloaded from within a batch. |
 | Compositor log | After Hyprland exits and flushes its log, it shows that the move and resize serials were rejected. |
 
 The test copies the screenshots and logs into the build result, for example
@@ -59,14 +61,17 @@ The test copies the screenshots and logs into the build result, for example
 | --- | --- |
 | `src/main.cpp` | Plugin entry points: registers the hyprctl command, installs and removes hooks. |
 | `src/Commands.cpp` | Parses `hyprctl hyprmasq ...` and formats plain and JSON replies. |
-| `src/Screenshot.cpp` | Offscreen window rendering and PNG output. |
+| `src/Screenshot.cpp` | Offscreen window rendering, region readback and PNG output. |
+| `src/Wait.cpp` | `wait`: watches a window's surfaces for new content until it settles. |
 | `src/Deferred.cpp` | Background work for hyprctl replies, including the wrapper around hyprctl's batch command. |
 | `src/Eis.cpp` | Per-window EIS sessions, input delivery, frame callbacks, the X11 focus rule, and the popup-grab, drag and X11 activation hooks. |
 | `src/Cursor.cpp` | Virtual cursors and click ripples: recolors the cursor theme's arrow, draws and damages them, and their options. |
 | `src/X11.cpp` | X input focus and stacking around input to XWayland windows, the window manager hooks, xwayland-satellite detection. |
 | `src/Hooks.cpp` | Installing and removing Hyprland function hooks. |
-| `src/Windows.cpp` | Window address formatting and lookup. |
+| `src/Windows.cpp` | Window address formatting and lookup, and the walk over a window's surfaces. |
 | `tools/hyprmasq-input.c` | The libei sender command. |
+| `tools/hyprmasq-launch` | Starts an application on a hidden workspace and prints its window's address. |
+| `skills/hyprmasq/SKILL.md` | The agent skill. |
 | `nix/package.nix` | Plugin and tool derivation, for the flake and downstream `callPackage`. |
 | `nix/module.nix` | NixOS module: matching Hyprland, `hyprmasq-input`, Lua loader. |
 | `nix/hyprmasq-vm-test.nix`, `nix/vm-test.py` | The VM test. |

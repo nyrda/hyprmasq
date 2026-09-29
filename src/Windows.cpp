@@ -1,7 +1,9 @@
 #include "Windows.hpp"
 
 #include <hyprland/src/desktop/state/WindowState.hpp>
+#include <hyprland/src/desktop/view/Popup.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/protocols/core/Compositor.hpp>
 
 #include <format>
 
@@ -20,5 +22,15 @@ namespace hyprmasq {
         }
 
         return nullptr;
+    }
+
+    void forEachSurface(const PHLWINDOW& window, const std::function<void(SP<CWLSurfaceResource>)>& fn) {
+        auto visit = [&](SP<CWLSurfaceResource> s) {
+            if (s)
+                s->breadthfirst([&](SP<CWLSurfaceResource> child, const Vector2D&, void*) { fn(child); }, nullptr);
+        };
+        visit(window->wlSurface()->resource());
+        if (window->m_popupHead)
+            window->m_popupHead->breadthfirst([&](SP<Desktop::View::CPopup> p, void*) { visit(p->resource()); }, nullptr);
     }
 }

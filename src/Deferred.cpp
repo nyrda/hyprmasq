@@ -256,6 +256,10 @@ namespace hyprmasq::deferred {
         eventFd = -1;
     }
 
+    bool canDefer() {
+        return active && deferrable();
+    }
+
     std::string run(std::move_only_function<std::string()> work) {
         // Outside a batch this command is the whole request, and finish() decides at once.
         if (!active || (batchDepth == 0 && !deferrable()))

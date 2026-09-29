@@ -3,6 +3,7 @@
 #include "Deferred.hpp"
 #include "Eis.hpp"
 #include "Screenshot.hpp"
+#include "Wait.hpp"
 #include "Windows.hpp"
 
 #include <charconv>
@@ -15,6 +16,7 @@ namespace hyprmasq {
     namespace {
         constexpr std::string_view USAGE = "usage:\n"
                                            "  hyprctl hyprmasq screenshot <window-address> <absolute-path.png> [x y width height]\n"
+                                           "  hyprctl hyprmasq wait <window-address> [quiet-ms [timeout-ms]]\n"
                                            "  hyprctl hyprmasq eis open <window-address> [force]\n"
                                            "  hyprctl hyprmasq eis close <window-address>\n"
                                            "  hyprctl hyprmasq eis list\n";
@@ -91,6 +93,39 @@ namespace hyprmasq {
         }
     }
 
+    namespace {
+        // hyprctl stops reading a reply after 5 seconds.
+        constexpr int MAX_WAIT_MS = 4500;
+
+        std::string   waitCommand(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
+            if (args.empty() || args.size() > 3)
+                return error(format, USAGE);
+            const auto window = windowFromAddress(args[0]);
+            if (!window)
+                return error(format, std::format("no mapped window {}", args[0]));
+            const auto quiet   = args.size() > 1 ? parseInt(args[1]) : std::optional<int>{200};
+            const auto timeout = args.size() > 2 ? parseInt(args[2]) : std::optional<int>{3000};
+            if (!quiet || !timeout || *quiet < 1 || *timeout < *quiet || *timeout > MAX_WAIT_MS)
+                return error(format, std::format("quiet-ms must be at least 1, and timeout-ms at least quiet-ms and at most {}", MAX_WAIT_MS));
+            // The reply waits for the main thread, which a caller that needs it at once would block.
+            if (!deferred::canDefer())
+                return error(format, "wait only works in requests to hyprctl's socket");
+
+            auto future = wait::start(window, *quiet, *timeout);
+            if (!future)
+                return error(format, future.error());
+            return deferred::run([format, future = std::move(*future)] mutable -> std::string {
+                const auto result = future.get();
+                if (!result.error.empty())
+                    return error(format, result.error);
+                if (format == FORMAT_JSON)
+                    return std::format(R"({{"ok":true,"settled":{},"waited":{},"frames":{},"framesSinceInput":{}}})", result.settled, result.waitedMs, result.frames,
+                                       result.framesSinceInput ? std::to_string(*result.framesSinceInput) : "null");
+                return result.settled ? "settled" : "timeout";
+            });
+        }
+    }
+
     std::string handleCommand(eHyprCtlOutputFormat format, std::string request) {
         std::istringstream       stream(request);
         std::vector<std::string> words;
@@ -104,6 +139,8 @@ namespace hyprmasq {
         const std::vector<std::string> args(words.begin() + 2, words.end());
         if (words[1] == "screenshot")
             return screenshot(format, args);
+        if (words[1] == "wait")
+            return waitCommand(format, args);
 
         if (words[1] == "eis") {
             if (args.size() == 1 && args[0] == "list") {

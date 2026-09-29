@@ -1,6 +1,7 @@
 #include "Eis.hpp"
 #include "Cursor.hpp"
 #include "Hooks.hpp"
+#include "Wait.hpp"
 #include "X11.hpp"
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/FocusState.hpp>
@@ -38,17 +39,6 @@ namespace hyprmasq {
         void*                                           originalWindowFocus = nullptr;
         void*                                           originalActivate    = nullptr;
 
-        // Include popup subsurfaces too. Hidden windows do not get compositor frame callbacks.
-        void surfaces(const PHLWINDOW& w, const std::function<void(SP<CWLSurfaceResource>)>& fn) {
-            auto visit = [&](SP<CWLSurfaceResource> s) {
-                if (s)
-                    s->breadthfirst([&](SP<CWLSurfaceResource> child, const Vector2D&, void*) { fn(child); }, nullptr);
-            };
-            visit(w->wlSurface()->resource());
-            if (w->m_popupHead)
-                w->m_popupHead->breadthfirst([&](SP<Desktop::View::CPopup> p, void*) { visit(p->resource()); }, nullptr);
-        }
-
         struct Session {
             PHLWINDOWREF            window;
             std::string             path;
@@ -66,11 +56,13 @@ namespace hyprmasq {
             std::set<uint32_t>      keys, buttons;
             Vector2D                position  = {1, 1};
             Time::steady_tp         lastInput = Time::steadyNow();
-            bool                    force = false, paused = false, deferredKeys = false, restoreDue = false;
-            Time::steady_tp         pausedAt, holdUntil = Time::steadyNow(), lastKeys = Time::steadyNow();
-            eis_event*              stashed     = nullptr; // taken from libeis, waiting for a hold to end
-            wl_client*              server      = nullptr; // the window's X server, looked up once
-            bool                    serverKnown = false;
+            // What the window draws after input, for wait.
+            wait::CContentWatch content;
+            bool                force = false, paused = false, deferredKeys = false, restoreDue = false;
+            Time::steady_tp     pausedAt, holdUntil = Time::steadyNow(), lastKeys = Time::steadyNow();
+            eis_event*          stashed     = nullptr; // taken from libeis, waiting for a hold to end
+            wl_client*          server      = nullptr; // the window's X server, looked up once
+            bool                serverKnown = false;
 
             Session(const PHLWINDOW& w, std::string p, bool f) : window(w), path(std::move(p)), force(f) {}
             ~Session() {
@@ -540,6 +532,8 @@ namespace hyprmasq {
                 if (takesFocus && realKeyboard && realKeyboard->client() == s->client())
                     x11::release(w);
                 lastInput = Time::steadyNow();
+                content.scan(w);
+                content.frames = 0;
                 wl_event_source_timer_update(timer, 16);
             }
             int tick() {
@@ -550,8 +544,10 @@ namespace hyprmasq {
                 resumeHeld();
                 const auto now = Time::steadyNow();
                 if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInput).count() < 1000) {
+                    content.scan(w);
+                    // Hidden windows do not get compositor frame callbacks.
                     if (!g_pHyprRenderer->shouldRenderWindow(w))
-                        surfaces(w, [&](SP<CWLSurfaceResource> s) { s->frame(now); });
+                        forEachSurface(w, [&](SP<CWLSurfaceResource> s) { s->frame(now); });
                     wl_event_source_timer_update(timer, 16);
                 } else if (keys.empty() && buttons.empty()) {
                     leave();
@@ -664,7 +660,7 @@ namespace hyprmasq {
                 if (!w || w == Desktop::focusState()->window())
                     continue;
                 bool found = false;
-                surfaces(w, [&](SP<CWLSurfaceResource> s) { found |= s == surface; });
+                forEachSurface(w, [&](SP<CWLSurfaceResource> s) { found |= s == surface; });
                 if (found)
                     return true;
             }
@@ -817,6 +813,15 @@ namespace hyprmasq {
     }
     bool closeEis(const std::string& address) {
         return sessions.erase(address) != 0;
+    }
+    std::optional<SInputState> inputState(const PHLWINDOW& window) {
+        for (const auto& [_, session] : sessions)
+            if (session->window.lock() == window) {
+                // Sessions scan only around input. Popups that opened later have to be watched from now on.
+                session->content.scan(window);
+                return SInputState{.lastInput = session->lastInput, .frames = session->content.frames};
+            }
+        return std::nullopt;
     }
     std::vector<SEisInfo> listEis() {
         std::vector<SEisInfo> result;

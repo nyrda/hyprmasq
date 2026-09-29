@@ -11,8 +11,9 @@ rebuild the plugin whenever Hyprland changes.
 | [Manual build](#manual-build) | You want a local `.so`, for development or another distribution. |
 | [hyprpm](#hyprpm) | Your distribution provides Hyprland 0.56.2 and its headers. |
 
-Every method produces two things: the plugin `hyprmasq.so`, and the
-`hyprmasq-input` command-line client.
+Every method produces the plugin `hyprmasq.so` and the `hyprmasq-input`
+command-line client. The shell script `tools/hyprmasq-launch`, which starts
+applications on a hidden workspace, needs no build.
 
 ## NixOS module
 
@@ -41,7 +42,7 @@ The module:
 - enables `programs.hyprland` and sets its `package` and `portalPackage` to the
   pinned builds, all with `mkDefault`;
 - adds the plugin package to `environment.systemPackages`, which puts
-  `hyprmasq-input` on your `PATH`;
+  `hyprmasq-input` and `hyprmasq-launch` on your `PATH`;
 - writes `/etc/xdg/hypr/hyprmasq_plugin.lua`, which loads the plugin.
 
 Load it from `hyprland.lua`:
@@ -56,7 +57,7 @@ hyprmasq input updates the compositor and the plugin together.
 
 | Module option | Default | Description |
 | --- | --- | --- |
-| `programs.hyprmasq.enable` | `false` | Install the plugin, `hyprmasq-input`, the loader, and the matching Hyprland. |
+| `programs.hyprmasq.enable` | `false` | Install the plugin, `hyprmasq-input`, `hyprmasq-launch`, the loader, and the matching Hyprland. |
 | `programs.hyprmasq.package` | the flake's plugin | Plugin package. It must be built against `programs.hyprland.package`. |
 
 ### Using it together with other plugins
@@ -138,7 +139,8 @@ end)
 
 hyprpm installs only the plugin. Build `hyprmasq-input` from a clone with
 `make hyprmasq-input` and copy it onto your `PATH`, or use any other libei
-sender. Run `hyprpm update` after every Hyprland update. The repository has no
+sender. Copy `tools/hyprmasq-launch` onto your `PATH` too, and install `jq`
+for it. Run `hyprpm update` after every Hyprland update. The repository has no
 compatibility pins for older Hyprland releases.
 
 ## Troubleshooting
