@@ -1,4 +1,5 @@
 #include "Eis.hpp"
+#include "Cursor.hpp"
 #include "Hooks.hpp"
 #include "X11.hpp"
 #include <hyprland/src/Compositor.hpp>
@@ -495,6 +496,7 @@ namespace hyprmasq {
                                 default: break;
                             }
                         }
+                        cursor::show(w, position, type == EIS_EVENT_BUTTON_BUTTON && eis_event_button_get_is_press(e));
                         if (type == EIS_EVENT_BUTTON_BUTTON) {
                             if (eis_event_button_get_is_press(e))
                                 buttons.insert(eis_event_button_get_button(e));

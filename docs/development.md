@@ -44,6 +44,7 @@ output, installs the plugin through the NixOS module, and runs
 | X11 activation | A driven X11 app cannot activate itself; once its socket is closed, it can. |
 | X11 active window | While a Wayland window stays active, `_NET_ACTIVE_WINDOW` is written again after typing into a hidden `xterm`, after clicking it, and after it asks to be activated. |
 | xwayland-satellite | Screenshots and input for a hidden satellite `xterm`; refused while another satellite window is active, allowed for Hyprland's XWayland windows; `force`; no satellite app can activate itself while a satellite window is driven, but new satellite windows still get focus. |
+| Virtual cursor | A moved pointer shows a light blue cursor on the monitor, a click a ripple beside it; both fade out, and input during the fade restores the cursor. Nothing is drawn for a window on a hidden workspace. Changing `virtual_cursor_color` recolors it, `virtual_cursor = false` hides it. |
 | Unload and reload | Unloading removes all sockets; the plugin loads again. Unloading while a screenshot is being encoded waits for it and answers it. The batch command works without the plugin, and the plugin can be unloaded from within a batch. |
 | Compositor log | After Hyprland exits and flushes its log, it shows that the move and resize serials were rejected. |
 
@@ -59,6 +60,7 @@ The test copies the screenshots and logs into the build result, for example
 | `src/Screenshot.cpp` | Offscreen window rendering and PNG output. |
 | `src/Deferred.cpp` | Background work for hyprctl replies, including the wrapper around hyprctl's batch command. |
 | `src/Eis.cpp` | Per-window EIS sessions, input delivery, frame callbacks, the X11 focus rule, and the popup-grab, drag and X11 activation hooks. |
+| `src/Cursor.cpp` | Virtual cursors and click ripples: recolors the cursor theme's arrow, draws and damages them, and their options. |
 | `src/X11.cpp` | X input focus and stacking around input to XWayland windows, the window manager hooks, xwayland-satellite detection. |
 | `src/Hooks.cpp` | Installing and removing Hyprland function hooks. |
 | `src/Windows.cpp` | Window address formatting and lookup. |

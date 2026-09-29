@@ -124,6 +124,32 @@ Hidden windows normally stop receiving frame callbacks, so many applications
 stop redrawing. After input, the plugin sends a hidden target frame callbacks
 for about a second, so the next screenshot shows the result.
 
+## Virtual cursor
+
+Where emulated pointer input lands, the plugin draws a copy of your cursor
+theme's arrow in light blue, and a ring that grows and fades at each click. The
+cursor stays for 1.5 seconds after the last pointer event, then fades out.
+Keyboard input shows nothing.
+
+It is drawn only while the window is on a visible workspace, above windows and
+below layer-shell surfaces such as bars. Window screenshots never include it.
+It uses the theme and size of your real cursor, from hyprcursor or XCursor, and
+keeps the theme's shading: the fill takes the configured color, the outline a
+dark or white that contrasts with it.
+
+Set the options after the plugin is loaded:
+
+```lua
+hl.config({
+  plugin = {
+    hyprmasq = {
+      virtual_cursor = true, -- false turns it off
+      virtual_cursor_color = "rgb(6ec6ff)", -- an alpha, as in rgba(6ec6ffaa), makes it translucent
+    },
+  },
+})
+```
+
 ## X11 windows
 
 Screenshots and input work for windows of Hyprland's XWayland and of

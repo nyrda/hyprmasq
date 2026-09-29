@@ -81,6 +81,7 @@ pkgs.testers.runNixOSTest {
 
       environment.systemPackages = [
         pkgs.foot
+        pkgs.grim
         pkgs.jq
         pkgs.procps
         python

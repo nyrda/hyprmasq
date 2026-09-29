@@ -184,6 +184,31 @@ assert rows and max(rows) < h // 4, f"text rows {{min(rows, default=None)}}..{{m
     machine.succeed("python3 - <<'PY'\n" + script + "\nPY")
 
 
+def capture_output(name, before=""):
+    """Captures the whole monitor with grim, after the shell command `before`."""
+    path = f"/tmp/hyprmasq-{name}.png"
+    alice(f"{before} {client_env} grim {path}")
+    machine.copy_from_machine(path)
+    return path
+
+
+def count_pixels(path, box, condition):
+    """Counts pixels within box (x0, y0, x1, y1) whose r, g, b satisfy the Python expression condition."""
+    script = f"""
+from PIL import Image
+im = Image.open({path!r}).convert('RGB')
+x0, y0, x1, y1 = {box!r}
+def matches(r, g, b):
+    return {condition}
+print(sum(
+    matches(*im.getpixel((x, y)))
+    for x in range(max(0, x0), min(im.width, x1))
+    for y in range(max(0, y0), min(im.height, y1))
+))
+"""
+    return int(machine.succeed("python3 - <<'PY'\n" + script + "\nPY").strip())
+
+
 try:
     machine.wait_until_succeeds(
         "su - alice -c " + shlex.quote(f"{ipc} hyprctl version"), timeout=120
@@ -585,6 +610,51 @@ try:
         assert hypr(f"hyprmasq eis close {sat_shell}") == "ok"
         alice(f"env {satellite_env} xdotool windowactivate {xid} || true")
         wait_for("satellite activation", lambda: snapshot()[1] == sat_active)
+
+    with subtest("virtual cursor and click ripple on the active workspace"):
+        # The default color, rgb(6ec6ff), and anything blended from it over foot's dark background. Checks stay near
+        # the virtual cursor: Hyprland's own cursor, at the center of the screen, is cyan.
+        light_blue = "abs(r - 0x6E) <= 40 and abs(g - 0xC6) <= 40 and b >= 0xD8"
+        bluish = "b - r > 50"
+        magenta = "r > 200 and g < 60 and b > 200"
+        assert f"int: {0xFF6EC6FF}" in hypr("getoption plugin:hyprmasq:virtual_cursor_color")
+        focus_workspace(17)
+        pointed = foot("hm-cursor")
+        pointed_path = hypr(f"hyprmasq eis open {pointed}")
+        x, y = client("hm-cursor")["at"]
+        x, y = x + 200, y + 150
+        cursor_box = (x - 4, y - 4, x + 40, y + 40)
+        around = (x - 30, y - 30, x + 50, y + 50)
+        send(pointed_path, "move", 200, 150)
+        assert count_pixels(capture_output("cursor"), cursor_box, light_blue) > 20
+        # The ripple rings the click point, also on the side away from the arrow. It lasts under half a second.
+        clicked = capture_output(
+            "cursor-click",
+            f"hyprmasq-input --socket {shlex.quote(pointed_path)} click &&",
+        )
+        assert count_pixels(clicked, (x - 24, y - 3, x - 6, y + 3), bluish) > 0
+        time.sleep(2.5)
+        assert count_pixels(capture_output("cursor-faded"), around, bluish) == 0
+        # Input at the same point while the cursor fades out brings it back at full strength.
+        send(pointed_path, "move", 200, 150)
+        time.sleep(1.65)
+        send(pointed_path, "move", 200, 150)
+        time.sleep(0.2)
+        assert count_pixels(capture_output("cursor-refreshed"), cursor_box, light_blue) > 20
+        # Nothing is drawn for a window on a hidden workspace.
+        focus_workspace(4)
+        send(pointed_path, "move", 200, 150)
+        assert count_pixels(capture_output("cursor-hidden"), around, bluish) == 0
+        focus_workspace(17)
+        hypr("eval " + shlex.quote('hl.config({ plugin = { hyprmasq = { virtual_cursor_color = "rgb(ff00ff)" } } })'))
+        send(pointed_path, "move", 200, 150)
+        assert count_pixels(capture_output("cursor-magenta"), cursor_box, magenta) > 20
+        hypr("eval " + shlex.quote("hl.config({ plugin = { hyprmasq = { virtual_cursor = false } } })"))
+        time.sleep(0.5)
+        send(pointed_path, "move", 200, 150)
+        assert count_pixels(capture_output("cursor-off"), around, magenta) == 0
+        hypr("eval " + shlex.quote("hl.config({ plugin = { hyprmasq = { virtual_cursor = true } } })"))
+        assert hypr(f"hyprmasq eis close {pointed}") == "ok"
 
     with subtest("unload removes all sockets and hooks, reload succeeds"):
         paths = [s["path"] for s in json.loads(hypr("-j hyprmasq eis list"))]

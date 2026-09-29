@@ -35,6 +35,8 @@ together.
 - **Your input stays yours.** A window driven through its socket cannot grab
   your real pointer or keyboard with a popup, start a drag, or begin an
   interactive move or resize.
+- **Visible activity.** On visible workspaces, a light blue copy of your cursor
+  shows where emulated pointer input lands, with a ripple for each click.
 - **Hidden windows keep repainting.** After input, hidden windows get frame
   callbacks for a moment, so the next screenshot shows the result.
 
