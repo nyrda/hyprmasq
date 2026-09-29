@@ -516,6 +516,14 @@ try:
         )
         assert snapshot() == before_focus
 
+        # A click takes X focus as typing does, and gives it back the same way.
+        count = announcements()
+        send(path, "move", 20, 20, "click")
+        wait_for(
+            "announcement after a click", lambda: announcements() > count, timeout=10
+        )
+        assert snapshot() == before_focus
+
         count = announcements()
         xid = alice(f"env {x_env} xdotool search --name '^hm-x-shell$'").split()[0]
         alice(f"env {x_env} xdotool windowactivate {xid} || true")

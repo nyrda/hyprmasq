@@ -74,6 +74,7 @@ namespace hyprmasq {
             Session(const PHLWINDOW& w, std::string p, bool f) : window(w), path(std::move(p)), force(f) {}
             ~Session() {
                 clearClient();
+                releaseX();
                 if (fdSource)
                     wl_event_source_remove(fdSource);
                 if (timer)
@@ -120,6 +121,13 @@ namespace hyprmasq {
                 if (stashed)
                     eis_event_unref(stashed);
                 stashed = nullptr;
+                scheduleIdle();
+            }
+            // tick() stops while keys or buttons are held. Once they are let go without further input, it has to run
+            // again to give X focus back.
+            void scheduleIdle() {
+                if (timer)
+                    wl_event_source_timer_update(timer, 16);
             }
             wl_client* xServer() {
                 if (!serverKnown) {
@@ -136,8 +144,13 @@ namespace hyprmasq {
                 auto s = w ? w->resource() : nullptr;
                 return s ? g_pSeatManager->seatResourceForClient(s->client()) : nullptr;
             }
+            // X focus outlives the sender, which disconnects right after its last event: apps such as games can drop input
+            // that arrives just before they lose the foreground.
+            void releaseX() {
+                if (auto w = window.lock())
+                    x11::release(w);
+            }
             void leaveKeyboard() {
-                x11::release(window.lock());
                 auto s = wlSeat();
                 if (s && enteredKeyboard)
                     for (auto& k : s->m_keyboards)
@@ -366,9 +379,17 @@ namespace hyprmasq {
                 }
                 const bool isKeyboard = device == keyboard;
                 // XWayland sends keys to the X focus and pointer events to the topmost X window under the pointer.
-                // If the X server does not respond, the sender learns that input was dropped.
+                // Clicks and scrolling take X focus too, as a real click does: Wine only takes input once X focus has
+                // made it the foreground window. If the X server does not respond, the sender learns that input was
+                // dropped.
+                const bool takesFocus =
+                    isKeyboard || std::ranges::any_of(pending, [&](eis_event* e) {
+                        const auto type = eis_event_get_type(e);
+                        return eis_event_get_device(e) == device &&
+                            ((type == EIS_EVENT_BUTTON_BUTTON && eis_event_button_get_is_press(e)) || type == EIS_EVENT_SCROLL_DELTA || type == EIS_EVENT_SCROLL_DISCRETE);
+                    });
                 std::optional<x11::SStack> stack;
-                if (w->m_isX11 && (isKeyboard ? !x11::focus(w) : !(stack = x11::raise(w)))) {
+                if (w->m_isX11 && ((takesFocus && !x11::focus(w)) || (!isKeyboard && !(stack = x11::raise(w))))) {
                     drop(device);
                     setPaused(true);
                     return;
@@ -511,8 +532,10 @@ namespace hyprmasq {
                 }
                 if (stack)
                     x11::lower(*stack);
-                // X focus goes back along with the Wayland keyboard focus.
-                if (restore && isKeyboard)
+                // X focus goes back at once when the user's keyboard is on the same Wayland client, otherwise once input
+                // pauses.
+                auto realKeyboard = g_pSeatManager->m_state.keyboardFocus.lock();
+                if (takesFocus && realKeyboard && realKeyboard->client() == s->client())
                     x11::release(w);
                 lastInput = Time::steadyNow();
                 wl_event_source_timer_update(timer, 16);
@@ -528,8 +551,10 @@ namespace hyprmasq {
                     if (!g_pHyprRenderer->shouldRenderWindow(w))
                         surfaces(w, [&](SP<CWLSurfaceResource> s) { s->frame(now); });
                     wl_event_source_timer_update(timer, 16);
-                } else if (keys.empty() && buttons.empty())
+                } else if (keys.empty() && buttons.empty()) {
                     leave();
+                    releaseX();
+                }
                 return 0;
             }
             int poll() {
@@ -621,6 +646,7 @@ namespace hyprmasq {
                                 if (d == pointer)
                                     leavePointer();
                                 drop(d);
+                                scheduleIdle();
                             }
                             break;
                         default: break;

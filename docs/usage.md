@@ -132,8 +132,9 @@ make every X11 window of one X server share a single Wayland connection, and
 X11 does not route input by Wayland surface:
 
 - XWayland sends keys to the window with X input focus. For an XWayland target,
-  the plugin moves X input focus to it before the first key, and moves it back
-  about a second after the last one, or as soon as Hyprland changes focus.
+  the plugin moves X input focus to it before the first key, click or scroll, as
+  a real click would, and moves it back about a second after the last input, or
+  as soon as Hyprland changes focus.
 - XWayland sends a click to the topmost X window at that point, and windows on
   hidden workspaces overlap the visible ones. For each pointer frame, the plugin
   raises the target and its menus to the top of the X stack, then puts them
@@ -147,12 +148,12 @@ X11 does not route input by Wayland surface:
 Before each of those X changes, the plugin waits until XWayland has read all
 pending Wayland input, so X changes and input arrive in order.
 
-X focus, or a click, makes some apps consider themselves active. Wine, for
-example, moves its window to the foreground and only leaves it when
-`_NET_ACTIVE_WINDOW` names another window. When the plugin gives X focus back,
-and when it refuses an activation request from a driven app, it writes
-`_NET_ACTIVE_WINDOW` again unchanged, so such apps read it and learn that they
-are in the background again. This needs a Hyprland that names a window there
+X focus makes some apps consider themselves active. Wine, for example, moves
+its window to the foreground, which it needs to take input at all, and only
+leaves it when `_NET_ACTIVE_WINDOW` names another window. When the plugin gives
+X focus back, and when it refuses an activation request from a driven app while
+it holds no X focus, it writes `_NET_ACTIVE_WINDOW` again unchanged, so such
+apps read it and learn that they are in the background again. This needs a Hyprland that names a window there
 while a Wayland window has the focus. Stock Hyprland 0.56.2 sets it to None,
 which Wine ignores.
 

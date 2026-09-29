@@ -285,8 +285,9 @@ namespace hyprmasq::x11 {
 
     void refuseActivation(const PHLWINDOW& window) {
         auto surface = window ? window->m_xwaylandSurface.lock() : nullptr;
-        // While X focus is held for it, the app has to stay active to receive the keys. release() tells it later.
-        if (!surface || (held && held->window == surface->m_xID))
+        // While X focus is held, the app of the window holding it has to stay active to take the input, and an app can
+        // ask to activate another of its windows. release() tells them later.
+        if (!surface || held)
             return;
         if (auto* c = x())
             announceActiveWindow(c);
