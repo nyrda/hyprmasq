@@ -31,6 +31,7 @@ output, installs the plugin through the NixOS module, and runs
 | Subtest | Checks |
 | --- | --- |
 | Screenshots | Red, green and blue foot windows on hidden workspaces have the right colors, and the first text row is at the top. |
+| Background encoding | While a screenshot is written to a FIFO that nobody reads yet, Hyprland answers other requests; the reply comes once the file is read. A `--batch` with two screenshots and another command answers all three, in plain text and JSON. |
 | Socket lifecycle | Paths, `0700` directories and a `0600` socket; `eis list`; removal on `eis close` and when the window closes. |
 | Hidden shell input | Typing into a foot shell on a hidden workspace runs the command, the active window and workspace stay unchanged, and the window repaints. |
 | Pointer events | `wev` on a hidden workspace receives enter, motion, button and axis events. |
@@ -42,7 +43,7 @@ output, installs the plugin through the NixOS module, and runs
 | XWayland focus rule | Input is refused while another X11 window is active and the active window stays untouched; the active window itself can be driven; `force` drives the hidden one. |
 | X11 activation | A driven X11 app cannot activate itself; once its socket is closed, it can. |
 | xwayland-satellite | Screenshots and input for a hidden satellite `xterm`; refused while another satellite window is active, allowed for Hyprland's XWayland windows; `force`; no satellite app can activate itself while a satellite window is driven, but new satellite windows still get focus. |
-| Unload and reload | Unloading removes all sockets; the plugin loads again. |
+| Unload and reload | Unloading removes all sockets; the plugin loads again. Unloading while a screenshot is being encoded waits for it and answers it. The batch command works without the plugin, and the plugin can be unloaded from within a batch. |
 | Compositor log | After Hyprland exits and flushes its log, it shows that the move and resize serials were rejected. |
 
 The test copies the screenshots and logs into the build result, for example
@@ -55,6 +56,7 @@ The test copies the screenshots and logs into the build result, for example
 | `src/main.cpp` | Plugin entry points: registers the hyprctl command, installs and removes hooks. |
 | `src/Commands.cpp` | Parses `hyprctl hyprmasq ...` and formats plain and JSON replies. |
 | `src/Screenshot.cpp` | Offscreen window rendering and PNG output. |
+| `src/Deferred.cpp` | Background work for hyprctl replies, including the wrapper around hyprctl's batch command. |
 | `src/Eis.cpp` | Per-window EIS sessions, input delivery, frame callbacks, the X11 focus rule, and the popup-grab, drag and X11 activation hooks. |
 | `src/X11.cpp` | X input focus and stacking around input to XWayland windows, the window manager hooks, xwayland-satellite detection. |
 | `src/Hooks.cpp` | Installing and removing Hyprland function hooks. |

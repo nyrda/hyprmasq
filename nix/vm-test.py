@@ -127,6 +127,21 @@ def screenshot(address, name):
     return path
 
 
+def hypr_background(command, output):
+    alice(f"rm -f {output}; {ipc} nohup hyprctl {command} > {output} 2>&1 &")
+
+
+def batch(commands, flags=""):
+    # Some replies end in blank lines, which run into the separator.
+    reply = hypr(f"{flags} --batch {shlex.quote(commands)}")
+    return [part.strip() for part in reply.split("\n\n\n")]
+
+
+def fifo(path):
+    machine.succeed(f"rm -f {path}")
+    alice(f"mkfifo {path}")
+
+
 def open_socket(address):
     path = hypr(f"hyprmasq eis open {address}")
     assert path == f"{runtime}/hyprmasq/{instance}/{address}.eis", path
@@ -212,6 +227,45 @@ try:
         for name, address, rgb in windows:
             assert_png(screenshot(address, name), rgb)
         assert snapshot() == (4, visible)
+
+    with subtest("screenshots are encoded while Hyprland keeps running"):
+        red, green = windows[0][1], windows[1][1]
+        # Writing to a FIFO holds the encoder until the FIFO is read.
+        fifo("/tmp/hm-fifo.png")
+        hypr_background(
+            f"-j hyprmasq screenshot {red} /tmp/hm-fifo.png", "/tmp/hm-fifo-reply"
+        )
+        time.sleep(1)
+        assert json.loads(hypr("-j activeworkspace"))["id"] == 4
+        machine.succeed("test ! -s /tmp/hm-fifo-reply")
+        machine.succeed("cat /tmp/hm-fifo.png > /tmp/hm-fifo-copy.png")
+        machine.wait_until_succeeds("test -s /tmp/hm-fifo-reply", timeout=30)
+        reply = json.loads(machine.succeed("cat /tmp/hm-fifo-reply"))
+        assert reply["ok"] and reply["path"] == "/tmp/hm-fifo.png", reply
+        assert_png("/tmp/hm-fifo-copy.png", (255, 0, 0))
+        # A full disk shows up when the file is closed.
+        reply = json.loads(hypr(f"-j hyprmasq screenshot {red} /dev/full"))
+        assert not reply["ok"] and "/dev/full" in reply["error"], reply
+
+        # A batch answers once every screenshot in it is written, with the other replies in place.
+        parts = batch(
+            f"hyprmasq screenshot {red} /tmp/hm-batch-red.png; activeworkspace; "
+            f"hyprmasq screenshot {green} /tmp/hm-batch-green.png"
+        )
+        assert len(parts) == 3 and parts[0] == "ok" and parts[2] == "ok", parts
+        assert parts[1].startswith("workspace ID 4 "), parts
+        assert_png("/tmp/hm-batch-red.png", (255, 0, 0))
+        assert_png("/tmp/hm-batch-green.png", (0, 255, 0))
+        parts = [
+            json.loads(part)
+            for part in batch(
+                f"hyprmasq screenshot {green} /tmp/hm-batch-json.png; activeworkspace",
+                "-j",
+            )
+        ]
+        assert parts[0]["ok"] and parts[0]["path"] == "/tmp/hm-batch-json.png", parts
+        assert parts[1]["id"] == 4, parts
+        assert_png("/tmp/hm-batch-json.png", (0, 255, 0))
 
     with subtest("socket lifecycle"):
         doomed = windows[0][1]
@@ -498,6 +552,45 @@ try:
         assert hypr(f"plugin load {plugin}") == "ok"
         assert json.loads(hypr("-j hyprmasq eis list")) == []
         assert not hypr("configerrors")
+
+    with subtest("unloading answers screenshots still being encoded"):
+        # The red window was closed by the socket lifecycle subtest.
+        green = windows[1][1]
+        fifo("/tmp/hm-fifo.png")
+        hypr_background(
+            f"hyprmasq screenshot {green} /tmp/hm-fifo.png", "/tmp/hm-fifo-reply"
+        )
+        time.sleep(1)
+        hypr_background(f"plugin unload {plugin}", "/tmp/hm-unload-reply")
+        time.sleep(1)
+        machine.succeed("cat /tmp/hm-fifo.png > /tmp/hm-fifo-copy.png")
+        machine.wait_until_succeeds("grep -qx ok /tmp/hm-unload-reply", timeout=30)
+        machine.wait_until_succeeds("grep -qx ok /tmp/hm-fifo-reply", timeout=30)
+        assert_png("/tmp/hm-fifo-copy.png", (0, 255, 0))
+        # The batch command works without the plugin, and the plugin can be unloaded from within a batch.
+        assert (
+            hypr("--batch 'activeworkspace; activeworkspace'").count("workspace ID")
+            == 2
+        )
+        assert hypr(f"plugin load {plugin}") == "ok"
+        batch(f"plugin unload {plugin}; activeworkspace")
+        assert "hyprmasq" not in hypr("plugin list")
+        # Once the batch has returned, the library is released and the batch command restored.
+        pid = machine.succeed(
+            f"sed -n 1p {runtime}/hypr/{instance}/hyprland.lock"
+        ).strip()
+        machine.wait_until_succeeds(
+            f"! grep -q hyprmasq.so /proc/{pid}/maps", timeout=10
+        )
+        assert [p[:12] for p in batch("activeworkspace; activeworkspace")] == [
+            "workspace ID"
+        ] * 2
+        assert hypr(f"plugin load {plugin}") == "ok"
+        assert_png(screenshot(green, "after-reload"), (0, 255, 0))
+        parts = batch(
+            f"hyprmasq screenshot {green} /tmp/hm-reload-batch.png; activeworkspace"
+        )
+        assert parts[0] == "ok" and parts[1].startswith("workspace ID"), parts
 
     with subtest("compositor rejected the emulated move and resize serials"):
         # Hyprland buffers its log file and only flushes it reliably on exit.

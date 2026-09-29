@@ -1,4 +1,5 @@
 #include "Commands.hpp"
+#include "Deferred.hpp"
 #include "Eis.hpp"
 #include "Hooks.hpp"
 #include "X11.hpp"
@@ -16,7 +17,9 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     try {
         hyprmasq::initEis(handle);
         hyprmasq::x11::init(handle);
+        hyprmasq::deferred::init(handle);
     } catch (...) {
+        hyprmasq::deferred::shutdown();
         hyprmasq::x11::shutdown();
         hyprmasq::unhookAll();
         throw;
@@ -28,6 +31,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
+    hyprmasq::deferred::shutdown();
     hyprmasq::shutdownEis();
     hyprmasq::x11::shutdown();
     hyprmasq::unhookAll();

@@ -33,7 +33,7 @@ namespace hyprmasq {
             }
         };
 
-        std::expected<void, std::string> writePNG(const std::filesystem::path& path, int width, int height, std::vector<uint8_t>& rgba) {
+        std::expected<void, std::string> encode(const std::filesystem::path& path, int width, int height, std::vector<uint8_t>& rgba) {
             std::unique_ptr<std::FILE, SFileCloser> file{std::fopen(path.c_str(), "wb")};
             if (!file)
                 return std::unexpected(std::format("cannot open {}", path.string()));
@@ -51,6 +51,11 @@ namespace hyprmasq {
             }
 
             png_init_io(png, file.get());
+            // hyprctl answers once the file is written. libpng's defaults, zlib level 6 and every row filter tried, take
+            // up to a second for a large window; level 1 with the Sub filter is 4 to 7 times faster, for files about a
+            // fifth larger.
+            png_set_compression_level(png, 1);
+            png_set_filter(png, PNG_FILTER_TYPE_BASE, PNG_FILTER_SUB);
             png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
             png_write_info(png, info);
 
@@ -62,6 +67,9 @@ namespace hyprmasq {
             png_write_image(png, rows.data());
             png_write_end(png, nullptr);
             png_destroy_write_struct(&png, &info);
+            // The last buffered bytes reach the file only here, so a full disk can show up only here.
+            if (std::fclose(file.release()) != 0)
+                return std::unexpected(std::format("cannot write {}", path.string()));
             return {};
         }
 
@@ -77,10 +85,7 @@ namespace hyprmasq {
         }
     }
 
-    std::expected<SScreenshotInfo, std::string> screenshotWindow(const PHLWINDOW& window, const std::filesystem::path& output) {
-        if (!output.is_absolute())
-            return std::unexpected("output path must be absolute");
-
+    std::expected<SCapture, std::string> captureWindow(const PHLWINDOW& window) {
         if (!window || !window->m_isMapped)
             return std::unexpected("window is not mapped");
 
@@ -121,20 +126,20 @@ namespace hyprmasq {
         g_pHyprRenderer->m_renderData.blockScreenShader = true;
         g_pHyprRenderer->endRender();
 
-        std::vector<uint8_t> rgba(sc<size_t>(width) * height * 4);
+        SCapture capture{.width = width, .height = height, .rgba = std::vector<uint8_t>(sc<size_t>(width) * height * 4)};
         Render::GL::g_pHyprOpenGL->makeEGLCurrent();
         glBindFramebuffer(GL_READ_FRAMEBUFFER, glFb->getFBID());
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
-        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, capture.rgba.data());
         glPixelStorei(GL_PACK_ALIGNMENT, 4);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
         g_pHyprRenderer->m_renderData.pMonitor.reset();
+        return capture;
+    }
 
-        unpremultiply(rgba);
-        if (auto written = writePNG(output, width, height, rgba); !written)
-            return std::unexpected(written.error());
-
-        return SScreenshotInfo{.width = width, .height = height};
+    std::expected<void, std::string> writePNG(SCapture& capture, const std::filesystem::path& output) {
+        unpremultiply(capture.rgba);
+        return encode(output, capture.width, capture.height, capture.rgba);
     }
 }

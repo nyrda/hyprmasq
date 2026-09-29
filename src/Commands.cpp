@@ -1,7 +1,8 @@
 #include "Commands.hpp"
 
-#include "Screenshot.hpp"
+#include "Deferred.hpp"
 #include "Eis.hpp"
+#include "Screenshot.hpp"
 #include "Windows.hpp"
 
 #include <format>
@@ -47,13 +48,22 @@ namespace hyprmasq {
             if (!window)
                 return error(format, std::format("no mapped window {}", args[0]));
 
-            const auto result = screenshotWindow(window, args[1]);
-            if (!result)
-                return error(format, result.error());
+            const std::filesystem::path path = args[1];
+            if (!path.is_absolute())
+                return error(format, "output path must be absolute");
 
-            if (format == FORMAT_JSON)
-                return std::format(R"({{"ok":true,"path":{},"width":{},"height":{}}})", jsonString(args[1]), result->width, result->height);
-            return "ok";
+            auto capture = captureWindow(window);
+            if (!capture)
+                return error(format, capture.error());
+
+            // Rendering needs the compositor, encoding does not.
+            return deferred::run([format, path, capture = std::move(*capture)] mutable -> std::string {
+                if (auto written = writePNG(capture, path); !written)
+                    return error(format, written.error());
+                if (format == FORMAT_JSON)
+                    return std::format(R"({{"ok":true,"path":{},"width":{},"height":{}}})", jsonString(path.string()), capture.width, capture.height);
+                return "ok";
+            });
         }
     }
 

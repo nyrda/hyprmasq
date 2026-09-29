@@ -19,8 +19,9 @@ namespace hyprmasq {
 
         std::vector<SFunctionMatch> matches;
         for (auto& match : HyprlandAPI::findFunctionsByName(handle, name)) {
-            // Compilers split cold paths into "[clone .cold]" symbols, which are not entry points.
-            if (match.demangled.starts_with(prefix) && !match.demangled.contains("[clone"))
+            // Compilers split cold paths into "[clone .cold]" symbols, which are not entry points. C linkage names carry
+            // no parameter list.
+            if ((match.demangled == qualifiedName || match.demangled.starts_with(prefix)) && !match.demangled.contains("[clone"))
                 matches.push_back(match);
         }
         if (matches.size() != 1)

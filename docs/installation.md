@@ -146,7 +146,7 @@ compatibility pins for older Hyprland releases.
 | Symptom | Check |
 | --- | --- |
 | The plugin fails to load | Rebuild against the running Hyprland. `hyprctl plugin list` shows loaded plugins, and `hyprctl version` the running build. |
-| Loading fails with a hook error | The plugin hooks seven Hyprland functions and refuses to load without them. This means the Hyprland build differs from 0.56.2. |
+| Loading fails with a hook error | The plugin hooks eight Hyprland functions and refuses to load without them. This means the Hyprland build differs from 0.56.2. |
 | `hyprctl hyprmasq ...` says the command is unknown | The plugin is not loaded. Check `hyprctl plugin list`. |
 | `no mapped window 0x...` | Copy the `address` field from `hyprctl -j clients`, including the `0x`. The window must be mapped. |
 | `hyprmasq-input` cannot connect | Use the path that `eis open` printed, as the same user that runs Hyprland. |

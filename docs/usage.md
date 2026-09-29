@@ -35,6 +35,12 @@ gives a 1280×960 PNG. They show the window's own content, without borders,
 shadows or the cursor. Wayland popups are included. X11 menus are separate
 windows, so a screenshot of an X11 window does not show them.
 
+Hyprland only renders the window. The PNG is encoded and written on a
+background thread while Hyprland keeps running, and `hyprctl` answers once the
+file is complete, also within `hyprctl --batch`. The plugin compresses for speed
+rather than size: a 2560×1440 window takes roughly 30 to 130 ms, depending on
+the content.
+
 ## hyprmasq-input
 
 `hyprmasq-input` connects to a socket, runs a list of actions in order, and
