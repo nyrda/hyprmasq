@@ -292,6 +292,64 @@ try:
         assert parts[1]["id"] == 4, parts
         assert_png("/tmp/hm-batch-json.png", (0, 255, 0))
 
+    with subtest("screenshot regions in logical pixels"):
+        green = windows[1][1]
+        white = "r > 200 and g > 200 and b > 200"
+
+        def region_shot(name, *region):
+            path = f"/tmp/hyprmasq-{name}.png"
+            reply = json.loads(hypr(f"-j hyprmasq screenshot {green} {path} " + " ".join(map(str, region))))
+            assert reply["ok"], reply
+            machine.copy_from_machine(path)
+            return path, reply
+
+        def region(x, y, width, height):
+            return {"x": x, "y": y, "width": width, "height": height}
+
+        _, reply = region_shot("region-full")
+        assert reply["scale"] == 1 and reply["region"] == region(0, 0, 640, 480), reply
+        assert (reply["width"], reply["height"]) == (640, 480), reply
+        # The white text is at the left of the first row. A readback from another part of the window finds it in the
+        # other regions instead.
+        top, reply = region_shot("region-top", 0, 0, 200, 30)
+        assert (reply["width"], reply["height"]) == (200, 30) and reply["region"] == region(0, 0, 200, 30), reply
+        assert count_pixels(top, (0, 0, 200, 30), white) > 20
+        for name, x, y in [("region-bottom", 0, 440), ("region-right", 440, 0)]:
+            path, _ = region_shot(name, x, y, 200, 30)
+            assert count_pixels(path, (0, 0, 200, 30), "g > 200 and r < 60 and b < 60") == 200 * 30
+        _, reply = region_shot("region-clamped", 600, 450, 100, 100)
+        assert (reply["width"], reply["height"]) == (40, 30) and reply["region"] == region(600, 450, 40, 30), reply
+        for args, message in [
+            ("640 0 10 10", "outside"),
+            ("0 0 0 10", "positive size"),
+            ("0 0 1.5 10", "whole logical pixels"),
+            ("0 0 10", "usage"),
+        ]:
+            reply = json.loads(hypr(f"-j hyprmasq screenshot {green} /tmp/hm-bad-region.png {args}"))
+            assert not reply["ok"] and message in reply["error"], (args, reply)
+        machine.succeed("test ! -e /tmp/hm-bad-region.png")
+
+        # At scale 2 the same logical region has twice the pixels.
+        def set_scale(scale):
+            hypr("eval " + shlex.quote(
+                f'hl.monitor({{ output = "HYPRMASQ-TEST", mode = "640x480@60", position = "0x0", scale = "{scale}" }})'
+            ))
+            wait_for(f"scale {scale}", lambda: client("hm-green")["size"] == [640 // scale, 480 // scale])
+            time.sleep(0.5)
+
+        set_scale(2)
+        top, reply = region_shot("region-scale2", 0, 0, 100, 15)
+        assert reply["scale"] == 2 and (reply["width"], reply["height"]) == (200, 30), reply
+        assert reply["region"] == region(0, 0, 100, 15), reply
+        assert count_pixels(top, (0, 0, 200, 30), white) > 20
+        # At a fractional scale the region widens to whole device pixels, and the reply names what was captured:
+        # device pixels 1 to 13 of 1.25 per logical pixel.
+        set_scale(1.25)
+        _, reply = region_shot("region-fractional", 1, 1, 10, 10)
+        assert reply["scale"] == 1.25 and (reply["width"], reply["height"]) == (13, 13), reply
+        assert all(abs(reply["region"][k] - v) < 1e-9 for k, v in region(0.8, 0.8, 10.4, 10.4).items()), reply
+        set_scale(1)
+
     with subtest("socket lifecycle"):
         doomed = windows[0][1]
         path = open_socket(doomed)

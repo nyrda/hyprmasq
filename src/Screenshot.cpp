@@ -85,7 +85,7 @@ namespace hyprmasq {
         }
     }
 
-    std::expected<SCapture, std::string> captureWindow(const PHLWINDOW& window) {
+    std::expected<SCapture, std::string> captureWindow(const PHLWINDOW& window, std::optional<SRegion> region) {
         if (!window || !window->m_isMapped)
             return std::unexpected("window is not mapped");
 
@@ -97,7 +97,23 @@ namespace hyprmasq {
         const int  width   = std::max(1, sc<int>(std::round(logical.x * monitor->m_scale)));
         const int  height  = std::max(1, sc<int>(std::round(logical.y * monitor->m_scale)));
 
-        auto       fb = g_pHyprRenderer->createFB("hyprmasq screenshot");
+        // The region is clamped to the window and read back at the monitor's scale, widened to whole device pixels so that
+        // it covers the requested area at fractional scales. The epsilon keeps 10 * 1.2 from rounding up to 13.
+        const int logicalWidth = std::max(1, sc<int>(std::round(logical.x))), logicalHeight = std::max(1, sc<int>(std::round(logical.y)));
+        SRegion   area = region.value_or(SRegion{0, 0, logicalWidth, logicalHeight});
+        if (area.x < 0 || area.y < 0 || area.width < 1 || area.height < 1)
+            return std::unexpected("the region needs a non-negative position and a positive size");
+        if (area.x >= logicalWidth || area.y >= logicalHeight)
+            return std::unexpected(std::format("the region starts outside the {}x{} window", logicalWidth, logicalHeight));
+        area.width         = std::min(area.width, logicalWidth - area.x);
+        area.height        = std::min(area.height, logicalHeight - area.y);
+        const double scale = monitor->m_scale, epsilon = 1e-6;
+        const int    readX = std::clamp(sc<int>(std::floor(area.x * scale + epsilon)), 0, width - 1);
+        const int    readY = std::clamp(sc<int>(std::floor(area.y * scale + epsilon)), 0, height - 1);
+        const int    readW = std::clamp(sc<int>(std::ceil((area.x + area.width) * scale - epsilon)) - readX, 1, width - readX);
+        const int    readH = std::clamp(sc<int>(std::ceil((area.y + area.height) * scale - epsilon)) - readY, 1, height - readY);
+
+        auto         fb = g_pHyprRenderer->createFB("hyprmasq screenshot");
         if (!fb || !fb->alloc(width, height, DRM_FORMAT_ABGR8888))
             return std::unexpected("cannot allocate framebuffer");
 
@@ -126,11 +142,16 @@ namespace hyprmasq {
         g_pHyprRenderer->m_renderData.blockScreenShader = true;
         g_pHyprRenderer->endRender();
 
-        SCapture capture{.width = width, .height = height, .rgba = std::vector<uint8_t>(sc<size_t>(width) * height * 4)};
+        SCapture capture{.width  = readW,
+                         .height = readH,
+                         .rgba   = std::vector<uint8_t>(sc<size_t>(readW) * readH * 4),
+                         .scale  = scale,
+                         .region = {readX / scale, readY / scale, readW / scale, readH / scale}};
         Render::GL::g_pHyprOpenGL->makeEGLCurrent();
         glBindFramebuffer(GL_READ_FRAMEBUFFER, glFb->getFBID());
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
-        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, capture.rgba.data());
+        // RPT_EXPORT renders top-down, so framebuffer rows count from the top of the window too.
+        glReadPixels(readX, readY, readW, readH, GL_RGBA, GL_UNSIGNED_BYTE, capture.rgba.data());
         glPixelStorei(GL_PACK_ALIGNMENT, 4);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 

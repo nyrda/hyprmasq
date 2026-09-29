@@ -5,14 +5,16 @@
 #include "Screenshot.hpp"
 #include "Windows.hpp"
 
+#include <charconv>
 #include <format>
+#include <optional>
 #include <sstream>
 #include <vector>
 
 namespace hyprmasq {
     namespace {
         constexpr std::string_view USAGE = "usage:\n"
-                                           "  hyprctl hyprmasq screenshot <window-address> <absolute-path.png>\n"
+                                           "  hyprctl hyprmasq screenshot <window-address> <absolute-path.png> [x y width height]\n"
                                            "  hyprctl hyprmasq eis open <window-address> [force]\n"
                                            "  hyprctl hyprmasq eis close <window-address>\n"
                                            "  hyprctl hyprmasq eis list\n";
@@ -40,9 +42,28 @@ namespace hyprmasq {
             return std::format("error: {}", message);
         }
 
+        std::optional<int> parseInt(const std::string& text) {
+            int        value     = 0;
+            const auto end       = text.data() + text.size();
+            const auto [ptr, ec] = std::from_chars(text.data(), end, value);
+            if (ec != std::errc{} || ptr != end)
+                return std::nullopt;
+            return value;
+        }
+
         std::string screenshot(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
-            if (args.size() != 2)
+            if (args.size() != 2 && args.size() != 6)
                 return error(format, USAGE);
+
+            std::optional<SRegion> region;
+            if (args.size() == 6) {
+                std::optional<int> v[4];
+                for (size_t i = 0; i < 4; ++i)
+                    v[i] = parseInt(args[2 + i]);
+                if (!v[0] || !v[1] || !v[2] || !v[3])
+                    return error(format, "the region is x y width height in whole logical pixels");
+                region = SRegion{*v[0], *v[1], *v[2], *v[3]};
+            }
 
             const auto window = windowFromAddress(args[0]);
             if (!window)
@@ -52,7 +73,7 @@ namespace hyprmasq {
             if (!path.is_absolute())
                 return error(format, "output path must be absolute");
 
-            auto capture = captureWindow(window);
+            auto capture = captureWindow(window, region);
             if (!capture)
                 return error(format, capture.error());
 
@@ -60,8 +81,11 @@ namespace hyprmasq {
             return deferred::run([format, path, capture = std::move(*capture)] mutable -> std::string {
                 if (auto written = writePNG(capture, path); !written)
                     return error(format, written.error());
-                if (format == FORMAT_JSON)
-                    return std::format(R"({{"ok":true,"path":{},"width":{},"height":{}}})", jsonString(path.string()), capture.width, capture.height);
+                if (format == FORMAT_JSON) {
+                    const auto& r = capture.region;
+                    return std::format(R"({{"ok":true,"path":{},"width":{},"height":{},"scale":{},"region":{{"x":{},"y":{},"width":{},"height":{}}}}})", jsonString(path.string()),
+                                       capture.width, capture.height, capture.scale, r.x, r.y, r.width, r.height);
+                }
                 return "ok";
             });
         }

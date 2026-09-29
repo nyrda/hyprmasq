@@ -24,8 +24,9 @@ together.
 
 ## Features
 
-- **Window screenshots.** Renders one window offscreen to a PNG, whether or not
-  its workspace is visible.
+- **Window screenshots.** Renders one window, or a region of it, offscreen to a
+  PNG, whether or not its workspace is visible. Regions use the same
+  coordinates as pointer input.
 - **A libei socket per window.** Created on request, bound to one window, and
   removed when the window closes. Pointer coordinates are local to the window.
 - **Input without focus changes.** Events go straight to the target window. The

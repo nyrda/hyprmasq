@@ -11,7 +11,7 @@ hyprctl -j clients | jq -r '.[] | "\(.address)  \(.workspace.id)  \(.class)  \(.
 
 | Command | Result |
 | --- | --- |
-| `hyprctl hyprmasq screenshot <addr> <path.png>` | Renders the window to a PNG at `path.png`, which must be absolute. Prints `ok`. |
+| `hyprctl hyprmasq screenshot <addr> <path.png> [X Y WIDTH HEIGHT]` | Renders the window, or the given region of it, to a PNG at `path.png`, which must be absolute. Prints `ok`. See [Regions](#regions). |
 | `hyprctl hyprmasq eis open <addr> [force]` | Creates the window's input socket and prints its path. Opening it again returns the same path. `force` drives an X11 window even while another window of its X server has the focus; see [X11 windows](#x11-windows). Each `open` sets or clears it. |
 | `hyprctl hyprmasq eis close <addr>` | Removes the socket and disconnects its client. Prints `ok`. |
 | `hyprctl hyprmasq eis list` | Prints one `address path` line per open socket, followed by `force` for sockets opened with `force`. |
@@ -24,7 +24,7 @@ With `hyprctl -j`, every command answers in JSON:
 
 | Command | JSON reply |
 | --- | --- |
-| `screenshot` | `{"ok":true,"path":"/tmp/w.png","width":640,"height":480}` |
+| `screenshot` | `{"ok":true,"path":"/tmp/w.png","width":1280,"height":960,"scale":2,"region":{"x":0,"y":0,"width":640,"height":480}}` |
 | `eis open` | `{"ok":true,"path":"/run/user/1000/hyprmasq/<instance>/<addr>.eis"}` |
 | `eis close` | `{"ok":true}` |
 | `eis list` | `[{"address":"0x...","path":"...","force":false}]` |
@@ -34,6 +34,25 @@ Screenshots are taken at the monitor's scale, so a 640×480 window on a 2× moni
 gives a 1280×960 PNG. They show the window's own content, without borders,
 shadows or the cursor. Wayland popups are included. X11 menus are separate
 windows, so a screenshot of an X11 window does not show them.
+
+### Regions
+
+`X Y WIDTH HEIGHT` limits the screenshot to a rectangle of the window, in the
+same window-local logical pixels as `hyprmasq-input`. The values are whole
+numbers. A region that extends past the window is cut to it, and one that
+starts outside it is an error. The region is still read at the monitor's scale,
+so a small region shows small text at full detail.
+
+The JSON reply names the monitor `scale` and the `region` that was captured,
+also for a whole window. A pixel at PX,PY of the PNG is at
+`region.x + PX / scale`, `region.y + PY / scale` for `move`. At fractional
+scales the region is widened to whole device pixels, so the captured `region`
+can be slightly larger than requested and have fractional values: at scale
+1.25, `1 1 10 10` captures 13×13 pixels from 0.8,0.8 with a size of 10.4.
+
+```sh
+hyprctl -j hyprmasq screenshot "$addr" /tmp/toolbar.png 0 0 400 60
+```
 
 Hyprland only renders the window. The PNG is encoded and written on a
 background thread while Hyprland keeps running, and `hyprctl` answers once the

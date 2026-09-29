@@ -32,6 +32,7 @@ output, installs the plugin through the NixOS module, and runs
 | --- | --- |
 | Screenshots | Red, green and blue foot windows on hidden workspaces have the right colors, and the first text row is at the top. |
 | Background encoding | While a screenshot is written to a FIFO that nobody reads yet, Hyprland answers other requests; the reply comes once the file is read. A `--batch` with two screenshots and another command answers all three, in plain text and JSON. |
+| Screenshot regions | A region at the top left of a green `foot` window contains its text and regions at the bottom and right do not; the reply reports the scale and the region, cut to the window at its edge; invalid regions fail without writing a file. At scale 2 the same logical region has twice the pixels, and at scale 1.25 it widens to whole device pixels and reports the region captured. |
 | Socket lifecycle | Paths, `0700` directories and a `0600` socket; `eis list`; removal on `eis close` and when the window closes. |
 | Hidden shell input | Typing into a foot shell on a hidden workspace runs the command, the active window and workspace stay unchanged, and the window repaints. |
 | Typing | Under a German keymap, `type` into a hidden shell produces `zy@€äß|{^`, a shortcut on a key that the layout moves works, named keys, keysyms, repeat counts and `<settle>` edit the line, and escaped and unknown tags are typed as text. Invalid text fails before any key is sent. |
