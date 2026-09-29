@@ -57,7 +57,7 @@ hyprmasq-input --socket PATH ACTION...
 | `down BUTTON`, `up BUTTON` | Press or release a button, for drags. |
 | `scroll DX DY` | Smooth scroll. Positive DY scrolls down. |
 | `key CODE` | Press and release a Linux evdev key code, for example `28` for Enter or `1` for Escape. |
-| `type TEXT` | Type printable ASCII, tab and newline, assuming a US layout. |
+| `type TEXT` | Type text with Hyprland's keymap. Tags such as `<enter>` or `<shortcut:ctrl+l>` in the text press keys; see [Typing text](#typing-text). |
 | `sleep MS` | Wait between actions. |
 
 Buttons are `left`, `right`, `middle`, or an evdev code such as `0x113`. Key
@@ -68,13 +68,47 @@ codes are listed in
 socket=$(hyprctl hyprmasq eis open "$addr")
 
 # Click a button at 120,40, then type into the field that got focus.
-hyprmasq-input --socket "$socket" move 120 40 click type 'hello world' key 28
+hyprmasq-input --socket "$socket" move 120 40 click type 'hello world<enter>'
 
 # Right-click, wait for the menu, pick its first entry with the keyboard.
-hyprmasq-input --socket "$socket" move 200 200 click right sleep 200 key 108 key 28
+hyprmasq-input --socket "$socket" move 200 200 click right type '<wait:200><down><enter>'
 
 # Drag from one point to another.
 hyprmasq-input --socket "$socket" move 50 50 down left move 300 50 up left
+```
+
+### Typing text
+
+`type` presses the keys that produce each character with the keymap of
+Hyprland's active keyboard, which the plugin sends to every sender. On a German
+layout, `z` presses the key labelled Z there, and `@` holds AltGr. Characters
+that only a dead key produces, such as `^` on a German layout, are typed as the
+dead key followed by Space or another key, as the locale's Compose table says.
+Applications that apply Compose, such as GTK and Qt apps and foot, turn that
+into the character. A character that the keymap cannot produce fails the whole
+action before any key is sent.
+
+Tags in the text press keys or wait:
+
+| Tag | Result |
+| --- | --- |
+| `<enter>`, `<tab>`, `<space>`, `<esc>`, `<backspace>`, `<delete>` | Press that key. |
+| `<up>`, `<down>`, `<left>`, `<right>`, `<home>`, `<end>`, `<pageup>`, `<pagedown>` | Press that key. |
+| `<F5>`, `<Return>`, `<XF86AudioMute>`, … | Press the key for an XKB keysym that does not type a character. |
+| `<KEY:COUNT>` | Press a named key or keysym COUNT times, 1 to 100, for example `<down:5>`. |
+| `<shortcut:MOD+KEY>` | Hold the modifiers and press KEY, for example `<shortcut:ctrl+l>` or `<shortcut:ctrl+shift+F5>`. The modifiers are `ctrl`, `shift`, `alt` and `super`, with `control`, `meta` and `win` as aliases. KEY is a character, a named key or a keysym. |
+| `<wait:MS>` | Wait MS milliseconds. |
+| `<settle>` | Wait 300 milliseconds. |
+
+Tags are not case-sensitive. `\<` types a literal `<`. Any other `<…>` that is
+not a tag, such as `<div>` or `<b>`, is typed as it is, and other backslashes
+are typed too. An invalid tag, such as `<wait:soon>` or `<tab:0>`, fails the
+whole action before any key is sent.
+
+```sh
+hyprmasq-input --socket "$socket" type 'user<tab>secret<enter>'
+hyprmasq-input --socket "$socket" type '<shortcut:ctrl+l>https://example.org<enter>'
+hyprmasq-input --socket "$socket" type 'if (a \< b) {<enter>'
 ```
 
 ### A screenshot and input loop
@@ -84,7 +118,7 @@ addr=0x55d1c0a3e4b0
 socket=$(hyprctl hyprmasq eis open "$addr")
 
 hyprctl hyprmasq screenshot "$addr" /tmp/before.png
-hyprmasq-input --socket "$socket" type 'ls -la' key 28
+hyprmasq-input --socket "$socket" type 'ls -la<enter>'
 sleep 0.3                                 # give the application time to redraw
 hyprctl hyprmasq screenshot "$addr" /tmp/after.png
 
@@ -239,8 +273,10 @@ last queued key, and a menu opened in the target can grab your keyboard.
   over the window.
 - X11 apps that only accept focus through `WM_TAKE_FOCUS`, such as some Java
   applications, may ignore emulated keys.
-- `type` assumes a US layout, whatever keymap Hyprland uses. For other layouts,
-  use `key` or a libei client that reads the advertised keymap.
+- `type` uses the first layout of a keymap with several layouts, such as
+  `us,de`.
+- Characters that need a dead key rely on the target application to compose
+  them. Some X11 applications do not.
 - Reconnect senders after changing the keyboard layout or keymap.
 - Held keys, key repeat and drags are unreliable when the target shares a
   Wayland connection with the focused window.

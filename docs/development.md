@@ -34,6 +34,7 @@ output, installs the plugin through the NixOS module, and runs
 | Background encoding | While a screenshot is written to a FIFO that nobody reads yet, Hyprland answers other requests; the reply comes once the file is read. A `--batch` with two screenshots and another command answers all three, in plain text and JSON. |
 | Socket lifecycle | Paths, `0700` directories and a `0600` socket; `eis list`; removal on `eis close` and when the window closes. |
 | Hidden shell input | Typing into a foot shell on a hidden workspace runs the command, the active window and workspace stay unchanged, and the window repaints. |
+| Typing | Under a German keymap, `type` into a hidden shell produces `zy@€äß|{^`, a shortcut on a key that the layout moves works, named keys, keysyms, repeat counts and `<settle>` edit the line, and escaped and unknown tags are typed as text. Invalid text fails before any key is sent. |
 | Pointer events | `wev` on a hidden workspace receives enter, motion, button and axis events. |
 | Shared connection | Two `footclient` windows of one `foot --server`: the hidden one receives the text, the focused one receives nothing and stays focused. |
 | Protections | `nix/focus-probe.c`, a small xdg-shell client, answers an emulated click with a popup grab, a drag and an interactive move and resize. None of them take the real focus or change the window. |

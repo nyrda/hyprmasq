@@ -10,13 +10,13 @@ addr=$(hyprctl -j clients | jq -r '.[] | select(.class == "foot") | .address' | 
 
 hyprctl hyprmasq screenshot "$addr" /tmp/window.png   # render the window to a PNG
 socket=$(hyprctl hyprmasq eis open "$addr")           # create its input socket
-hyprmasq-input --socket "$socket" type 'echo hello' key 28
+hyprmasq-input --socket "$socket" type 'echo hello<enter>'
 hyprctl hyprmasq eis close "$addr"
 ```
 
 libei is the standard Linux protocol for emulated input, so any libei sender can
 drive the socket. The bundled `hyprmasq-input` covers the common cases: move,
-click, scroll, keys and ASCII text.
+click, scroll, keys, shortcuts and text in the active keyboard layout.
 
 This is a personal plugin. It is built and tested against **Hyprland 0.56.2**
 with a Lua configuration. The Nix flake pins the compositor and the plugin

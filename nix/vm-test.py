@@ -319,6 +319,48 @@ try:
         machine.fail(f"cmp -s {before} {after}")
         assert snapshot() == before_focus
 
+    with subtest("typing tags and characters with the active keymap"):
+        def keymap(name):
+            return any(name in k["active_keymap"] for k in json.loads(hypr("-j devices"))["keyboards"])
+
+        hypr("eval " + shlex.quote('hl.config({ input = { kb_layout = "de" } })'))
+        wait_for("German keymap", lambda: keymap("German"))
+        # Started after the switch, so the shell reads the German keymap from the start.
+        focus_workspace(18)
+        target = foot("hm-typed", "env LC_ALL=C.UTF-8 bash --noprofile --norc -i")
+        time.sleep(1)
+        focus_workspace(4)
+        before_focus = snapshot()
+        path = open_socket(target)
+        # Y and Z swap places, AltGr and the ISO key between Shift and Y give @ € | { >, ^ is a dead key followed by
+        # Space. Ctrl+U cuts the line and Ctrl+Y pastes it back, which only works if the Y key of the layout is used.
+        send(path, "type", 'printf "%s\\n" "zy@€äß|{^" > /tmp/typed-layout<shortcut:ctrl+u><shortcut:ctrl+y><enter>')
+        machine.wait_until_succeeds("test -s /tmp/typed-layout")
+        assert machine.succeed("cat /tmp/typed-layout") == "zy@€äß|{^\n"
+        # Escaped and unknown tags are typed as text. Named keys, keysyms and repeat counts edit the line.
+        send(path, "type", 'xecho "\\<tab> <div></b>" ok<left:2>X<End> > /tmp/typed-keys<home><delete><settle><Return>')
+        machine.wait_until_succeeds("test -s /tmp/typed-keys")
+        assert machine.succeed("cat /tmp/typed-keys") == "<tab> <div></b> Xok\n"
+        # Invalid text is rejected before anything is sent.
+        for text, error in [
+            ("echo partial > /tmp/typed-partial☃<enter>", "cannot type U+2603"),
+            ("echo partial > /tmp/typed-partial<wait:soon><enter>", "<wait:MS>"),
+            ("echo partial > /tmp/typed-partial<tab:0>", "repeat count"),
+            ("<shortcut:hyper+x>", "unknown shortcut modifier"),
+        ]:
+            status, output = machine.execute(
+                "su - alice -c " + shlex.quote(f"hyprmasq-input --socket {shlex.quote(path)} type {shlex.quote(text)} 2>&1")
+            )
+            assert status == 2 and error in output, (text, status, output)
+        send(path, "type", "echo clean > /tmp/typed-clean<enter>")
+        machine.wait_until_succeeds("test -s /tmp/typed-clean")
+        assert machine.succeed("cat /tmp/typed-clean") == "clean\n"
+        machine.succeed("! ls /tmp/typed-partial*")
+        assert snapshot() == before_focus
+        assert hypr(f"hyprmasq eis close {target}") == "ok"
+        hypr("eval " + shlex.quote('hl.config({ input = { kb_layout = "us" } })'))
+        wait_for("US keymap", lambda: keymap("English"))
+
     with subtest("hidden wev pointer events"):
         focus_workspace(6)
         spawn("stdbuf -oL wev", "wev")

@@ -7,7 +7,7 @@ OBJ := $(SRC:src/%.cpp=$(BUILD_DIR)/%.o)
 DEP := $(OBJ:.o=.d)
 
 PLUGIN_PKGS := hyprland libdrm pixman-1 egl glesv2 libpng libeis-1.0 xkbcommon xcb
-TOOL_PKGS := libei-1.0
+TOOL_PKGS := libei-1.0 xkbcommon
 
 CXX ?= c++
 CC ?= cc
