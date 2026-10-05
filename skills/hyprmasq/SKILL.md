@@ -9,6 +9,17 @@ hyprmasq is a Hyprland plugin. It renders one window to a PNG, and gives each
 window its own input socket, whether or not its workspace is visible. The
 user keeps working: their cursor, focus and visible workspace do not change.
 
+## Prefer the MCP tools
+
+If this session has the hyprmasq MCP tools (`windows`, `launch`, `screenshot`,
+`act`, `release` and `close`, for example as `mcp__hyprmasq__act`), use them
+instead of the shell commands below. One `act` call sends paced input, waits
+until the window has redrawn and returns a screenshot, coordinates are pixels
+of the shot you read them from, and every failure says what was sent. Their
+descriptions and results explain the rest.
+
+The rest of this skill is the fallback for sessions without them.
+
 ## Check that it is available
 
 ```sh
@@ -32,8 +43,9 @@ hyprctl -j hyprmasq screenshot "$addr" /tmp/shot.png       #    look again, and 
 hyprctl hyprmasq eis close "$addr"                         # 7. clean up
 ```
 
-- Always use `hyprctl -j` and check `"ok"` in the reply. `hyprctl` exits 0
-  even for errors.
+- Always use `hyprctl -j` and check `"ok"` in the reply. With `-j`, `hyprctl`
+  exits 0 even for errors. Plain `hyprctl hyprmasq ...` exits 7 when the reply
+  is an error. Both exit 6 when Hyprland does not answer within 5 seconds.
 - Screenshot paths must be absolute and cannot contain spaces. Use a fresh
   path per step, or look at the file before overwriting it.
 - Look at a screenshot before every action that depends on the screen. Never
@@ -53,6 +65,17 @@ A pixel at PX,PY of the PNG is at `region.x + PX / scale`,
 `region.y + PY / scale` for `move`. If your image viewer downscaled the PNG,
 convert from the viewer's size back to `width` and `height` first.
 
+With `"resizing":true` in the reply, the window has not yet redrawn at a new
+size, for example after a window next to it opened or closed, so the image
+shows a stale frame. Do not click from it. Wait until the window has caught
+up, then take a new screenshot:
+
+```sh
+shot=$(hyprctl -j hyprmasq screenshot "$addr" /tmp/shot.png)
+jq -e .resizing <<<"$shot" >/dev/null &&
+  hyprctl -j hyprmasq wait "$addr" since "$(jq .commits <<<"$shot")" quiet 200 deadline 4500
+```
+
 To read small text, take a region at full detail:
 
 ```sh
@@ -61,16 +84,42 @@ hyprctl -j hyprmasq screenshot "$addr" /tmp/zoom.png 0 0 400 60   # X Y WIDTH HE
 
 ## Input
 
-`hyprmasq-input --socket "$socket" ACTION...` runs its actions in order:
+`hyprmasq-input --socket "$socket" [--json] ACTION...` checks all of its
+actions, then runs them in order:
 
 | Action | Meaning |
 | --- | --- |
 | `move X Y` | Pointer to X,Y, logical pixels |
-| `click [left\|right\|middle]` | Press and release a button |
-| `down BUTTON`, `up BUTTON` | For drags: `move 10 10 down left move 200 10 up left` |
+| `click [BUTTON [COUNT [MODS]]]` | Click `left`, `right` or `middle` COUNT times (1 to 3) with modifiers held: `click left 2` double-clicks, `click left 1 ctrl` ctrl-clicks |
+| `drag X1 Y1 X2 Y2 [BUTTON]` | Press at X1,Y1, move there in steps to X2,Y2, release |
+| `down BUTTON`, `up BUTTON` | Press or release a button |
+| `wheel DX DY` | Whole wheel notches, positive DY scrolls down |
 | `scroll DX DY` | Smooth scroll in logical pixels, positive DY scrolls down |
-| `type TEXT` | Text with the user's keyboard layout, with tags |
+| `keys CHORD [REPEAT]` | A key or shortcut by name: `keys enter`, `keys ctrl+l`, `keys down 5` |
+| `text TEXT` | Text exactly as given, with the user's keyboard layout |
+| `type TEXT` | Text with tags such as `<enter>`, see below |
 | `sleep MS` | Pause between actions |
+
+Key names are `ctrl`, `shift`, `alt`, `super`, `enter`, `esc`, `tab`,
+`space`, `backspace`, `delete`, the arrows, `home`, `end`, `pageup`,
+`pagedown`, single characters and XKB keysym names such as `F5`. A letter is
+its key without Shift: use `shift+a` for a capital.
+
+Input is paced like a person's: clicks hold the button 50 ms, keys are typed
+10 ms apart, and actions are 50 ms apart. Batch only actions whose targets you
+have seen. A menu, dialog or page that opens needs a new screenshot before you
+click in it: wait, take a screenshot, then go on. Keys you know may still
+follow in the same run, such as `keys down keys enter` to pick a menu entry.
+
+Points must lie in the window or right of or below it; points left of or above
+the window are refused. Nothing is sent when any action, key name or
+character is invalid.
+
+A character without a key of its own, such as `^` on a German layout, is typed
+as a dead key sequence, which the app composes with the Compose table of its
+own locale. When the app may run in another locale than you, pass its
+`LC_ALL`, `LC_CTYPE` or `LANG` from `/proc/<pid>/environ` as
+`--locale NAME`, or check such characters in a screenshot.
 
 Tags in `type` text:
 
@@ -84,11 +133,21 @@ Tags in `type` text:
 | `<wait:MS>`, `<settle>` | Pause, `<settle>` is 300 ms |
 
 `\<` types a literal `<`. Unknown tags such as `<div>` are typed as they are,
-but escape `<` before a word that is a key name, as in `a \<tab> b`. Quote the
-text for the shell with single quotes.
+but escape `<` before a word that is a key name, as in `a \<tab> b`, or use
+`text`, which has no tags. Quote the text for the shell with single quotes.
 
-Exit codes of `hyprmasq-input`: 0 done, 2 invalid action or text (nothing was
-sent), 1 the plugin refused or dropped input (see below).
+Exit codes of `hyprmasq-input`: 0 done, 2 invalid action, key name or text
+(nothing was sent), 1 stopped after it started (see below). With `--json` it
+prints how far it got:
+
+```json
+{"ok":false,"done":1,"total":2,"failedIndex":1,"delivery":"partial","progress":{"keys":39},"error":{"code":"input_paused","message":"the server paused input, so some events were dropped"}}
+```
+
+`delivery` is `none` (nothing sent, safe to fix and retry), `complete`,
+`partial` (actions before `failedIndex` arrived, the failed one maybe in part:
+`progress.keys` keys of it) or `uncertain`. Never repeat `partial` or
+`uncertain` input without taking a screenshot first.
 
 ## Waiting
 
@@ -104,11 +163,35 @@ window has drawn nothing new for QUIET-MS (default 200), or after TIMEOUT-MS
   Wait again or take the screenshot anyway.
 - `framesSinceInput` counts what the window drew since your last input. `0`
   means your input has not changed anything yet: the click may have missed, or
-  the app needs longer to react. Wait with a longer QUIET-MS, such as
-  `wait "$addr" 1000 4500`, before concluding. `frames` only counts what was
-  drawn during the wait itself, which is often 0 because apps redraw quickly.
+  the app needs longer to react. Before concluding, wait for a change with
+  `wait ... since` and `expect` (below): this plain `wait` sends a hidden window
+  no frame callbacks, which it gets only for a second after input, so a
+  longer QUIET-MS does not help an app that reacts later. `frames` only counts
+  what was drawn during the wait itself, which is often 0 because apps redraw
+  quickly.
 - Prefer `wait` to `sleep`. Use `sleep` only for delays that are not drawing,
   such as a network request before the app shows anything.
+
+To wait for a change since a screenshot, pass its `commits` to `wait ... since`.
+The window needs an open socket. While this wait runs, a hidden window gets
+frame callbacks, so it keeps drawing:
+
+```sh
+hyprctl -j hyprmasq wait "$addr" since 123 expect 1000 quiet 200 deadline 4500
+```
+
+```json
+{"ok":true,"ended":"quiet","commits":131,"redrawObserved":true,"commitsSince":8,"quietMs":200,"elapsedMs":412}
+```
+
+`ended` is `quiet` (settled), `no_redraw` (nothing drawn within `expect`, so
+look before repeating the input), `timeout` (not settled by `deadline`: still
+drawing when `redrawObserved` is true, otherwise nothing drawn yet) or
+`window_closed`. Keep `deadline` at 4500 or below: `hyprctl` gives up after 5
+seconds, and `expect` beyond `deadline` does not wait longer. The screenshot
+reply and the wait name the socket in `socketId`; if they differ, the socket
+was opened again and the screenshot's `commits` does not apply, so take a new
+screenshot.
 
 ## GUI testing
 
@@ -148,10 +231,13 @@ open.
 
 | Symptom | Meaning and fix |
 | --- | --- |
-| `the server paused input, so some events were dropped` | The target is an X11 window and the user is working in another X11 window of the same X server. Wait and retry later. Use `hyprctl hyprmasq eis open "$addr" force` only if the user allows it: it can move input focus they are using. |
+| `the server paused input, so some events were dropped` | The target is an X11 window and the user is working in another X11 window of the same X server. The input before the pause arrived, `progress.keys` keys of a text: take a screenshot before going on, later. Use `hyprctl hyprmasq eis open "$addr" force` only if the user allows it: it can move input focus they are using. |
+| `... is outside the pointer regions ...` | The point lies left of or above the window, or beyond its monitor. Nothing was sent. Click inside the window, or use the keyboard. |
+| A menu or dropdown is gone in the next screenshot | The emulated focus ends when `hyprmasq-input` exits, and the menu closed with it. Open it and pick the entry in one run, with `keys`, or take a lease first: `hyprctl -j hyprmasq lease "$addr" 60000 agent` keeps the focus for 60 s (Wayland windows only), and `hyprctl -j hyprmasq lease "$addr" release agent` ends it. |
 | Screenshot unchanged after input and `wait` | The app may ignore input until it is focused or may not redraw while hidden. Wait longer, or check that the click hit the element in a region screenshot. |
 | `no mapped window 0x...` | The window closed or the address is wrong. List `hyprctl -j clients` again. |
 | `the keymap cannot type U+...` | The user's layout has no key for the character. Nothing was sent. Use another spelling, or enter it another way in the app. |
+| `the server closed the connection, ...` | The window closed, maybe because of the input, or another sender took over its socket. List `hyprctl -j clients` again. |
 | `hyprctl hyprmasq ...` says the command is unknown | The plugin is not loaded. Tell the user. |
 
 X11 menus and tooltips are separate windows. Screenshots of an X11 app do not

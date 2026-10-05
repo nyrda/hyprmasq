@@ -16,6 +16,8 @@
       #   pkgs.callPackage "${inputs.hyprmasq}/nix/package.nix" { }
       packages.${system} = {
         hyprmasq = pkgs.callPackage ./nix/package.nix { };
+        # Also installed as $out/bin/hyprmasq-mcp by the hyprmasq package.
+        hyprmasq-mcp = self.packages.${system}.hyprmasq.mcp;
         default = self.packages.${system}.hyprmasq;
         # The exact Hyprland the plugin above is built and VM-tested against. Running these guarantees a match.
         inherit (pkgs) hyprland xdg-desktop-portal-hyprland;
@@ -28,6 +30,10 @@
 
       checks.${system}.vm-test = import ./nix/hyprmasq-vm-test.nix { inherit system nixpkgs; };
 
-      devShells.${system}.default = pkgs.mkShell { inputsFrom = [ self.packages.${system}.hyprmasq ]; };
+      # Builds the plugin with make, and the MCP server with go in mcp/.
+      devShells.${system}.default = pkgs.mkShell {
+        inputsFrom = [ self.packages.${system}.hyprmasq ];
+        packages = [ pkgs.go ];
+      };
     };
 }

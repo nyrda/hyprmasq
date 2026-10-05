@@ -1,4 +1,5 @@
 #include "Cursor.hpp"
+#include "Eis.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
@@ -71,7 +72,7 @@ namespace hyprmasq::cursor {
         struct SCursor {
             PHLWINDOWREF         window;
             Vector2D             position;
-            Time::steady_tp      last;
+            Time::steady_tp      last; // of the input, or of a lease keeping the pointer there
             std::vector<SRipple> ripples;
             CBox                 damaged;         // what the last frame drew, in global logical pixels
             bool                 changed = false; // looks different from what the last frame drew
@@ -241,7 +242,10 @@ namespace hyprmasq::cursor {
             const bool on  = enabled->value();
             std::erase_if(cursors, [&](SCursor& cursor) {
                 std::erase_if(cursor.ripples, [&](const SRipple& ripple) { return now - ripple.start >= RIPPLE; });
-                auto       window    = cursor.window.lock();
+                auto window = cursor.window.lock();
+                // The emulated pointer stays where it is while a lease keeps it, and so does its cursor.
+                if (window && leaseKeepsPointer(window))
+                    cursor.last = now;
                 const bool done      = !on || !window || !window->m_isMapped || (now - cursor.last >= hold() + FADE && cursor.ripples.empty());
                 const auto box       = done ? CBox{} : bounds(cursor, window, now);
                 const bool animating = !cursor.ripples.empty() || now - cursor.last >= hold();

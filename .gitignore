@@ -1,5 +1,5 @@
 build/
-result*
+/result*
 *.so
 hyprmasq-input
 __pycache__/

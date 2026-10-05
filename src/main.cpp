@@ -23,6 +23,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         hyprmasq::cursor::init(handle);
     } catch (...) {
         hyprmasq::wait::shutdown();
+        hyprmasq::shutdownEis();
         hyprmasq::cursor::shutdown();
         hyprmasq::deferred::shutdown();
         hyprmasq::x11::shutdown();
@@ -32,7 +33,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     HyprlandAPI::registerHyprCtlCommand(PHANDLE, SHyprCtlCommand{.name = "hyprmasq", .exact = false, .fn = hyprmasq::handleCommand});
 
-    return {"hyprmasq", "Per-window screenshots and EIS input for Hyprland", "nyrda", "0.2.0"};
+    return {"hyprmasq", "Per-window screenshots and EIS input for Hyprland", "nyrda", std::string{hyprmasq::VERSION}};
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {

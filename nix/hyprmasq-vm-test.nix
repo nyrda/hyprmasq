@@ -107,6 +107,8 @@ pkgs.testers.runNixOSTest {
       xdg.portal.enable = pkgs.lib.mkForce false;
       services.speechd.enable = false;
       services.getty.autologinUser = "alice";
+      # Its Compose table makes the dead acute and c a ç, where that of en_US.UTF-8, the default, makes them a ć.
+      i18n.extraLocales = [ "pt_BR.UTF-8/UTF-8" ];
 
       virtualisation = {
         cores = 4;

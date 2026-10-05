@@ -5,11 +5,13 @@
 #
 #   pkgs.callPackage "${inputs.hyprmasq}/nix/package.nix" { }
 #
-# Besides the plugin, $out/bin/hyprmasq-input is a small libei client for driving a window's socket, and
-# $out/bin/hyprmasq-launch starts an application on a hidden workspace.
+# Besides the plugin, $out/bin/hyprmasq-input is a small libei client for driving a window's socket,
+# $out/bin/hyprmasq-launch starts an application on a hidden workspace, and $out/bin/hyprmasq-mcp is the MCP
+# server for coding agents.
 {
   lib,
   stdenv,
+  buildGoModule,
   pkg-config,
   makeWrapper,
   jq,
@@ -46,14 +48,19 @@
         "build"
         "nix"
         "docs"
+        "mcp"
       ])
       && !(lib.hasSuffix ".so" base);
   },
 }:
 
+let
+  # Built on its own, so changes to the plugin do not rebuild it.
+  mcp = import ./mcp-package.nix { inherit lib buildGoModule; };
+in
 stdenv.mkDerivation {
   pname = "hyprmasq";
-  version = "0.2.0-hyprland-${hyprland.version}";
+  version = "0.3.0-hyprland-${hyprland.version}";
 
   src = hyprmasqSrc;
 
@@ -94,8 +101,12 @@ stdenv.mkDerivation {
     install -Dm755 tools/hyprmasq-launch "$out/bin/hyprmasq-launch"
     # hyprctl comes from the user's PATH, so it matches the running Hyprland.
     wrapProgram "$out/bin/hyprmasq-launch" --prefix PATH : ${lib.makeBinPath [ jq ]}
+    # The server runs hyprmasq-input from PATH; this one matches the plugin.
+    makeWrapper ${lib.getExe mcp} "$out/bin/hyprmasq-mcp" --prefix PATH : "$out/bin"
     runHook postInstall
   '';
+
+  passthru = { inherit mcp; };
 
   meta = {
     description = "Hyprland plugin for per-window screenshots and libei input sockets";

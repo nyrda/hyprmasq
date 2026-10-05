@@ -31,11 +31,17 @@ namespace hyprmasq::deferred {
         };
         template struct SCommandsAccess<&CHyprCtl::m_commands>;
 
+        using Refuse = std::move_only_function<std::string(const SError&)>;
+
         struct SJob {
             std::move_only_function<std::string()> work;
-            std::thread                            thread;
-            std::string                            reply;
-            std::atomic<bool>                      done = false;
+            // Set for work that waits for the main thread, see runWaiting().
+            Refuse            refuse;
+            std::thread       thread;
+            std::string       reply;
+            std::atomic<bool> done = false;
+            // Its reply was given up on, so it is only joined once done.
+            bool abandoned = false;
         };
 
         // A hyprctl connection waiting for the placeholders in its reply to be filled in.
@@ -89,34 +95,52 @@ namespace hyprmasq::deferred {
             return std::format("\x1fhyprmasq-{:x}-{}\x1f", nonce, id);
         }
 
-        uint64_t start(std::move_only_function<std::string()> work) {
+        void complete(SJob* job, std::string reply) {
+            job->reply = std::move(reply);
+            job->done.store(true, std::memory_order_release);
+            eventfd_write(eventFd, 1);
+        }
+
+        uint64_t start(std::move_only_function<std::string()> work, Refuse refuse) {
             const auto id  = nextId++;
             auto*      job = (jobs[id] = std::make_unique<SJob>()).get();
             job->work      = std::move(work);
+            job->refuse    = std::move(refuse);
             auto execute   = [job] {
+                std::string reply;
                 try {
-                    job->reply = job->work();
-                } catch (const std::exception& e) { job->reply = std::format("error: {}", e.what()); }
-                job->done.store(true, std::memory_order_release);
-                eventfd_write(eventFd, 1);
+                    reply = job->work();
+                } catch (const std::exception& e) { reply = std::format("error: {}", e.what()); }
+                complete(job, std::move(reply));
             };
             try {
                 job->thread = std::thread(execute);
             } catch (const std::system_error&) {
-                execute(); // no thread to spare
+                // No thread to spare. Work that waits for the main thread would wait for itself here.
+                if (job->refuse)
+                    complete(job, job->refuse(SError{eErrorCode::INTERNAL, "no thread to wait in"}));
+                else
+                    execute();
             }
             return id;
         }
 
-        // Waits for the jobs and puts their replies in place of their placeholders.
+        // Waits for the jobs and puts their replies in place of their placeholders. Jobs that wait for the main thread,
+        // which this is, are not waited for: their replies are refused, and they stay until they are done.
         std::string collect(std::string reply, const std::vector<uint64_t>& ids) {
             for (auto id : ids) {
                 std::string text = "error: hyprmasq was unloaded";
                 if (auto it = jobs.find(id); it != jobs.end()) {
-                    if (it->second->thread.joinable())
-                        it->second->thread.join();
-                    text = std::move(it->second->reply);
-                    jobs.erase(it);
+                    auto& job = *it->second;
+                    if (job.refuse && !job.done.load(std::memory_order_acquire)) {
+                        text          = job.refuse(SError{eErrorCode::UNSUPPORTED, "the request was answered before the wait ended"});
+                        job.abandoned = true;
+                    } else {
+                        if (job.thread.joinable())
+                            job.thread.join();
+                        text = std::move(job.reply);
+                        jobs.erase(it);
+                    }
                 }
                 if (const auto at = reply.find(token(id)); at != std::string::npos)
                     reply.replace(at, token(id).size(), text);
@@ -142,6 +166,16 @@ namespace hyprmasq::deferred {
             return reply;
         }
 
+        // Starts work. Outside a batch this command is the whole request, and finish() decides at once.
+        std::string schedule(std::move_only_function<std::string()> work, Refuse refuse) {
+            const auto id = start(std::move(work), std::move(refuse));
+            if (batchDepth > 0) {
+                batchJobs.push_back(id);
+                return token(id);
+            }
+            return finish(token(id), {id});
+        }
+
         int onEvent(int fd, uint32_t, void*) {
             eventfd_t count = 0;
             eventfd_read(fd, &count);
@@ -155,6 +189,14 @@ namespace hyprmasq::deferred {
             }
             for (auto& request : ready)
                 request.resolver->resolve(collect(std::move(request.reply), request.jobs));
+            std::erase_if(jobs, [](const auto& entry) {
+                auto& job = *entry.second;
+                if (!job.abandoned || !job.done.load(std::memory_order_acquire))
+                    return false;
+                if (job.thread.joinable())
+                    job.thread.join(); // returns at once: the job is done
+                return true;
+            });
             return 0;
         }
 
@@ -239,12 +281,13 @@ namespace hyprmasq::deferred {
             restoreBatch();
         active = false;
 
-        for (auto& request : std::exchange(requests, {}))
-            request.resolver->resolve(collect(std::move(request.reply), request.jobs));
+        // wait::shutdown() has answered every wait, so every job ends.
         for (auto& [_, job] : jobs) {
             if (job->thread.joinable())
                 job->thread.join();
         }
+        for (auto& request : std::exchange(requests, {}))
+            request.resolver->resolve(collect(std::move(request.reply), request.jobs));
         // Jobs of a running batch stay until the batch collects them.
         std::erase_if(jobs, [](const auto& entry) { return !std::ranges::contains(batchJobs, entry.first); });
 
@@ -261,14 +304,14 @@ namespace hyprmasq::deferred {
     }
 
     std::string run(std::move_only_function<std::string()> work) {
-        // Outside a batch this command is the whole request, and finish() decides at once.
         if (!active || (batchDepth == 0 && !deferrable()))
             return work();
-        const auto id = start(std::move(work));
-        if (batchDepth > 0) {
-            batchJobs.push_back(id);
-            return token(id);
-        }
-        return finish(token(id), {id});
+        return schedule(std::move(work), nullptr);
+    }
+
+    std::string runWaiting(std::move_only_function<std::string()> work, std::move_only_function<std::string(const SError&)> refuse) {
+        if (!active || (batchDepth == 0 && !deferrable()))
+            return refuse(SError{eErrorCode::UNSUPPORTED, "wait only works in requests to hyprctl's socket"});
+        return schedule(std::move(work), std::move(refuse));
     }
 }

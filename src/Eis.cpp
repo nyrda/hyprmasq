@@ -5,12 +5,13 @@
 #include "X11.hpp"
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/FocusState.hpp>
-#include <hyprland/src/desktop/state/ViewState.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
+#include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
@@ -19,29 +20,143 @@
 #include <hyprland/src/render/Renderer.hpp>
 #include <libeis.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <cmath>
+#include <format>
 #include <memory>
 #include <ranges>
 #include <map>
+#include <random>
 #include <set>
+#include <utility>
 
 namespace hyprmasq {
     namespace {
         struct Session;
         std::map<std::string, std::unique_ptr<Session>> sessions;
-        void*                                           originalPopupGrab   = nullptr;
-        void*                                           originalStartDrag   = nullptr;
-        void*                                           originalActivateX11 = nullptr;
-        void*                                           originalWindowFocus = nullptr;
-        void*                                           originalActivate    = nullptr;
+        void*                                           originalPopupGrab     = nullptr;
+        void*                                           originalStartDrag     = nullptr;
+        void*                                           originalActivateX11   = nullptr;
+        void*                                           originalWindowFocus   = nullptr;
+        void*                                           originalActivate      = nullptr;
+        void*                                           originalUpdateDecos   = nullptr;
+        void*                                           originalKeyboardFocus = nullptr;
+        void*                                           originalPointerFocus  = nullptr;
+        CHyprSignalListener                             monitorLayout;
+
+        // Socket ids: random for each load of the plugin, then counting.
+        uint64_t socketNonce = 0, socketCount = 0;
+
+        // The surface a keyboard or pointer resource sends its events to is private to Hyprland. An explicit
+        // instantiation may name private members, so these reach it without redefining access specifiers around the
+        // include.
+        WP<CWLSurfaceResource>& surfaceOf(CWLKeyboardResource& keyboard);
+        WP<CWLSurfaceResource>& surfaceOf(CWLPointerResource& pointer);
+        template <WP<CWLSurfaceResource> CWLKeyboardResource::* Keyboard, WP<CWLSurfaceResource> CWLPointerResource::* Pointer>
+        struct SFocusAccess {
+            friend WP<CWLSurfaceResource>& surfaceOf(CWLKeyboardResource& keyboard) {
+                return keyboard.*Keyboard;
+            }
+            friend WP<CWLSurfaceResource>& surfaceOf(CWLPointerResource& pointer) {
+                return pointer.*Pointer;
+            }
+        };
+        template struct SFocusAccess<&CWLKeyboardResource::m_currentSurface, &CWLPointerResource::m_currentSurface>;
+
+        // True if focus is on a surface of the window's Wayland connection.
+        bool sharesConnection(const PHLWINDOW& w, const WP<CWLSurfaceResource>& focus) {
+            auto surface = focus.lock();
+            return surface && w->resource() && surface->client() == w->resource()->client();
+        }
+
+        struct SLease {
+            Time::steady_tp until;
+            std::string     owner;
+        };
+
+        struct SPointerRegion {
+            uint32_t x = 0, y = 0, width = 0, height = 0;
+            bool     operator==(const SPointerRegion&) const = default;
+        };
+
+        // The pointer device's regions in window-local logical pixels: the window, then the rest of the bounding box of
+        // the window and its monitor right of and below it. libeis region offsets are unsigned, so the parts left of or
+        // above the window are left out, and window-local coordinates stay the device's coordinates.
+        std::vector<SPointerRegion> pointerRegions(const PHLWINDOW& w) {
+            const auto     size  = w->size(Desktop::View::IGeometric::GEOMETRIC_GOAL);
+            const uint32_t width = std::max(1.0, size.x), height = std::max(1.0, size.y);
+            uint32_t       right = width, bottom = height;
+            if (const auto monitor = w->m_monitor.lock()) {
+                const auto far = monitor->m_position + monitor->m_size - w->position(Desktop::View::IGeometric::GEOMETRIC_GOAL);
+                right          = std::clamp(std::ceil(far.x), sc<double>(width), 1e6);
+                bottom         = std::clamp(std::ceil(far.y), sc<double>(height), 1e6);
+            }
+            std::vector<SPointerRegion> regions{{.x = 0, .y = 0, .width = width, .height = height}};
+            if (right > width)
+                regions.push_back({.x = width, .y = 0, .width = right - width, .height = height});
+            if (bottom > height)
+                regions.push_back({.x = 0, .y = height, .width = right, .height = bottom - height});
+            return regions;
+        }
+
+        // Shots show a window's popups where the renderer draws them: less the window's xdg geometry offset, which
+        // Hyprland's popup hit testing leaves out. Points are looked up in the frame of the shots, so that input reaches
+        // what they show there. The offset of the window's own surface is 0 in both.
+        Vector2D popupOffset(const PHLWINDOW& w) {
+            return !w->m_isX11 && w->m_xdgSurface ? w->m_xdgSurface->m_current.geometry.pos() : Vector2D{};
+        }
+
+        // The popup at a window-local point. Hyprland places popups at the window's animated position when it tests for
+        // them, so the point is given there too, and a window that moves finds its popups where shots show them.
+        SP<Desktop::View::CPopup> popupAt(const PHLWINDOW& w, const Vector2D& point) {
+            if (w->m_isX11 || !w->m_popupHead || w->m_popupHead->popupTreeCount() == 0)
+                return nullptr;
+            const auto popup = w->m_popupHead->at(w->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT) + popupOffset(w) + point);
+            return popup && popup->wlSurface() && popup->wlSurface()->resource() ? popup : nullptr;
+        }
+
+        // The surface at a window-local point, and the point in that surface's coordinates.
+        SP<CWLSurfaceResource> surfaceAt(const PHLWINDOW& w, const Vector2D& point, Vector2D& local) {
+            // Like Hyprland, address X11 windows through their one surface, in XWayland's scale.
+            if (w->m_isX11) {
+                local = point * w->m_X11SurfaceScaledBy;
+                return w->resource();
+            }
+            if (const auto popup = popupAt(w, point)) {
+                local = popupOffset(w) + point - popup->coordsRelativeToParent();
+                return popup->wlSurface()->resource();
+            }
+            const auto surface = w->resource();
+            if (!surface)
+                return nullptr;
+            const auto [found, at] = surface->at(point, true);
+            local                  = at;
+            return found;
+        }
+
+        // Input events, which a frame then delivers, and frames.
+        bool carriesInput(eis_event* e) {
+            switch (eis_event_get_type(e)) {
+                case EIS_EVENT_POINTER_MOTION_ABSOLUTE:
+                case EIS_EVENT_BUTTON_BUTTON:
+                case EIS_EVENT_SCROLL_DELTA:
+                case EIS_EVENT_SCROLL_DISCRETE:
+                case EIS_EVENT_SCROLL_STOP:
+                case EIS_EVENT_KEYBOARD_KEY:
+                case EIS_EVENT_FRAME: return true;
+                default: return false;
+            }
+        }
 
         struct Session {
             PHLWINDOWREF            window;
             std::string             path;
+            std::string             id       = std::format("{:x}-{}", socketNonce, ++socketCount); // see SEisInfo
             eis*                    context  = nullptr;
             eis_client*             client   = nullptr;
             eis_seat*               seat     = nullptr;
@@ -56,22 +171,31 @@ namespace hyprmasq {
             std::set<uint32_t>      keys, buttons;
             Vector2D                position  = {1, 1};
             Time::steady_tp         lastInput = Time::steadyNow();
-            // What the window draws after input, for wait.
-            wait::CContentWatch content;
-            bool                force = false, paused = false, deferredKeys = false, restoreDue = false;
-            Time::steady_tp     pausedAt, holdUntil = Time::steadyNow(), lastKeys = Time::steadyNow();
-            eis_event*          stashed     = nullptr; // taken from libeis, waiting for a hold to end
-            wl_client*          server      = nullptr; // the window's X server, looked up once
-            bool                serverKnown = false;
+            // The window's commits from the socket's opening, for wait.
+            std::shared_ptr<wait::CContentWatch> content;
+            uint64_t                             commitsAtInput = 0;
+            bool                                 force = false, paused = false, deferredKeys = false, restoreDue = false;
+            Time::steady_tp                      pausedAt, holdUntil = Time::steadyNow(), lastKeys = Time::steadyNow(), lastPing;
+            eis_event*                           stashed     = nullptr; // taken from libeis, waiting for a hold to end
+            wl_client*                           server      = nullptr; // the window's X server, looked up once
+            bool                                 serverKnown = false;
+            std::vector<SPointerRegion>          regions; // of the pointer device, as announced
+            wl_event_source*                     regionCheck = nullptr;
+            std::optional<SLease>                lease;
+            // Set while Hyprland changes the real focus and a lease keeps this window's emulated focus, see CKeptFocus.
+            bool keepingKeyboard = false, keepingPointer = false;
 
-            Session(const PHLWINDOW& w, std::string p, bool f) : window(w), path(std::move(p)), force(f) {}
+            Session(const PHLWINDOW& w, std::string p, bool f) : window(w), path(std::move(p)), content(std::make_shared<wait::CContentWatch>(w)), force(f) {}
             ~Session() {
+                lease.reset(); // the emulated focus ends with the socket
                 clearClient();
                 releaseX();
                 if (fdSource)
                     wl_event_source_remove(fdSource);
                 if (timer)
                     wl_event_source_remove(timer);
+                if (regionCheck)
+                    wl_event_source_remove(regionCheck);
                 if (context)
                     eis_unref(context); // libeis owns and unlinks the socket and lock file
             }
@@ -80,10 +204,9 @@ namespace hyprmasq {
                     return;
                 drop(d);
                 if (d == pointer)
-                    leavePointer();
+                    releasePointer();
                 if (d == keyboard) {
-                    leaveKeyboard();
-                    keys.clear();
+                    releaseKeyboard();
                     if (state)
                         xkb_state_unref(state);
                     state = nullptr;
@@ -93,7 +216,9 @@ namespace hyprmasq {
                 d = nullptr;
             }
             void clearClient() {
-                leave();
+                // Buttons first, so that the modifiers held around them still apply to the release.
+                releasePointer();
+                releaseKeyboard();
                 clearDevice(pointer);
                 clearDevice(keyboard);
                 for (auto* e : pending)
@@ -169,6 +294,62 @@ namespace hyprmasq {
                 leaveKeyboard();
                 leavePointer();
             }
+            // Lets go of the keys the sender holds. Without a lease the keyboard leaves the window, which releases them
+            // for the application. With one the focus stays, so each key goes up.
+            void releaseKeyboard() {
+                if (!leased())
+                    leaveKeyboard();
+                auto       s   = enteredKeyboard ? wlSeat() : nullptr;
+                const auto now = Time::millis(Time::steadyNow());
+                for (auto code : keys) {
+                    if (s)
+                        for (auto& k : s->m_keyboards)
+                            if (k)
+                                k->sendKey(now, code, WL_KEYBOARD_KEY_STATE_RELEASED);
+                    if (state)
+                        xkb_state_update_key(state, code + 8, XKB_KEY_UP);
+                }
+                // The sender is stopping or gone, so only the window learns the modifiers.
+                if (s && state && !keys.empty())
+                    mods(s, false);
+                keys.clear();
+            }
+            // Lets go of the buttons the sender holds. Without a lease the pointer leaves the window; with one it stays
+            // where it is.
+            void releasePointer() {
+                if (!leased()) {
+                    leavePointer();
+                    return;
+                }
+                auto s = enteredPointer && !buttons.empty() ? wlSeat() : nullptr;
+                if (s) {
+                    const auto now = Time::millis(Time::steadyNow());
+                    for (auto& p : s->m_pointers)
+                        if (p) {
+                            for (auto button : buttons)
+                                p->sendButton(now, button, WL_POINTER_BUTTON_STATE_RELEASED);
+                            p->sendFrame();
+                        }
+                }
+                buttons.clear();
+            }
+            bool leased() const {
+                return lease && Time::steadyNow() < lease->until;
+            }
+            std::optional<SLeaseState> leaseState() const {
+                if (!leased())
+                    return std::nullopt;
+                return SLeaseState{.remainingMs = sc<int>(std::chrono::ceil<std::chrono::milliseconds>(lease->until - Time::steadyNow()).count()), .owner = lease->owner};
+            }
+            // The emulated focus then ends as without a lease, once input has paused for a second.
+            void endLease() {
+                lease.reset();
+                scheduleIdle();
+            }
+            bool sharesKeyboardFocus() {
+                auto w = window.lock();
+                return w && sharesConnection(w, g_pSeatManager->m_state.keyboardFocus);
+            }
             void makePointer() {
                 if (pointer || !seat)
                     return;
@@ -179,14 +360,36 @@ namespace hyprmasq {
                 eis_device_configure_name(pointer, "hyprmasq window pointer");
                 for (auto c : {EIS_DEVICE_CAP_POINTER_ABSOLUTE, EIS_DEVICE_CAP_BUTTON, EIS_DEVICE_CAP_SCROLL})
                     eis_device_configure_capability(pointer, c);
-                auto       r    = eis_device_new_region(pointer);
-                const auto size = w->size(Desktop::View::IGeometric::GEOMETRIC_GOAL);
-                eis_region_set_size(r, std::max(1.0, size.x), std::max(1.0, size.y));
-                eis_region_add(r);
-                eis_region_unref(r);
+                regions = pointerRegions(w);
+                for (const auto& region : regions) {
+                    auto r = eis_device_new_region(pointer);
+                    eis_region_set_offset(r, region.x, region.y);
+                    eis_region_set_size(r, region.width, region.height);
+                    eis_region_add(r);
+                    eis_region_unref(r);
+                }
                 eis_device_add(pointer);
                 if (!paused)
                     eis_device_resume(pointer);
+            }
+            // Replaces the pointer device once its regions no longer match the window and its monitor, after a resize or
+            // a move. Checked once the current batch of events is handled, since moves are seen inside Hyprland's own
+            // updates.
+            void checkRegionsLater() {
+                if (regionCheck)
+                    return;
+                regionCheck = wl_event_loop_add_idle(
+                    g_pCompositor->m_wlEventLoop,
+                    [](void* data) {
+                        auto* self        = static_cast<Session*>(data);
+                        self->regionCheck = nullptr; // libwayland removes it after this call
+                        auto w            = self->window.lock();
+                        if (self->pointer && w && pointerRegions(w) != self->regions) {
+                            self->clearDevice(self->pointer);
+                            self->makePointer();
+                        }
+                    },
+                    this);
             }
             void makeKeyboard() {
                 auto kb = g_pSeatManager->m_keyboard.lock();
@@ -341,7 +544,7 @@ namespace hyprmasq {
                 wl_array_release(&arr);
                 enteredKeyboard.reset();
             }
-            void mods(const SP<CWLSeatResource>& s) {
+            void mods(const SP<CWLSeatResource>& s, bool toSender = true) {
                 const auto dep   = xkb_state_serialize_mods(state, XKB_STATE_MODS_DEPRESSED);
                 const auto lat   = xkb_state_serialize_mods(state, XKB_STATE_MODS_LATCHED);
                 const auto lock  = xkb_state_serialize_mods(state, XKB_STATE_MODS_LOCKED);
@@ -349,7 +552,8 @@ namespace hyprmasq {
                 for (auto& k : s->m_keyboards)
                     if (k)
                         k->sendMods(dep, lat, lock, group);
-                eis_device_keyboard_send_xkb_modifiers(keyboard, dep, lat, lock, group);
+                if (toSender)
+                    eis_device_keyboard_send_xkb_modifiers(keyboard, dep, lat, lock, group);
             }
             void deliver(eis_device* device) {
                 auto w = window.lock();
@@ -365,10 +569,13 @@ namespace hyprmasq {
                     setPaused(true);
                     return;
                 }
-                // Another socket may address a second window on this same Wayland client.
+                // Another socket may address a second window on this same Wayland client. The client's keyboard and
+                // pointer are on one surface at a time, so that window loses its emulated focus and its lease.
                 for (auto& [_, other] : sessions) {
-                    if (other.get() != this && other->wlSeat() == s)
+                    if (other.get() != this && other->wlSeat() == s) {
+                        other->lease.reset();
                         other->leave();
+                    }
                 }
                 const bool isKeyboard = device == keyboard;
                 // XWayland sends keys to the X focus and pointer events to the topmost X window under the pointer.
@@ -423,8 +630,10 @@ namespace hyprmasq {
                             const double x = eis_event_pointer_get_absolute_x(e), y = eis_event_pointer_get_absolute_y(e);
                             if (!std::isfinite(x) || !std::isfinite(y))
                                 continue;
+                            // A point over one of the window's popups reaches the popup, also outside the window. Any
+                            // other point is clamped to the window.
                             const auto size = w->size(Desktop::View::IGeometric::GEOMETRIC_GOAL);
-                            position        = {std::clamp(x, 0.0, std::max(0.0, size.x - 1)), std::clamp(y, 0.0, std::max(0.0, size.y - 1))};
+                            position = popupAt(w, {x, y}) ? Vector2D{x, y} : Vector2D{std::clamp(x, 0.0, std::max(0.0, size.x - 1)), std::clamp(y, 0.0, std::max(0.0, size.y - 1))};
                         }
                         if (type == EIS_EVENT_BUTTON_BUTTON) {
                             const auto button = eis_event_button_get_button(e);
@@ -433,10 +642,8 @@ namespace hyprmasq {
                             if (down ? buttons.contains(button) : !buttons.contains(button))
                                 continue;
                         }
-                        // Like Hyprland, address X11 windows through their one surface, in XWayland's scale.
-                        Vector2D local  = position * w->m_X11SurfaceScaledBy;
-                        auto     target = w->m_isX11 ? w->resource() :
-                                                       Desktop::viewState()->hitTest().windowSurfaceAt(w->position(Desktop::View::IGeometric::GEOMETRIC_GOAL) + position, w, local);
+                        Vector2D local;
+                        auto     target = surfaceAt(w, position, local);
                         if (!target)
                             continue;
                         if (enteredPointer != target) {
@@ -531,9 +738,8 @@ namespace hyprmasq {
                 auto realKeyboard = g_pSeatManager->m_state.keyboardFocus.lock();
                 if (takesFocus && realKeyboard && realKeyboard->client() == s->client())
                     x11::release(w);
-                lastInput = Time::steadyNow();
-                content.scan(w);
-                content.frames = 0;
+                lastInput      = Time::steadyNow();
+                commitsAtInput = content->commits;
                 wl_event_source_timer_update(timer, 16);
             }
             int tick() {
@@ -542,16 +748,35 @@ namespace hyprmasq {
                     return 0;
                 maybeResume();
                 resumeHeld();
-                const auto now = Time::steadyNow();
-                if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInput).count() < 1000) {
-                    content.scan(w);
-                    // Hidden windows do not get compositor frame callbacks.
-                    if (!g_pHyprRenderer->shouldRenderWindow(w))
-                        forEachSurface(w, [&](SP<CWLSurfaceResource> s) { s->frame(now); });
-                    wl_event_source_timer_update(timer, 16);
-                } else if (keys.empty() && buttons.empty()) {
+                const auto now  = Time::steadyNow();
+                const auto held = leaseState();
+                if (!held)
+                    lease.reset();
+                const bool recent = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInput).count() < 1000;
+                if (!recent && !held && keys.empty() && buttons.empty()) {
                     leave();
                     releaseX();
+                }
+                // When a send to a sender fails, as it does once the sender has exited, libeis closes the connection
+                // without a disconnect event, and what the sender held stays pressed. A failed ping it does report, so a
+                // sender that has sent nothing for a second gets one every second.
+                if (client && !recent && now - lastPing >= std::chrono::seconds(1)) {
+                    lastPing = now;
+                    if (auto* ping = eis_client_new_ping(client)) {
+                        eis_ping(ping);
+                        eis_ping_unref(ping);
+                    }
+                }
+                // Hidden windows do not get compositor frame callbacks. They get them for a second after input, and while
+                // a sender has its devices, which it keeps while it pauses between inputs and closes when it exits, also
+                // when libeis does not report the disconnect.
+                if (recent || (client && (pointer || keyboard))) {
+                    content->sendFrames();
+                    wl_event_source_timer_update(timer, 16);
+                } else if (held || client) {
+                    // A lease keeps the emulated focus until it ends, and a sender gets its pings.
+                    const int delay = held ? std::max(1, held->remainingMs) : 1000;
+                    wl_event_source_timer_update(timer, client ? std::min(delay, 1000) : delay);
                 }
                 return 0;
             }
@@ -559,6 +784,30 @@ namespace hyprmasq {
                 eis_dispatch(context);
                 process();
                 return 0;
+            }
+            // The window is gone, so what the sender still has in the socket can only be dropped. Taking it answers the
+            // pings among it, so a sender whose input closed the window, such as exit in a shell, learns that the plugin
+            // processed everything before them instead of losing the answers with the connection. A ping after dropped
+            // input must not confirm it, so the devices are removed first: senders take no answer after that as a
+            // confirmation.
+            void answerPings() {
+                eis_dispatch(context);
+                if (stashed)
+                    eis_event_unref(std::exchange(stashed, nullptr));
+                bool removed       = false;
+                auto removeDevices = [&] {
+                    if (std::exchange(removed, true))
+                        return;
+                    clearDevice(pointer);
+                    clearDevice(keyboard);
+                };
+                if (!pending.empty())
+                    removeDevices();
+                while (auto* e = eis_get_event(context)) {
+                    if (carriesInput(e) && (eis_event_get_device(e) == pointer || eis_event_get_device(e) == keyboard))
+                        removeDevices();
+                    eis_event_unref(e);
+                }
             }
             void process() {
                 while (!holding()) {
@@ -635,14 +884,9 @@ namespace hyprmasq {
                         case EIS_EVENT_DEVICE_STOP_EMULATING:
                             if (d == pointer || d == keyboard) {
                                 if (d == keyboard)
-                                    leaveKeyboard();
-                                if (d == keyboard && state) {
-                                    for (auto code : keys)
-                                        xkb_state_update_key(state, code + 8, XKB_KEY_UP);
-                                    keys.clear();
-                                }
+                                    releaseKeyboard();
                                 if (d == pointer)
-                                    leavePointer();
+                                    releasePointer();
                                 drop(d);
                                 scheduleIdle();
                             }
@@ -653,6 +897,24 @@ namespace hyprmasq {
                 }
             }
         };
+
+        void closeClosedWindow(const std::string& address) {
+            if (const auto it = sessions.find(address); it != sessions.end()) {
+                it->second->answerPings();
+                sessions.erase(it);
+            }
+        }
+
+        Session* sessionOf(const PHLWINDOW& window) {
+            for (const auto& [_, session] : sessions)
+                if (session->window.lock() == window)
+                    return session.get();
+            return nullptr;
+        }
+
+        bool x11Window(const PHLWINDOW& window, Session* session) {
+            return session ? session->xServer() != nullptr : x11::server(window) != nullptr;
+        }
 
         bool protectedSurface(const SP<CWLSurfaceResource>& surface) {
             for (auto& [_, session] : sessions) {
@@ -733,6 +995,70 @@ namespace hyprmasq {
             reinterpret_cast<Fn>(originalWindowFocus)(self, w, reason, surface);
         }
 
+        // Every change to a window's position or size updates its decorations, the one place where moves show.
+        void updateDecos(Desktop::View::CWindow* self) {
+            using Fn = void (*)(Desktop::View::CWindow*);
+            reinterpret_cast<Fn>(originalUpdateDecos)(self);
+            for (auto& [_, session] : sessions) {
+                if (session->window.lock().get() == self)
+                    session->checkRegionsLater();
+            }
+        }
+
+        // When the real focus changes, Hyprland sends every keyboard or pointer a leave, which does nothing for one
+        // without a surface. A lease keeps the emulated focus of a window on another connection than the new focus, so
+        // its keyboards or pointers pass as unfocused while this lives, and get their surface back afterwards.
+        template <typename Resource>
+        class CKeptFocus {
+          public:
+            CKeptFocus(const SP<CWLSurfaceResource>& next, WP<CWLSurfaceResource> Session::* entered, std::vector<WP<Resource>> CWLSeatResource::* resources,
+                       bool Session::* keeping) : m_keeping(keeping) {
+                for (auto& [_, session] : sessions) {
+                    auto surface = (session.get()->*entered).lock();
+                    auto seat    = surface && session->leased() ? session->wlSeat() : nullptr;
+                    if (!seat || (next && next->client() == surface->client()))
+                        continue;
+                    const auto before = m_hidden.size();
+                    for (auto& resource : (*seat).*resources) {
+                        if (resource && surfaceOf(*resource) == surface)
+                            m_hidden.emplace_back(resource, std::exchange(surfaceOf(*resource), {}));
+                    }
+                    if (m_hidden.size() > before) {
+                        session.get()->*keeping = true;
+                        m_kept.push_back(session.get());
+                    }
+                }
+            }
+            ~CKeptFocus() {
+                for (auto& [resource, surface] : m_hidden) {
+                    if (resource && !surfaceOf(*resource))
+                        surfaceOf(*resource) = surface;
+                }
+                // Only sessions that still exist are touched.
+                for (auto& [_, session] : sessions) {
+                    if (std::ranges::contains(m_kept, session.get()))
+                        session.get()->*m_keeping = false;
+                }
+            }
+            CKeptFocus(const CKeptFocus&)            = delete;
+            CKeptFocus& operator=(const CKeptFocus&) = delete;
+
+          private:
+            std::vector<std::pair<WP<Resource>, WP<CWLSurfaceResource>>> m_hidden;
+            std::vector<Session*>                                        m_kept;
+            bool Session::* m_keeping;
+        };
+        void setKeyboardFocus(CSeatManager* self, SP<CWLSurfaceResource> surface) {
+            CKeptFocus<CWLKeyboardResource> kept(surface, &Session::enteredKeyboard, &CWLSeatResource::m_keyboards, &Session::keepingKeyboard);
+            using Fn = void (*)(CSeatManager*, SP<CWLSurfaceResource>);
+            reinterpret_cast<Fn>(originalKeyboardFocus)(self, surface);
+        }
+        void setPointerFocus(CSeatManager* self, SP<CWLSurfaceResource> surface, const Vector2D& local) {
+            CKeptFocus<CWLPointerResource> kept(surface, &Session::enteredPointer, &CWLSeatResource::m_pointers, &Session::keepingPointer);
+            using Fn = void (*)(CSeatManager*, SP<CWLSurfaceResource>, const Vector2D&);
+            reinterpret_cast<Fn>(originalPointerFocus)(self, surface, local);
+        }
+
         // Refuse symlinks and pre-existing directories accessible to another user.
         int privateDir(int parent, const char* name) {
             if (mkdirat(parent, name, 0700) < 0 && errno != EEXIST)
@@ -745,88 +1071,155 @@ namespace hyprmasq {
             }
             return fd;
         }
+
+        // The instance's directory under $XDG_RUNTIME_DIR/hyprmasq: its signature without the commit hash in front, which
+        // leaves the time and random number that tell running instances apart. With the hash, socket paths would outgrow
+        // sun_path with an XDG_RUNTIME_DIR of more than 16 characters. hyprmasq-mcp names its directory the same way.
+        std::string instanceDirectory() {
+            const auto& signature = g_pCompositor->m_instanceSignature;
+            const auto  separator = signature.find('_');
+            return separator == std::string::npos || separator + 1 == signature.size() ? signature : signature.substr(separator + 1);
+        }
     }
 
     void initEis(void* handle) {
-        originalPopupGrab   = hook(handle, "CXDGShellProtocol::addOrStartGrab", reinterpret_cast<void*>(&popupGrab));
-        originalStartDrag   = hook(handle, "CWLDataDeviceProtocol::initiateDrag", reinterpret_cast<void*>(&startDrag));
-        originalActivateX11 = hook(handle, "Desktop::View::CWindow::activateX11", reinterpret_cast<void*>(&activateX11));
-        originalWindowFocus = hook(handle, "Desktop::CFocusState::rawWindowFocus", reinterpret_cast<void*>(&windowFocus));
-        originalActivate    = hook(handle, "Desktop::View::CWindow::activate", reinterpret_cast<void*>(&activate));
+        socketNonce           = std::random_device{}();
+        originalPopupGrab     = hook(handle, "CXDGShellProtocol::addOrStartGrab", reinterpret_cast<void*>(&popupGrab));
+        originalStartDrag     = hook(handle, "CWLDataDeviceProtocol::initiateDrag", reinterpret_cast<void*>(&startDrag));
+        originalActivateX11   = hook(handle, "Desktop::View::CWindow::activateX11", reinterpret_cast<void*>(&activateX11));
+        originalWindowFocus   = hook(handle, "Desktop::CFocusState::rawWindowFocus", reinterpret_cast<void*>(&windowFocus));
+        originalActivate      = hook(handle, "Desktop::View::CWindow::activate", reinterpret_cast<void*>(&activate));
+        originalUpdateDecos   = hook(handle, "Desktop::View::CWindow::updateWindowDecos", reinterpret_cast<void*>(&updateDecos));
+        originalKeyboardFocus = hook(handle, "CSeatManager::setKeyboardFocus", reinterpret_cast<void*>(&setKeyboardFocus));
+        originalPointerFocus  = hook(handle, "CSeatManager::setPointerFocus", reinterpret_cast<void*>(&setPointerFocus));
+        monitorLayout         = Event::bus()->m_events.monitor.layoutChanged.listen([] {
+            for (auto& [_, session] : sessions)
+                session->checkRegionsLater();
+        });
     }
     void shutdownEis() {
+        monitorLayout.reset();
         sessions.clear();
     }
-    std::expected<std::string, std::string> openEis(const PHLWINDOW& w, bool force) {
+    std::expected<SEisInfo, SError> openEis(const PHLWINDOW& w, bool force) {
         const auto address = windowAddress(w);
         if (sessions.contains(address)) {
             auto& session = *sessions.at(address);
             session.force = force;
             session.maybeResume();
-            return session.path;
+            return SEisInfo{.address = address, .path = session.path, .id = session.id, .force = force};
         }
         auto kb = g_pSeatManager->m_keyboard.lock();
         if (!kb || !kb->m_xkbKeymap || !kb->m_xkbKeymapFD.isValid())
-            return std::unexpected("an active Wayland seat keyboard with a keymap is required");
+            return std::unexpected(SError{eErrorCode::INTERNAL, "an active Wayland seat keyboard with a keymap is required"});
         const char* runtime = getenv("XDG_RUNTIME_DIR");
         if (!runtime || runtime[0] != '/')
-            return std::unexpected("XDG_RUNTIME_DIR must be absolute");
+            return std::unexpected(SError{eErrorCode::INTERNAL, "XDG_RUNTIME_DIR must be absolute"});
+        const auto directory = instanceDirectory();
+        auto       path      = std::format("{}/hyprmasq/{}/{}.eis", runtime, directory, address);
+        // A socket's path has to fit sun_path with its terminating zero.
+        if (path.size() >= sizeof(sockaddr_un::sun_path))
+            return std::unexpected(SError{eErrorCode::INTERNAL,
+                                          std::format("the socket path {} has {} bytes, more than the {} of a Unix socket path; use a shorter XDG_RUNTIME_DIR", path, path.size(),
+                                                      sizeof(sockaddr_un::sun_path) - 1)});
         int base     = open(runtime, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
         int root     = base < 0 ? -1 : privateDir(base, "hyprmasq");
-        int instance = root < 0 ? -1 : privateDir(root, g_pCompositor->m_instanceSignature.c_str());
+        int instance = root < 0 ? -1 : privateDir(root, directory.c_str());
         if (base >= 0)
             close(base);
         if (root >= 0)
             close(root);
         if (instance < 0)
-            return std::unexpected("cannot create private hyprmasq socket directory");
+            return std::unexpected(SError{eErrorCode::INTERNAL, "cannot create private hyprmasq socket directory"});
         close(instance);
-        auto  session = std::make_unique<Session>(w, std::string(runtime) + "/hyprmasq/" + g_pCompositor->m_instanceSignature + "/" + address + ".eis", force);
+        auto  session = std::make_unique<Session>(w, std::move(path), force);
         auto* s       = session.get();
         s->context    = eis_new(nullptr);
         if (!s->context || eis_setup_backend_socket(s->context, s->path.c_str()) != 0)
-            return std::unexpected("cannot create EIS socket (check path length and existing sockets)");
+            return std::unexpected(SError{eErrorCode::INTERNAL, "cannot create EIS socket " + s->path});
         // Enforce permissions on the pathname too, independently of libeis or the process umask.
         if (chmod(s->path.c_str(), 0600) != 0)
-            return std::unexpected("cannot restrict EIS socket permissions");
+            return std::unexpected(SError{eErrorCode::INTERNAL, "cannot restrict EIS socket permissions"});
         s->fdSource = wl_event_loop_add_fd(
             g_pCompositor->m_wlEventLoop, eis_get_fd(s->context), WL_EVENT_READABLE, [](int, uint32_t, void* data) { return static_cast<Session*>(data)->poll(); }, s);
         s->timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, [](void* data) { return static_cast<Session*>(data)->tick(); }, s);
         if (!s->fdSource || !s->timer)
-            return std::unexpected("cannot register EIS event sources");
-        s->unmap         = w->m_events.unmap.listen([address] { closeEis(address); });
-        s->destroy       = w->m_events.destroy.listen([address] { closeEis(address); });
-        s->resize        = w->m_events.resize.listen([s] {
-            if (s->pointer) {
-                s->clearDevice(s->pointer);
-                s->makePointer();
-            }
-        });
+            return std::unexpected(SError{eErrorCode::INTERNAL, "cannot register EIS event sources"});
+        s->unmap   = w->m_events.unmap.listen([address] { closeClosedWindow(address); });
+        s->destroy = w->m_events.destroy.listen([address] { closeClosedWindow(address); });
+        s->resize  = w->m_events.resize.listen([s] { s->checkRegionsLater(); });
+        // Hyprland sends every keyboard and pointer a leave on a change of the real focus, unless a lease kept it.
         s->keyboardFocus = g_pSeatManager->m_events.keyboardFocusChange.listen([s] {
-            s->enteredKeyboard.reset();
+            if (!s->keepingKeyboard)
+                s->enteredKeyboard.reset();
+            // The user's keys now go to the window's connection.
+            if (s->lease && s->sharesKeyboardFocus())
+                s->endLease();
             s->maybeResume();
         });
-        s->pointerFocus  = g_pSeatManager->m_events.pointerFocusChange.listen([s] { s->enteredPointer.reset(); });
-        auto path        = s->path;
+        s->pointerFocus  = g_pSeatManager->m_events.pointerFocusChange.listen([s] {
+            if (!s->keepingPointer)
+                s->enteredPointer.reset();
+        });
+        SEisInfo info{.address = address, .path = s->path, .id = s->id, .force = force};
         sessions.emplace(address, std::move(session));
-        return path;
+        return info;
     }
     bool closeEis(const std::string& address) {
         return sessions.erase(address) != 0;
     }
-    std::optional<SInputState> inputState(const PHLWINDOW& window) {
-        for (const auto& [_, session] : sessions)
-            if (session->window.lock() == window) {
-                // Sessions scan only around input. Popups that opened later have to be watched from now on.
-                session->content.scan(window);
-                return SInputState{.lastInput = session->lastInput, .frames = session->content.frames};
-            }
-        return std::nullopt;
+    std::optional<SSocketState> socketState(const PHLWINDOW& window) {
+        auto* session = sessionOf(window);
+        if (!session)
+            return std::nullopt;
+        return SSocketState{.path             = session->path,
+                            .id               = session->id,
+                            .force            = session->force,
+                            .lastInput        = session->lastInput,
+                            .framesSinceInput = sc<int>(session->content->commits - session->commitsAtInput),
+                            .content          = session->content,
+                            .lease            = session->leaseState()};
+    }
+    SCapabilities capabilities(const PHLWINDOW& window) {
+        auto* session = sessionOf(window);
+        // Input to a window on the connection of the real focus hands the focus back after every frame, which releases
+        // whatever it held. For buttons, that is the connection of the real pointer focus.
+        const bool keyboardShared = sharesConnection(window, g_pSeatManager->m_state.keyboardFocus);
+        const bool pointerShared  = sharesConnection(window, g_pSeatManager->m_state.pointerFocus);
+        const bool isX11          = x11Window(window, session);
+        return {.lease    = !isX11 && !keyboardShared,
+                .hold     = !keyboardShared && !pointerShared,
+                .dnd      = window == Desktop::focusState()->window(),
+                .x11Focus = isX11 && !(session && session->force)};
+    }
+    std::expected<SLeaseState, SError> holdLease(const PHLWINDOW& window, int ms, const std::string& owner) {
+        auto* session = sessionOf(window);
+        if (!session)
+            return std::unexpected(SError{eErrorCode::NO_SOCKET, "no open socket for " + windowAddress(window)});
+        if (x11Window(window, session))
+            return std::unexpected(SError{eErrorCode::UNSUPPORTED, "an X11 window cannot hold a lease: holding X focus would take the user's typing in their X11 apps"});
+        if (sharesConnection(window, g_pSeatManager->m_state.keyboardFocus))
+            return std::unexpected(SError{eErrorCode::UNSUPPORTED, "the window shares its Wayland connection with the window that has the keyboard focus"});
+        session->lease = SLease{.until = Time::steadyNow() + std::chrono::milliseconds(ms), .owner = owner};
+        // tick() keeps the focus until the lease ends.
+        session->scheduleIdle();
+        return *session->leaseState();
+    }
+    bool releaseLease(const PHLWINDOW& window, const std::optional<std::string>& owner) {
+        auto* session = sessionOf(window);
+        if (!session || !session->leased() || (owner && *owner != session->lease->owner))
+            return false;
+        session->endLease();
+        return true;
+    }
+    bool leaseKeepsPointer(const PHLWINDOW& window) {
+        auto* session = sessionOf(window);
+        return session && session->leased() && !session->enteredPointer.expired();
     }
     std::vector<SEisInfo> listEis() {
         std::vector<SEisInfo> result;
         for (const auto& [address, session] : sessions)
-            result.push_back({.address = address, .path = session->path, .force = session->force});
+            result.push_back({.address = address, .path = session->path, .id = session->id, .force = session->force});
         return result;
     }
 }

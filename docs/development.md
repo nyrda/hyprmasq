@@ -11,6 +11,9 @@ Run `./dev.sh` from the repository root.
 The VM commands need Nix and KVM, and pass extra arguments to `nix-build`. The
 same test is the flake check: `nix build .#checks.x86_64-linux.vm-test`.
 
+The flake's dev shell, `nix develop`, has the build inputs of the plugin and
+`hyprmasq-input`, and Go for `hyprmasq-mcp`.
+
 New files must be tracked by git (`git add`) before flake builds can see them.
 
 To try a build in a running session, load it by absolute path:
@@ -21,6 +24,39 @@ hyprctl plugin unload "$PWD/hyprmasq.so"
 ```
 
 Unloading removes every open socket and every function hook.
+
+## hyprmasq-mcp
+
+The MCP server is a Go module in `mcp/`, built with the Go of the pinned
+nixpkgs and the [official Go SDK](https://github.com/modelcontextprotocol/go-sdk).
+
+```sh
+cd mcp
+nix develop .. -c go build ./cmd/hyprmasq-mcp
+nix develop .. -c go test -race ./...
+```
+
+The tests need no Hyprland. They run the server against a fake Hyprland
+socket that answers the plugin's commands, and the test binary doubles as a
+fake `hyprmasq-input` that the server starts and signals like the real one.
+The command's own test runs `hyprmasq-mcp` as a subprocess, with its own
+`XDG_RUNTIME_DIR` and a made-up `HYPRLAND_INSTANCE_SIGNATURE`, to check its
+exit statuses.
+
+`mcp/internal/server/input.go` repeats the pacing constants of
+`tools/hyprmasq-input.c`, from which the server computes how long a batch
+takes at least, and its `CANCEL_MS`, from which it computes when to stop a
+sender that runs late. The sender's `pacedTime` adds up the same delays as
+the server's `minSendTime` for its `--budget`, from the keys it resolved.
+Change them together. Likewise,
+`mcp/cmd/hyprmasq-mcp/main.go` names the directory of a Hyprland instance under
+`$XDG_RUNTIME_DIR/hyprmasq` as `src/Eis.cpp` does.
+The Nix build runs them too, in the check phase of `nix build .#hyprmasq-mcp`,
+which `nix build .#hyprmasq` and the VM test include.
+
+`nix/mcp-package.nix` vendors the Go dependencies by hash. After changing them
+in `go.mod`, update `vendorHash` there: set it to `lib.fakeHash`, build, and
+copy the hash from the error.
 
 ## Tests
 
@@ -33,15 +69,54 @@ output, installs the plugin through the NixOS module, and runs
 | Screenshots | Red, green and blue foot windows on hidden workspaces have the right colors, and the first text row is at the top. |
 | Background encoding | While a screenshot is written to a FIFO that nobody reads yet, Hyprland answers other requests; the reply comes once the file is read. A `--batch` with two screenshots and another command answers all three, in plain text and JSON. |
 | Screenshot regions | A region at the top left of a green `foot` window contains its text and regions at the bottom and right do not; the reply reports the scale and the region, cut to the window at its edge; invalid regions fail without writing a file. At scale 2 the same logical region has twice the pixels, and at scale 1.25 it widens to whole device pixels and reports the region captured. |
-| Socket lifecycle | Paths, `0700` directories and a `0600` socket; `eis list`; removal on `eis close` and when the window closes. |
+| Socket lifecycle | Paths in the instance's directory, named by the signature without its commit hash, so that they leave 57 bytes of `sun_path` for `XDG_RUNTIME_DIR`; `0700` directories and a `0600` socket; `eis list`; removal on `eis close` and when the window closes. |
 | Hidden shell input | Typing into a foot shell on a hidden workspace runs the command, the active window and workspace stay unchanged, and the window repaints. |
-| Typing | Under a German keymap, `type` into a hidden shell produces `zy@€äß|{^`, a shortcut on a key that the layout moves works, named keys, keysyms, repeat counts and `<settle>` edit the line, and escaped and unknown tags are typed as text. Invalid text fails before any key is sent. |
+| Typing | Under a German keymap, `type` into a hidden shell produces `zy@€äß|{^`, a shortcut on a key that the layout moves works, named keys, keysyms, repeat counts and `<settle>` edit the line, and escaped and unknown tags are typed as text. Invalid text fails before any key is sent, and so does `text` with 40 times `^`, 80 keys there, under a `--budget` that 40 keys would fit, with `too_long` and `paceMs` 1190. |
+| Compose locale | Under a German keymap, `ć` is the dead acute and `c`, which the Compose table of `pt_BR.UTF-8` makes a `ç`. Into a foot in `pt_BR.UTF-8`, a sender in `en_US.UTF-8` types `ć` as `ç` with its own table; with `--locale pt_BR.UTF-8`, `çé` arrives as typed, `compose` names the locale, and `ć` is `cannot_type` naming the table. A sender in `pt_BR.UTF-8` cannot type `ć` into a foot in `en_US.UTF-8` with its own table, but can with `--locale en_US.UTF-8`, and with `--locale xx_XX.UTF-8`, which has no table, through that of `en_US.UTF-8`, which `compose` and stderr report. Text without Compose reports `compose` `null`. |
+| Input pacing | In `wev` on a hidden workspace: a click presses 50 ms after the move before it, the gap between actions, and holds the button 50 ms, the clicks of a double click are 80 ms apart, and `--no-pace` sends them at once. A chord presses its modifiers first and the key 10 ms later, holds it 15 ms and releases in reverse; aliases and keysym names ignore case, a capital letter is its key without Shift, repeats are 15 ms and actions 50 ms apart. Each run reports complete delivery in `--json`. |
+| Wheel and drag | `wheel` sends one notch per frame, 20 ms apart, on both axes. `drag` presses at least 30 ms after its first motion, moves in steps of at most 10 pixels over at least 200 ms, and releases at the end point. |
+| Literal text | `text` types tags, escapes, quotes, a tab and a line break as they are, and 2000 random characters exactly, into hidden shells. |
+| Invalid batches | Unknown key names, untypeable characters, a click count of 4, a malformed point, a point outside the pointer regions and a button code below `BTN_MOUSE` exit 2 with delivery `none`, the failed index and its code, and `wev` gets nothing. |
+| Releasing held input | A button pressed by the last action is released when the sender ends. SIGTERM during a sleep releases the held button and reports `cancelled` with partial delivery. SIGTERM during a drag with Ctrl releases the button before Ctrl. |
+| SIGTERM without answers | While Hyprland is stopped, SIGTERM to a sender that holds a button makes it release the button and report `cancelled` with uncertain delivery about a second later; the plugin takes the release once Hyprland runs again. |
+| Replaced pointer | A window resized during a sleep replaces the pointer device; the sender follows it and the later click lands. |
+| Stopped text | SIGTERM during a long text reports `cancelled`, partial delivery and `progress.keys` equal to the keys `wev` received, which are exactly the start of the text, and no key stays pressed. |
+| Pointer replaced mid-batch | Resizes while motion and wheel notches are being sent replace the pointer; the sender either completes, with every point delivered and no gap of a second, or stops with `unconfirmed` and partial delivery. |
+| Paused X11 input | Typing into a hidden `xterm` while another X11 window becomes active gives `input_paused`, partial delivery, and `progress.keys` equal to the keys the two windows received. |
+| Input that closes its window | Ctrl+D into `cat` closes foot while `hyprmasq-input` still sends; three times, the result is partial delivery with the chord or its key confirmed and the following sleep stopped, or, when foot closes while the key is held, uncertain delivery with nothing confirmed and the key counted as sent. |
+| Connection taken over | A second sender connects while the first sends text without pacing, three times. The first one exits 1 with `unconfirmed` in its JSON, and its delivery is partial with `progress.keys` equal to the keys the shell got, or uncertain with at least those. |
+| Input dropped by a closing window | Escape closes focus-probe's window while `hyprmasq-input` sends text after it without pacing, three times. A partial delivery counts exactly the keys the probe got, an uncertain one at least those. |
 | Waiting | `wait` answers after typing into a hidden shell with the frames it drew, settles an idle window after the quiet time without frames, and times out on a visible window that keeps drawing; invalid arguments fail. |
+| Version and state | `version` reports 0.3.0 and interface 2, and the module installs `hyprmasq-mcp` of that version, with the package's own `hyprmasq-input` on its `PATH`. `state` reports the address, `stableId`, size, that it is not resizing, scale, socket, commit counter and capabilities of a hidden window and of the focused one. |
+| Error codes | Malformed commands, unknown windows, missing sockets and invalid `wait`, `screenshot`, `state` and `cancel` arguments give the documented codes, and plain-text errors start with `error:`. |
+| Commit counter | It rises after typing, never falls, and the screenshot's value lies between readings before and after. It counts a popup that opens and closes without input, including the popup's first buffer. |
+| Socket ids | `state`, `eis list`, `eis open`, screenshots and `wait … since` name the window's socket by its id, and a socket opened again gets another id and a counter that starts again. |
+| Waiting for a change | `wait … since` ends `quiet` after typing, `no_redraw` for an idle window, at once for a change before the wait, `timeout` for a hidden window that keeps drawing, `cancelled` through `cancel` by its id, and `window_closed` when the window closes. In a batch whose reply `plugin load` sends, Hyprland keeps answering while the wait runs on. |
+| Long waits | Through Hyprland's socket, a wait with a 2-second quiet time keeps a hidden shell drawing for the 3 seconds it prints after the last key, and answers once it is quiet, later than `hyprctl` would wait. |
+| Paused sender | A hidden shell that keeps printing goes on drawing while a connected sender sleeps for more than a second after its input, and stops once the sender has gone. |
+| Hidden during a wait | A shell that keeps printing, visible when a `wait … since` starts and hidden 0.3 s later, goes on drawing until the wait times out. |
+| Unloading during a wait | A pending `wait … since` answers with code `unloaded`, and the reloaded plugin has no sockets. |
+| Screenshot size | `max` halves, quarters and fits to a fifth, never enlarges, fits a region from its origin with a widened size, and reports `scale` as image pixels per logical pixel, also at monitor scales 2 and 1.25. Invalid `max` and `popups` arguments fail without a file. |
+| Popups outside the window | A popup of `focus-probe` that reaches past the right and bottom edges is in the screenshot with `popups`, transparent around it, and without it only where it lies over the window. Regions with `popups` are cut to the box. The pointer has the window and the areas right of and below it as regions; a click outside the window reaches the popup at its own coordinates, and a point outside both is clamped to the window. |
+| Popups above and left | With `popups`, a popup above and left of the window starts the region at negative coordinates, and regions there are cut to the box. Its part over the window takes a click; `hyprmasq-input` refuses a point above and left of the window before sending anything. |
+| Pointer regions | A resize and a move each replace the pointer device with regions for the new geometry, and a click reaches a part of the window that exists only since the resize. |
+| Resizing | A focus-probe window whose tiled neighbour closes while it is hidden holds back the configure for its new size, unacked or acked and not drawn: `state`, the screenshot reply and a `wait … since` that times out say `resizing`, and the shot has the new size but shows the frame of the old one. A wait that runs when the probe answers ends `quiet` only after it has drawn, and then nothing says `resizing`. A window that acked a configure of the size it has drawn, without a commit, is not resizing. |
+| Popups and xdg geometry | For a window with a margin outside its xdg window geometry, as client-side shadows have, a click where the shot shows its popup reaches the popup at that point, and a click beside the popup reaches the window. |
+| Animated windows | With slow window animations, a focus-probe window and an `xev` window pop in on a visible workspace. While the screen still shows them smaller, their shots have their size and show the probe's green edge and xev's inner window where they lie once the animation has ended, and `state` and a `wait … since` that ends `quiet` say that they are not resizing. A point at the edge in the shot reaches the probe there. |
+| Popups of a moving window | A click on the popup of a window that moves slowly reaches the popup at the point where the shot shows it, while Hyprland's own hit testing would not yet place the popup there. |
+| Focus lease | Without a lease, the emulated focus ends a second after input while the sender stays connected, and at once when it exits. A lease keeps it after the sender exits, through real focus and pointer changes in other apps, and reports its owner and remaining time. Only its owner releases it, renewing takes it over, and it ends when it expires. |
+| Lease and the real pointer | With `follow_mouse = 2`, the real pointer on another window of a leased window's connection takes the pointer from the leased window, which keeps its keyboard focus and its lease. |
+| Lease and input to its connection | Input through the socket of another window of the connection ends the lease and the leased window's emulated focus. |
+| Lease and shared connections | The lease ends when the real focus moves to another window of the same Wayland connection, and is refused while the focus is there, also for two `footclient` windows of one server. |
+| Lease refusals | X11 windows and the focused window get `unsupported`; bad durations and arguments, unknown windows and missing sockets give their codes. A lease of 600000 ms is accepted. |
+| Disconnect | A sender that stops emulating or exits while holding Shift, A and the left button has all of them released, with and without a lease; with a lease the focus stays, without one the pointer leaves after the button is released. A sender that exits gets its button released before its keys. A sender that presses Shift, A and the button and exits while Hyprland is stopped has them released once Hyprland runs again, although libeis reports no disconnect for it. |
+| Cursor under a lease | The virtual cursor stays on a visible leased window past its timeout, and fades once the lease is released. |
 | Launching | `hyprmasq-launch` opens `foot` silently on its workspace with a title full of quotes and backslashes, finds a window opened by a child process, gives each of two launches at once its own window, and times out for a command without a window. |
 | Pointer events | `wev` on a hidden workspace receives enter, motion, button and axis events. |
 | Shared connection | Two `footclient` windows of one `foot --server`: the hidden one receives the text, the focused one receives nothing and stays focused. |
+| Modified clicks | A Ctrl-click on a window of the connection that has the real keyboard focus, which lacks `hold`, reaches it while the connection's modifiers are those of the user; with the real focus in another app the window has `hold` and the click keeps Ctrl. |
 | Protections | `nix/focus-probe.c`, a small xdg-shell client, answers an emulated click with a popup grab, a drag and an interactive move and resize. None of them take the real focus or change the window. |
-| XWayland screenshots | A red `xterm` on a hidden workspace has the right color and orientation. |
+| XWayland screenshots | A red `xterm` on a hidden workspace has the right color and orientation, also after a tiled neighbour closed while it was hidden, once a `wait … since` has ended `quiet` with the window no longer resizing. |
 | XWayland shell input | Typing into a hidden `xterm` runs the command while a Wayland window stays active. |
 | XWayland pointer events | `xev` on a hidden workspace receives motion, clicks and scrolling at a point where a visible X11 window is stacked above it; the visible one receives no clicks. |
 | XWayland focus rule | Input is refused while another X11 window is active and the active window stays untouched; the active window itself can be driven; `force` drives the hidden one. |
@@ -49,6 +124,27 @@ output, installs the plugin through the NixOS module, and runs
 | X11 active window | While a Wayland window stays active, `_NET_ACTIVE_WINDOW` is written again after typing into a hidden `xterm`, after clicking it, and after it asks to be activated. |
 | xwayland-satellite | Screenshots and input for a hidden satellite `xterm`; refused while another satellite window is active, allowed for Hyprland's XWayland windows; `force`; no satellite app can activate itself while a satellite window is driven, but new satellite windows still get focus. |
 | Virtual cursor | A moved pointer shows a light blue cursor on the monitor, a click a ripple beside it; both fade out, and input during the fade restores the cursor. A shorter `virtual_cursor_timeout` makes it fade sooner. Nothing is drawn for a window on a hidden workspace. Changing `virtual_cursor_color` recolors it, `virtual_cursor = false` hides it. |
+| MCP tools | `hyprmasq-mcp`, driven over stdio by a JSON-RPC client in the test: the instructions start with a summary line; `tools/list` has `windows`, `launch`, `screenshot`, `act`, `release` and `close` with input schemas, and only `windows` is read-only. In every subtest, the structured content of each result carries all of its text: the error, the summary and the hint. |
+| MCP launch | `launch` starts foot on a hidden workspace and returns its shot and summary line, and `windows` lists it as launched, not resizing, with its capabilities. |
+| MCP typing | One `act` types a command and presses Enter, waits until the shell has redrawn, returns a shot that shows the output, and holds a lease; the command ran. |
+| MCP coordinates | A click at a shot pixel reaches focus-probe at the matching window-local point, also at scale 2 and in a zoom shot of a region. A screenshot of the window's address in upper case and with leading zeros is of that window, and names it in lower case. |
+| MCP refusals | `stale_shot` after a resize, `out_of_bounds` outside the shot and for the part of a popup above the window, `invalid_arguments` naming the field, also for a `null` coordinate, and for 40 times `^` under a German keymap, whose 80 keys `deadline_ms` 3200 cannot fit although 40 keys would, `cannot_type`, and `unsupported` for a drag, for a click with modifiers and for a chord that holds a letter on a window that shares its connection with the focused one: each sends nothing, and the first ones return a fresh shot. A chord of Shift and a letter types the capital in that window. The part of the popup over the window takes a click. |
+| MCP partial delivery | Typing into an X11 window while another X11 window becomes active gives `input_paused`, delivery partial with the keys the window got, and a hint that does not suggest repeating. |
+| MCP waiting | `no_redraw` and its hint for a click that draws nothing; `expect_change` false; an empty batch sees a popup that opened since its shot, and then `no_redraw` since the shot that shows it; a change phase that runs into the deadline times out with `no_change` and `no redraw`; a window that keeps drawing times out before the deadline with `busy`. |
+| MCP lease | The emulated focus stays between two calls four seconds apart, `windows` shows the lease as this session's, `release` ends it, and a server that exits releases its own leases and no others. |
+| MCP new windows | A window that the launched shell starts is listed in `new_windows` as launched, and `close` closes it. |
+| MCP concurrency | Two servers acting on one window take turns: both calls are made before the first one's keys are all typed, and the second sends only after the first has waited and captured. A call that cannot get the window within its deadline fails with `deadline` and sends nothing. |
+| MCP cancellation | `notifications/cancelled` during a long wait ends the call with `cancelled` and a shot, and ends the plugin's wait. Progress notifications carry the client's token. |
+| MCP resize during a batch | A resize during a batch's pause stops it with `stale_shot`, partial delivery after the first click and a shot at the new size; the click after the pause never arrives. |
+| MCP check after the send lock | A click that waits while another window gets a long text is refused with `stale_shot` when its window is resized meanwhile, and sends nothing. |
+| MCP capture region | `act` with a region as `capture` returns that zoom shot, whose pixels a later `act` takes; with `capture: "none"` it returns no shot. When the window is resized while an `act` with a region waits, it returns a shot of the whole window at its new size, and the hint says why. |
+| MCP Compose locale | A server in `pt_BR.UTF-8` types `ć` under a German keymap into a foot in `en_US.UTF-8`, through that window's table, without a hint about Compose, and into a foot in a locale without a table, through that of `en_US.UTF-8`, with a hint that says so. |
+| MCP image size | With `--max-image-size 150`, the shot of a 300×200 window is 150×100 and a click at a shot pixel reaches the doubled point; zooms are fitted too, and one that fits keeps the monitor's scale. |
+| MCP resize catch-up | `launch` and `close` of a tiled neighbour name focus-probe's window as resized. While the probe holds back its new size, `windows` lists it as resizing, a screenshot waits 1.5 s, then returns the older frame marked `resizing` with a hint, `act` refuses coordinates from it with `stale_shot` and sends nothing, and an `act` whose wait times out says `still resizing`, with only the hint about the older frame. A screenshot that is waiting when the probe answers returns the frame at the new size, whose coordinates reach the window. |
+| MCP animated windows | With slow window animations, `launch` returns shots of a focus-probe and an `xev` window that pop in on hidden workspaces at their size, and clicks at the probe's edge and in the middle of xev's inner window in those shots reach them there. |
+| MCP input that closes its window | Escape that closes focus-probe's window, with text after it, gives `window_gone` with `wait.ended` `window_closed`, partial or uncertain delivery and no shot. |
+| MCP SIGTERM | SIGTERM to a server while one of its calls waits ends that call and the plugin's wait; the server exits 0 within 4 seconds, releases its lease and no other, and removes its shots. |
+| MCP close and exit | `close` closes the launched window, a later `act` gives `window_gone`, and a server whose stdin closes exits 0 and removes its shots. |
 | Unload and reload | Unloading removes all sockets and answers a pending `wait`; the plugin loads again. Unloading while a screenshot is being encoded waits for it and answers it. The batch command works without the plugin, and the plugin can be unloaded from within a batch. |
 | Compositor log | After Hyprland exits and flushes its log, it shows that the move and resize serials were rejected. |
 
@@ -60,21 +156,26 @@ The test copies the screenshots and logs into the build result, for example
 | Path | Contents |
 | --- | --- |
 | `src/main.cpp` | Plugin entry points: registers the hyprctl command, installs and removes hooks. |
-| `src/Commands.cpp` | Parses `hyprctl hyprmasq ...` and formats plain and JSON replies. |
-| `src/Screenshot.cpp` | Offscreen window rendering, region readback and PNG output. |
-| `src/Wait.cpp` | `wait`: watches a window's surfaces for new content until it settles. |
+| `src/Commands.cpp` | Parses `hyprctl hyprmasq ...` and formats plain and JSON replies, including `version`, `state`, `lease` and `cancel`. |
+| `src/Error.hpp` | The stable error codes of JSON replies. |
+| `src/Screenshot.cpp` | Offscreen window rendering as the window is once its animations have ended, with popups outside the window, region readback, shrinking to a maximum size on the GPU, and PNG output. |
+| `src/Wait.cpp` | The commit counter, which watches a window's surfaces as they come and go, and both forms of `wait`, with `cancel`. |
 | `src/Deferred.cpp` | Background work for hyprctl replies, including the wrapper around hyprctl's batch command. |
-| `src/Eis.cpp` | Per-window EIS sessions, input delivery, frame callbacks, the X11 focus rule, and the popup-grab, drag and X11 activation hooks. |
+| `src/Eis.cpp` | Per-window EIS sessions, input delivery, pointer regions and device replacement, the focus lease and its focus hooks, capabilities, frame callbacks, the X11 focus rule, and the popup-grab, drag and X11 activation hooks. |
 | `src/Cursor.cpp` | Virtual cursors and click ripples: recolors the cursor theme's arrow, draws and damages them, and their options. |
 | `src/X11.cpp` | X input focus and stacking around input to XWayland windows, the window manager hooks, xwayland-satellite detection. |
 | `src/Hooks.cpp` | Installing and removing Hyprland function hooks. |
-| `src/Windows.cpp` | Window address formatting and lookup, and the walk over a window's surfaces. |
-| `tools/hyprmasq-input.c` | The libei sender command. |
+| `src/Windows.cpp` | Window address formatting and lookup, the walk over a window's surfaces, and whether a window has caught up with a resize. |
+| `tools/hyprmasq-input.c` | The libei sender command: parsing and checks, pacing, per-frame confirmation, JSON results. |
 | `tools/hyprmasq-launch` | Starts an application on a hidden workspace and prints its window's address. |
+| `mcp/cmd/hyprmasq-mcp` | The MCP server's command: options, signals and the session's end. |
+| `mcp/internal/hypr` | Requests to Hyprland's socket, and the plugin's replies. |
+| `mcp/internal/server` | The tools: descriptions, schemas and argument checks (`server.go`), `act` and its waiting and lease (`act.go`), action checks and their translation to `hyprmasq-input` (`actions.go`, `input.go`), shots and zoom (`shots.go`, `capture.go`), `windows`, `launch`, `close` and `release` (`windows.go`, `launch.go`), the file locks (`locks.go`) and results and hints (`result.go`). |
 | `skills/hyprmasq/SKILL.md` | The agent skill. |
-| `nix/package.nix` | Plugin and tool derivation, for the flake and downstream `callPackage`. |
-| `nix/module.nix` | NixOS module: matching Hyprland, `hyprmasq-input`, Lua loader. |
+| `nix/package.nix` | Plugin and tool derivation, for the flake and downstream `callPackage`. It installs `hyprmasq-mcp` as a wrapper that puts the package's own `hyprmasq-input` first on `PATH`. |
+| `nix/mcp-package.nix` | The `hyprmasq-mcp` Go build, with its tests in the check phase. |
+| `nix/module.nix` | NixOS module: matching Hyprland, the package with its tools, Lua loader. |
 | `nix/hyprmasq-vm-test.nix`, `nix/vm-test.py` | The VM test. |
-| `nix/focus-probe.c`, `nix/focus-probe.nix` | Test client for the protections. |
+| `nix/focus-probe.c`, `nix/focus-probe.nix` | A test client. Without arguments, it requests popup grabs, moves, resizes and drags for the protections subtest. `popup TITLE [X Y W H [GX GY]]` opens and closes a popup on SIGUSR1 and logs pointer events by surface, with GX,GY a margin outside the window's xdg geometry; `focus TITLE [TITLE]` shows one or two windows on one connection and logs their input and focus events with timestamps; `close TITLE` logs like it for one window, which it destroys on Escape; `regions SOCKET MS` prints the pointer regions the plugin announces; `hold SOCKET X Y stop\|disconnect\|signal` holds Shift, A and the left button as a libei sender and then stops emulating or exits, or with `signal` presses them on SIGUSR1 and exits at once; `resize TITLE hold\|ack` shows one window with a green right edge that acks configures of its drawn size without a commit, and after a SIGUSR1 holds back configures with a new size, unacked or acked, until the next one. |
 
-The code follows Hyprland's `.clang-format`.
+The C and C++ code follows Hyprland's `.clang-format`. Go code is `gofmt`ed.

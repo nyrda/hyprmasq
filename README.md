@@ -18,7 +18,12 @@ hyprctl hyprmasq eis close "$addr"
 
 libei is the standard Linux protocol for emulated input, so any libei sender can
 drive the socket. The bundled `hyprmasq-input` covers the common cases: move,
-click, scroll, keys, shortcuts and text in the active keyboard layout.
+click, drag, scroll, keys, shortcuts and text in the active keyboard layout,
+paced like a person's input.
+
+For coding agents, `hyprmasq-mcp` is an MCP server that does all of this in
+tool calls: one `act` call clicks and types, waits until the window has drawn
+the result, and returns a screenshot.
 
 This is a personal plugin. It is built and tested against **Hyprland 0.56.2**
 with a Lua configuration. The Nix flake pins the compositor and the plugin
@@ -40,21 +45,28 @@ together.
   interactive move or resize.
 - **Visible activity.** On visible workspaces, a light blue copy of your cursor
   shows where emulated pointer input lands, with a ripple for each click.
-- **Hidden windows keep repainting.** After input, hidden windows get frame
-  callbacks for a moment, so the next screenshot shows the result. `wait`
-  answers once the window has finished drawing.
+- **Hidden windows keep repainting.** For a second after input, while a sender
+  is connected, and during `wait … since`, hidden windows get frame callbacks,
+  so the next screenshot shows the result. `wait` answers once the window has
+  finished drawing, or once it has drawn a change since a screenshot.
+- **Focus that stays.** A focus lease keeps a window's emulated focus between
+  inputs, so menus and dropdowns stay open while an agent looks at them.
+- **Popups outside the window.** Screenshots can include menus and popups that
+  reach past the window's edges.
 - **Hidden launches.** `hyprmasq-launch` starts an application on a hidden
   workspace and prints its window's address.
+- **An MCP server.** `hyprmasq-mcp` gives Claude Code, Codex, pi and other
+  MCP clients tools to launch windows, take screenshots and act on them, with
+  results that say what was sent and what to do next. See [mcp.md](docs/mcp.md).
 - **An agent skill.** [`skills/hyprmasq`](skills/hyprmasq/SKILL.md) teaches
-  coding agents to test GUIs and use applications in the background.
+  coding agents the shell commands, for sessions without the MCP server.
 
 ## Install
 
 The plugin must be built against the exact Hyprland build that loads it.
 [Installation](docs/installation.md) covers NixOS, a manual build, and hyprpm.
 On NixOS, the module installs the matching Hyprland, `hyprmasq-input`,
-`hyprmasq-launch`, and a Lua
-loader:
+`hyprmasq-launch`, `hyprmasq-mcp`, and a Lua loader:
 
 ```nix
 # flake.nix
@@ -74,13 +86,22 @@ inputs.hyprmasq.url = "github:nyrda/hyprmasq";
 dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
 ```
 
+Then register the MCP server with your agent, for example Claude Code:
+
+```sh
+claude mcp add --scope user hyprmasq -- hyprmasq-mcp
+```
+
+[Installation](docs/installation.md#mcp-server) also covers Codex and pi.
+
 ## Documentation
 
 | Document | Contents |
 | --- | --- |
-| [Installation](docs/installation.md) | NixOS module, Nix packages, manual build, hyprpm, troubleshooting |
-| [Usage](docs/usage.md) | hyprctl commands, `hyprmasq-input`, JSON output, security model, limitations |
-| [Development](docs/development.md) | Builds, the VM test, source layout |
+| [Installation](docs/installation.md) | NixOS module, Nix packages, manual build, hyprpm, registering the MCP server, troubleshooting |
+| [Usage](docs/usage.md) | hyprctl commands, waiting, the focus lease, `hyprmasq-input`, JSON output, security model, limitations |
+| [MCP server](docs/mcp.md) | `hyprmasq-mcp`: its tools, shots and coordinates, waiting, failures and how it is built |
+| [Development](docs/development.md) | Builds, the VM test, the Go tests, source layout |
 
 ## Development
 

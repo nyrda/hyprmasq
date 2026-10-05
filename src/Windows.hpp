@@ -17,4 +17,9 @@ namespace hyprmasq {
 
     // Calls fn for the window's surface, its subsurfaces and its popups with their subsurfaces.
     void forEachSurface(const PHLWINDOW& window, const std::function<void(SP<CWLSurfaceResource>)>& fn);
+
+    // True while the window has not caught up with a size Hyprland gave it: it has not yet committed a frame after
+    // taking the size, and its content does not have that size either. Its content then shows a frame of another size.
+    // Main thread only.
+    bool resizing(const PHLWINDOW& window);
 }
