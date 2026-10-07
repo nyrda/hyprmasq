@@ -20,3 +20,12 @@ hooks are matched by name only.
   `docs/development.md`.
 
 Nix only sees files known to Git, so `git add` new files before building.
+
+## Pull requests
+
+CI does not run the VM test, so it is a gate on your machine. Before opening a
+PR, run it on the commit you push and fill in the VM test section of
+`.github/pull_request_template.md` with that commit. Before merging, compare
+the PR's head commit with the one it passed on: after new commits, an amend, a
+rebase or a force-push, run it again on the new head. A PR that changes only
+Markdown files skips the VM test and says so in that section.

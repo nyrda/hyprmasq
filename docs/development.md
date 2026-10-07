@@ -11,6 +11,13 @@ Run `./dev.sh` from the repository root.
 The VM commands need Nix and KVM, and pass extra arguments to `nix-build`. The
 same test is the flake check: `nix build .#checks.x86_64-linux.vm-test`.
 
+CI does not run the VM test: it takes about 8 minutes on a desktop with KVM,
+and 20 or more on a GitHub runner. It is a gate on the author's machine
+instead. It runs on a PR's head commit before the PR is opened, and again
+before merging whenever the head commit is no longer the one it passed on. A
+PR that changes only Markdown files skips it, since neither the test nor its
+Nix build reads them. The PR template asks for both runs.
+
 The flake's dev shell, `nix develop`, has the build inputs of the plugin and
 `hyprmasq-input`, and Go for `hyprmasq-mcp`.
 
