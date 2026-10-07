@@ -185,6 +185,7 @@ The server needs:
 | `--input PATH` | `hyprmasq-input` from `PATH` | The sender to run for each batch of input. |
 | `--max-image-size N` | `1280` | Fit screenshots, also zoomed regions, within N pixels on their long side. `0` keeps the monitor's scale. |
 | `--lease-ms MS` | `60000` | How long the focus lease lasts that each `act` starts or renews, 1 to 600000. |
+| `--structured-content auto\|always\|never` | `auto` | Whether results carry structured content. `auto` leaves it out for Claude Code, which would pass it to the model in place of the shorter text. See [Results](mcp.md#results). |
 | `--version` | | Print the version and exit. |
 
 Register it once per client.

@@ -256,11 +256,13 @@ type actOut struct {
 	captureNote string
 }
 
+// actionsText counts the actions the application received as delivered: the sender cannot see whether the application
+// acted on them as meant, which only the shot can show.
 func actionsText(a *actionsOut, batch []action) string {
 	if a == nil || a.Total == 0 {
 		return ""
 	}
-	text := fmt.Sprintf("%d/%d done", a.Done, a.Total)
+	text := fmt.Sprintf("%d/%d delivered", a.Done, a.Total)
 	failed := ""
 	if a.FailedIndex != nil && *a.FailedIndex < len(batch) {
 		failed = describe(*a.FailedIndex, batch[*a.FailedIndex])

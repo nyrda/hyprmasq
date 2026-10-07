@@ -31,6 +31,17 @@ const Version = "0.3.0"
 // less. Zoom shots still show small areas in full detail.
 const DefaultMaxImageSize = 1280
 
+// The values of Config.StructuredContent and --structured-content.
+const (
+	StructuredAuto   = "auto"
+	StructuredAlways = "always"
+	StructuredNever  = "never"
+)
+
+// textClients pass the model a result's structured content in place of its text, which says the same in fewer tokens.
+// With StructuredAuto they get no structured content, so they pass the text and the image, as other clients do.
+var textClients = map[string]bool{"claude-code": true}
+
 type Config struct {
 	// Hyprland's request socket, $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock.
 	HyprlandSocket string
@@ -41,6 +52,9 @@ type Config struct {
 	// Fit overview and zoom shots within this many pixels on the long side, or 0 for the monitor's scale.
 	MaxImageSize int
 	LeaseMs      int
+	// Whether results carry structured content: StructuredAlways, StructuredNever, or StructuredAuto or "", which
+	// leaves it out for the clients in textClients.
+	StructuredContent string
 	// Reads /proc/<pid>/environ. Nil reads the real file.
 	Environ func(pid int) ([]byte, error)
 	// Reads the link /proc/<pid>/exe. Nil reads the real link.
@@ -191,18 +205,16 @@ Coordinates are pixels of the shot given in "shot" (required for click, move, dr
 Actions: click {x,y,button,count,modifiers} · move {x,y} · drag {from,to,button,modifiers} · scroll {x,y,dx,dy,unit:notch|px} · type {text} · key {keys:["ctrl","l"], repeat} · pause {ms}.
 Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it, but keys you know, such as arrows and enter in a menu, may follow in the same batch. In a window without the lease capability (see windows), a menu opened in one call is gone by the next, so open it and pick the entry with the keyboard in one batch.
 drag, clicks with modifiers, and key chords that hold a key other than a modifier while they press the next need the hold capability.
-type sends the text exactly, with the active keymap: a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key action such as shift+enter. It types at most one key every 15 ms, and a character without a key of its own takes two or more through Compose: about %d characters in a call, or %d with deadline_ms 30000; split longer text over several calls.
-key names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus; "ctrl+l" is split at +.
-Set wait.expect_change false when the input may change nothing on screen. An empty action list waits for a change since the shot.
-Times are milliseconds: wait {expect_change: true, expect_ms: 1000, quiet_ms: 200}; deadline_ms (default 15000, at most 30000) covers the whole call, including waiting for other calls on the window, and the wait ends 1000 ms before it, which is kept for the capture. capture is "window" (default), "none", or a region {shot,x,y,width,height} as for screenshot.
+type presses the keys for the text as given, with the active keymap: a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key action such as shift+enter. It types at most one key every 15 ms, and a character without a key of its own takes two or more through Compose: about %d characters in a call, or %d with deadline_ms 30000; split longer text over several calls.
+Delivered input reached the window's application, which does not mean it took effect: a slow or busy application, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the shot.
 Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before looking at a fresh screenshot.
 Example: {"window":"0x55d1c0a3e4b0","shot":"s4","actions":[{"action":"click","x":412,"y":88},{"action":"type","text":"hello"},{"action":"key","keys":["enter"]}]}`,
 	typedWithin(defaultDeadline), typedWithin(maxDeadline))
 
-const windowsDescription = `List all windows. Each has its address (pass it as window to the other tools), stable_id, class, title, pid, workspace, visible (on a shown workspace), size in logical pixels, resizing (not yet redrawn at its new size, so a screenshot shows an older frame), xwayland, launched (by this server), lease and capabilities.
+const windowsDescription = `List the windows, or with match only those whose class or title contains it, ignoring case. Each has its address (pass it as window to the other tools), class, title, workspace, whether it is visible (on a shown workspace) or hidden, and its size in logical pixels. Where they apply, it is also resizing (not yet redrawn at its new size, so a screenshot shows an older frame), xwayland, launched (by this server) or leased, and lists its capabilities when it lacks one of lease, hold and keyboard yes.
 capabilities: lease (focus can be held between act calls, so menus stay open), hold (buttons and keys can stay pressed across input frames, needed for drag, for clicks with modifiers, and for key chords that hold a key other than a modifier), keyboard ("yes", or "x11-focus" when X11 keyboard input depends on which window has the focus).
 The size is not a coordinate system: take a screenshot, and act with the pixels of that shot.
-Takes no arguments. Example: {}`
+Example: {"match":"firefox"}`
 
 // screenshotDescription describes the screenshot tool of a server whose images fit within maxImage pixels, or 0.
 func screenshotDescription(maxImage int) string {
@@ -256,8 +268,8 @@ var actionSchema = json.RawMessage(`{
 		"dx": {"type": "number", "description": "scroll: positive scrolls right."},
 		"dy": {"type": "number", "description": "scroll: positive scrolls down."},
 		"unit": {"type": "string", "enum": ["notch", "px"], "default": "notch", "description": "scroll: notch is a wheel click, px smooth scrolling in logical pixels."},
-		"text": {"type": "string", "description": "type: the text, sent exactly as given. A line break presses Enter and a tab presses Tab."},
-		"keys": {"type": "array", "items": {"type": "string"}, "description": "key: pressed together in order and released in reverse, such as [\"ctrl\", \"shift\", \"t\"] or [\"ctrl+l\"]."},
+		"text": {"type": "string", "description": "type: the text, typed as given, with no tags or escapes. A line break presses Enter and a tab presses Tab."},
+		"keys": {"type": "array", "items": {"type": "string"}, "description": "key: pressed together in order and released in reverse, such as [\"ctrl\", \"shift\", \"t\"] or [\"ctrl+l\"], which is split at +. Names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus."},
 		"repeat": {"type": "integer", "minimum": 1, "maximum": 100, "default": 1, "description": "key: presses of the chord."},
 		"ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "pause: milliseconds."}
 	},
@@ -267,16 +279,16 @@ var actionSchema = json.RawMessage(`{
 var actSchema = objectSchema(map[string]json.RawMessage{
 	"window":  windowProperty,
 	"shot":    json.RawMessage(`{"type":"string","description":"The shot the coordinates were read from, such as s4. Required if any action has coordinates."}`),
-	"actions": json.RawMessage(`{"type":"array","items":` + string(actionSchema) + `,"default":[],"description":"Run in order. An empty list only waits and captures."}`),
+	"actions": json.RawMessage(`{"type":"array","items":` + string(actionSchema) + `,"default":[],"description":"Run in order. An empty list waits for a change since the shot, then captures."}`),
 	"wait": json.RawMessage(`{"type":"object","properties":{
 		"expect_change":{"type":"boolean","default":true,"description":"Wait for a redraw first. False for input that may change nothing on screen."},
 		"expect_ms":{"type":"integer","minimum":1,"maximum":29000,"default":1000,"description":"How long to wait for the first redraw, at most deadline_ms minus 1000."},
-		"quiet_ms":{"type":"integer","minimum":1,"maximum":10000,"default":200,"description":"How long the window must stay quiet to count as settled."}},"additionalProperties":false}`),
+		"quiet_ms":{"type":"integer","minimum":1,"maximum":10000,"default":200,"description":"How long the window must stay quiet to count as settled. Quiet means nothing was redrawn for this long, not that loading finished: if the shot still shows loading, act again with no actions."}},"additionalProperties":false}`),
 	"capture":     json.RawMessage(`{"description":"\"window\" for an overview shot, \"none\", or a region {shot,x,y,width,height} in pixels of an earlier shot.","anyOf":[{"type":"string","enum":["window","none"]},` + string(regionSchema) + `],"default":"window"}`),
 	"deadline_ms": deadlineSchema,
 }, "window")
 
-var deadlineSchema = json.RawMessage(fmt.Sprintf(`{"type":"integer","minimum":1000,"maximum":30000,"default":15000,"description":"Covers the whole call; the last 1000 ms are reserved for the capture, and input has to end %d ms before the deadline."}`,
+var deadlineSchema = json.RawMessage(fmt.Sprintf(`{"type":"integer","minimum":1000,"maximum":30000,"default":15000,"description":"Covers the whole call, including waiting for other calls on the window; the last 1000 ms are reserved for the capture, and input has to end %d ms before the deadline."}`,
 	(captureReserve + senderStop).Milliseconds()))
 
 // Register adds the tools to srv.
@@ -284,7 +296,9 @@ func (s *Server) Register(srv *mcp.Server) {
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	notDestructive := false
 	srv.AddTool(&mcp.Tool{Name: "windows", Description: windowsDescription, Annotations: readOnly,
-		InputSchema: objectSchema(map[string]json.RawMessage{})}, s.handle(s.windowsTool))
+		InputSchema: objectSchema(map[string]json.RawMessage{
+			"match": json.RawMessage(`{"type":"string","description":"Only windows whose class or title contains this, ignoring case, such as \"firefox\"."}`),
+		})}, s.handle(s.windowsTool))
 	// screenshot opens the window's socket, which stays open, so the plugin treats the window as driven from then on.
 	srv.AddTool(&mcp.Tool{Name: "screenshot", Description: screenshotDescription(s.cfg.MaxImageSize), Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		InputSchema: objectSchema(map[string]json.RawMessage{"window": windowProperty, "region": regionSchema}, "window")}, s.handle(s.screenshotTool))
@@ -322,26 +336,48 @@ type call struct {
 
 func (s *Server) handle(fn func(context.Context, *call) *mcp.CallToolResult) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		s.mu.Lock()
-		if s.closing {
-			s.mu.Unlock()
-			return simpleError(&toolError{Code: "cancelled", Message: "the server is shutting down"}), nil
+		res := s.run(ctx, req, fn)
+		if !s.sendsStructured(req) {
+			res.StructuredContent = nil
 		}
-		s.calls.Add(1)
-		s.mu.Unlock()
-		defer s.calls.Done()
-		// The SDK cancels a call that the client cancelled with context.Canceled, and every call with the read error
-		// when stdin ends, or with the write error when the client stops reading. Those end the session.
-		defer context.AfterFunc(ctx, func() {
-			if !errors.Is(context.Cause(ctx), context.Canceled) {
-				s.CancelCalls()
-			}
-		})()
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		defer context.AfterFunc(s.stopCalls, cancel)()
-		return fn(ctx, &call{req: req, args: req.Params.Arguments}), nil
+		return res, nil
 	}
+}
+
+// run runs one call of a tool, unless the session is ending.
+func (s *Server) run(ctx context.Context, req *mcp.CallToolRequest, fn func(context.Context, *call) *mcp.CallToolResult) *mcp.CallToolResult {
+	s.mu.Lock()
+	if s.closing {
+		s.mu.Unlock()
+		return simpleError(&toolError{Code: "cancelled", Message: "the server is shutting down"})
+	}
+	s.calls.Add(1)
+	s.mu.Unlock()
+	defer s.calls.Done()
+	// The SDK cancels a call that the client cancelled with context.Canceled, and every call with the read error
+	// when stdin ends, or with the write error when the client stops reading. Those end the session.
+	defer context.AfterFunc(ctx, func() {
+		if !errors.Is(context.Cause(ctx), context.Canceled) {
+			s.CancelCalls()
+		}
+	})()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	defer context.AfterFunc(s.stopCalls, cancel)()
+	return fn(ctx, &call{req: req, args: req.Params.Arguments})
+}
+
+// sendsStructured tells whether the results for the client of req carry structured content. The tools declare no
+// output schema, so the structured content is optional.
+func (s *Server) sendsStructured(req *mcp.CallToolRequest) bool {
+	switch s.cfg.StructuredContent {
+	case StructuredAlways:
+		return true
+	case StructuredNever:
+		return false
+	}
+	info := req.ClientInfo()
+	return info == nil || !textClients[info.Name]
 }
 
 // decode reads the arguments strictly, so a misspelled field is named instead of ignored.

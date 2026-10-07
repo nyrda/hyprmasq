@@ -18,6 +18,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf16"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
@@ -410,12 +411,18 @@ func TestValidationSendsNothing(t *testing.T) {
 // connect returns a session of an MCP client with the server's registered tools, which calls them as clients do.
 func connect(t *testing.T, s *Server, opts *mcp.ClientOptions) *mcp.ClientSession {
 	t.Helper()
+	return connectAs(t, s, "test", opts)
+}
+
+// connectAs is connect for a client that introduces itself by name, such as claude-code.
+func connectAs(t *testing.T, s *Server, name string, opts *mcp.ClientOptions) *mcp.ClientSession {
+	t.Helper()
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	ctx := context.Background()
 	if _, err := s.NewMCPServer().Connect(ctx, serverTransport, nil); err != nil {
 		t.Fatal(err)
 	}
-	session, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, opts).Connect(ctx, clientTransport, nil)
+	session, err := mcp.NewClient(&mcp.Implementation{Name: name, Version: "0"}, opts).Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -875,7 +882,7 @@ func TestResizeDuringBatchStopsIt(t *testing.T) {
 	if get(t, res, "shot.id") == nil || !hasImage(res) {
 		t.Error("no capture after the partial batch")
 	}
-	if !strings.Contains(text(res), "1/2 done, delivery partial: actions[1] (click) may be partly applied") || !strings.Contains(text(res), "Look at the shot before repeating anything.") {
+	if !strings.Contains(text(res), "1/2 delivered, delivery partial: actions[1] (click) may be partly applied") || !strings.Contains(text(res), "Look at the shot before repeating anything.") {
 		t.Errorf("text %q", text(res))
 	}
 
@@ -905,16 +912,16 @@ func TestSummaryLines(t *testing.T) {
 	}{
 		{"quiet", actOut{Actions: &actionsOut{Done: 3, Total: 3, Delivery: "complete"},
 			Wait: &waitOut{Ended: "quiet", RedrawObserved: true, QuietMs: 200, ElapsedMs: 412}, Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 60}}, three,
-			"3/3 done · redraw observed · quiet 200 ms · 412 ms · shot s5 1280×800 · lease 60 s"},
+			"3/3 delivered · redraw observed · quiet 200 ms · 412 ms · shot s5 1280×800 · lease 60 s"},
 		{"no redraw", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"},
 			Wait: &waitOut{Ended: "no_redraw", expectMs: 1000}, Shot: &shotOut{ID: "s6", Width: 1280, Height: 800}, Lease: &leaseOut{Held: true, RemainingS: 60}}, click,
-			"1/1 done · no redraw within 1000 ms · shot s6 1280×800 · lease 60 s\nThe click may have missed or had no visible effect. Look at the shot before repeating it."},
+			"1/1 delivered · no redraw within 1000 ms · shot s6 1280×800 · lease 60 s\nThe click may have missed or had no visible effect. Look at the shot before repeating it."},
 		{"quiet without change", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"},
 			Wait: &waitOut{Ended: "quiet", QuietMs: 200, ElapsedMs: 200}, Shot: shot5, Lease: &leaseOut{}}, []action{{Kind: "move"}},
-			"1/1 done · no redraw · quiet 200 ms · 200 ms · shot s5 1280×800 · no lease"},
+			"1/1 delivered · no redraw · quiet 200 ms · 200 ms · shot s5 1280×800 · no lease"},
 		{"timeout", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"},
 			Wait: &waitOut{Ended: "timeout", RedrawObserved: true, ElapsedMs: 13990}, Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 59}}, click,
-			"1/1 done · timeout after 13990 ms, still drawing · shot s5 1280×800 · lease 59 s\nThe window kept drawing until the deadline, so it may be animating or still loading. Look at the shot; to wait longer, act with no actions and a larger deadline_ms (at most 30000)."},
+			"1/1 delivered · timeout after 13990 ms, still drawing · shot s5 1280×800 · lease 59 s\nThe window kept drawing until the deadline, so it may be animating or still loading. Look at the shot; to wait longer, act with no actions and a larger deadline_ms (at most 30000)."},
 		{"timeout without a redraw", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "timeout", ElapsedMs: 13990}, Shot: shot5, Lease: &leaseOut{}}, nil,
 			"timeout after 13990 ms, no redraw · shot s5 1280×800 · no lease\nNothing was drawn before the deadline. Look at the shot; to wait longer for a first redraw, act with no actions and a larger deadline_ms (at most 30000)."},
 		{"timeout while resizing, caught up by the capture", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "timeout", Resizing: true, ElapsedMs: 13990}, Shot: shot5, Lease: &leaseOut{}}, nil,
@@ -922,18 +929,18 @@ func TestSummaryLines(t *testing.T) {
 		{"timeout while resizing without a shot", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "timeout", Resizing: true, ElapsedMs: 13990}, Lease: &leaseOut{}}, nil,
 			"timeout after 13990 ms, still resizing · no lease\nThe window had not yet redrawn at its new size when the deadline arrived. Take a screenshot and look at it before repeating anything."},
 		{"no time to wait", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "timeout", skipped: true}, Shot: shot5, Lease: &leaseOut{}}, click,
-			"1/1 done · no time left to wait · shot s5 1280×800 · no lease\nThe deadline left no time to wait for a redraw. Look at the shot before repeating anything; to wait, act with no actions."},
+			"1/1 delivered · no time left to wait · shot s5 1280×800 · no lease\nThe deadline left no time to wait for a redraw. Look at the shot before repeating anything; to wait, act with no actions."},
 		{"no redraw without a shot", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "no_redraw", expectMs: 1000}, Lease: &leaseOut{}}, click,
-			"1/1 done · no redraw within 1000 ms · no lease\nThe click may have missed or had no visible effect. Take a screenshot and look at it before repeating it."},
+			"1/1 delivered · no redraw within 1000 ms · no lease\nThe click may have missed or had no visible effect. Take a screenshot and look at it before repeating it."},
 		{"window closed", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "window_closed"}},
-			[]action{{Kind: "key"}}, "1/1 done · window closed\nThe window closed. Any new windows are listed; call windows for the rest."},
+			[]action{{Kind: "key"}}, "1/1 delivered · window closed\nThe window closed. Any new windows are listed; call windows for the rest."},
 		{"cancelled", actOut{Actions: &actionsOut{Done: 1, Total: 2, Delivery: "partial", FailedIndex: ptr(1)}, Wait: &waitOut{Ended: "cancelled"}, Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 60}},
-			[]action{{Kind: "click"}, {Kind: "type"}}, "1/2 done, delivery partial: actions[1] (type) may be partly applied · cancelled · shot s5 1280×800 · lease 60 s\nThe call was cancelled while the input was sent. Look at the shot before repeating anything."},
+			[]action{{Kind: "click"}, {Kind: "type"}}, "1/2 delivered, delivery partial: actions[1] (type) may be partly applied · cancelled · shot s5 1280×800 · lease 60 s\nThe call was cancelled while the input was sent. Look at the shot before repeating anything."},
 		{"empty batch", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "no_redraw", expectMs: 20000}, Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 60}},
 			nil, "no redraw within 20000 ms · shot s5 1280×800 · lease 60 s\nNothing was drawn since shot s4. If the window is still loading, wait again: act with no actions, a larger wait.expect_ms, and a deadline_ms at least 1000 above it."},
 		{"new window", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "quiet", RedrawObserved: true, QuietMs: 200, ElapsedMs: 300},
 			Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 60}, NewWindows: []newWindowOut{{Window: "0xb2", Class: "org.gnome.Nautilus", Title: "Save As", SamePID: true, Launched: true}}},
-			click, `1/1 done · redraw observed · quiet 200 ms · 300 ms · shot s5 1280×800 · lease 60 s · new window 0xb2 (org.gnome.Nautilus "Save As", launched)`},
+			click, `1/1 delivered · redraw observed · quiet 200 ms · 300 ms · shot s5 1280×800 · lease 60 s · new window 0xb2 (org.gnome.Nautilus "Save As", launched)`},
 	}
 	for _, c := range cases {
 		line := summaryLine(&c.out, c.batch)
@@ -1099,12 +1106,12 @@ func TestWaitEndings(t *testing.T) {
 		summary any
 		text    string
 	}{
-		{"no_redraw", false, "no_change", "1/1 done · no redraw within 1000 ms"},
+		{"no_redraw", false, "no_change", "1/1 delivered · no redraw within 1000 ms"},
 		// A timeout tells a window that kept drawing from one that drew nothing, such as one whose change phase ran
 		// into the deadline.
-		{"timeout", true, "busy", "1/1 done · timeout after 1000 ms, still drawing"},
-		{"timeout", false, "no_change", "1/1 done · timeout after 1000 ms, no redraw"},
-		{"window_closed", false, nil, "1/1 done · window closed"},
+		{"timeout", true, "busy", "1/1 delivered · timeout after 1000 ms, still drawing"},
+		{"timeout", false, "no_change", "1/1 delivered · timeout after 1000 ms, no redraw"},
+		{"window_closed", false, nil, "1/1 delivered · window closed"},
 	} {
 		t.Run(fmt.Sprintf("%s redrawn %v", c.ended, c.redrawn), func(t *testing.T) {
 			e := newTestEnv(t)
@@ -1874,12 +1881,70 @@ func TestWindowsTool(t *testing.T) {
 	if got := get(t, res, "windows.0.resizing"); got != true {
 		t.Errorf("resizing %v", got)
 	}
-	lines := strings.Split(text(res), "\n")
-	if len(lines) != 2 || !strings.Contains(lines[0], " · 320×200 · resizing (not yet redrawn at its new size) · capabilities ") || lines[1] != `0xb2 · test.app "Test" · pid 4242 · workspace name:hyprmasq (hidden) · 640×480 · lease 60 s (this session) · capabilities lease, hold, keyboard yes` {
-		t.Errorf("text %q", text(res))
+	// The lines leave out the pid and the capabilities of a window that has them all.
+	if got := strings.Split(text(res), "\n"); !reflect.DeepEqual(got, []string{
+		`0xa1 · test.app "Test" · workspace 1 (visible) · 320×200 · resizing (not yet redrawn at its new size)`,
+		`0xb2 · test.app "Test" · workspace name:hyprmasq (hidden) · 640×480 · lease 60 s (this session)`,
+	}) {
+		t.Errorf("lines %q", got)
 	}
 	if code := errorCode(t, e.server.windowsTool(context.Background(), &call{args: json.RawMessage(`{"all":true}`)})); code != "invalid_arguments" {
 		t.Errorf("code %q", code)
+	}
+}
+
+// match keeps the windows whose class or title contains it, ignoring case as Unicode case folding does. A window that
+// lacks a capability lists the ones it has. A list without windows says why, also in the structured content.
+func TestWindowsMatch(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 1264, 687, func(w *fakeWindow) {
+		w.Class, w.Title, w.XWayland = "Spotify", "Monolith - Crossfaith", true
+		w.Caps = hypr.Capabilities{Hold: true, Keyboard: "x11-focus"}
+	})
+	e.window("0xb2", "2b", 640, 480, func(w *fakeWindow) { w.Class, w.Title = "org.gnome.Evolution", "Inbox (3 unread)" })
+	e.window("0xc3", "3c", 640, 480, func(w *fakeWindow) { w.Class, w.Title = "foot", "spotify-tui" })
+	e.window("0xd4", "4d", 640, 480, func(w *fakeWindow) { w.Class, w.Title = "org.kde.okular", "Οδυσσεύς" })
+	windows := func(args string) (*mcp.CallToolResult, []string) {
+		t.Helper()
+		res := e.server.windowsTool(context.Background(), &call{args: json.RawMessage(args)})
+		if res.IsError {
+			t.Fatal(text(res))
+		}
+		var addresses []string
+		for _, w := range get(t, res, "windows").([]any) {
+			addresses = append(addresses, w.(map[string]any)["window"].(string))
+		}
+		return res, addresses
+	}
+	if _, got := windows(`{"match":"SPOT"}`); !reflect.DeepEqual(got, []string{"0xa1", "0xc3"}) {
+		t.Errorf("class or title with SPOT: %v", got)
+	}
+	res, got := windows(`{"match":"inbox"}`)
+	if !reflect.DeepEqual(got, []string{"0xb2"}) || text(res) != `0xb2 · org.gnome.Evolution "Inbox (3 unread)" · workspace 1 (visible) · 640×480` {
+		t.Errorf("title with inbox: %v %q", got, text(res))
+	}
+	if res, _ := windows(`{"match":"monolith"}`); text(res) != `0xa1 · Spotify "Monolith - Crossfaith" · workspace 1 (visible) · 1264×687 · xwayland · capabilities hold, keyboard x11-focus` {
+		t.Errorf("an X11 window: %q", text(res))
+	}
+	if res, _ := windows(`{"match":"SPOT"}`); get(t, res, "summary") != nil {
+		t.Errorf("a summary beside the windows: %v", get(t, res, "summary"))
+	}
+	// Lowercasing alone would turn Σ into σ and keep the final ς.
+	for _, match := range []string{"ΟΔΥΣΣΕΎΣ", "Σ", "ς"} {
+		if _, got := windows(`{"match":"` + match + `"}`); !reflect.DeepEqual(got, []string{"0xd4"}) {
+			t.Errorf("%s: %v", match, got)
+		}
+	}
+	res, got = windows(`{"match":"steam"}`)
+	if got != nil || text(res) != `no window has "steam" in its class or title, of 4 windows` || get(t, res, "summary") != text(res) {
+		t.Errorf("no match: %v %q %v", got, text(res), get(t, res, "summary"))
+	}
+	if _, got := windows(`{"match":""}`); len(got) != 4 {
+		t.Errorf("empty match: %v", got)
+	}
+	empty := newTestEnv(t).server.windowsTool(context.Background(), &call{})
+	if text(empty) != "no windows" || get(t, empty, "summary") != "no windows" {
+		t.Errorf("no windows: %q %v", text(empty), get(t, empty, "summary"))
 	}
 }
 
@@ -1932,6 +1997,55 @@ func TestAddressInAnotherForm(t *testing.T) {
 	for _, request := range e.fake.requestsMatching("j/hyprmasq ") {
 		if words := strings.Fields(request); len(words) > 2 && strings.HasPrefix(words[2], "0x") && words[2] != "0xa1" {
 			t.Errorf("requested %q", request)
+		}
+	}
+}
+
+// Claude Code cuts tool descriptions after 2048 UTF-16 code units, so the rules at the end of a longer one would never
+// reach the model.
+func TestDescriptionsFitClaudeCode(t *testing.T) {
+	session := connect(t, newTestEnv(t).server, nil)
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range tools.Tools {
+		if n := len(utf16.Encode([]rune(tool.Description))); n > 2048 {
+			t.Errorf("the %s description has %d code units, more than 2048", tool.Name, n)
+		}
+	}
+}
+
+// Claude Code passes the model a result's structured content in place of its text, so by default it gets none and
+// passes the text, as other clients do. --structured-content always and never decide it for every client.
+func TestStructuredContentPerClient(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	for _, c := range []struct {
+		setting, client string
+		structured      bool
+	}{
+		{"", "claude-code", false},
+		{StructuredAuto, "claude-code", false},
+		{StructuredAuto, "codex-mcp-client", true},
+		{StructuredAlways, "claude-code", true},
+		{StructuredNever, "codex-mcp-client", false},
+	} {
+		e.server.cfg.StructuredContent = c.setting
+		session := connectAs(t, e.server, c.client, nil)
+		for _, params := range []*mcp.CallToolParams{
+			{Name: "windows", Arguments: map[string]any{}},
+			{Name: "screenshot", Arguments: map[string]any{"window": "0xa1"}},
+			{Name: "act", Arguments: map[string]any{"window": "0xa1", "actions": []any{map[string]any{"action": "key", "keys": []string{"a"}}}}},
+			{Name: "act", Arguments: map[string]any{"window": "0xff"}},
+		} {
+			res, err := session.CallTool(context.Background(), params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (res.StructuredContent != nil) != c.structured || text(res) == "" {
+				t.Errorf("%q for %s: %s structured content %v, text %q", c.setting, c.client, params.Name, res.StructuredContent, text(res))
+			}
 		}
 	}
 }

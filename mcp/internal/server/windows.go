@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"unicode"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
@@ -131,8 +132,31 @@ func (s *Server) describeWindow(ctx context.Context, w hypr.Window, visible map[
 	return out
 }
 
+type windowsArgs struct {
+	Match string `json:"match"`
+}
+
+// matches tells whether the window's class or title contains match, ignoring case.
+func matches(w hypr.Window, match string) bool {
+	match = foldCase(match)
+	return strings.Contains(foldCase(w.Class), match) || strings.Contains(foldCase(w.Title), match)
+}
+
+// foldCase maps every rune to the smallest rune that Unicode simple case folding takes as equal to it, as
+// strings.EqualFold compares them. Lowercasing alone would keep ς and σ apart, which both fold to Σ.
+func foldCase(s string) string {
+	return strings.Map(func(r rune) rune {
+		smallest := r
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			smallest = min(smallest, f)
+		}
+		return smallest
+	}, s)
+}
+
 func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
-	if err := c.decode(&struct{}{}); err != nil {
+	var args windowsArgs
+	if err := c.decode(&args); err != nil {
 		return simpleError(err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
@@ -156,19 +180,32 @@ func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	windows := []windowOut{}
 	var lines []string
 	for _, w := range clients {
+		if !matches(w, args.Match) {
+			continue
+		}
 		out := s.describeWindow(ctx, w, visible)
 		windows = append(windows, out)
 		lines = append(lines, windowLine(out))
 	}
-	if len(lines) == 0 {
+	switch {
+	case len(clients) == 0:
 		lines = append(lines, "no windows")
+	case len(lines) == 0:
+		lines = append(lines, fmt.Sprintf("no window has %q in its class or title, of %d windows", args.Match, len(clients)))
+	}
+	structured := map[string]any{"windows": windows}
+	if len(windows) == 0 {
+		// The structured content carries everything the text says, also why the list is empty.
+		structured["summary"] = lines[0]
 	}
 	return &mcp.CallToolResult{
 		Content:           []mcp.Content{&mcp.TextContent{Text: strings.Join(lines, "\n")}},
-		StructuredContent: map[string]any{"windows": windows},
+		StructuredContent: structured,
 	}
 }
 
+// windowLine describes a window in one line. It leaves out what an agent rarely needs: the pid, and the capabilities of a
+// window that has them all, as most windows do.
 func windowLine(w windowOut) string {
 	where := "hidden"
 	if w.Visible {
@@ -177,7 +214,6 @@ func windowLine(w windowOut) string {
 	parts := []string{
 		w.Window,
 		fmt.Sprintf("%s %q", w.Class, w.Title),
-		fmt.Sprintf("pid %d", w.PID),
 		fmt.Sprintf("workspace %s (%s)", w.Workspace, where),
 		fmt.Sprintf("%s×%s", formatNumber(w.Size.Width), formatNumber(w.Size.Height)),
 	}
@@ -197,7 +233,10 @@ func windowLine(w windowOut) string {
 		}
 		parts = append(parts, fmt.Sprintf("lease %d s (%s)", w.Lease.RemainingS, owner))
 	}
-	if c := w.Capabilities; c != nil {
+	switch c := w.Capabilities; {
+	case c == nil:
+		parts = append(parts, "capabilities unknown")
+	case !c.Lease || !c.Hold || c.Keyboard != "yes":
 		var caps []string
 		for _, cap := range []struct {
 			name string

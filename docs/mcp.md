@@ -49,7 +49,7 @@ plugin's deferred reply is ready, so waits are not limited by `hyprctl`'s
 
 | Tool | Arguments | Result |
 | --- | --- | --- |
-| `windows` | none | All windows: `window` (address), `stable_id`, `class`, `title`, `pid`, `workspace` (name), `visible` (on a monitor's active or special workspace), `size` (logical), `resizing` (not yet redrawn at its size, see [Shots](#shots-and-coordinates)), `xwayland`, `launched` (by this server), `lease` (`held`, `remaining_s`, `mine`, or `null`), `capabilities`. |
+| `windows` | optional `match` | All windows, or with `match` those whose class or title contains it, ignoring case as Unicode simple case folding does (`Σ` finds `ς`): `window` (address), `stable_id`, `class`, `title`, `pid`, `workspace` (name), `visible` (on a monitor's active or special workspace), `size` (logical), `resizing` (not yet redrawn at its size, see [Shots](#shots-and-coordinates)), `xwayland`, `launched` (by this server), `lease` (`held`, `remaining_s`, `mine`, or `null`), `capabilities`. |
 | `launch` | `command` (array, required), `workspace` (default `hyprmasq`), `timeout_s` (1 to 300, default 30) | Starts the command on a hidden workspace like `hyprmasq-launch`, waits for its first window and for that window to settle, and returns `window`, `wait`, `shot` and `new_windows`, the other windows that appeared, with the image. The hint names the windows on its workspace whose size changed meanwhile, such as tiled windows that made room for it, so that their earlier shots are stale. |
 | `screenshot` | `window`, optional `region` | A shot, with the image. No lock, and no waiting except for a window that has not caught up with a resize. See [Shots](#shots-and-coordinates). |
 | `act` | `window`, `shot`, `actions`, `wait`, `capture`, `deadline_ms` | Runs the actions, waits, captures. See [act](#act). |
@@ -456,7 +456,9 @@ application behave as if it were visible. Some throttle in other ways.
 ### What the wait does not tell
 
 - Work an application does without drawing, such as a network request, is
-  invisible. A `settled` window can still be loading.
+  invisible. A `settled` window can still be loading. The description of
+  `wait.quiet_ms` says so, and to act again with no actions while the shot
+  still shows loading.
 - An application that draws in bursts further apart than `quiet_ms` can settle
   between two bursts.
 - A commit is not proof that the pixels changed, and not proof that the input
@@ -515,11 +517,11 @@ A result has three parts:
 1. Text: a one-line summary, followed by a hint when one is needed:
 
    ```
-   3/3 done · redraw observed · quiet 214 ms · 655 ms · shot s5 1280×800 · lease 60 s
+   3/3 delivered · redraw observed · quiet 214 ms · 655 ms · shot s5 1280×800 · lease 60 s
    ```
 
    ```
-   1/1 done · no redraw within 1000 ms · shot s6 1280×800 · lease 60 s
+   1/1 delivered · no redraw within 1000 ms · shot s6 1280×800 · lease 60 s
    The click may have missed or had no visible effect. Look at the shot before repeating it.
    ```
 
@@ -527,20 +529,21 @@ A result has three parts:
 
    | Part | Forms |
    | --- | --- |
-   | Actions, if any | `N/M done`, with `, nothing sent`, `, delivery partial: actions[i] (type) may be partly applied (K keys sent)` or `, delivery uncertain from actions[i] (click) on` |
+   | Actions, if any | `N/M delivered`, with `, nothing sent`, `, delivery partial: actions[i] (type) may be partly applied (K keys sent)` or `, delivery uncertain from actions[i] (click) on` |
    | Wait | `redraw observed · quiet N ms · N ms`, `no redraw · quiet N ms · N ms`, `no redraw within N ms`, `timeout after N ms, still resizing`, `timeout after N ms, still drawing`, `timeout after N ms, no redraw`, `no time left to wait`, `window closed`, `cancelled` |
    | Capture | `shot sN W×H`, `shot sN W×H (stale: not yet redrawn at its new size)`, or `capture failed: MESSAGE` |
    | Lease | `lease N s` or `no lease` |
    | New windows | `new window ADDR (CLASS "TITLE"[, launched][, same pid])`, or `new windows` with a list |
 
 2. The image, when one was captured.
-3. Structured content: the summary and the hint again, in `summary` and
-   `hint`, and the facts in fields, for clients that pass the model only the
-   structured content, for scripts and for pi's codemode:
+3. Structured content, except for clients that would pass it to the model in
+   place of the text (see below): the summary and the hint again, in
+   `summary` and `hint`, and the facts in fields, for scripts and for pi's
+   codemode:
 
 ```json
 {
-  "summary": "3/3 done · redraw observed · quiet 214 ms · 655 ms · shot s5 1280×800 · lease 60 s",
+  "summary": "3/3 delivered · redraw observed · quiet 214 ms · 655 ms · shot s5 1280×800 · lease 60 s",
   "actions": {"done": 3, "total": 3, "delivery": "complete"},
   "wait": {"ended": "quiet", "summary": "settled", "redraw_observed": true, "commits": 7, "quiet_ms": 214, "elapsed_ms": 655},
   "shot": {"id": "s5", "width": 1280, "height": 800, "frame": {"x": 0, "y": 0, "width": 640, "height": 400}},
@@ -566,17 +569,29 @@ carries the launch token of a `launch` by this server) are the only relations
 claimed. A window that maps after the call's last listing is not reported by
 any later call, since each call compares its own start and end.
 
+The summary counts actions as delivered: the plugin passed every event to the
+window's application. Whether the application acted on them as meant, for
+example a game or a web app that drops keys while it is busy or takes them as
+shortcuts, only the shot can show, and the `act` description says so.
+
 Clients differ in what they pass the model: Codex and pi pass the text and
 the image, Claude Code the structured content as JSON and the image, without
-the text. So the structured content of every result carries all of its text:
-`error` the error line, `summary` the summary and `hint` the hint, and the
-fields hold every fact of the summary.
+the text. The JSON repeats the summary in fields and, for `windows`, lists
+facts the lines leave out, so it costs Claude Code more tokens than the text,
+for a list of windows about twice as many. With `--structured-content auto`, the default, the server therefore
+gives results no structured content when the client introduced itself as
+`claude-code` at initialization, so Claude Code passes the text and the image
+like the others. The tools declare no output schema, so the structured
+content is optional. `always` gives it to every client, `never` to none.
+Where it is given, the structured content of every result carries all of its
+text: `error` the error line, `summary` the summary and `hint` the hint, and
+the fields hold every fact of the summary.
 
 The other tools answer in the same way:
 
 | Tool | Text | Structured content |
 | --- | --- | --- |
-| `windows` | One line per window: `ADDR · CLASS "TITLE" · pid N · workspace NAME (hidden\|visible) · W×H [· resizing (not yet redrawn at its new size)] [· xwayland] [· launched] [· lease N s (this session\|another session)] · capabilities lease, hold, keyboard yes\|x11-focus`, listing only the capabilities it has. | `{"windows": [...]}`, with `capabilities` `{"lease", "hold", "keyboard"}` and every other fact of the lines |
+| `windows` | One line per window: `ADDR · CLASS "TITLE" · workspace NAME (hidden\|visible) · W×H [· resizing (not yet redrawn at its new size)] [· xwayland] [· launched] [· lease N s (this session\|another session)] [· capabilities lease, hold, keyboard yes\|x11-focus]`, listing the capabilities it has only when it lacks one of `lease`, `hold` and `keyboard yes`, and `capabilities unknown` when the plugin did not answer for it. With `match` and no window matching: `no window has "TEXT" in its class or title, of N windows`. | `{"windows": [...]}`, with `stable_id`, `pid`, `capabilities` `{"lease", "hold", "keyboard"}` and every other fact of the lines, and when it lists none, `summary` with the line that says why |
 | `screenshot` | `shot sN W×H · window ADDR W×H`, with ` · zoom of sM at X,Y W×H` after the shot for a zoom, and ` (stale: not yet redrawn at its new size)` after the shot when it shows an older frame. | `{"summary": "...", "shot": {...}}` |
 | `launch` | `launched ADDR CLASS "TITLE" · pid N · workspace NAME · settled after N ms · shot sN W×H`, or `still resizing after N ms` when the window had not caught up with a resize, `still drawing after N ms`, or `not settled after N ms, no redraw` when input from elsewhere kept the window from counting as quiet, with ` (stale: not yet redrawn at its new size)` after the shot when it shows an older frame, then other new windows. The hint names the windows on its workspace whose size changed. | `{"summary": "...", "window": {...}, "wait": {...}, "shot": {...}, "new_windows": [...]}` |
 | `release` | `lease released; ADDR stays open`, `lease of another session released; ADDR stays open`, or `no lease was held on ADDR`. | `{"summary": "...", "released": true}` |
@@ -597,11 +612,11 @@ progress. Other clients may not, which is one reason for the deadline cap.
 | `delivery` | Meaning |
 | --- | --- |
 | `none` | Nothing was sent. Safe to fix and retry. |
-| `complete` | Every action was applied. |
+| `complete` | Every action was delivered: the plugin passed every event to the window's application. Whether the application acted on them as meant, only the shot can show. |
 | `partial` | Actions before `failed_index` were applied; the action at `failed_index` may be partly applied, for example some characters of a `type`. The plugin took everything that was sent. Where known, `progress` says how much: the keys the plugin processed, not the characters the application inserted. |
 | `uncertain` | The connection ended, or the plugin stopped answering, before the plugin had taken everything that was sent. Any action from `failed_index` on may or may not have been applied. |
 
-`done` counts the batch actions whose every event was applied. After input
+`done` counts the batch actions whose every event was delivered. After input
 was sent, a failed batch reports `done` equal to `failed_index`; with nothing
 sent, `done` is 0, and the message names the action that was refused.
 
@@ -725,7 +740,7 @@ What each client shows the model:
 
 | Client | Server `instructions` | Tool descriptions | Results |
 | --- | --- | --- | --- |
-| Claude Code | In the system prompt, in full | Once tool search loads the tool | The structured content as JSON and the image, not the text |
+| Claude Code | In the system prompt, in full | Once tool search loads the tool, cut after 2048 characters | The structured content as JSON and the image, not the text, so the server gives it none and it passes the text |
 | Codex | In front of every tool's description | Yes | The text and the image |
 | pi | None with `direct` exposure, which [Installation](installation.md#mcp-server) registers. Only servers with `codemode` or `deferred` tools get the first line in the system prompt, and the rest through `describeNamespace()` in codemode scripts. | Yes, with `direct` exposure | The text and the image |
 
@@ -739,6 +754,10 @@ So:
   irreversible, the batching rule and the rule against repeating input,
   `close` the rule to close only windows the agent launched or the user asked
   it to close, and `launch` the rule to close launched windows.
+- **Each description fits in 2048 characters**, after which Claude Code cuts
+  it off. Reference that belongs to one parameter is in that parameter's
+  description instead: the key names, the defaults of `wait`, the forms of
+  `capture` and what `deadline_ms` covers. A Go test checks the length.
 - **The instructions teach the loop**, and to read each result's summary and
   hint. Their first line is a complete summary. They say nothing that a
   description says, and are short, since Codex puts them in front of every
@@ -766,10 +785,8 @@ Coordinates are pixels of the shot given in "shot" (required for click, move, dr
 Actions: click {x,y,button,count,modifiers} · move {x,y} · drag {from,to,button,modifiers} · scroll {x,y,dx,dy,unit:notch|px} · type {text} · key {keys:["ctrl","l"], repeat} · pause {ms}.
 Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it, but keys you know, such as arrows and enter in a menu, may follow in the same batch. In a window without the lease capability (see windows), a menu opened in one call is gone by the next, so open it and pick the entry with the keyboard in one batch.
 drag, clicks with modifiers, and key chords that hold a key other than a modifier while they press the next need the hold capability.
-type sends the text exactly, with the active keymap: a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key action such as shift+enter. It types at most one key every 15 ms, and a character without a key of its own takes two or more through Compose: about 600 characters in a call, or 1400 with deadline_ms 30000; split longer text over several calls.
-key names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus; "ctrl+l" is split at +.
-Set wait.expect_change false when the input may change nothing on screen. An empty action list waits for a change since the shot.
-Times are milliseconds: wait {expect_change: true, expect_ms: 1000, quiet_ms: 200}; deadline_ms (default 15000, at most 30000) covers the whole call, including waiting for other calls on the window, and the wait ends 1000 ms before it, which is kept for the capture. capture is "window" (default), "none", or a region {shot,x,y,width,height} as for screenshot.
+type presses the keys for the text as given, with the active keymap: a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key action such as shift+enter. It types at most one key every 15 ms, and a character without a key of its own takes two or more through Compose: about 600 characters in a call, or 1400 with deadline_ms 30000; split longer text over several calls.
+Delivered input reached the window's application, which does not mean it took effect: a slow or busy application, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the shot.
 Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before looking at a fresh screenshot.
 Example: {"window":"0x55d1c0a3e4b0","shot":"s4","actions":[{"action":"click","x":412,"y":88},{"action":"type","text":"hello"},{"action":"key","keys":["enter"]}]}
 ```
@@ -1089,8 +1106,9 @@ exit statuses and JSON output. What the server relies on:
   official Go SDK v1.8.0.
 - Options: `--input PATH` (default: `hyprmasq-input` from `PATH`),
   `--max-image-size N` (default 1280, 0 for the monitor's scale), `--lease-ms`
-  (default 60000, 1 to 600000), `--version`. It needs `XDG_RUNTIME_DIR` and
-  `HYPRLAND_INSTANCE_SIGNATURE`.
+  (default 60000, 1 to 600000), `--structured-content auto|always|never`
+  (default `auto`, see [Results](#results)), `--version`. It needs
+  `XDG_RUNTIME_DIR` and `HYPRLAND_INSTANCE_SIGNATURE`.
 - Talks to `$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock`
   with `j/hyprmasq …`, `j/clients`, `j/monitors` and `/dispatch` requests, one
   connection per request, each written at once. Hyprland reads requests in
@@ -1136,7 +1154,9 @@ a connection taken over during a burst; SIGTERM while the plugin does not
 answer.
 
 **MCP subtests** drive `hyprmasq-mcp` over stdio from the test script:
-launch, typing with a redraw and a lease, coordinates at scale 1 and 2 and in
+launch, results without structured content for a client that introduces
+itself as `claude-code`, `windows` with `match`, typing with a redraw and a
+lease, coordinates at scale 1 and 2 and in
 zoom shots, `stale_shot` after a resize, before and during a batch and while
 a call waits for the send lock, `out_of_bounds` (also for a popup above the
 window), `invalid_arguments`, also for text that the keymap types through
@@ -1162,7 +1182,9 @@ after the locks, also of an `act` without actions whose window another one
 replaced while it waited, capture regions of a window resized during the call,
 socket ids, lost lease answers, session ends and exit
 statuses, argument errors of every tool through an SDK client, `null` among
-them, and the hints. They run in the Nix build.
+them, the hints, the length of every tool description, structured content by
+client and `--structured-content`, and `windows` with `match`. They run in the
+Nix build.
 
 Not yet covered by a VM subtest: a toolkit's dropdown kept open across calls.
 

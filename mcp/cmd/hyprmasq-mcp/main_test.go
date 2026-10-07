@@ -75,3 +75,14 @@ func TestMaxImageSizeDefault(t *testing.T) {
 		t.Errorf("usage %q", stderr.String())
 	}
 }
+
+func TestStructuredContentOption(t *testing.T) {
+	cmd := exec.Command(os.Args[0])
+	cmd.Env = []string{"HYPRMASQ_MCP_TEST_MAIN=--structured-content sometimes"}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	var exit *exec.ExitError
+	if err := cmd.Run(); !errors.As(err, &exit) || exit.ExitCode() != 2 || !strings.Contains(stderr.String(), "-structured-content auto") {
+		t.Errorf("an unknown value: %v, %q", err, stderr.String())
+	}
+}

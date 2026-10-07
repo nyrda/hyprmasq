@@ -2534,7 +2534,7 @@ sys.stdout.write(reply.decode())
             self.sent, self.received = reply["sent"], reply["received"]
             # Some clients pass the model only the structured content, so it carries all of the text: the error, the
             # summary and the hint. The windows tool lists every field of its lines.
-            if "windows" not in self.data:
+            if self.data is not None and "windows" not in self.data:
                 error = self.data.get("error")
                 lines = [f"error {error['code']}: {error['message']}"] if error else []
                 lines += [self.data[key] for key in ("summary", "hint") if self.data.get(key)]
@@ -2563,10 +2563,10 @@ sys.stdout.write(reply.decode())
             """Sends a notification, and returns when."""
             return self.command(op="notify", method=method, params=params or {})["sent"]
 
-        def initialize(self):
+        def initialize(self, client="hyprmasq-vm-test"):
             result = self.request(
                 "initialize",
-                {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "hyprmasq-vm-test", "version": "1"}},
+                {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": client, "version": "1"}},
             )
             self.notify("notifications/initialized")
             return result
@@ -2683,10 +2683,31 @@ print(longest)
             "workspace": "hm-m", "visible": False, "size": {"width": 640, "height": 480}, "resizing": False, "xwayland": False, "launched": True, "lease": None,
             "capabilities": {"lease": True, "hold": True, "keyboard": "yes"},
         }, entry
-        assert line == f'{shell} · foot "hm-m-shell" · pid {shell_pid} · workspace hm-m (hidden) · 640×480 · launched · capabilities lease, hold, keyboard yes', line
+        # The line leaves out the pid and the capabilities, which the window has all of.
+        assert line == f'{shell} · foot "hm-m-shell" · workspace hm-m (hidden) · 640×480 · launched', line
         entry, _ = listed(mcp, visible)
         # The active window shares the user's keyboard focus, so act cannot drag in it, and no dnd is listed.
         assert entry["visible"] and not entry["launched"] and entry["capabilities"] == {"lease": False, "hold": False, "keyboard": "yes"}, entry
+
+    with subtest("hyprmasq-mcp gives Claude Code the text in place of structured content"):
+        # Claude Code passes the model a result's structured content in place of its text, so it gets none.
+        claude = Mcp("claude")
+        claude.initialize(client="claude-code")
+        # The shell was launched by the other server, so this one does not list it as launched.
+        matched = claude.call("windows", {"match": "HM-M-SHELL"})
+        assert matched.data is None and matched.text == f'{shell} · foot "hm-m-shell" · workspace hm-m (hidden) · 640×480', matched
+        none = claude.call("windows", {"match": "hm-m-nothing"})
+        assert none.data is None and re.fullmatch(r'no window has "hm-m-nothing" in its class or title, of \d+ windows', none.text), none
+        shot = claude.call("screenshot", {"window": shell})
+        assert shot.data is None and len(shot.images) == 1 and re.fullmatch(rf"shot s\d+ 640×480 · window {shell} 640×480", shot.text), shot
+        failed = claude.call("act", {"window": shell, "deadline_ms": 1})
+        assert failed.is_error and failed.data is None and failed.text.startswith("error invalid_arguments: deadline_ms must be 1000 to 30000"), failed
+        assert claude.stop() == 0
+        # Other clients get it, and match there too. An empty list says why in it as well.
+        matched = mcp.call("windows", {"match": "hm-m-shell"})
+        assert [w["window"] for w in matched.data["windows"]] == [shell] and matched.text == line, matched
+        none = mcp.call("windows", {"match": "hm-m-nothing"})
+        assert none.data == {"windows": [], "summary": none.text}, none
 
     with subtest("hyprmasq-mcp types into a hidden shell, waits for its redraw and keeps a lease"):
         machine.succeed("rm -f /tmp/hm-m-ran")
@@ -2697,7 +2718,7 @@ print(longest)
         wait = typed_result.data["wait"]
         assert wait["ended"] == "quiet" and wait["summary"] == "settled" and wait["redraw_observed"] and wait["commits"] > 0, typed_result
         assert wait["quiet_ms"] >= 200 and typed_result.data["lease"]["held"] and typed_result.data["lease"]["remaining_s"] in (59, 60), typed_result
-        assert re.fullmatch(r"2/2 done · redraw observed · quiet \d+ ms · \d+ ms · shot s\d+ 640×480 · lease (59|60) s", typed_result.text), typed_result
+        assert re.fullmatch(r"2/2 delivered · redraw observed · quiet \d+ ms · \d+ ms · shot s\d+ 640×480 · lease (59|60) s", typed_result.text), typed_result
         assert typed_result.data["new_windows"] == [] and len(typed_result.images) == 1, typed_result
         assert machine.succeed("cat /tmp/hm-m-ran") == "ran\n"
         assert white_run(keep(typed_result, "typed")) >= 200 > white_run(launch_result.images[0])
@@ -2721,7 +2742,7 @@ print(longest)
         clicked = mcp.call("act", {"window": probe, "shot": overview_id, "actions": [{"action": "click", "x": 123, "y": 77}]})
         assert not clicked.is_error and clicked.data["wait"]["ended"] == "no_redraw" and clicked.data["wait"]["summary"] == "no_change", clicked
         assert re.fullmatch(
-            r"1/1 done · no redraw within 1000 ms · shot s\d+ 640×480 · lease (59|60) s\n"
+            r"1/1 delivered · no redraw within 1000 ms · shot s\d+ 640×480 · lease (59|60) s\n"
             r"The click may have missed or had no visible effect\. Look at the shot before repeating it\.",
             clicked.text,
         ), clicked
@@ -2770,7 +2791,7 @@ print(longest)
         assert stale.data["error"]["message"] == f"the window was resized from 640×480 to 300×200 since shot {old}", stale
         assert stale.data["hint"] == "Read the coordinates from the new shot in this result. Nothing was sent.", stale
         assert (fresh["width"], fresh["height"]) == (300, 200) and pixels(stale.images[0])[-1] == (300, 200), stale
-        assert stale.text.splitlines()[1] == f"0/1 done, nothing sent · shot {fresh['id']} 300×200", stale
+        assert stale.text.splitlines()[1] == f"0/1 delivered, nothing sent · shot {fresh['id']} 300×200", stale
 
         # Coordinates outside the shot, also the end of a drag after a key.
         outside = mcp.call("act", {"window": probe, "shot": fresh["id"], "actions": [{"action": "click", "x": 300, "y": 50}]})
@@ -2908,7 +2929,7 @@ print(longest)
         hint = paused.data["hint"]
         assert "retry" not in hint.lower() and hint.endswith("Look at the shot before repeating anything."), paused
         assert re.fullmatch(
-            rf"0/1 done, delivery partial: actions\[0\] \(type\) may be partly applied \({keys} keys sent\) · shot s\d+ \d+×\d+ · no lease",
+            rf"0/1 delivered, delivery partial: actions\[0\] \(type\) may be partly applied \({keys} keys sent\) · shot s\d+ \d+×\d+ · no lease",
             paused.text.splitlines()[1],
         ), paused
         keep(paused, "x-paused")
@@ -2931,7 +2952,7 @@ print(longest)
         wait = hover.data["wait"]
         assert not hover.is_error and wait["ended"] == "quiet" and wait["summary"] == "settled", hover
         assert not wait["redraw_observed"] and wait["commits"] == 0 and wait["quiet_ms"] >= 300 and wait["elapsed_ms"] < 1000, hover
-        assert re.fullmatch(r"1/1 done · no redraw · quiet \d+ ms · \d+ ms · shot s\d+ 300×200 · lease \d+ s", hover.text), hover
+        assert re.fullmatch(r"1/1 delivered · no redraw · quiet \d+ ms · \d+ ms · shot s\d+ 300×200 · lease \d+ s", hover.text), hover
 
         # A popup opens after a shot, without any input. A wait for a change since that shot ends at once.
         focus_workspace(54)
@@ -3006,7 +3027,7 @@ print(longest)
         assert stamps["key hm-m-probe 48 1"] - stamps["key hm-m-probe 30 1"] >= 4000, events
         entry, line = listed(mcp, probe)
         assert entry["lease"]["held"] and entry["lease"]["mine"] and entry["lease"]["remaining_s"] > 50, entry
-        assert re.search(r" · lease \d+ s \(this session\) · ", line), line
+        assert re.search(r" · lease \d+ s \(this session\)( · |$)", line), line
         release_result = mcp.call("release", {"window": probe})
         assert release_result.data == {"summary": f"lease released; {probe} stays open", "released": True}, release_result
         wait_for("leaves after release", lambda: probe_leaves(start) == {"pointer leave hm-m-probe", "keyboard leave hm-m-probe"}, timeout=5)
@@ -3148,7 +3169,7 @@ print(longest)
                                   "capture": {"shot": shot_id, "x": 20, "y": 30, "width": 100, "height": 60}})
         zoom_shot = zoomed.data["shot"]
         assert not zoomed.is_error and (zoom_shot["width"], zoom_shot["height"], zoom_shot["frame"]) == (100, 60, region(20, 30, 100, 60)), zoomed
-        assert re.fullmatch(r"1/1 done · no redraw · quiet \d+ ms · \d+ ms · shot s\d+ 100×60 · lease \d+ s", zoomed.text), zoomed
+        assert re.fullmatch(r"1/1 delivered · no redraw · quiet \d+ ms · \d+ ms · shot s\d+ 100×60 · lease \d+ s", zoomed.text), zoomed
         assert pixels(keep(zoomed, "act-region"))[-1] == (100, 60)
         # Its pixels are coordinates of their own. Without a capture there is no shot.
         again = mcp.call("act", {"window": probe, "shot": zoom_shot["id"], "actions": [{"action": "click", "x": 50, "y": 20}], "wait": quiet, "capture": "none"})
@@ -3254,7 +3275,7 @@ print(longest)
         ), closed
         machine.wait_until_succeeds("grep -qx 'held 640 480' /tmp/hyprmasq-m-resize.log", timeout=10)
         entry, line = listed(mcp, catching)
-        assert entry["resizing"] and " · 640×480 · resizing (not yet redrawn at its new size) · " in line, (entry, line)
+        assert entry["resizing"] and re.search(r" · 640×480 · resizing \(not yet redrawn at its new size\)( · |$)", line), (entry, line)
 
         # A screenshot gives it 1.5 s to catch up, then returns the older frame and says so.
         stale = mcp.call("screenshot", {"window": catching})
