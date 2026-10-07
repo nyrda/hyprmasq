@@ -211,7 +211,7 @@ Never repeat input whose delivery is partial or uncertain, or from a call that t
 Example: {"window":"0x55d1c0a3e4b0","shot":"s4","actions":[{"action":"click","x":412,"y":88},{"action":"type","text":"hello"},{"action":"key","keys":["enter"]}]}`,
 	typedWithin(defaultDeadline), typedWithin(maxDeadline))
 
-const windowsDescription = `List the windows, or with match only those whose class or title contains it, ignoring case. Each has its address (pass it as window to the other tools), class, title, workspace, whether it is visible (on a shown workspace) or hidden, and its size in logical pixels. Where they apply, it is also resizing (not yet redrawn at its new size, so a screenshot shows an older frame), xwayland, launched (by this server) or leased, and lists its capabilities when it lacks one of lease, hold and keyboard yes.
+const windowsDescription = `List the windows, or with match only those whose class or title contains it, ignoring case. Each has its address (pass it as window to the other tools), class, title, workspace, whether it is visible (on a shown workspace) or hidden, and its size in logical pixels. Where they apply, it is also resizing (not yet redrawn at its new size, so a screenshot shows an older frame), xwayland, launched (by this server) or leased, and names the capabilities it lacks, such as "lacks lease, hold" or "keyboard x11-focus"; without them, it has them all.
 capabilities: lease (focus can be held between act calls, so menus stay open), hold (buttons and keys can stay pressed across input frames, needed for drag, for clicks with modifiers, and for key chords that hold a key other than a modifier), keyboard ("yes", or "x11-focus" when X11 keyboard input depends on which window has the focus).
 The size is not a coordinate system: take a screenshot, and act with the pixels of that shot.
 Example: {"match":"firefox"}`
@@ -271,7 +271,7 @@ var actionSchema = json.RawMessage(`{
 		"text": {"type": "string", "description": "type: the text, typed as given, with no tags or escapes. A line break presses Enter and a tab presses Tab."},
 		"keys": {"type": "array", "items": {"type": "string"}, "description": "key: pressed together in order and released in reverse, such as [\"ctrl\", \"shift\", \"t\"] or [\"ctrl+l\"], which is split at +. Names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus."},
 		"repeat": {"type": "integer", "minimum": 1, "maximum": 100, "default": 1, "description": "key: presses of the chord."},
-		"ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "pause: milliseconds."}
+		"ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "pause: milliseconds. Keys and text after a click or drag already wait until 300 ms have passed since it, while the application moves the focus."}
 	},
 	"required": ["action"]
 }`)

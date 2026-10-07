@@ -3007,6 +3007,21 @@ print(longest)
         ), timed
         assert snapshot() == before_focus
 
+    with subtest("hyprmasq-mcp lets a click settle before the keys after it"):
+        shot_id = mcp.call("screenshot", {"window": probe}).data["shot"]["id"]
+        start = len(probe_events("m-probe"))
+        keys = [{"action": "key", "keys": ["a"]}, {"action": "key", "keys": ["b"]}]
+        settled = mcp.call("act", {"window": probe, "shot": shot_id, "actions": [{"action": "click", "x": 60, "y": 70}, *keys], "wait": {"expect_change": False}})
+        assert not settled.is_error and settled.data["actions"] == {"done": 3, "total": 3, "delivery": "complete"}, settled
+        stamps = {e: t for t, e in probe_input(start)}
+        # The first key comes at least 300 ms after the click's release. The sender promises no upper bound, so that
+        # only the first key waits is left to the Go tests.
+        assert stamps["key hm-m-probe 30 1"] - stamps["button hm-m-probe 0"] >= 290, probe_input(start)
+        assert stamps["key hm-m-probe 48 1"] > stamps["key hm-m-probe 30 0"], probe_input(start)
+        # The next subtest starts without the emulated focus that this input gave.
+        assert not mcp.call("release", {"window": probe}).is_error
+        wait_for("leaves after release", lambda: probe_leaves(start) == {"pointer leave hm-m-probe", "keyboard leave hm-m-probe"}, timeout=5)
+
     with subtest("hyprmasq-mcp keeps the emulated focus between calls, and releases it on release and on exit"):
         assert not mcp.call("release", {"window": probe}).is_error
         time.sleep(0.5)

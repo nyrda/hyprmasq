@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -165,11 +166,41 @@ func checkCapabilities(batch []action, caps hypr.Capabilities, address string) e
 	return nil
 }
 
-// translateBatch turns the batch into hyprmasq-input actions, with the points mapped from the shot's pixels.
+// clickSettleMs is the least time in milliseconds from the end of a click or drag to the first key or typed text after
+// it in the same batch. Applications move the keyboard focus a moment after a click, and keys that come sooner may
+// reach the window's shortcuts instead of the field: Spotify, clicked into its empty search field, took a space typed
+// 200 ms after the click as play/pause, and inserted the same space when it came 350 ms after the click.
+const clickSettleMs = 300
+
+// translateBatch turns the batch into hyprmasq-input actions, with the points mapped from the shot's pixels. Keys that
+// follow a click or drag sooner than clickSettleMs get a sleep in front of them, which belongs to their action. The
+// time counts the sender's gap before every action and the sleeps, but not how long motion or scrolling take, which
+// can only make the wait longer.
 func translateBatch(batch []action, sh *shot) []inputStep {
 	var steps []inputStep
+	sinceClick := -1 // ms from the end of the last click or drag to the next sender action, while no keys followed it
 	for i, a := range batch {
-		steps = append(steps, translate(i, a, func(x, y float64) (float64, float64) { return sh.inputPoint(x, y) })...)
+		for _, step := range translate(i, a, func(x, y float64) (float64, float64) { return sh.inputPoint(x, y) }) {
+			if sinceClick >= 0 {
+				sinceClick += actionGapMs
+			}
+			verb := step.Argv[0]
+			if (verb == "text" || verb == "keys") && sinceClick >= 0 && sinceClick < clickSettleMs {
+				// The sleep is an action of its own, so a gap follows it too.
+				steps = append(steps, inputStep{Batch: i, Argv: []string{"sleep", strconv.Itoa(max(0, clickSettleMs-sinceClick-actionGapMs))}})
+			}
+			steps = append(steps, step)
+			switch verb {
+			case "click", "drag":
+				sinceClick = 0
+			case "text", "keys":
+				sinceClick = -1
+			case "sleep":
+				if ms, err := strconv.Atoi(step.Argv[1]); err == nil && sinceClick >= 0 {
+					sinceClick += ms
+				}
+			}
+		}
 	}
 	return steps
 }

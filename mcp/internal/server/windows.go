@@ -205,7 +205,8 @@ func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
 }
 
 // windowLine describes a window in one line. It leaves out what an agent rarely needs: the pid, and the capabilities of a
-// window that has them all, as most windows do.
+// window that has them all, as most windows do. Of the others it names what they lack, so that nothing has to be
+// inferred from what is missing from the line.
 func windowLine(w windowOut) string {
 	where := "hidden"
 	if w.Visible {
@@ -233,21 +234,24 @@ func windowLine(w windowOut) string {
 		}
 		parts = append(parts, fmt.Sprintf("lease %d s (%s)", w.Lease.RemainingS, owner))
 	}
-	switch c := w.Capabilities; {
-	case c == nil:
+	if c := w.Capabilities; c == nil {
 		parts = append(parts, "capabilities unknown")
-	case !c.Lease || !c.Hold || c.Keyboard != "yes":
-		var caps []string
+	} else {
+		var lacks []string
 		for _, cap := range []struct {
 			name string
 			on   bool
 		}{{"lease", c.Lease}, {"hold", c.Hold}} {
-			if cap.on {
-				caps = append(caps, cap.name)
+			if !cap.on {
+				lacks = append(lacks, cap.name)
 			}
 		}
-		caps = append(caps, "keyboard "+c.Keyboard)
-		parts = append(parts, "capabilities "+strings.Join(caps, ", "))
+		if len(lacks) > 0 {
+			parts = append(parts, "lacks "+strings.Join(lacks, ", "))
+		}
+		if c.Keyboard != "yes" {
+			parts = append(parts, "keyboard "+c.Keyboard)
+		}
 	}
 	return strings.Join(parts, " · ")
 }

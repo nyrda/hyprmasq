@@ -596,6 +596,47 @@ func TestTranslate(t *testing.T) {
 	}
 }
 
+// Keys and text that follow a click or drag sooner than 300 ms get a sleep in front of them, counted from the click's
+// end with the sender's 50 ms between actions, and only once after each click. The sleep belongs to the keys' action.
+func TestClickSettle(t *testing.T) {
+	const click, typed, key = `{"action":"click","x":1,"y":1}`, `{"action":"type","text":"a b"}`, `{"action":"key","keys":["enter"]}`
+	for _, c := range []struct {
+		batch string
+		want  []string
+	}{
+		{click + "," + typed, []string{"0 move", "0 click", "1 sleep 200", "1 text"}},
+		{click + `,{"action":"pause","ms":100},` + typed, []string{"0 move", "0 click", "1 sleep 100", "2 sleep 50", "2 text"}},
+		{click + `,{"action":"pause","ms":200},` + typed, []string{"0 move", "0 click", "1 sleep 200", "2 text"}},
+		{click + `,{"action":"move","x":2,"y":2},` + key, []string{"0 move", "0 click", "1 move", "2 sleep 150", "2 keys"}},
+		// A scroll is two sender actions, each with its gap.
+		{click + `,{"action":"scroll","x":1,"y":1,"dy":1},{"action":"pause","ms":100},` + key, []string{"0 move", "0 click", "1 move", "1 wheel", "2 sleep 100", "3 keys"}},
+		{click + "," + typed + "," + key, []string{"0 move", "0 click", "1 sleep 200", "1 text", "2 keys"}},
+		{click + "," + click + "," + key, []string{"0 move", "0 click", "1 move", "1 click", "2 sleep 200", "2 keys"}},
+		{`{"action":"drag","from":[1,1],"to":[5,5]},` + key, []string{"0 drag", "1 sleep 200", "1 keys"}},
+		{`{"action":"scroll","x":1,"y":1,"dy":1},` + key, []string{"0 move", "0 wheel", "1 keys"}},
+		{typed + "," + click, []string{"0 text", "1 move", "1 click"}},
+	} {
+		var raw []json.RawMessage
+		if err := json.Unmarshal([]byte("["+c.batch+"]"), &raw); err != nil {
+			t.Fatal(err)
+		}
+		batch, err := parseActions(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, step := range translateBatch(batch, &shot{Scale: 1}) {
+			got = append(got, strconv.Itoa(step.Batch)+" "+step.Argv[0])
+			if step.Argv[0] == "sleep" {
+				got[len(got)-1] += " " + step.Argv[1]
+			}
+		}
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("[%s]: %q, want %q", c.batch, got, c.want)
+		}
+	}
+}
+
 func TestMinSendTime(t *testing.T) {
 	steps := func(argvs ...[]string) []inputStep {
 		var out []inputStep
@@ -755,9 +796,10 @@ func TestBatchRunsInOneSender(t *testing.T) {
 	if res.IsError {
 		t.Fatal(text(res))
 	}
-	// One sender checks the whole batch, including whether the keymap can type it, before it sends anything.
+	// One sender checks the whole batch, including whether the keymap can type it, before it sends anything. The text
+	// waits for the click to settle.
 	want := [][]string{{
-		"move", "10", "10", "click", "left", "1", "-", "text", "hi there", "keys", "enter", "1",
+		"move", "10", "10", "click", "left", "1", "-", "sleep", "200", "text", "hi there", "keys", "enter", "1",
 		"move", "20", "20", "wheel", "0", "2", "sleep", "10", "drag", "0", "0", "50", "50", "left", "-",
 	}}
 	if got := e.inputs(); !reflect.DeepEqual(got, want) {
@@ -1894,7 +1936,7 @@ func TestWindowsTool(t *testing.T) {
 }
 
 // match keeps the windows whose class or title contains it, ignoring case as Unicode case folding does. A window that
-// lacks a capability lists the ones it has. A list without windows says why, also in the structured content.
+// lacks a capability names what it lacks. A list without windows says why, also in the structured content.
 func TestWindowsMatch(t *testing.T) {
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 1264, 687, func(w *fakeWindow) {
@@ -1923,7 +1965,7 @@ func TestWindowsMatch(t *testing.T) {
 	if !reflect.DeepEqual(got, []string{"0xb2"}) || text(res) != `0xb2 · org.gnome.Evolution "Inbox (3 unread)" · workspace 1 (visible) · 640×480` {
 		t.Errorf("title with inbox: %v %q", got, text(res))
 	}
-	if res, _ := windows(`{"match":"monolith"}`); text(res) != `0xa1 · Spotify "Monolith - Crossfaith" · workspace 1 (visible) · 1264×687 · xwayland · capabilities hold, keyboard x11-focus` {
+	if res, _ := windows(`{"match":"monolith"}`); text(res) != `0xa1 · Spotify "Monolith - Crossfaith" · workspace 1 (visible) · 1264×687 · xwayland · lacks lease · keyboard x11-focus` {
 		t.Errorf("an X11 window: %q", text(res))
 	}
 	if res, _ := windows(`{"match":"SPOT"}`); get(t, res, "summary") != nil {

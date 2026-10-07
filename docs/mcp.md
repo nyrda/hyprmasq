@@ -265,7 +265,7 @@ type given as `null` takes its default, as if it were left out.
 | `scroll` | `x`, `y`, `dx`, `dy`, `unit` (`notch` or `px`, default `notch`) | Motion to x,y, then scrolling there. `notch` is a wheel click, whole numbers up to 100 per axis; `px` is smooth scrolling in window-local logical pixels. Positive `dy` scrolls down, positive `dx` right. Neither promises how far the content moves. |
 | `type` | `text` | The text exactly as given, with the active keymap. No tags, no escapes. A line break presses Enter and a tab presses Tab, so a new line in a chat or form field needs a `key` action such as `shift+enter`. At most 65536 bytes of text per batch. |
 | `key` | `keys`, `repeat` (1 to 100) | The keys of `keys` pressed together, in order, and released in reverse. `repeat` presses the chord that many times. At most 9 keys. A chord that holds a key other than a modifier while a later key goes down, such as `["a", "b"]`, needs `hold`; modifiers are `ctrl`, `alt`, `shift`, `super` and the keysyms of modifier keys, such as `Shift_L` or `ISO_Level3_Shift`. |
-| `pause` | `ms` (0 to 5000) | Waits. It does not check that anything is ready. |
+| `pause` | `ms` (0 to 5000) | Waits. It does not check that anything is ready. Keys after a click need none, see [Pacing](#pacing). |
 
 Key names are XKB keysym names, case-insensitive, plus aliases: `ctrl`
 (`control`), `alt`, `shift`, `super` (`meta`, `win`, `cmd`), `enter`
@@ -313,6 +313,19 @@ The server sends a `click` as two sender actions, `move` and `click`, so its
 motion comes 50 ms before the press. A `scroll` is likewise `move`, then
 `wheel` or `scroll`. `type` becomes `text`, `key` becomes `keys`, and `pause`
 becomes `sleep`.
+
+The first `type` or `key` after a `click` or `drag` in a batch starts at least
+300 ms after the click or drag has ended. Applications move the keyboard focus
+a moment after a click, and keys that come sooner can reach the window's
+shortcuts instead of the field: Spotify, clicked into its empty search field
+on a playlist page, took a space typed 200 ms after the click as play/pause,
+and typed it when it came 350 ms after the click. When the sender actions in
+between, counting the 50 ms before each of them and any `pause` but not how
+long motion or scrolling take, add up to less, the server puts a `sleep` in
+front of the keys, which belongs to their action, so a deadline
+that stops it reports that action. It counts toward the batch's pace like any
+other `sleep`. The `ms` description of `pause` tells agents that they need no
+pause of their own for it.
 
 The sender waits for the plugin after every action and every 16 frames. These
 round trips confirm that Hyprland processed the events, not that the
@@ -591,7 +604,7 @@ The other tools answer in the same way:
 
 | Tool | Text | Structured content |
 | --- | --- | --- |
-| `windows` | One line per window: `ADDR · CLASS "TITLE" · workspace NAME (hidden\|visible) · W×H [· resizing (not yet redrawn at its new size)] [· xwayland] [· launched] [· lease N s (this session\|another session)] [· capabilities lease, hold, keyboard yes\|x11-focus]`, listing the capabilities it has only when it lacks one of `lease`, `hold` and `keyboard yes`, and `capabilities unknown` when the plugin did not answer for it. With `match` and no window matching: `no window has "TEXT" in its class or title, of N windows`. | `{"windows": [...]}`, with `stable_id`, `pid`, `capabilities` `{"lease", "hold", "keyboard"}` and every other fact of the lines, and when it lists none, `summary` with the line that says why |
+| `windows` | One line per window: `ADDR · CLASS "TITLE" · workspace NAME (hidden\|visible) · W×H [· resizing (not yet redrawn at its new size)] [· xwayland] [· launched] [· lease N s (this session\|another session)] [· lacks lease, hold] [· keyboard x11-focus]`, naming only what the window lacks of `lease`, `hold` and `keyboard yes`, so a line without them has them all, and `capabilities unknown` when the plugin did not answer for it. With `match` and no window matching: `no window has "TEXT" in its class or title, of N windows`. | `{"windows": [...]}`, with `stable_id`, `pid`, `capabilities` `{"lease", "hold", "keyboard"}` and every other fact of the lines, and when it lists none, `summary` with the line that says why |
 | `screenshot` | `shot sN W×H · window ADDR W×H`, with ` · zoom of sM at X,Y W×H` after the shot for a zoom, and ` (stale: not yet redrawn at its new size)` after the shot when it shows an older frame. | `{"summary": "...", "shot": {...}}` |
 | `launch` | `launched ADDR CLASS "TITLE" · pid N · workspace NAME · settled after N ms · shot sN W×H`, or `still resizing after N ms` when the window had not caught up with a resize, `still drawing after N ms`, or `not settled after N ms, no redraw` when input from elsewhere kept the window from counting as quiet, with ` (stale: not yet redrawn at its new size)` after the shot when it shows an older frame, then other new windows. The hint names the windows on its workspace whose size changed. | `{"summary": "...", "window": {...}, "wait": {...}, "shot": {...}, "new_windows": [...]}` |
 | `release` | `lease released; ADDR stays open`, `lease of another session released; ADDR stays open`, or `no lease was held on ADDR`. | `{"summary": "...", "released": true}` |
@@ -1156,7 +1169,7 @@ answer.
 **MCP subtests** drive `hyprmasq-mcp` over stdio from the test script:
 launch, results without structured content for a client that introduces
 itself as `claude-code`, `windows` with `match`, typing with a redraw and a
-lease, coordinates at scale 1 and 2 and in
+lease, the wait between a click and the keys after it, coordinates at scale 1 and 2 and in
 zoom shots, `stale_shot` after a resize, before and during a batch and while
 a call waits for the send lock, `out_of_bounds` (also for a popup above the
 window), `invalid_arguments`, also for text that the keymap types through
@@ -1183,8 +1196,8 @@ replaced while it waited, capture regions of a window resized during the call,
 socket ids, lost lease answers, session ends and exit
 statuses, argument errors of every tool through an SDK client, `null` among
 them, the hints, the length of every tool description, structured content by
-client and `--structured-content`, and `windows` with `match`. They run in the
-Nix build.
+client and `--structured-content`, `windows` with `match`, and the sleep in
+front of keys that follow a click or drag too soon. They run in the Nix build.
 
 Not yet covered by a VM subtest: a toolkit's dropdown kept open across calls.
 
