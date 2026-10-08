@@ -3,7 +3,7 @@
 
   # Pinned to the nixpkgs revision whose Hyprland the plugin is built and VM-tested against.
   # nix/hyprmasq-vm-test.nix reads this pin from flake.lock.
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/e554fab72f81915600f3f449b786fd9af40439a5";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/39ad350a0602fa0a58a544344e3e9187526ea45c";
 
   outputs =
     { self, nixpkgs }:
