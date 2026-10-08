@@ -40,8 +40,6 @@ const (
 	hintOutsideRegions = "Pointer input reaches the window and the area right of and below it up to the edges of its monitor; the window may have moved since the shot."
 	hintClosedBySent   = "The window closed while the input was sent, maybe because of it, for example through a quit shortcut or a close button. Call windows to see what is open now."
 	hintNothingSent    = "Nothing was sent."
-	hintLookShot       = "Look at the shot before repeating anything."
-	hintLookNoShot     = "Take a screenshot and look at it before repeating anything."
 
 	// The plugin sends the modifier state again with every frame, but no other held key.
 	hintChordHoldMissing = "This window has the user's keyboard or pointer focus, or shares its Wayland connection with the window that has it, so of the keys of a chord only modifiers such as ctrl, alt, shift and super stay pressed between input frames, and the others would arrive one after another. Hold only modifiers, or press the keys in separate key actions."
@@ -102,6 +100,30 @@ type shotOut struct {
 	Frame  rectOut `json:"frame"`
 	// Present only when true: the shot shows an older frame.
 	Resizing bool `json:"resizing,omitempty"`
+	// For a changes shot: what changed since the shot it was compared with, whose pixels it has. It has no image of its
+	// own.
+	Changes *changesOut `json:"changes,omitempty"`
+	// Why capture "changes" took a full shot instead.
+	FullShot string `json:"full_shot,omitempty"`
+}
+
+type changesOut struct {
+	Base string `json:"base"`
+	// A zoom into each region that changed, in the order of the images.
+	Regions []regionOut `json:"regions"`
+	// Tiny changes, such as a blinking caret, that no zoom shows.
+	LeftOut int `json:"left_out,omitempty"`
+}
+
+// regionOut is a zoom shot of a changes shot, and the box of the changes shot's pixels that it shows.
+type regionOut struct {
+	Shot        string `json:"shot"`
+	ImageWidth  int    `json:"image_width"`
+	ImageHeight int    `json:"image_height"`
+	X           int    `json:"x"`
+	Y           int    `json:"y"`
+	Width       int    `json:"width"`
+	Height      int    `json:"height"`
 }
 
 func shotInfo(s *shot) *shotOut {
@@ -113,11 +135,65 @@ func shotInfo(s *shot) *shotOut {
 
 // shotText is the summary's part about a shot.
 func shotText(s *shotOut) string {
+	if c := s.Changes; c != nil {
+		switch len(c.Regions) {
+		case 0:
+			return fmt.Sprintf("shot %s = %s, no change", s.ID, c.Base)
+		case 1:
+			return fmt.Sprintf("shot %s = %s + 1 change", s.ID, c.Base)
+		}
+		return fmt.Sprintf("shot %s = %s + %d changes", s.ID, c.Base, len(c.Regions))
+	}
 	text := fmt.Sprintf("shot %s %d×%d", s.ID, s.Width, s.Height)
+	var notes []string
+	if s.FullShot != "" {
+		notes = append(notes, "full shot: "+s.FullShot)
+	}
 	if s.Resizing {
-		text += " (stale: not yet redrawn at its new size)"
+		notes = append(notes, "stale: not yet redrawn at its new size")
+	}
+	if len(notes) > 0 {
+		text += " (" + strings.Join(notes, "; ") + ")"
 	}
 	return text
+}
+
+// changesLines are the lines after the summary line of a changes shot: a line for each zoom, in the order of the
+// images, and the tiny changes left out.
+func changesLines(s *shotOut) []string {
+	if s == nil || s.Changes == nil {
+		return nil
+	}
+	var lines []string
+	for _, r := range s.Changes.Regions {
+		lines = append(lines, fmt.Sprintf("zoom %s %d×%d of %s at %d,%d %d×%d", r.Shot, r.ImageWidth, r.ImageHeight, s.ID, r.X, r.Y, r.Width, r.Height))
+	}
+	switch n := s.Changes.LeftOut; {
+	case n == 1:
+		lines = append(lines, "1 tiny change left out")
+	case n > 1:
+		lines = append(lines, fmt.Sprintf("%d tiny changes left out", n))
+	}
+	return lines
+}
+
+// unchanged tells whether a shot is a changes shot that found no change, which comes without an image.
+func unchanged(s *shotOut) bool {
+	return s != nil && s.Changes != nil && len(s.Changes.Regions) == 0
+}
+
+// lookAt says what to look at before repeating input: the shot, the zooms of a changes shot, or for one that found no
+// change the shot it was compared with.
+func lookAt(s *shotOut) string {
+	switch {
+	case s == nil:
+		return "Take a screenshot and look at it"
+	case unchanged(s):
+		return "Look at " + s.Changes.Base
+	case s.Changes != nil:
+		return "Look at the zooms"
+	}
+	return "Look at the shot"
 }
 
 // resizingHint explains a shot of a window that had not caught up with a resize, or "".
@@ -216,8 +292,8 @@ type resultText struct {
 	Hint    string `json:"hint,omitempty"`
 }
 
-// newResult returns a result whose text is the lead line, if any, the summary and the hint.
-func newResult(structured any, rt resultText, png []byte, lead string) *mcp.CallToolResult {
+// newResult returns a result whose text is the lead line, if any, the summary and the hint, followed by the images.
+func newResult(structured any, rt resultText, images [][]byte, lead string) *mcp.CallToolResult {
 	var lines []string
 	for _, line := range []string{lead, rt.Summary, rt.Hint} {
 		if line != "" {
@@ -225,10 +301,18 @@ func newResult(structured any, rt resultText, png []byte, lead string) *mcp.Call
 		}
 	}
 	content := []mcp.Content{&mcp.TextContent{Text: strings.Join(lines, "\n")}}
-	if png != nil {
+	for _, png := range images {
 		content = append(content, imageContent(png))
 	}
 	return &mcp.CallToolResult{Content: content, StructuredContent: structured}
+}
+
+// oneImage is the images of a result with one image, or none for nil.
+func oneImage(png []byte) [][]byte {
+	if png == nil {
+		return nil
+	}
+	return [][]byte{png}
 }
 
 // joinHints joins the hints that apply to a result into one.
@@ -364,7 +448,7 @@ func summaryLine(out *actOut, batch []action) string {
 		}
 	}
 	add(newWindowsText(out.NewWindows))
-	return strings.Join(parts, " · ")
+	return strings.Join(append([]string{strings.Join(parts, " · ")}, changesLines(out.Shot)...), "\n")
 }
 
 // waitHint explains a wait outcome that needs a decision. A commit only shows that the window drew, so the hints say
@@ -374,10 +458,7 @@ func waitHint(w *waitOut, batch []action, shotID string, actions *actionsOut, sh
 		return ""
 	}
 	hasShot := shot != nil
-	look := "Look at the shot"
-	if !hasShot {
-		look = "Take a screenshot and look at it"
-	}
+	look := lookAt(shot)
 	switch w.Ended {
 	case "cancelled":
 		if actions != nil && actions.Delivery != "none" && actions.Delivery != "complete" {
@@ -431,8 +512,8 @@ func imageContent(png []byte) mcp.Content {
 	return &mcp.ImageContent{Data: png, MIMEType: "image/png"}
 }
 
-// errorResult reports err with what was sent so far, and the shot taken after the failure, if any.
-func errorResult(te *toolError, out *actOut, batch []action, png []byte) *mcp.CallToolResult {
+// errorResult reports err with what was sent so far, and the images of the shot taken after the failure, if any.
+func errorResult(te *toolError, out *actOut, batch []action, images [][]byte) *mcp.CallToolResult {
 	if out == nil {
 		out = &actOut{NewWindows: []newWindowOut{}}
 	}
@@ -442,7 +523,7 @@ func errorResult(te *toolError, out *actOut, batch []action, png []byte) *mcp.Ca
 	if out.Actions == nil || out.Actions.Delivery != "none" || out.Shot != nil {
 		out.Summary = summaryLine(out, batch)
 	}
-	res := newResult(out, out.resultText, png, errorLine(te))
+	res := newResult(out, out.resultText, images, errorLine(te))
 	res.IsError = true
 	return res
 }
@@ -470,10 +551,7 @@ func finalHint(te *toolError, out *actOut) string {
 	if out.Actions != nil && out.Actions.Total > 0 {
 		add := hintNothingSent
 		if out.Actions.Delivery != "none" {
-			add = hintLookNoShot
-			if out.Shot != nil {
-				add = hintLookShot
-			}
+			add = lookAt(out.Shot) + " before repeating anything."
 		}
 		if !strings.Contains(hint, add) {
 			hint = joinHints(hint, add)
@@ -495,4 +573,28 @@ func simpleError(err error) *mcp.CallToolResult {
 	res := newResult(out, out.resultText, nil, errorLine(te))
 	res.IsError = true
 	return res
+}
+
+// noChangeHint says that delivered input may have had no visible effect, when the window settled and a changes shot
+// found no change beyond tiny ones, or "" otherwise. The wait's hint covers a window that drew nothing, and the motion of a move, as for
+// hover, may change nothing.
+func noChangeHint(out *actOut, batch []action) string {
+	if !unchanged(out.Shot) || out.Actions == nil || out.Actions.Delivery == "none" || out.Wait == nil || out.Wait.Ended != "quiet" {
+		return ""
+	}
+	kind := ""
+	for _, a := range batch {
+		if a.Kind != "pause" {
+			kind = a.Kind
+		}
+	}
+	if kind == "" || kind == "move" {
+		return ""
+	}
+	base := out.Shot.Changes.Base
+	if out.Shot.Changes.LeftOut > 0 {
+		return fmt.Sprintf("Only tiny changes since %s, such as a caret that moved or blinked, so the input may have missed or had little visible effect. Look at %s before repeating it.",
+			base, base)
+	}
+	return fmt.Sprintf("Nothing changed since %s, so the input may have missed or had no visible effect. Look at %s before repeating it.", base, base)
 }

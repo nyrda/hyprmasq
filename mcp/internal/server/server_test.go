@@ -331,7 +331,7 @@ func TestCatchingUpWithinTheDeadline(t *testing.T) {
 	// The summary and the hint point at the resize, not at drawing.
 	id := shotID(t, res)
 	if get(t, res, "wait.summary") != "resizing" || get(t, res, "wait.resizing") != true ||
-		!regexp.MustCompile(`^timeout after \d+ ms, still resizing · shot `+id+` 1280×800 \(stale: not yet redrawn at its new size\) · no lease$`).MatchString(get(t, res, "summary").(string)) {
+		!regexp.MustCompile(`^timeout after \d+ ms, still resizing · shot `+id+` 1280×800 \(full shot: no earlier shot to compare with; stale: not yet redrawn at its new size\) · no lease$`).MatchString(get(t, res, "summary").(string)) {
 		t.Errorf("summary %q, wait %v", get(t, res, "summary"), get(t, res, "wait"))
 	}
 	if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, "Shot "+id+" shows an older frame") || strings.Contains(hint, "Nothing was drawn") || strings.Contains(hint, "kept drawing") {
@@ -1012,7 +1012,7 @@ func TestWaitWithinTheDeadline(t *testing.T) {
 	// Without time for a wait, the call only captures.
 	waits := len(e.fake.requestsMatching("j/hyprmasq wait"))
 	res = e.act(`{"window":"0xa1","deadline_ms":1000}`)
-	if res.IsError || !strings.Contains(text(res), "no time left to wait") || len(e.fake.requestsMatching("j/hyprmasq wait")) != waits || !hasImage(res) {
+	if res.IsError || !strings.Contains(text(res), "no time left to wait") || len(e.fake.requestsMatching("j/hyprmasq wait")) != waits || get(t, res, "shot") == nil {
 		t.Errorf("%s", text(res))
 	}
 	if got := get(t, res, "wait"); got.(map[string]any)["ended"] != "timeout" || got.(map[string]any)["summary"] != "no_change" {
@@ -1164,7 +1164,7 @@ func TestWaitEndings(t *testing.T) {
 					return jsonReply(map[string]any{"ok": true, "ended": c.ended, "commits": 0, "redrawObserved": c.redrawn, "commitsSince": 0, "quietMs": 0, "elapsedMs": 1000})
 				}
 			})
-			res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":5,"y":5}]}`)
+			res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":5,"y":5}],"capture":"window"}`)
 			if res.IsError {
 				t.Fatal(text(res))
 			}
@@ -1743,7 +1743,7 @@ func TestSenderFailures(t *testing.T) {
 			e.window("0xa1", "1a", 320, 200)
 			e.screenshot(`{"window":"0xa1"}`)
 			t.Setenv("FAKE_INPUT_MODE", c.mode)
-			res := e.act(fmt.Sprintf(`{"window":"0xa1","shot":"s1","actions":%s}`, c.actions))
+			res := e.act(fmt.Sprintf(`{"window":"0xa1","shot":"s1","actions":%s,"capture":"window"}`, c.actions))
 			if code := errorCode(t, res); code != c.code {
 				t.Fatalf("code %q: %s", code, text(res))
 			}
@@ -2140,7 +2140,9 @@ func TestProtocol(t *testing.T) {
 	for tool, rules := range map[string][]string{
 		"act": {"Drive only windows the user named or you launched", "ask the user before anything irreversible: sending, deleting, buying, submitting",
 			"Never repeat input whose delivery is partial or uncertain, or from a call that timed out", "Batch only targets visible in the shot",
-			"a line break presses Enter", "about 600 characters in a call, or 1400 with deadline_ms 30000", "drag, clicks with modifiers, and key chords that hold a key other than a modifier while they press the next need the hold capability"},
+			"a line break presses Enter and a tab presses Tab", "a call types about 600 characters, or 1400 with deadline_ms 30000",
+			"drag, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability",
+			`"shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5`, `capture "window" asks for one`},
 		"windows": {"needed for drag, for clicks with modifiers, and for key chords that hold a key other than a modifier"},
 		"launch":  {"Close the windows you launch when you are done"},
 		"close":   {"Close only windows you launched or the user asked you to close"},

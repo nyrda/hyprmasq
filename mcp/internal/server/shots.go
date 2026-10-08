@@ -33,7 +33,39 @@ type shot struct {
 	// The window had not caught up with its size when it was rendered, so the image shows an older frame of another
 	// size, which act takes no coordinates from.
 	Resizing bool
-	Path     string
+	// The image, or "" for a changes shot, whose zooms show what it has.
+	Path string
+	// For a zoom, the shot of the whole window that it was read from, or from whose zoom.
+	Parent string
+	// For a changes shot, the shot it was compared with, whose pixels it has.
+	Base string
+	// How many changes shots in a row lead to this one: 0 for a full shot.
+	Deltas int
+	// What the next changes shot is compared with, for a shot of the whole window, or nil.
+	Detail *detail
+}
+
+// A detail is an image of the window as a shot of it saw it, in enough detail to find what changed since: a few
+// pixels of text, which shrinking for an overview would blur away. It is the shot's own image when that was not shrunk.
+type detail struct {
+	Path   string
+	Width  int
+	Height int
+	Scale  float64
+	Frame  hypr.Rect
+	// The max of the screenshot request, which the next one repeats to get an image at the same scale.
+	Max int
+}
+
+func (d *detail) geometry() detailGeometry {
+	return detailGeometry{frame: d.Frame, scale: d.Scale}
+}
+
+// sameGeometry tells whether two detail images show the same box at the same scale, pixel for pixel.
+func (d *detail) sameGeometry(o *detail) bool {
+	near := func(a, b float64) bool { return math.Abs(a-b) < 1e-6 }
+	return d.Width == o.Width && d.Height == o.Height && near(d.Scale, o.Scale) && near(d.Frame.X, o.Frame.X) && near(d.Frame.Y, o.Frame.Y) &&
+		near(d.Frame.Width, o.Frame.Width) && near(d.Frame.Height, o.Frame.Height)
 }
 
 // toLogical maps a point in shot pixels to window-local logical pixels.
@@ -83,10 +115,37 @@ type shotStore struct {
 	next     int
 	byID     map[string]*list.Element
 	byWindow map[string]*list.List
+	// The last shot of the whole window that a result gave the session, by window.
+	last map[string]string
 }
 
 func newShotStore() *shotStore {
-	return &shotStore{byID: map[string]*list.Element{}, byWindow: map[string]*list.List{}}
+	return &shotStore{byID: map[string]*list.Element{}, byWindow: map[string]*list.List{}, last: map[string]string{}}
+}
+
+// returned records a shot that a result gives the session. A zoom shows part of a shot the session has, which stays
+// the last one of the window.
+func (st *shotStore) returned(s *shot) {
+	if s == nil || s.Parent != "" {
+		return
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if _, ok := st.byID[s.ID]; ok {
+		st.last[s.Window] = s.ID
+	}
+}
+
+// lastOf returns the last shot of the whole window that a result gave the session, if the store still has it and it is
+// of the window with the stable_id, and marks it as used.
+func (st *shotStore) lastOf(window, stableID string) *shot {
+	st.mu.Lock()
+	id := st.last[window]
+	st.mu.Unlock()
+	if s := st.get(id); s != nil && s.StableID == stableID {
+		return s
+	}
+	return nil
 }
 
 func (st *shotStore) newID() string {
@@ -158,6 +217,15 @@ func (st *shotStore) get(id string) *shot {
 	return s
 }
 
+// remove forgets a shot and deletes its files.
+func (st *shotStore) remove(id string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if e := st.byID[id]; e != nil {
+		st.removeLocked(e)
+	}
+}
+
 // dropWindow forgets every shot of a window that closed.
 func (st *shotStore) dropWindow(window string) {
 	st.mu.Lock()
@@ -177,5 +245,18 @@ func (st *shotStore) removeLocked(e *list.Element) {
 		delete(st.byWindow, s.Window)
 	}
 	delete(st.byID, s.ID)
-	os.Remove(s.Path)
+	if st.last[s.Window] == s.ID {
+		delete(st.last, s.Window)
+	}
+	s.removeFiles()
+}
+
+// removeFiles deletes the shot's image and its detail image.
+func (s *shot) removeFiles() {
+	if s.Path != "" {
+		os.Remove(s.Path)
+	}
+	if s.Detail != nil && s.Detail.Path != s.Path {
+		os.Remove(s.Detail.Path)
+	}
 }

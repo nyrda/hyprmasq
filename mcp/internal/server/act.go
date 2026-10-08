@@ -47,6 +47,9 @@ type actRequest struct {
 	deadline      time.Duration
 	captureMode   string
 	captureRegion *regionArgs
+	// For capture "changes": the shot to compare with, or why there is none.
+	base       *shot
+	baseReason string
 }
 
 func intArg(v *int, def, lo, hi int, name string) (int, error) {
@@ -315,6 +318,10 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 			return failShot(err)
 		}
 	}
+	// What the agent has seen of the window when the call starts.
+	if r.captureMode == "changes" {
+		r.base, r.baseReason = s.changesBase(r.window, sh, st)
+	}
 	if err := validateBatch(r.batch, sh, st.Capabilities, r.window); err != nil {
 		return failShot(err)
 	}
@@ -416,7 +423,8 @@ func captureContext(ctx context.Context, end time.Time) (context.Context, contex
 }
 
 // failCaptured reports a failure before any input was applied, with a shot of the window as it is now, so the agent
-// can go on from there without another call.
+// can go on from there without another call. With capture "changes" it is a full shot, from which the agent reads
+// coordinates anew.
 func (s *Server) failCaptured(ctx context.Context, r *actRequest, out *actOut, te *toolError, end time.Time, stableID string, region *zoom) *mcp.CallToolResult {
 	if r.captureMode == "none" || failsWithoutShot[te.Code] || s.stopping() {
 		return errorResult(te, out, r.batch, nil)
@@ -428,7 +436,8 @@ func (s *Server) failCaptured(ctx context.Context, r *actRequest, out *actOut, t
 		return errorResult(te, out, r.batch, nil)
 	}
 	out.Shot = shotInfo(sh)
-	return errorResult(te, out, r.batch, png)
+	s.shots.returned(sh)
+	return errorResult(te, out, r.batch, oneImage(png))
 }
 
 func lockError(ctx context.Context, err error, start time.Time, what string) error {
@@ -449,9 +458,19 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 
 	closed := out.Wait != nil && out.Wait.Ended == "window_closed"
 	cancelled := out.Wait != nil && out.Wait.Ended == "cancelled"
-	var png []byte
+	var images [][]byte
 	if !closed && r.captureMode != "none" && !s.stopping() {
-		sh, image, err := s.captureResult(capCtx, r, out, st.StableID, region)
+		var sh *shot
+		var err error
+		if r.captureMode == "changes" {
+			// captureChanges describes the shot in out itself.
+			sh, images, err = s.captureChanges(capCtx, r, out, st.StableID)
+		} else {
+			var png []byte
+			if sh, png, err = s.captureResult(capCtx, r, out, st.StableID, region); err == nil {
+				out.Shot, images = shotInfo(sh), oneImage(png)
+			}
+		}
 		if err != nil {
 			te := asToolError(err)
 			if !applied {
@@ -459,7 +478,7 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 			}
 			out.CaptureError = &errorOut{Code: te.Code, Message: te.Message}
 		} else {
-			out.Shot, png = shotInfo(sh), image
+			s.shots.returned(sh)
 		}
 	}
 	switch {
@@ -484,14 +503,14 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	}
 
 	out.Summary = summaryLine(out, r.batch)
-	out.Hint = joinHints(waitHint(out.Wait, r.batch, r.shotID, out.Actions, out.Shot), out.captureNote, resizingHint(out.Shot))
+	out.Hint = joinHints(waitHint(out.Wait, r.batch, r.shotID, out.Actions, out.Shot), noChangeHint(out, r.batch), out.captureNote, resizingHint(out.Shot))
 	if out.Actions != nil {
 		out.Hint = joinHints(out.Hint, out.Actions.composeNote)
 	}
 	if out.CaptureError != nil {
 		out.Hint = joinHints(out.Hint, "The input was applied, but the screenshot failed. Take a screenshot before repeating anything.")
 	}
-	return newResult(out, out.resultText, png, "")
+	return newResult(out, out.resultText, images, "")
 }
 
 // captureResult captures the window for the result of an act. A capture region whose shot no longer has the window's
@@ -510,18 +529,18 @@ func (s *Server) captureResult(ctx context.Context, r *actRequest, out *actOut, 
 	return sh, png, err
 }
 
-// withError turns a finished result into an error result, keeping its shot.
+// withError turns a finished result into an error result, keeping its images.
 func withError(res *mcp.CallToolResult, te *toolError, out *actOut, batch []action) *mcp.CallToolResult {
 	if res.IsError {
 		return res
 	}
-	var png []byte
+	var images [][]byte
 	for _, c := range res.Content {
 		if img, ok := c.(*mcp.ImageContent); ok {
-			png = img.Data
+			images = append(images, img.Data)
 		}
 	}
-	return errorResult(te, out, batch, png)
+	return errorResult(te, out, batch, images)
 }
 
 func windowPID(windows []hypr.Window, address string) int {

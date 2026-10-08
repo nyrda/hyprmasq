@@ -2734,7 +2734,16 @@ print(longest)
         wait = typed_result.data["wait"]
         assert wait["ended"] == "quiet" and wait["summary"] == "settled" and wait["redraw_observed"] and wait["commits"] > 0, typed_result
         assert wait["quiet_ms"] >= 200 and typed_result.data["lease"]["held"] and typed_result.data["lease"]["remaining_s"] in (59, 60), typed_result
-        assert re.fullmatch(r"2/2 delivered · redraw observed · quiet \d+ ms · \d+ ms · shot s\d+ 640×480 · lease (59|60) s", typed_result.text), typed_result
+        # It shows what changed since the launch's shot, the session's last of the window: a zoom into the lines of the
+        # command and its output.
+        changed = typed_result.data["shot"]
+        assert changed["changes"]["base"] == launch_shot["id"] and len(changed["changes"]["regions"]) == 1, typed_result
+        zoom = changed["changes"]["regions"][0]
+        assert re.fullmatch(
+            rf"2/2 delivered · redraw observed · quiet \d+ ms · \d+ ms · shot {changed['id']} = {launch_shot['id']} \+ 1 change · lease (59|60) s\n"
+            rf"zoom {zoom['shot']} {zoom['image_width']}×{zoom['image_height']} of {changed['id']} at {zoom['x']},{zoom['y']} {zoom['width']}×{zoom['height']}",
+            typed_result.text,
+        ), typed_result
         assert typed_result.data["new_windows"] == [] and len(typed_result.images) == 1, typed_result
         assert machine.succeed("cat /tmp/hm-m-ran") == "ran\n"
         assert white_run(keep(typed_result, "typed")) >= 200 > white_run(launch_result.images[0])
@@ -2757,11 +2766,12 @@ print(longest)
         start = len(probe_events("m-probe"))
         clicked = mcp.call("act", {"window": probe, "shot": overview_id, "actions": [{"action": "click", "x": 123, "y": 77}]})
         assert not clicked.is_error and clicked.data["wait"]["ended"] == "no_redraw" and clicked.data["wait"]["summary"] == "no_change", clicked
+        # Nothing changed since the shot, so there is no image, and the hint points at the shot the window still shows.
         assert re.fullmatch(
-            r"1/1 delivered · no redraw within 1000 ms · shot s\d+ 640×480 · lease (59|60) s\n"
-            r"The click may have missed or had no visible effect\. Look at the shot before repeating it\.",
+            rf"1/1 delivered · no redraw within 1000 ms · shot s\d+ = {overview_id}, no change · lease (59|60) s\n"
+            rf"The click may have missed or had no visible effect\. Look at {overview_id} before repeating it\.",
             clicked.text,
-        ), clicked
+        ) and not clicked.images, clicked
         assert probe_motions(start) == [(123, 77)], probe_events("m-probe", start)
         assert [e for _, e in probe_input(start)][1:] == ["button hm-m-probe 1", "button hm-m-probe 0"], probe_events("m-probe", start)
 
@@ -2931,7 +2941,7 @@ print(longest)
         rng = random.Random(56)
         paused_text = "".join(rng.choice(string.ascii_lowercase) for _ in range(400))
         leaked = log_size("m-x-active")
-        typing = mcp.start("act", {"window": x_target, "actions": [{"action": "type", "text": paused_text}]})
+        typing = mcp.start("act", {"window": x_target, "actions": [{"action": "type", "text": paused_text}], "capture": "window"})
         wait_for("typing into the hidden X11 window", lambda: len(machine.succeed("cat /tmp/hm-m-x-target")) >= 20)
         # Another X11 window of the same X server takes the focus, so the plugin drops the input and pauses the devices.
         focus_workspace(57)
@@ -2962,9 +2972,12 @@ print(longest)
         wait_for("X11 windows closed", lambda: all(c["address"] not in (x_target, x_active) for c in clients()))
 
     with subtest("hyprmasq-mcp waits for a redraw, for a change since a shot, and until the deadline"):
+        # The shots here are full ones, whose summaries and pixels the checks read.
+        full = {"capture": "window"}
         # Without expect_change, input that draws nothing settles after the quiet time.
         shot_id = mcp.call("screenshot", {"window": probe}).data["shot"]["id"]
-        hover = mcp.call("act", {"window": probe, "shot": shot_id, "actions": [{"action": "move", "x": 30, "y": 40}], "wait": {"expect_change": False, "quiet_ms": 300}})
+        hover = mcp.call("act", {"window": probe, "shot": shot_id, "actions": [{"action": "move", "x": 30, "y": 40}], "wait": {"expect_change": False, "quiet_ms": 300},
+                                 **full})
         wait = hover.data["wait"]
         assert not hover.is_error and wait["ended"] == "quiet" and wait["summary"] == "settled", hover
         assert not wait["redraw_observed"] and wait["commits"] == 0 and wait["quiet_ms"] >= 300 and wait["elapsed_ms"] < 1000, hover
@@ -2981,7 +2994,7 @@ print(longest)
         machine.succeed("pkill -USR1 -f 'hyprmasq-focus-probe [p]opup hm-m-popchange'")
         machine.wait_until_succeeds("grep -q 'configured popup' /tmp/hyprmasq-m-popchange.log", timeout=10)
         time.sleep(1)
-        changed = mcp.call("act", {"window": popchange, "shot": unopened.data["shot"]["id"], "wait": {"expect_ms": 5000}})
+        changed = mcp.call("act", {"window": popchange, "shot": unopened.data["shot"]["id"], "wait": {"expect_ms": 5000}, **full})
         wait = changed.data["wait"]
         assert not changed.is_error and wait["ended"] == "quiet" and wait["redraw_observed"] and wait["commits"] >= 2, changed
         assert wait["elapsed_ms"] < 1000 and changed.data["actions"] == {"done": 0, "total": 0, "delivery": "none"}, changed
@@ -2989,7 +3002,7 @@ print(longest)
         assert near(pixels(keep(changed, "popup-opened"), (50, 40))[0], popup_rgb) and near(pixels(unopened.images[0], (50, 40))[0], window_rgb)
         # Since the shot that shows it, nothing changes.
         changed_id = changed.data["shot"]["id"]
-        unchanged = mcp.call("act", {"window": popchange, "shot": changed_id, "wait": {"expect_ms": 500}})
+        unchanged = mcp.call("act", {"window": popchange, "shot": changed_id, "wait": {"expect_ms": 500}, **full})
         assert unchanged.data["wait"]["ended"] == "no_redraw" and unchanged.data["wait"]["summary"] == "no_change", unchanged
         assert re.fullmatch(
             rf"no redraw within 500 ms · shot s\d+ 640×480 · no lease\nNothing was drawn since shot {changed_id}\. "
@@ -2997,7 +3010,7 @@ print(longest)
             unchanged.text,
         ), unchanged
         # A change phase that runs into the deadline times out, and the window drew nothing.
-        late = mcp.call("act", {"window": popchange, "shot": changed_id, "wait": {"expect_ms": 2000}, "deadline_ms": 3000})
+        late = mcp.call("act", {"window": popchange, "shot": changed_id, "wait": {"expect_ms": 2000}, "deadline_ms": 3000, **full})
         wait = late.data["wait"]
         assert not late.is_error and wait["ended"] == "timeout" and wait["summary"] == "no_change" and not wait["redraw_observed"], late
         assert re.fullmatch(
@@ -3011,7 +3024,7 @@ print(longest)
         busy_shell = foot("hm-m-busy", "sh -c 'while :; do date +%N; sleep 0.02; done'")
         focus_workspace(4)
         time.sleep(0.5)
-        timed = mcp.call("act", {"window": busy_shell, "deadline_ms": 3000})
+        timed = mcp.call("act", {"window": busy_shell, "deadline_ms": 3000, **full})
         wait = timed.data["wait"]
         assert not timed.is_error and wait["ended"] == "timeout" and wait["summary"] == "busy" and wait["redraw_observed"], timed
         assert 1000 <= wait["elapsed_ms"] <= 2050 and wait["quiet_ms"] < 200 and 2 <= timed.received - timed.sent < 3, timed
@@ -3137,7 +3150,7 @@ print(longest)
     with subtest("hyprmasq-mcp ends a wait when the client cancels the call"):
         # The wait sends the hidden window frame callbacks, so it draws while the wait runs, and only then.
         drawn = window_state(busy_shell)["commits"]
-        waiting = mcp.start("act", {"window": busy_shell, "wait": {"expect_ms": 29000}, "deadline_ms": 30000}, token="hm-m-cancel")
+        waiting = mcp.start("act", {"window": busy_shell, "wait": {"expect_ms": 29000}, "deadline_ms": 30000, "capture": "window"}, token="hm-m-cancel")
         wait_for("progress", lambda: any(p.get("message") == "waiting for the window to settle" for p in mcp.progress("hm-m-cancel")), timeout=10)
         assert all(p["total"] == 30000 and p["progress"] <= 30000 for p in mcp.progress("hm-m-cancel")), mcp.progress("hm-m-cancel")
         assert window_state(busy_shell)["commits"] > drawn
@@ -3221,6 +3234,170 @@ print(longest)
         ), resized
         assert pixels(keep(resized, "act-region-resized"))[-1] == (320, 220)
         float_window(probe, 100, 100, 300, 200)
+
+    # A foot window that prints each line of a FIFO through printf's %b, with its cursor hidden and no echo, so that the
+    # test decides what changes between two shots.
+    canvas_fifo = "/tmp/hm-m-canvas.fifo"
+    white = (0xFF, 0xFF, 0xFF)
+
+    def draw(*parts):
+        """Writes escape sequences and text to the canvas."""
+        line = "".join(parts).replace("\\", "\\\\").replace("\033", "\\033")
+        machine.succeed(f"printf '%s\\n' {shlex.quote(line)} > {canvas_fifo}")
+
+    def cells(row, column, width=4):
+        """White cells from the row and column on, counted from 1."""
+        return f"\033[{row};{column}H\033[7m{' ' * width}\033[0m"
+
+    def zoom_line(shot, zoom):
+        """The line of a result that lists a zoom of a changes shot."""
+        return f"zoom {zoom['shot']} {zoom['image_width']}×{zoom['image_height']} of {shot['id']} at {zoom['x']},{zoom['y']} {zoom['width']}×{zoom['height']}"
+
+    with subtest("hyprmasq-mcp returns what changed since a shot, as a zoom into each changed region"):
+        machine.succeed(f"rm -f {canvas_fifo} && mkfifo -m 666 {canvas_fifo}")
+        script = f"stty -echo; printf '\\033[?25l'; exec 3<>{canvas_fifo}; while IFS= read -r line <&3; do printf '%b' \"$line\"; done"
+        canvas_command = ["foot", "-T", "hm-m-canvas", "-o", "colors-dark.background=202020", "-o", "colors-dark.foreground=ffffff", "sh", "-c", script]
+        launched = mcp.call("launch", {"command": canvas_command, "workspace": "hm-m-canvas"})
+        assert not launched.is_error, launched
+        canvas, base = launched.data["window"]["window"], launched.data["shot"]["id"]
+
+        # Nothing changed since the launch's shot, the session's last of the window: no image, and for an empty batch
+        # no hint. The changes shot has the pixels of the shot it compared with.
+        same = mcp.call("act", {"window": canvas, "wait": {"expect_change": False}})
+        same_shot = same.data["shot"]
+        assert not same.is_error and not same.images and same_shot["changes"] == {"base": base, "regions": []} and "hint" not in same.data, same
+        assert (same_shot["width"], same_shot["height"], same_shot["frame"]) == (640, 480, region(0, 0, 640, 480)), same
+        assert re.fullmatch(rf"(no redraw|redraw observed) · quiet \d+ ms · \d+ ms · shot {same_shot['id']} = {base}, no change · no lease", same.text), same
+        # A key that changes nothing says so, and points at the shot the window still shows.
+        pressed = mcp.call("act", {"window": canvas, "actions": [{"action": "key", "keys": ["a"]}]})
+        pressed_id = pressed.data["shot"]["id"]
+        assert not pressed.is_error and not pressed.images and pressed.data["shot"]["changes"] == {"base": same_shot["id"], "regions": []}, pressed
+        assert re.search(rf"Look at {same_shot['id']} before repeating (it|them)\.$", pressed.data["hint"]), pressed
+
+        # Four white cells are one change. Its zoom shows them with the pixel around them that the 3×3 average reaches
+        # and a margin of 24 pixels, here at scale 1, and lists that box in the pixels of the shot.
+        draw(cells(5, 10))
+        one = mcp.call("act", {"window": canvas, "shot": pressed_id})
+        one_shot = one.data["shot"]
+        assert not one.is_error and one_shot["changes"]["base"] == pressed_id and len(one_shot["changes"]["regions"]) == 1 and len(one.images) == 1, one
+        zoom = one_shot["changes"]["regions"][0]
+        assert re.fullmatch(rf"redraw observed · quiet \d+ ms · \d+ ms · shot {one_shot['id']} = {pressed_id} \+ 1 change · lease \d+ s\n" + re.escape(zoom_line(one_shot, zoom)),
+                            one.text), one
+        block = color_box(mcp.call("screenshot", {"window": canvas}).images[0], white)
+        assert [zoom["x"], zoom["y"], zoom["x"] + zoom["width"], zoom["y"] + zoom["height"]] == [block[0] - 25, block[1] - 25, block[2] + 25, block[3] + 25], (zoom, block)
+        assert pixels(keep(one, "changes-one"))[-1] == (zoom["width"], zoom["height"]) == (zoom["image_width"], zoom["image_height"]), zoom
+        assert color_box(one.images[0], white) == [block[0] - zoom["x"], block[1] - zoom["y"], block[2] - zoom["x"], block[3] - zoom["y"]], (zoom, block)
+
+        # Changes far apart get a zoom each, top to bottom, in the order of the images.
+        draw(cells(2, 3), cells(12, 30), cells(22, 55))
+        several = mcp.call("act", {"window": canvas, "shot": one_shot["id"]})
+        several_shot = several.data["shot"]
+        regions = several_shot["changes"]["regions"]
+        assert not several.is_error and len(regions) == 3 and len(several.images) == 3, several
+        assert regions[0]["y"] < regions[1]["y"] < regions[2]["y"] and regions[0]["x"] < regions[1]["x"] < regions[2]["x"], several
+        assert several.text.splitlines()[1:] == [zoom_line(several_shot, z) for z in regions], several
+        for i, (image, z) in enumerate(zip(several.images, regions)):
+            assert pixels(image)[-1] == (z["image_width"], z["image_height"]) and color_box(image, white), (i, z)
+        keep(several, "changes-several")
+
+        # A line one pixel wide, as a caret is, and a dot are tiny: they are left out, and counted.
+        draw("\033[18;20H.", "\033[8;45H│")
+        tiny = mcp.call("act", {"window": canvas, "shot": several_shot["id"]})
+        tiny_shot = tiny.data["shot"]
+        assert not tiny.is_error and not tiny.images and tiny_shot["changes"] == {"base": several_shot["id"], "regions": [], "left_out": 2}, tiny
+        assert tiny.text.splitlines()[1:] == ["2 tiny changes left out"], tiny
+        # A highlight 12 levels lighter than the background, as a row's hover in a dark theme, is no change.
+        draw("\033[48;2;44;44;44m", *(f"\033[{row};1H{' ' * 40}" for row in range(20, 25)), "\033[0m")
+        faint = mcp.call("act", {"window": canvas, "shot": tiny_shot["id"]})
+        assert not faint.is_error and not faint.images and faint.data["shot"]["changes"] == {"base": tiny_shot["id"], "regions": []}, faint
+        assert snapshot() == before_focus
+
+    with subtest("hyprmasq-mcp takes coordinates from a changes shot and from its zooms"):
+        # hm-m-popchange's popup, at 20,20 and 60x40, is open; SIGUSR1 closes and opens it. Its red has about the
+        # luminance of the window's blue, so the color channels show the change.
+        toggle = "pkill -USR1 -f 'hyprmasq-focus-probe [p]opup hm-m-popchange'"
+        opened = mcp.call("screenshot", {"window": popchange})
+        opened_id = opened.data["shot"]["id"]
+        assert color_box(opened.images[0], popup_rgb) == [20, 20, 80, 60], opened
+        offset = log_size("m-popchange")
+        machine.succeed(toggle)
+        machine.wait_until_succeeds(f"tail -c +{offset + 1} /tmp/hyprmasq-m-popchange.log | grep -q 'popup closed'", timeout=10)
+        closed = mcp.call("act", {"window": popchange, "shot": opened_id, "wait": {"expect_ms": 5000}})
+        closed_shot = closed.data["shot"]
+        regions = closed_shot["changes"]["regions"]
+        # The margin is cut at the window's edges.
+        assert not closed.is_error and [(z["x"], z["y"], z["width"], z["height"]) for z in regions] == [(0, 0, 104, 84)], closed
+        assert near(pixels(keep(closed, "changes-popup-closed"), (50, 40))[0], window_rgb)
+
+        # The changes shot has the pixels of the shot it compared with, and its coordinates reach the window. The probe
+        # answers a press on its window with a popup of its own, so the pointer only moves there.
+        offset = log_size("m-popchange")
+        moved = mcp.call("act", {"window": popchange, "shot": closed_shot["id"], "actions": [{"action": "move", "x": 300, "y": 200}], "wait": {"expect_change": False}})
+        assert not moved.is_error and moved.data["shot"]["changes"] == {"base": closed_shot["id"], "regions": []}, moved
+        machine.wait_until_succeeds(f"tail -c +{offset + 1} /tmp/hyprmasq-m-popchange.log | grep -q 'motion hm-m-popchange'", timeout=10)
+        assert [line for line in log_since("m-popchange", offset).splitlines() if line.startswith("motion")] == ["motion hm-m-popchange 300 200"]
+
+        # A zoom into a change takes coordinates in its own pixels: a click on the popup it shows reaches the popup.
+        offset = log_size("m-popchange")
+        machine.succeed(toggle)
+        machine.wait_until_succeeds(f"tail -c +{offset + 1} /tmp/hyprmasq-m-popchange.log | grep -q 'configured popup'", timeout=10)
+        reopened = mcp.call("act", {"window": popchange, "shot": moved.data["shot"]["id"], "wait": {"expect_ms": 5000}})
+        regions = reopened.data["shot"]["changes"]["regions"]
+        assert not reopened.is_error and len(regions) == 1, reopened
+        zoom = regions[0]
+        popup_box = color_box(keep(reopened, "changes-popup-opened"), popup_rgb)
+        assert popup_box == [20 - zoom["x"], 20 - zoom["y"], 80 - zoom["x"], 60 - zoom["y"]], (zoom, popup_box)
+        offset = log_size("m-popchange")
+        clicked = mcp.call("act", {"window": popchange, "shot": zoom["shot"], "actions": [{"action": "click", "x": popup_box[0] + 7, "y": popup_box[1] + 5}],
+                                   "wait": {"expect_change": False}})
+        assert not clicked.is_error, clicked
+        machine.wait_until_succeeds(f"tail -c +{offset + 1} /tmp/hyprmasq-m-popchange.log | grep -q 'button popup 0'", timeout=10)
+        assert [line for line in log_since("m-popchange", offset).splitlines() if line.startswith("motion")] == ["motion popup 7 5"]
+        assert snapshot() == before_focus
+
+    with subtest("hyprmasq-mcp returns a full shot in place of the changes, and says why"):
+        def full_shot(result, reason):
+            """Checks that the result has a full shot for the reason, and returns its id."""
+            shot = result.data["shot"]
+            assert not result.is_error and len(result.images) == 1 and "changes" not in shot and re.fullmatch(reason, shot["full_shot"]), result
+            assert f" · shot {shot['id']} {shot['width']}×{shot['height']} (full shot: {shot['full_shot']}) · " in result.text.splitlines()[0], result
+            assert pixels(result.images[0])[-1] == (shot["width"], shot["height"]), result
+            return shot["id"]
+
+        # More than 35% of the window changed.
+        last = mcp.call("screenshot", {"window": canvas}).data["shot"]["id"]
+        draw(*(cells(row, 1, 80) for row in range(1, 21)))
+        last = full_shot(mcp.call("act", {"window": canvas, "shot": last}), rf"\d+% changed since {last}")
+        # Clearing the canvas changes as much. The call waits until foot has drawn it, so its shot is the next base.
+        draw("\033[2J")
+        last = full_shot(mcp.call("act", {"window": canvas, "shot": last}), rf"\d+% changed since {last}")
+        # More than 5 regions changed.
+        draw(*(cells(row, column) for row in (3, 18) for column in (3, 30, 55)))
+        last = full_shot(mcp.call("act", {"window": canvas, "shot": last}), f"6 changed regions since {last}")
+        # The window was resized.
+        float_window(canvas, 0, 0, 600, 440)
+        last = full_shot(mcp.call("act", {"window": canvas, "shot": last, "wait": {"expect_change": False}}), f"resized since {last}")
+        # Another session has no earlier shot to compare with, and compares later calls with the full shot it got.
+        other = Mcp("g")
+        other.initialize()
+        unknown = full_shot(other.call("act", {"window": canvas, "actions": [{"action": "key", "keys": ["a"]}]}), "no earlier shot to compare with")
+        assert other.call("act", {"window": canvas, "wait": {"expect_change": False}}).data["shot"]["changes"]["base"] == unknown
+        assert other.stop() == 0
+        # After 10 changes shots in a row, each compared with the one before, comes a full shot.
+        for i in range(10):
+            result = mcp.call("act", {"window": canvas, "wait": {"expect_change": False}})
+            assert result.data["shot"]["changes"]["base"] == last, (i, result)
+            last = result.data["shot"]["id"]
+        full_shot(mcp.call("act", {"window": canvas, "wait": {"expect_change": False}}), "10 changes shots in a row")
+
+        # capture "window" and "none" are as they were.
+        window = mcp.call("act", {"window": canvas, "wait": {"expect_change": False}, "capture": "window"})
+        assert set(window.data["shot"]) == {"id", "width", "height", "frame"} and len(window.images) == 1, window
+        assert re.fullmatch(rf"(no redraw|redraw observed) · quiet \d+ ms · \d+ ms · shot {window.data['shot']['id']} 600×440 · (no lease|lease \d+ s)", window.text), window
+        none = mcp.call("act", {"window": canvas, "wait": {"expect_change": False}, "capture": "none"})
+        assert not none.images and "shot" not in none.data and " shot " not in none.text, none
+        assert mcp.call("close", {"window": canvas}).data["closed"]
+        assert snapshot() == before_focus
 
     with subtest("hyprmasq-mcp fits shots within --max-image-size"):
         small = Mcp("e", "--max-image-size", "150")
@@ -3328,7 +3505,7 @@ print(longest)
         assert refusal.data["shot"]["resizing"] and refusal.data["hint"].startswith("Nothing was sent. Shot "), refusal
 
         # An act whose wait runs out before it catches up says so, and its hint is only the one about the older frame.
-        timed = mcp.call("act", {"window": catching, "wait": {"expect_change": False}, "deadline_ms": 2000})
+        timed = mcp.call("act", {"window": catching, "wait": {"expect_change": False}, "deadline_ms": 2000, "capture": "window"})
         wait, timed_shot = timed.data["wait"], timed.data["shot"]
         assert not timed.is_error and wait["ended"] == "timeout" and wait["summary"] == "resizing" and wait["resizing"], timed
         assert timed_shot["resizing"] and re.fullmatch(

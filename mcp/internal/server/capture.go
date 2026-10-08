@@ -163,7 +163,7 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 	if z != nil {
 		region = &z.rect
 	}
-	caughtUp := false
+	caughtUp, detailRetried := false, false
 	// A resize between the state and the screenshot would record the wrong size, so the capture is repeated.
 	for attempt := 1; ; {
 		pre, err := s.openState(ctx, window, stableID)
@@ -194,17 +194,28 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 			}
 			return nil, nil, err
 		}
+		var det *detail
+		sameFrame := true
+		if z == nil {
+			det, sameFrame = s.overviewDetail(ctx, window, id, path, reply, pre)
+		}
+		removeAll := func() {
+			os.Remove(path)
+			if det != nil && det.Path != path {
+				os.Remove(det.Path)
+			}
+		}
 		post, err := s.hypr.State(ctx, window)
 		if err != nil {
-			os.Remove(path)
+			removeAll()
 			return nil, nil, err
 		}
 		if post.StableID != pre.StableID {
-			os.Remove(path)
+			removeAll()
 			return nil, nil, &toolError{Code: "window_gone", Message: fmt.Sprintf("window %s closed during the capture", window), Hint: hintWindows}
 		}
 		if post.Size != pre.Size {
-			os.Remove(path)
+			removeAll()
 			// Which of the sizes the image shows is unknown, so it never becomes a shot.
 			if attempt == captureAttempts {
 				return nil, nil, &toolError{Code: "internal", Message: fmt.Sprintf("window %s was resized during each of %d captures", window, attempt),
@@ -213,9 +224,16 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 			attempt++
 			continue
 		}
+		// The window drew between the overview and its detail image, which would hold what the overview does not. The
+		// pair is captured once more; after that, the shot keeps no detail image.
+		if !sameFrame && !detailRetried {
+			removeAll()
+			detailRetried = true
+			continue
+		}
 		// A resize that started after the state was read.
 		if reply.Resizing && !caughtUp {
-			os.Remove(path)
+			removeAll()
 			caughtUp = true
 			if err := s.catchUp(ctx, window, post); err != nil {
 				return nil, nil, err
@@ -224,10 +242,17 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 		}
 		png, err := os.ReadFile(path)
 		if err != nil {
+			removeAll()
 			return nil, nil, err
 		}
 		sh := &shot{ID: id, Window: window, StableID: pre.StableID, Size: post.Size, Frame: reply.Region,
-			Width: reply.Width, Height: reply.Height, Scale: reply.Scale, Resizing: reply.Resizing, Path: path}
+			Width: reply.Width, Height: reply.Height, Scale: reply.Scale, Resizing: reply.Resizing, Path: path, Detail: det}
+		if z != nil {
+			sh.Parent = z.from.ID
+			if z.from.Parent != "" {
+				sh.Parent = z.from.Parent
+			}
+		}
 		switch {
 		case reply.Commits != nil:
 			sh.Commits, sh.SocketID = *reply.Commits, deref(reply.SocketID)
@@ -235,12 +260,62 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 			sh.Commits, sh.SocketID = *pre.Commits, deref(pre.SocketID)
 		}
 		if sh.Scale <= 0 || sh.Width <= 0 || sh.Height <= 0 {
-			os.Remove(path)
+			removeAll()
 			return nil, nil, &toolError{Code: "internal", Message: fmt.Sprintf("the plugin returned an empty screenshot (%d×%d at scale %v)", sh.Width, sh.Height, sh.Scale)}
 		}
 		s.shots.add(sh)
 		return sh, png, nil
 	}
+}
+
+// detailLimit is the max of a screenshot request for a detail image of a window on a monitor of the scale, whose box
+// with its popups is frame: logical pixels, or the monitor's pixels where they are fewer.
+func detailLimit(frame hypr.Rect, monitorScale float64) int {
+	if monitorScale <= 1 {
+		return 0
+	}
+	return int(math.Ceil(max(frame.Width, frame.Height) - 1e-6))
+}
+
+func detailOf(reply hypr.Screenshot, path string, max int) *detail {
+	return &detail{Path: path, Width: reply.Width, Height: reply.Height, Scale: reply.Scale, Frame: reply.Region, Max: max}
+}
+
+// overviewDetail returns the detail image of an overview shot: the overview itself when it has logical pixels or the
+// monitor's, whichever are fewer, or else one more image of the window, rendered right after it at that scale. Without
+// one, the shot cannot be compared, which a later changes capture answers with a full shot. sameFrame is false when
+// the window drew between the two images, which then show different frames.
+func (s *Server) overviewDetail(ctx context.Context, window, id, path string, reply hypr.Screenshot, st hypr.State) (det *detail, sameFrame bool) {
+	if reply.Resizing || reply.Scale <= 0 {
+		return nil, true
+	}
+	least := min(st.Scale, 1) - 1e-6
+	if reply.Scale >= least {
+		return detailOf(reply, path, s.cfg.MaxImageSize), true
+	}
+	// The box includes popups past the window's edges, so the limit is that of the box.
+	limit := detailLimit(reply.Region, st.Scale)
+	detailPath := filepath.Join(s.shotDir, id+"-detail.png")
+	full, err := s.hypr.Screenshot(ctx, window, detailPath, nil, limit)
+	switch {
+	case err != nil || full.Resizing || full.Scale < least:
+		os.Remove(detailPath)
+		return nil, true
+	// The commit counter counts every frame of the window and its popups, so the same count is the same frame, and a
+	// popup that opened or closed past the window's edge changes the box too.
+	case reply.Commits == nil || full.Commits == nil || *reply.Commits != *full.Commits || deref(reply.SocketID) != deref(full.SocketID) || !sameBox(reply, full):
+		os.Remove(detailPath)
+		return nil, false
+	}
+	return detailOf(full, detailPath, limit), true
+}
+
+// sameBox tells whether two screenshots of the whole window show the same box of the window and its popups: both start
+// at its corner, and the plugin widens each by less than one of its pixels to cover it.
+func sameBox(a, b hypr.Screenshot) bool {
+	slack := max(1/a.Scale, 1/b.Scale) + 1e-6
+	return math.Abs(a.Region.X-b.Region.X) < 1e-6 && math.Abs(a.Region.Y-b.Region.Y) < 1e-6 &&
+		math.Abs(a.Region.Width-b.Region.Width) < slack && math.Abs(a.Region.Height-b.Region.Height) < slack
 }
 
 type screenshotArgs struct {
@@ -283,6 +358,7 @@ func (s *Server) screenshotTool(ctx context.Context, c *call) *mcp.CallToolResul
 	if err != nil {
 		return simpleError(err)
 	}
+	s.shots.returned(sh)
 	out := &screenshotOut{Shot: shotInfo(sh)}
 	out.Summary = shotText(out.Shot)
 	if asked != nil {
@@ -290,7 +366,7 @@ func (s *Server) screenshotTool(ctx context.Context, c *call) *mcp.CallToolResul
 	}
 	out.Summary += fmt.Sprintf(" · window %s %s", args.Window, formatSize(sh.Size))
 	out.Hint = resizingHint(out.Shot)
-	return newResult(out, out.resultText, png, "")
+	return newResult(out, out.resultText, oneImage(png), "")
 }
 
 type screenshotOut struct {
@@ -298,15 +374,15 @@ type screenshotOut struct {
 	Shot *shotOut `json:"shot"`
 }
 
-// parseCapture reads act's capture argument: "window", "none", or a region object.
+// parseCapture reads act's capture argument: "changes", the default, "window", "none", or a region object.
 func parseCapture(raw json.RawMessage) (mode string, region *regionArgs, err error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return "window", nil, nil
+		return "changes", nil, nil
 	}
 	var mode2 string
 	if json.Unmarshal(raw, &mode2) == nil {
-		if mode2 != "window" && mode2 != "none" {
-			return "", nil, invalidf("capture must be \"window\", \"none\" or a region {shot,x,y,width,height}, not %q", mode2)
+		if mode2 != "changes" && mode2 != "window" && mode2 != "none" {
+			return "", nil, invalidf("capture must be \"changes\", \"window\", \"none\" or a region {shot,x,y,width,height}, not %q", mode2)
 		}
 		return mode2, nil, nil
 	}
@@ -325,7 +401,7 @@ func parseCapture(raw json.RawMessage) (mode string, region *regionArgs, err err
 	if err != nil {
 		var te *toolError
 		errors.As(err, &te)
-		return "", nil, invalidf("capture must be \"window\", \"none\" or a region {shot,x,y,width,height}: %s", te.Message)
+		return "", nil, invalidf("capture must be \"changes\", \"window\", \"none\" or a region {shot,x,y,width,height}: %s", te.Message)
 	}
 	return "region", r, nil
 }

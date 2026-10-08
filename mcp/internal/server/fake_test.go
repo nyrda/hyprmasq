@@ -193,6 +193,8 @@ type fakeWindow struct {
 	PopupBox *hypr.Rect
 	// The window has not caught up with its size. A wait without onWait ends once it has.
 	Resizing bool
+	// The gray level at a window-local logical point, which screenshots sample at their scale, or nil for black.
+	Paint func(x, y float64) uint8
 }
 
 // fakeHyprland serves Hyprland's request socket with the plugin commands of the contract.
@@ -535,6 +537,10 @@ func (f *fakeHyprland) screenshot(w *fakeWindow, args []string) string {
 			if region.X >= box.X+box.Width || region.Y >= box.Y+box.Height || region.X+region.Width <= box.X || region.Y+region.Height <= box.Y {
 				return pluginError("invalid_arguments", fmt.Sprintf("the region lies outside the %vx%v box of the window and its popups at %v,%v", box.Width, box.Height, box.X, box.Y))
 			}
+			// The plugin cuts the region to the box.
+			right, bottom := math.Min(region.X+region.Width, box.X+box.Width), math.Min(region.Y+region.Height, box.Y+box.Height)
+			region.X, region.Y = math.Max(region.X, box.X), math.Max(region.Y, box.Y)
+			region.Width, region.Height = right-region.X, bottom-region.Y
 		}
 	}
 	scale := f.scale
@@ -551,7 +557,15 @@ func (f *fakeHyprland) screenshot(w *fakeWindow, args []string) string {
 	if err != nil {
 		return pluginError("internal", err.Error())
 	}
-	png.Encode(file, image.NewGray(image.Rect(0, 0, width, height)))
+	img := image.NewGray(image.Rect(0, 0, width, height))
+	if w.Paint != nil {
+		for py := 0; py < height; py++ {
+			for px := 0; px < width; px++ {
+				img.Pix[py*img.Stride+px] = w.Paint(region.X+(float64(px)+0.5)/scale, region.Y+(float64(py)+0.5)/scale)
+			}
+		}
+	}
+	png.Encode(file, img)
 	file.Close()
 	reply := map[string]any{"ok": true, "path": path, "width": width, "height": height, "scale": scale, "region": region, "resizing": w.Resizing}
 	if w.Socket {

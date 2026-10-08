@@ -148,6 +148,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 		}
 	}
 
+	s.shots.returned(sh)
 	out := &launchOut{
 		Window: launchedOut{Window: window.Address, StableID: window.StableID, Class: window.Class, Title: window.Title, PID: window.PID, Workspace: window.Workspace.Name},
 		Wait:   wait, Shot: shotInfo(sh), NewWindows: others,
@@ -175,7 +176,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	}
 	out.Summary = strings.Join(parts, " · ")
 	out.Hint = joinHints(resizingHint(out.Shot), resizedHint(window, before, after))
-	return newResult(out, out.resultText, png, "")
+	return newResult(out, out.resultText, oneImage(png), "")
 }
 
 // resizedHint names the windows on a launched window's workspace whose size changed since before the launch, such as

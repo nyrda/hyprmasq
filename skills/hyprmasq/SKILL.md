@@ -14,9 +14,29 @@ user keeps working: their cursor, focus and visible workspace do not change.
 If this session has the hyprmasq MCP tools (`windows`, `launch`, `screenshot`,
 `act`, `release` and `close`, for example as `mcp__hyprmasq__act`), use them
 instead of the shell commands below. One `act` call sends paced input, waits
-until the window has redrawn and returns a screenshot, coordinates are pixels
+until the window has redrawn and returns what changed, coordinates are pixels
 of the shot you read them from, and every failure says what was sent. Their
-descriptions and results explain the rest.
+descriptions and results explain the rest. What `act` returns:
+
+- What changed since the shot you gave it, or since the last shot of the
+  window you got: `shot s7 = s5 + 2 changes`. s7 has the pixels of s5, so keep
+  reading coordinates from s5, and pass `s7` or `s5` as `shot`.
+- A zoom into each change, at the monitor's scale, listed with the box of
+  s5's pixels it shows: `zoom s8 496×80 of s7 at 530,0 248×40`. Read small
+  text there, click in it with `shot: "s8"` and its own pixels, and check for
+  changes you did not mean, such as keys that reached another widget.
+- `shot s7 = s5, no change`, without an image: the window looks as in s5,
+  apart from tiny changes, which a line counts, and changes too faint to
+  count, such as a hover highlight. After input, the hint says that it may
+  have missed; look at s5 before repeating it.
+- `N tiny changes left out`: a blinking caret or a few pixels changed.
+- A full shot, which says why it came instead: without an earlier shot, after
+  a resize or a change of popups past the window's edge, for a change of more
+  than 35% of the window or in more than 5 regions, and after 10 changes shots
+  in a row, each compared with the one before. Read coordinates from it from
+  then on.
+- When you no longer have the earlier shot, for example after your context was
+  compacted, ask for a full shot with `capture: "window"`.
 
 The rest of this skill is the fallback for sessions without them.
 

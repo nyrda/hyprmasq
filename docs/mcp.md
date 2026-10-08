@@ -6,8 +6,9 @@ installing and registering the server.
 
 `hyprmasq-mcp` gives coding agents (Claude Code, Codex, pi and other MCP
 clients) computer use on Hyprland through hyprmasq. One tool call acts on a
-window, waits until it has drawn the result, and returns a screenshot. The
-shell API in [usage.md](usage.md) stays as it is for scripts, CI and people.
+window, waits until it has drawn the result, and returns what changed since
+the agent's last shot of it. The shell API in [usage.md](usage.md) stays as it
+is for scripts, CI and people.
 
 ## Goals
 
@@ -52,7 +53,7 @@ plugin's deferred reply is ready, so waits are not limited by `hyprctl`'s
 | `windows` | optional `match` | All windows, or with `match` those whose class or title contains it, ignoring case as Unicode simple case folding does (`Σ` finds `ς`): `window` (address), `stable_id`, `class`, `title`, `pid`, `workspace` (name), `visible` (on a monitor's active or special workspace), `size` (logical), `resizing` (not yet redrawn at its size, see [Shots](#shots-and-coordinates)), `xwayland`, `launched` (by this server), `lease` (`held`, `remaining_s`, `mine`, or `null`), `capabilities`. |
 | `launch` | `command` (array, required), `workspace` (default `hyprmasq`), `timeout_s` (1 to 300, default 30) | Starts the command on a hidden workspace like `hyprmasq-launch`, waits for its first window and for that window to settle, and returns `window`, `wait`, `shot` and `new_windows`, the other windows that appeared, with the image. The hint names the windows on its workspace whose size changed meanwhile, such as tiled windows that made room for it, so that their earlier shots are stale. |
 | `screenshot` | `window`, optional `region` | A shot, with the image. No lock, and no waiting except for a window that has not caught up with a resize. See [Shots](#shots-and-coordinates). |
-| `act` | `window`, `shot`, `actions`, `wait`, `capture`, `deadline_ms` | Runs the actions, waits, captures. See [act](#act). |
+| `act` | `window`, `shot`, `actions`, `wait`, `capture`, `deadline_ms` | Runs the actions, waits, and captures what changed. See [act](#act) and [Changes](#changes). |
 | `release` | `window` | Ends the window's focus lease, whichever session holds it. The window stays open. Returns `released`. |
 | `close` | `window` | Asks the window to close, as Hyprland's close dispatcher does, ends its lease, and reports whether it closed within 2 s (`closed`, `elapsed_ms`) and which windows appeared (`new_windows`), such as a confirmation dialog. A window that stays open is not an error. When a tiled window closed, the hint names the tiled windows on its workspace, which take up its space, so that their earlier shots are stale. |
 
@@ -99,7 +100,11 @@ A shot records:
 - the window's commit counter at the moment of capture (not when the PNG was
   done), used as a [wait baseline](#waiting), and the id of the socket that
   counter belongs to;
-- whether the window had caught up with its size, see below.
+- whether the window had caught up with its size, see below;
+- for a shot of the whole window, the detail image that a later comparison
+  uses, and how many [changes shots](#changes) in a row lead to it; for a
+  changes shot, the shot it was compared with; for a zoom, the shot of the
+  whole window it was read from.
 
 A shot pixel X,Y maps to the window-local point `frame.x + X / scale`,
 `frame.y + Y / scale`, rounded to thousandths of a logical pixel for
@@ -211,14 +216,162 @@ resizing, and a popup can close after its shot was taken. The server does not
 invalidate shots on every redraw, which would make animated windows unusable.
 
 Shot IDs count up per server process. The server keeps the 64 most recently
-used shots per window, and deletes their files when it drops them. It forgets
-the shots of a window that it saw close, and, whenever a tool lists the
-windows, those of windows that the list no longer has or whose address now
-has another `stable_id`. Image files live under
+used shots per window, and deletes their files, detail images included, when
+it drops them. It forgets the shots of a window that it saw close, and,
+whenever a tool lists the windows, those of windows that the list no longer has
+or whose address now has another `stable_id`; with them it forgets which shot
+of the window a result gave last. Image files live under
 `$XDG_RUNTIME_DIR/hyprmasq/<instance>/mcp/<pid>/`, in the plugin's directory
 for the Hyprland instance, whose name is `$HYPRLAND_INSTANCE_SIGNATURE`
 without the commit hash in front (see
 [Security model](usage.md#security-model)).
+
+## Changes
+
+By default (`capture: "changes"`), `act` returns only what changed since a
+shot the agent already has: a changes shot, and a zoom into each region that
+changed. The agent reads less than a new overview, sees small text at the
+monitor's scale, and sees at once a change outside its target, such as keys
+that reached another widget. The zooms are meant to feed a quick check of
+whether an action landed as well.
+
+**Base.** The changes are measured from the shot given in `shot`, or for a
+zoom, from the shot of the whole window that it was read from. Without
+`shot`, they are measured from the last shot of the whole window that a
+result gave this session: a `screenshot` or `launch` shot, a full or changes
+shot of `act`, or the shot that comes with a failure. A zoom does not count,
+since it shows part of a shot the agent has. Shot IDs belong to one server
+process, so another session has no base until it gets a shot of its own, and
+neither has a new window at the address. The base is picked when the call
+starts, from what the agent had then.
+
+**Detail images.** Overviews shrink large windows: a 2544×1432 window is 1280
+pixels wide, and a window that fills a 5120-pixel monitor a quarter of its
+size. At a quarter, a typed `i` or `.` did not show in the comparison at all,
+while in logical pixels each changed a box of 6×16 or 5×16 pixels. So every
+shot of the whole window keeps a detail image: its own image when it has the
+window's logical pixels or the monitor's, whichever are fewer, and otherwise
+one more screenshot right after the overview, with `max` set to the long side
+of the box of the window and its popups in logical pixels on a monitor above
+scale 1, and without `max` otherwise. Both images have to show one frame: when
+the commit counters of the two replies differ, since the window drew in
+between, or the box differs, since a popup opened or closed past the window's
+edge, the pair is captured once more, and when that happens again the shot
+keeps no detail image, which a later changes capture answers with a full shot.
+A detail image never holds what the agent was not shown. A changes shot keeps
+the detail image it was compared at. For a
+2544×1432 window, a detail image takes about 50 ms to capture and 25 ms to
+decode, and the comparison 120 ms.
+
+**Comparison.** After the wait, the server captures a detail image with the
+same request as the base's, and compares the two if the window has the same
+size, the box of the window and its popups is the same, and the scale is the
+same. A pixel has changed when the average of the 3×3 pixels around it changed
+by more than 24 of 255 levels in luminance, or by more than 64 in a color
+channel; transparent pixels count as mid grey. Averages ignore Chromium's
+switches between subpixel and grayscale antialiasing, which it makes when it
+draws a layer anew and which move color between neighbouring pixels. The
+color channels catch a change of color that keeps the luminance, such as a red
+popup over a blue window, at a threshold at which the antialiasing does not
+show. Changed pixels at most 8 logical pixels apart are one change, such as a
+typed word and the caret after it. A change at most 4 logical pixels wide or
+tall, such as a blinking caret, or at most 5 in both directions, such as a
+speck, is tiny: it is left out, and counted unless a zoom shows all of it.
+Every other change gets a margin of 24 logical pixels for context; changes
+whose margins overlap or touch share a region, and regions are cut to the
+whole logical pixels that cover the box of the shot.
+
+**Result.** A changes shot keeps the base's coordinates: it has the base's
+width, height, frame and scale, so the agent goes on with coordinates read
+from the base, and `act` takes them with the changes shot's ID as well. Its
+commit counter is that of its own capture, the baseline of a later wait. Each
+region becomes a zoom shot at the monitor's scale, with pixels of its own that
+`act` takes. When the compared detail image has the monitor's pixels, as on a
+monitor at or below scale 1, the zoom is cut from it, so that it shows exactly
+what was compared. Otherwise, or when it would not fit within
+`--max-image-size`, it is captured as `screenshot` with `region` captures it,
+and has to show the compared frame: the same commit counter, and all of its
+region, which the plugin cuts when a popup past the window's edge closed. The summary names the base and the number of changes,
+and a line follows for each zoom, in the order of the images, top to bottom
+and then left to right, with its image size and the box of the changes shot's
+pixels that it shows:
+
+```
+1/1 delivered · redraw observed · quiet 214 ms · 655 ms · shot s7 = s5 + 2 changes · lease 60 s
+zoom s8 496×80 of s7 at 530,0 248×40
+zoom s9 456×124 of s7 at 0,670 228×62
+1 tiny change left out
+```
+
+Without a change there is no image: `shot s7 = s5, no change`. The window
+then looks as s5 does, apart from the tiny changes that a line counts and
+changes below the thresholds, so the hints that say to look before repeating
+input name s5: after a click that drew nothing, `The click may have missed or
+had no visible effect. Look at s5 before repeating it.`, after input that the
+window redrew for but that changed nothing, `Nothing changed since s5, so the
+input may have missed or had no visible effect. Look at s5 before repeating
+it.`, and when tiny changes were left out, `Only tiny changes since s5, such as
+a caret that moved or blinked, so the input may have missed or had little
+visible effect. Look at s5 before repeating it.` After a hover, which may
+change nothing, there is no such hint, nor after an empty batch.
+
+**Full shots.** A full shot, as `capture: "window"` returns it, comes in
+place of the changes when there is nothing to compare with or a full shot
+serves better. It says why after the shot in the summary, as in
+`shot s7 1280×721 (full shot: 68% changed since s5)`, and in `shot.full_shot`,
+and it is the next base:
+
+| Reason | When |
+| --- | --- |
+| `no earlier shot to compare with` | There is no `shot` and no shot of the window in this session. |
+| `the shot that sN zooms into is gone` | `shot` is a zoom, and the server no longer keeps the shot it zooms into. |
+| `sN cannot be compared` | The base shows an older frame of a window that had not caught up with a resize, or has no detail image, as when the window drew between its overview and detail image twice in a row. |
+| `10 changes shots in a row` | The base is the tenth of a chain of changes shots since a full shot, each compared with the one before, as when `act` gets no `shot`. The eleventh gets a full shot, so that the agent's picture, an overview with the zooms of ten results over it, does not drift from the window. Calls that keep comparing with the same shot show every change since it in their zooms, and need no such refresh. |
+| `the window is resizing` | The window had not caught up with a resize, or was resized, while the detail image was captured. The full shot gives it time to catch up, as every capture does. |
+| `resized since sN` | The window's size changed. |
+| `the monitor's scale changed since sN` | The detail images have different scales, as after a move between monitors at or below scale 1. Above scale 1 detail images have logical pixels, which stay comparable, and coordinates are in logical pixels anyway. |
+| `popups outside the window changed since sN` | The box of the window and its popups changed, as when a menu that reaches past the window's edge opens or closes. The base's coordinates would not cover it. |
+| `N% changed since sN` | More than 35% of the pixels changed, or the regions cover more than 35% of the window, as after scrolling or navigating. |
+| `N changed regions since sN` | More than 5 regions. |
+| `the zooms into the changes since sN would be larger` | The zooms, at the monitor's scale, have more pixels than the full shot, as for a large window whose overview is shrunk to half. |
+| `too little time left to compare with sN` | The call's deadline would not leave the full shot the 500 ms it may need after the comparison. The comparison takes about 60 ns a pixel of the detail images, and stops once that time is reached. |
+| `the window changed while the changes since sN were captured` | A captured zoom failed, or shows another frame than the compared one, as when the window drew, was resized or closed a popup past its edge after the comparison. The zooms made before go with the changes shot. |
+
+`capture: "window"` asks for a full shot, for example when the agent no
+longer has the earlier shot after its context was compacted. A failure before
+any input comes with a full shot, from which the agent reads coordinates anew.
+
+**Limits.** The comparison does not see a change below its thresholds, such as
+a row's hover highlight in a dark theme, 24 levels lighter, or a change that a
+tiny one hides. A window that keeps drawing, such as one with an animation,
+often draws between two captures, and then gets full shots.
+
+The limits come from measurements with windows launched for them, before and
+after an input and the wait that `act` runs, compared at logical pixels: a
+Spotify-like page in Brave, about the size of the Spotify window that
+prompted this, at 2544×1432 on Wayland with a lease and at 2545×1420 on
+XWayland without one, and gnome-calculator at 360×616.
+
+| Interaction | Result |
+| --- | --- |
+| Typing a word, a single character or a backspace into a search field | 1 region |
+| A click into the search field | 3 regions: the field, and the page's clock and progress bar |
+| A click on a list row | 1 or 2 regions: the row, and the field it took the focus from |
+| A double click on a song, which changes the row, the queue, the now-playing area and the progress bar | 3 or 4 regions, 12 to 14% of the window |
+| Opening or closing a menu of the page | 2 or 3 regions |
+| Moving the pointer over a list row | no change: its highlight is 24 levels lighter |
+| A caret's blink, idle | 1 tiny change |
+| Idle for 1.5 s, while the page's clock ticks | 2 regions |
+| Scrolling 3 notches | full shot, 73 to 75% |
+| Navigating to another view | full shot, 78 to 87% |
+| A click on a calculator button, typing digits | 1 or 2 regions |
+| The calculator's mode menu, a popover inside the window, opening and closing | full shot at 38%, then 1 region at 34% |
+| The calculator's main menu, a popover past the window's edge | full shot, popups changed |
+
+After the two clicks into the page, the luminance at a threshold of 20 left
+32 and 34 boxes of switched antialiasing besides the 3 and 2 changes, and at
+24 none; the color channels alone left 2 more at 32, and none at 64. Chromium
+switched the antialiasing on Wayland, not on XWayland.
 
 ## act
 
@@ -240,7 +393,7 @@ without the commit hash in front (see
 | `shot` | required if any action has coordinates | The shot the coordinates were read from. Keyboard-only batches need none. |
 | `actions` | `[]` | Run in order, at most 1000. An empty list only waits and captures. |
 | `wait` | see [Waiting](#waiting) | `expect_change` (true), `expect_ms` (1000, 1 to 29000), `quiet_ms` (200, 1 to 10000). An `expect_ms` given above `deadline_ms` − 1000, with `expect_change` true, is refused, naming the `deadline_ms` it needs. |
-| `capture` | `"window"` | `"window"` for an overview shot, `"none"`, or a region `{shot, x, y, width, height}` as for `screenshot`, also accepted as `{"region": {...}}`. Zoom-based input still returns an overview unless a region is asked for. When the window was resized during the call, for example by its own input, the region would show another part of the window, so the call captures the whole window instead and the hint says why. |
+| `capture` | `"changes"` | `"changes"` for what changed since the base, as a changes shot and zooms, or a full shot that says why (see [Changes](#changes)); `"window"` for an overview shot; `"none"`; or a region `{shot, x, y, width, height}` as for `screenshot`, also accepted as `{"region": {...}}`. When the window was resized during the call, for example by its own input, the region would show another part of the window, so the call captures the whole window instead and the hint says why. |
 | `deadline_ms` | 15000, 1000 to 30000 | Covers everything: waiting for locks, validation, sending, waiting and capture. The last 1000 ms are reserved for the capture, and input ends 1250 ms before them. A batch whose input takes longer than that leaves is refused, see [Pacing](#pacing). |
 
 Unknown arguments and fields are refused. Errors name the field by its path,
@@ -527,15 +680,21 @@ clicking where a menu item probably is.
 
 A result has three parts:
 
-1. Text: a one-line summary, followed by a hint when one is needed:
+1. Text: a one-line summary, for a changes shot a line for each zoom and one
+   for the tiny changes left out, then a hint when one is needed:
 
    ```
    3/3 delivered · redraw observed · quiet 214 ms · 655 ms · shot s5 1280×800 · lease 60 s
    ```
 
    ```
-   1/1 delivered · no redraw within 1000 ms · shot s6 1280×800 · lease 60 s
-   The click may have missed or had no visible effect. Look at the shot before repeating it.
+   1/1 delivered · no redraw within 1000 ms · shot s6 = s5, no change · lease 60 s
+   The click may have missed or had no visible effect. Look at s5 before repeating it.
+   ```
+
+   ```
+   2/2 delivered · redraw observed · quiet 200 ms · 512 ms · shot s7 = s6 + 1 change · lease 60 s
+   zoom s8 214×98 of s7 at 40,120 107×49
    ```
 
    The parts, joined by ` · `:
@@ -544,11 +703,12 @@ A result has three parts:
    | --- | --- |
    | Actions, if any | `N/M delivered`, with `, nothing sent`, `, delivery partial: actions[i] (type) may be partly applied (K keys sent)` or `, delivery uncertain from actions[i] (click) on` |
    | Wait | `redraw observed · quiet N ms · N ms`, `no redraw · quiet N ms · N ms`, `no redraw within N ms`, `timeout after N ms, still resizing`, `timeout after N ms, still drawing`, `timeout after N ms, no redraw`, `no time left to wait`, `window closed`, `cancelled` |
-   | Capture | `shot sN W×H`, `shot sN W×H (stale: not yet redrawn at its new size)`, or `capture failed: MESSAGE` |
+   | Capture | `shot sN W×H`, `shot sN W×H (full shot: REASON)`, `shot sN W×H (stale: not yet redrawn at its new size)`, both as `(full shot: REASON; stale: …)`, `shot sN = sM + K changes` followed by the lines `zoom sZ W×H of sN at X,Y W×H` and `K tiny changes left out`, `shot sN = sM, no change`, or `capture failed: MESSAGE` |
    | Lease | `lease N s` or `no lease` |
    | New windows | `new window ADDR (CLASS "TITLE"[, launched][, same pid])`, or `new windows` with a list |
 
-2. The image, when one was captured.
+2. The image, when one was captured: the shot, or the zooms of a changes
+   shot in the order of their lines.
 3. Structured content, except for clients that would pass it to the model in
    place of the text (see below): the summary and the hint again, in
    `summary` and `hint`, and the facts in fields, for scripts and for pi's
@@ -564,6 +724,13 @@ A result has three parts:
   "new_windows": [{"window": "0x55d1c0b11230", "stable_id": "1a", "class": "org.gnome.Nautilus", "title": "Save As", "pid": 4242, "same_pid": true, "launched": true}]
 }
 ```
+
+A changes shot's `shot` has the base's `width`, `height` and `frame`, and
+`changes`: `{"base": "s6", "regions": [{"shot": "s8", "image_width": 214,
+"image_height": 98, "x": 40, "y": 120, "width": 107, "height": 49}],
+"left_out": 1}`, with `left_out` only when tiny changes were left out. A full
+shot that capture `"changes"` took in their place has `full_shot` with the
+reason.
 
 `hint` is left out when there is none, and `shot.resizing` and
 `wait.resizing` unless they are true. `wait.resizing` is true when the wait
@@ -585,7 +752,8 @@ any later call, since each call compares its own start and end.
 The summary counts actions as delivered: the plugin passed every event to the
 window's application. Whether the application acted on them as meant, for
 example a game or a web app that drops keys while it is busy or takes them as
-shortcuts, only the shot can show, and the `act` description says so.
+shortcuts, only what changed on the window can show, and the `act`
+description says so.
 
 Clients differ in what they pass the model: Codex and pi pass the text and
 the image, Claude Code the structured content as JSON and the image, without
@@ -636,15 +804,18 @@ sent, `done` is 0, and the message names the action that was refused.
 Hints never suggest repeating input whose delivery is `partial` or `uncertain`.
 Every error hint of an `act` with actions ends with `Nothing was sent.` when
 the delivery is `none`, and otherwise with `Look at the shot before repeating
-anything.`, or `Take a screenshot and look at it before repeating anything.`
-when no shot is attached. An `act` without actions sends nothing, and its hints
+anything.`, `Look at the zooms before repeating anything.` for a changes shot,
+`Look at sM before repeating anything.` for one that found no change since sM,
+or `Take a screenshot and look at it before repeating anything.` when no shot
+is attached. An `act` without actions sends nothing, and its hints
 do not say so. The `act` description adds that input of a call that timed out
 is not repeated without a look at a fresh screenshot, since its outcome is
 unknown.
 
 When the window is known, a failure before any input was applied comes with a
 fresh shot of the window, unless `capture` is `"none"`, so the agent can go
-on without another call. `stale_shot` then says to read the coordinates from
+on without another call. With `capture` `"changes"` it is a full shot, since
+the agent reads coordinates anew. `stale_shot` then says to read the coordinates from
 the new shot. Failures in the arguments themselves, `window_gone`,
 `plugin_missing`, `plugin_version` and `cancelled` come without one.
 
@@ -783,9 +954,9 @@ So:
 The instructions:
 
 ```
-hyprmasq: see, click and type in Hyprland windows without disturbing the user's screen; one act call acts, waits for the redraw and returns a screenshot.
+hyprmasq: see, click and type in Hyprland windows without disturbing the user's screen; one act call acts, waits for the redraw and returns screenshots of what changed.
 
-Loop: windows or launch → screenshot → act with coordinates in that shot's pixels → read the shot that act returns → act again.
+Loop: windows or launch → screenshot → act with coordinates in that shot's pixels → read the changes or the shot that act returns → act again.
 Read each result's summary, and its hint when it has one, before the next call.
 ```
 
@@ -793,13 +964,14 @@ The `act` description, with the character counts for the default deadline and
 for 30000:
 
 ```
-Act on a window, wait until it has redrawn, and return a screenshot. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
+Act on a window, wait until it has redrawn, and return what changed. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
 Coordinates are pixels of the shot given in "shot" (required for click, move, drag, scroll).
 Actions: click {x,y,button,count,modifiers} · move {x,y} · drag {from,to,button,modifiers} · scroll {x,y,dx,dy,unit:notch|px} · type {text} · key {keys:["ctrl","l"], repeat} · pause {ms}.
-Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it, but keys you know, such as arrows and enter in a menu, may follow in the same batch. In a window without the lease capability (see windows), a menu opened in one call is gone by the next, so open it and pick the entry with the keyboard in one batch.
-drag, clicks with modifiers, and key chords that hold a key other than a modifier while they press the next need the hold capability.
-type presses the keys for the text as given, with the active keymap: a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key action such as shift+enter. It types at most one key every 15 ms, and a character without a key of its own takes two or more through Compose: about 600 characters in a call, or 1400 with deadline_ms 30000; split longer text over several calls.
-Delivered input reached the window's application, which does not mean it took effect: a slow or busy application, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the shot.
+The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box in them. A full shot comes when it serves better, saying why; capture "window" asks for one.
+Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, such as arrows and enter in a menu, may follow. Without the lease capability (see windows), a menu opened in one call is gone by the next: open it and pick the entry by keyboard in one batch.
+drag, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability.
+type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key action such as shift+enter. At one key per 15 ms, and two or more through Compose for a character without a key, a call types about 600 characters, or 1400 with deadline_ms 30000; split longer text.
+Delivered input reached the application but may not have taken effect: a busy one, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the result.
 Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before looking at a fresh screenshot.
 Example: {"window":"0x55d1c0a3e4b0","shot":"s4","actions":[{"action":"click","x":412,"y":88},{"action":"type","text":"hello"},{"action":"key","keys":["enter"]}]}
 ```
@@ -1181,7 +1353,12 @@ connection, where a chord of Shift and a letter still types a capital, partial
 delivery when X11 input is paused, the wait outcomes, the lease across calls and on exit, new
 windows, two servers acting at once on one window, the deadline,
 cancellation, `act` with a capture region, also when the window is resized
-during the call, `--max-image-size`, a window that
+during the call, changes shots of a terminal that the test draws in, from no
+change and one region, whose zoom shows the drawn cells at their place, to
+several, tiny changes left out and a highlight below the threshold, pointer
+input through a changes shot and through its zoom, a popup of about the luminance
+of its window, each reason for a full shot that a window can give, and
+`"window"` and `"none"` as they were, `--max-image-size`, a window that
 catches up with a resize during a screenshot and the refusal of coordinates
 from a shot of its older frame, `launch` and `close` naming the window they
 resize, `windows` and an `act` that times out reporting it as resizing,
@@ -1196,8 +1373,20 @@ replaced while it waited, capture regions of a window resized during the call,
 socket ids, lost lease answers, session ends and exit
 statuses, argument errors of every tool through an SDK client, `null` among
 them, the hints, the length of every tool description, structured content by
-client and `--structured-content`, `windows` with `match`, and the sleep in
-front of keys that follow a click or drag too soon. They run in the Nix build.
+client and `--structured-content`, `windows` with `match`, the sleep in
+front of keys that follow a click or drag too soon, and changes shots: one
+region and several, merged regions, no change and the hint after input that
+changed nothing, tiny changes left out and counted, each reason for a full
+shot, detail images of shrunk shots, the base by shot, zoom, session and
+window, coordinates of changes shots and their zooms, error paths, the files
+and last shots forgotten with a window, an overview and detail image of one
+frame, zooms of the compared frame, captured zooms of another frame or cut by a
+closed popup and the zooms given up with them, the detail image of popups past
+the window's edge, joining thousands of regions, and the time left for the
+full shot. The comparison has tests of its
+own: a block, a caret and a speck, a switch of antialiasing, a hover
+highlight, a change of color that keeps the luminance, grouping, transparency,
+the limit of changed pixels and stopping. They run in the Nix build.
 
 Not yet covered by a VM subtest: a toolkit's dropdown kept open across calls.
 

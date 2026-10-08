@@ -68,6 +68,8 @@ type Server struct {
 	shotDir string
 	owner   string
 	waitSeq atomic.Int64
+	// Numbers the detail images of changes captures until they belong to a shot.
+	detailSeq atomic.Int64
 
 	mu sync.Mutex
 	// Windows whose lease this server started or renewed.
@@ -195,18 +197,19 @@ func (s *Server) setLeased(window string, held bool) {
 
 // The instructions teach the loop and how to read results. Codex adds them to every tool's description, and pi with
 // direct exposure shows none of them, so the rules for acting are in the tool descriptions, once.
-const instructions = `hyprmasq: see, click and type in Hyprland windows without disturbing the user's screen; one act call acts, waits for the redraw and returns a screenshot.
+const instructions = `hyprmasq: see, click and type in Hyprland windows without disturbing the user's screen; one act call acts, waits for the redraw and returns screenshots of what changed.
 
-Loop: windows or launch → screenshot → act with coordinates in that shot's pixels → read the shot that act returns → act again.
+Loop: windows or launch → screenshot → act with coordinates in that shot's pixels → read the changes or the shot that act returns → act again.
 Read each result's summary, and its hint when it has one, before the next call.`
 
-var actDescription = fmt.Sprintf(`Act on a window, wait until it has redrawn, and return a screenshot. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
+var actDescription = fmt.Sprintf(`Act on a window, wait until it has redrawn, and return what changed. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
 Coordinates are pixels of the shot given in "shot" (required for click, move, drag, scroll).
 Actions: click {x,y,button,count,modifiers} · move {x,y} · drag {from,to,button,modifiers} · scroll {x,y,dx,dy,unit:notch|px} · type {text} · key {keys:["ctrl","l"], repeat} · pause {ms}.
-Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it, but keys you know, such as arrows and enter in a menu, may follow in the same batch. In a window without the lease capability (see windows), a menu opened in one call is gone by the next, so open it and pick the entry with the keyboard in one batch.
-drag, clicks with modifiers, and key chords that hold a key other than a modifier while they press the next need the hold capability.
-type presses the keys for the text as given, with the active keymap: a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key action such as shift+enter. It types at most one key every 15 ms, and a character without a key of its own takes two or more through Compose: about %d characters in a call, or %d with deadline_ms 30000; split longer text over several calls.
-Delivered input reached the window's application, which does not mean it took effect: a slow or busy application, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the shot.
+The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box in them. A full shot comes when it serves better, saying why; capture "window" asks for one.
+Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, such as arrows and enter in a menu, may follow. Without the lease capability (see windows), a menu opened in one call is gone by the next: open it and pick the entry by keyboard in one batch.
+drag, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability.
+type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key action such as shift+enter. At one key per 15 ms, and two or more through Compose for a character without a key, a call types about %d characters, or %d with deadline_ms 30000; split longer text.
+Delivered input reached the application but may not have taken effect: a busy one, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the result.
 Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before looking at a fresh screenshot.
 Example: {"window":"0x55d1c0a3e4b0","shot":"s4","actions":[{"action":"click","x":412,"y":88},{"action":"type","text":"hello"},{"action":"key","keys":["enter"]}]}`,
 	typedWithin(defaultDeadline), typedWithin(maxDeadline))
@@ -284,9 +287,13 @@ var actSchema = objectSchema(map[string]json.RawMessage{
 		"expect_change":{"type":"boolean","default":true,"description":"Wait for a redraw first. False for input that may change nothing on screen."},
 		"expect_ms":{"type":"integer","minimum":1,"maximum":29000,"default":1000,"description":"How long to wait for the first redraw, at most deadline_ms minus 1000."},
 		"quiet_ms":{"type":"integer","minimum":1,"maximum":10000,"default":200,"description":"How long the window must stay quiet to count as settled. Quiet means nothing was redrawn for this long, not that loading finished: if the shot still shows loading, act again with no actions."}},"additionalProperties":false}`),
-	"capture":     json.RawMessage(`{"description":"\"window\" for an overview shot, \"none\", or a region {shot,x,y,width,height} in pixels of an earlier shot.","anyOf":[{"type":"string","enum":["window","none"]},` + string(regionSchema) + `],"default":"window"}`),
+	"capture":     json.RawMessage(captureSchema),
 	"deadline_ms": deadlineSchema,
 }, "window")
+
+// captureSchema names the limits of capture "changes", so that an agent knows when a full shot comes.
+var captureSchema = fmt.Sprintf(`{"description":"\"changes\": what changed since the shot, or your last shot, as a zoom shot into each changed region with a margin of %d px; a full shot instead without an earlier shot, after a resize, for more than %d regions or %d%% of the window, or after %d changes shots in a row, each compared with the one before. Tiny changes, such as a blinking caret, are left out and counted. \"window\" for a full overview shot, such as when you no longer have the earlier one, \"none\", or a region {shot,x,y,width,height} in pixels of an earlier shot.","anyOf":[{"type":"string","enum":["changes","window","none"]},%s],"default":"changes"}`,
+	regionMargin, maxRegions, int(maxChangedArea*100), maxDeltas, regionSchema)
 
 var deadlineSchema = json.RawMessage(fmt.Sprintf(`{"type":"integer","minimum":1000,"maximum":30000,"default":15000,"description":"Covers the whole call, including waiting for other calls on the window; the last 1000 ms are reserved for the capture, and input has to end %d ms before the deadline."}`,
 	(captureReserve + senderStop).Milliseconds()))

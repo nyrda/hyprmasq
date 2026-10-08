@@ -23,7 +23,8 @@ paced like a person's input.
 
 For coding agents, `hyprmasq-mcp` is an MCP server that does all of this in
 tool calls: one `act` call clicks and types, waits until the window has drawn
-the result, and returns a screenshot.
+the result, and returns what changed since the agent's last screenshot, as a
+sharp zoom into each changed region.
 
 This is a personal plugin. It is built and tested against **Hyprland 0.56.2**
 with a Lua configuration. The Nix flake pins the compositor and the plugin
@@ -57,7 +58,8 @@ together.
   workspace and prints its window's address.
 - **An MCP server.** `hyprmasq-mcp` gives Claude Code, Codex, pi and other
   MCP clients tools to launch windows, take screenshots and act on them, with
-  results that say what was sent and what to do next. See [mcp.md](docs/mcp.md).
+  results that say what was sent, show what changed and say what to do next.
+  See [mcp.md](docs/mcp.md).
 - **An agent skill.** [`skills/hyprmasq`](skills/hyprmasq/SKILL.md) teaches
   coding agents the shell commands, for sessions without the MCP server.
 
