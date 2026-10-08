@@ -94,7 +94,7 @@ output, installs the plugin through the NixOS module, and runs
 | Connection taken over | A second sender connects while the first sends text without pacing, three times. The first one exits 1 with `unconfirmed` in its JSON, and its delivery is partial with `progress.keys` equal to the keys the shell got, or uncertain with at least those. |
 | Input dropped by a closing window | Escape closes focus-probe's window while `hyprmasq-input` sends text after it without pacing, three times. A partial delivery counts exactly the keys the probe got, an uncertain one at least those. |
 | Waiting | `wait` answers after typing into a hidden shell with the frames it drew, settles an idle window after the quiet time without frames, and times out on a visible window that keeps drawing; invalid arguments fail. |
-| Version and state | `version` reports 0.3.0 and interface 2, and the module installs `hyprmasq-mcp` of that version, with the package's own `hyprmasq-input` on its `PATH`. `state` reports the address, `stableId`, size, that it is not resizing, scale, socket, commit counter and capabilities of a hidden window and of the focused one. |
+| Version and state | `version` reports 0.3.0 and interface 3, and the module installs `hyprmasq-mcp` of that version, with the package's own `hyprmasq-input` on its `PATH`. `state` reports the address, `stableId`, size, that it is not resizing, scale, socket, commit counter and capabilities of a hidden window and of the focused one. |
 | Error codes | Malformed commands, unknown windows, missing sockets and invalid `wait`, `screenshot`, `state` and `cancel` arguments give the documented codes, and plain-text errors start with `error:`. |
 | Commit counter | It rises after typing, never falls, and the screenshot's value lies between readings before and after. It counts a popup that opens and closes without input, including the popup's first buffer. |
 | Socket ids | `state`, `eis list`, `eis open`, screenshots and `wait … since` name the window's socket by its id, and a socket opened again gets another id and a counter that starts again. |
@@ -118,7 +118,7 @@ output, installs the plugin through the NixOS module, and runs
 | Lease refusals | X11 windows and the focused window get `unsupported`; bad durations and arguments, unknown windows and missing sockets give their codes. A lease of 600000 ms is accepted. |
 | Disconnect | A sender that stops emulating or exits while holding Shift, A and the left button has all of them released, with and without a lease; with a lease the focus stays, without one the pointer leaves after the button is released. A sender that exits gets its button released before its keys. A sender that presses Shift, A and the button and exits while Hyprland is stopped has them released once Hyprland runs again, although libeis reports no disconnect for it. |
 | Cursor under a lease | The virtual cursor stays on a visible leased window past its timeout, and fades once the lease is released. |
-| Launching | `hyprmasq-launch` opens `foot` silently on its workspace with a title full of quotes and backslashes, finds a window opened by a child process, gives each of two launches at once its own window, and times out for a command without a window. |
+| Launching | `hyprmasq-launch` opens `foot` silently on its workspace with a title full of quotes and backslashes, finds a window opened by a child process, gives each of two launches at once its own window, and times out for a command without a window. A title with `/instances`, `rollinglog -f` and `/--batch;kill;`, which hyprctl and Hyprland look for in a request, reaches `foot` unchanged, on a workspace that starts with `-`, in a request of exactly 1023 bytes, which Hyprland would wait on without padding. A `foot` and an `xterm` started as children of the launched shell without Hyprland's variables, and the second window of a launch, open on the launch's workspace without the focus changing, found by their parent; `launched` gives the two windows of one launch the same token and others another. |
 | Pointer events | `wev` on a hidden workspace receives enter, motion, button and axis events. |
 | Shared connection | Two `footclient` windows of one `foot --server`: the hidden one receives the text, the focused one receives nothing and stays focused. |
 | Modified clicks | A Ctrl-click on a window of the connection that has the real keyboard focus, which lacks `hold`, reaches it while the connection's modifiers are those of the user; with the real focus in another app the window has `hold` and the click keeps Ctrl. |
@@ -169,7 +169,7 @@ The test copies the screenshots and logs into the build result, for example
 | Path | Contents |
 | --- | --- |
 | `src/main.cpp` | Plugin entry points: registers the hyprctl command, installs and removes hooks. |
-| `src/Commands.cpp` | Parses `hyprctl hyprmasq ...` and formats plain and JSON replies, including `version`, `state`, `lease` and `cancel`. |
+| `src/Commands.cpp` | Parses `hyprctl hyprmasq ...` and formats plain and JSON replies, including `version`, `state`, `lease`, `launch`, `launched` and `cancel`. |
 | `src/Error.hpp` | The stable error codes of JSON replies. |
 | `src/Screenshot.cpp` | Offscreen window rendering as the window is once its animations have ended, with popups outside the window, region readback, shrinking to a maximum size on the GPU, and PNG output. |
 | `src/Wait.cpp` | The commit counter, which watches a window's surfaces as they come and go, and both forms of `wait`, with `cancel`. |
@@ -178,6 +178,8 @@ The test copies the screenshots and logs into the build result, for example
 | `src/Cursor.cpp` | Virtual cursors and click ripples: recolors the cursor theme's arrow, draws and damages them, and their options. |
 | `src/X11.cpp` | X input focus and stacking around input to XWayland windows, the window manager hooks, xwayland-satellite detection. |
 | `src/Hooks.cpp` | Installing and removing Hyprland function hooks. |
+| `src/Launch.cpp` | Launches and their windows: starting the command, the launched process among the parents of a new window's process, and the tagged window rules that place the windows of a launch. |
+| `src/Process.cpp` | Reads of `/proc/<pid>/stat`: a process's parent and start time, which never wait for the process. |
 | `src/Windows.cpp` | Window address formatting and lookup, the walk over a window's surfaces, and whether a window has caught up with a resize. |
 | `tools/hyprmasq-input.c` | The libei sender command: parsing and checks, pacing, per-frame confirmation, JSON results. |
 | `tools/hyprmasq-launch` | Starts an application on a hidden workspace and prints its window's address. |

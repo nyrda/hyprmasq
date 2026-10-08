@@ -1,6 +1,6 @@
 # MCP server
 
-Status: implemented in hyprmasq 0.3.0, plugin interface 2. This document is
+Status: implemented in hyprmasq 0.3.0, plugin interface 3. This document is
 the design as built. [Installation](installation.md#mcp-server) covers
 installing and registering the server.
 
@@ -78,7 +78,7 @@ the focus). They are observations, not reservations. `act` checks `hold`
 before sending and again once it holds both [locks](#concurrency). The
 plugin's `dnd` capability is left out, see [Actions](#actions).
 
-Every call first checks that the plugin is loaded and has interface 2
+Every call first checks that the plugin is loaded and has interface 3
 (`plugin_missing`, `plugin_version`).
 
 ## Shots and coordinates
@@ -1043,7 +1043,7 @@ and plain-text errors still start with `error:`.
 **`version`**
 
 ```json
-{"ok":true,"version":"0.3.0","interface":2}
+{"ok":true,"version":"0.3.0","interface":3}
 ```
 
 `interface` increases with every incompatible change to these commands. New
@@ -1097,6 +1097,33 @@ The server refuses to run against another interface (`plugin_version`).
   - `keyboard`: `x11-focus` for X11 windows of Hyprland's XWayland or
     xwayland-satellite whose socket was opened without `force`, or that have
     no socket, otherwise `yes`.
+**`launch <workspace> <token> <command line>`** starts the command line with
+`/bin/sh -c` through Hyprland's executor, and answers `{"ok":true,"pid":N}`.
+The workspace and the command line are written in hex, two digits a byte,
+since `hyprctl` and Hyprland look for words such as `--batch`, `/instances`
+and `rollinglog` anywhere in a request. The workspace is a name of letters, digits,
+`_`, `.` and `-`, the token 1 to 64 hex digits. The plugin remembers the
+process with its start time, which tells it from a later process with the same
+pid.
+
+**`launched`** lists the mapped windows of launches:
+`{"ok":true,"windows":[{"address":"0x55d1c0a3e4b0","stableId":"1a","token":"9c1f0e4ab27d3365"}]}`,
+with the `stableId` that tells a window from a later one at its address.
+When Hyprland creates a window, before it maps it, the plugin follows the
+parents of the window's process in `/proc/<pid>/stat`, which the kernel answers
+without waiting for the process, up to 32 of them and up to Hyprland itself. A
+window whose process is a launched one or descends from it belongs to that
+launch, also one of a child that a launcher script starts without `exec`, as
+Chromium's does. Within a minute of the launch, the plugin tags the window
+`hyprmasq-<n>` and registers a window rule, `workspace name:<workspace>
+silent`, that matches that tag. Hyprland matches tags on the window itself,
+while matching an exec rule would read the environment of the window's
+process, which can wait for that process. Hyprland applies the rule as the
+window maps, and the plugin then removes the rule and the tag, as it does for
+a window that is destroyed before it maps. Registered after the rules of the
+configuration, the rule takes precedence over their workspaces. A window that a
+program started in a launched shell opens later than a minute after the
+launch opens where Hyprland and the user's rules put it.
 
 **Commit counter.** From `eis open` until the socket closes, the plugin counts
 the window's commits as defined in [Waiting](#definitions). It never falls
@@ -1340,11 +1367,14 @@ exit statuses and JSON output. What the server relies on:
   pieces of 1023 bytes and blocks its main thread on a request that fills its
   last piece exactly, so such requests get a trailing space. Requests over 32
   KiB are refused, so an overlong `launch` command is `invalid_arguments`.
-- `launch` dispatches `hl.dsp.exec_cmd` with a `name:<workspace> silent`
-  workspace rule as `hyprmasq-launch` does, with the command quoted for the
-  shell and the whole line written as a Lua string of decimal escapes. It finds
-  the window by the `HYPRMASQ_LAUNCH` token in `/proc/<pid>/environ`, polling
-  every 100 ms. It then settles it with a wait without a change phase: quiet
+- `launch` has the plugin start `exec` and the command, each argument quoted
+  for the shell, as `hyprmasq-launch` does, with the plugin's `launch` under a
+  random token. It finds the window among those the plugin's `launched` lists
+  with that token, polling every 100 ms, by address and `stable_id`, since the
+  window may close between the two lists and leave its address to another. The plugin found them by the launched
+  process among the parents of their process, and placed them on the
+  workspace (see [Plugin commands](#plugin-commands)). The `launched` mark of
+  `windows` comes from the same list. It then settles it with a wait without a change phase: quiet
   300 ms, deadline up to 5 s. A call cancelled during that wait returns
   `cancelled`, naming the window, without a capture. It compares the sizes in
   the window lists from before the dispatch and after the capture to name the

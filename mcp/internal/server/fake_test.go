@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -221,6 +222,24 @@ type fakeHyprland struct {
 	onDispatch   func(expression string) string
 	// Called for every plugin request before anything else, without the lock; a reply with true answers it.
 	onPlugin func(words []string) (string, bool)
+	// The environments, executables and parents of processes, which the plugin reads in /proc.
+	environ map[int]string
+	exe     map[int]string
+	parents map[int]int
+	// The tokens of launched processes, by pid. Every launch starts pid 5000.
+	launches map[int]string
+	// Called for every launch after it was recorded, without the lock.
+	onLaunch func(workspace, token, line string)
+}
+
+// launchToken finds the token of the launch that the process or a parent of it is, as the plugin does.
+func (f *fakeHyprland) launchToken(pid int) string {
+	for depth := 0; pid > 1 && depth < 32; depth, pid = depth+1, f.parents[pid] {
+		if token, ok := f.launches[pid]; ok {
+			return token
+		}
+	}
+	return ""
 }
 
 func (w *fakeWindow) socketID() string {
@@ -231,7 +250,8 @@ func (w *fakeWindow) socketID() string {
 }
 
 func newFakeHyprland(t *testing.T) *fakeHyprland {
-	f := &fakeHyprland{t: t, socket: filepath.Join(t.TempDir(), ".socket.sock"), scale: 2, iface: 2, waits: map[string]chan struct{}{}}
+	f := &fakeHyprland{t: t, socket: filepath.Join(t.TempDir(), ".socket.sock"), scale: 2, iface: 3, waits: map[string]chan struct{}{},
+		environ: map[int]string{}, exe: map[int]string{}, parents: map[int]int{}, launches: map[int]string{}}
 	l, err := net.Listen("unix", f.socket)
 	if err != nil {
 		t.Fatal(err)
@@ -420,6 +440,32 @@ func (f *fakeHyprland) plugin(words []string) string {
 	if words[0] == "version" {
 		return jsonReply(map[string]any{"ok": true, "version": "0.3.0", "interface": f.iface})
 	}
+	if words[0] == "launch" && len(words) == 4 {
+		workspace, err1 := hex.DecodeString(words[1])
+		line, err2 := hex.DecodeString(words[3])
+		if err1 != nil || err2 != nil {
+			return pluginError("invalid_arguments", "not hex")
+		}
+		f.mu.Lock()
+		f.launches[5000] = words[2]
+		onLaunch := f.onLaunch
+		f.mu.Unlock()
+		if onLaunch != nil {
+			onLaunch(string(workspace), words[2], string(line))
+		}
+		return jsonReply(map[string]any{"ok": true, "pid": 5000})
+	}
+	if words[0] == "launched" {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		windows := []map[string]string{}
+		for _, w := range f.windows {
+			if token := f.launchToken(w.PID); token != "" {
+				windows = append(windows, map[string]string{"address": w.Address, "stableId": w.StableID, "token": token})
+			}
+		}
+		return jsonReply(map[string]any{"ok": true, "windows": windows})
+	}
 	if words[0] == "cancel" {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -585,13 +631,10 @@ type testEnv struct {
 	server   *Server
 	stateDir string
 	inputLog string
-	environ  map[int]string
-	exe      map[int]string
-	envMu    sync.Mutex
 }
 
 func newTestEnv(t *testing.T) *testEnv {
-	e := &testEnv{t: t, fake: newFakeHyprland(t), stateDir: filepath.Join(t.TempDir(), "state"), environ: map[int]string{}, exe: map[int]string{}}
+	e := &testEnv{t: t, fake: newFakeHyprland(t), stateDir: filepath.Join(t.TempDir(), "state")}
 	e.inputLog = filepath.Join(t.TempDir(), "input.log")
 	t.Setenv("HYPRMASQ_FAKE_INPUT", "1")
 	t.Setenv("FAKE_INPUT_LOG", e.inputLog)
@@ -604,18 +647,18 @@ func newTestEnv(t *testing.T) *testEnv {
 func (e *testEnv) newServer() *Server {
 	s := New(Config{HyprlandSocket: e.fake.socket, StateDir: e.stateDir, Input: os.Args[0], LeaseMs: 60000,
 		Environ: func(pid int) ([]byte, error) {
-			e.envMu.Lock()
-			defer e.envMu.Unlock()
-			env, ok := e.environ[pid]
+			var env string
+			var ok bool
+			e.fake.with(func() { env, ok = e.fake.environ[pid] })
 			if !ok {
 				return nil, os.ErrNotExist
 			}
 			return []byte(env), nil
 		},
 		Exe: func(pid int) (string, error) {
-			e.envMu.Lock()
-			defer e.envMu.Unlock()
-			exe, ok := e.exe[pid]
+			var exe string
+			var ok bool
+			e.fake.with(func() { exe, ok = e.fake.exe[pid] })
 			if !ok {
 				return "", os.ErrNotExist
 			}
@@ -629,15 +672,21 @@ func (e *testEnv) newServer() *Server {
 }
 
 func (e *testEnv) setEnviron(pid int, env string) {
-	e.envMu.Lock()
-	defer e.envMu.Unlock()
-	e.environ[pid] = env
+	e.fake.with(func() { e.fake.environ[pid] = env })
+}
+
+// setLaunched makes pid a launched process with the token.
+func (e *testEnv) setLaunched(pid int, token string) {
+	e.fake.with(func() { e.fake.launches[pid] = token })
+}
+
+// setParent makes parent the parent process of pid.
+func (e *testEnv) setParent(pid, parent int) {
+	e.fake.with(func() { e.fake.parents[pid] = parent })
 }
 
 func (e *testEnv) setExe(pid int, exe string) {
-	e.envMu.Lock()
-	defer e.envMu.Unlock()
-	e.exe[pid] = exe
+	e.fake.with(func() { e.fake.exe[pid] = exe })
 }
 
 func (e *testEnv) window(address, stableID string, width, height float64, options ...func(*fakeWindow)) *fakeWindow {

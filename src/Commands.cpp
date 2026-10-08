@@ -3,6 +3,7 @@
 #include "Deferred.hpp"
 #include "Eis.hpp"
 #include "Error.hpp"
+#include "Launch.hpp"
 #include "Screenshot.hpp"
 #include "Wait.hpp"
 #include "Windows.hpp"
@@ -26,6 +27,8 @@ namespace hyprmasq {
                                            "  hyprctl hyprmasq wait <window-address> since <commits> [expect ms] [quiet ms] [deadline ms] [id word]\n"
                                            "  hyprctl hyprmasq cancel <word>\n"
                                            "  hyprctl hyprmasq state <window-address>\n"
+                                           "  hyprctl hyprmasq launch <workspace-hex> <token> <shell-command-line-hex>\n"
+                                           "  hyprctl hyprmasq launched\n"
                                            "  hyprctl hyprmasq lease <window-address> <ms> <owner>\n"
                                            "  hyprctl hyprmasq lease <window-address> release [owner]\n"
                                            "  hyprctl hyprmasq eis open <window-address> [force]\n"
@@ -172,6 +175,55 @@ namespace hyprmasq {
 
         std::string leaseText(const SLeaseState& lease) {
             return std::format("{} ms by {}", lease.remainingMs, lease.owner);
+        }
+
+        // Bytes written as pairs of hex digits, or none when the text is not that. Requests carry text from elsewhere
+        // that way, since hyprctl and Hyprland look for words such as --batch, /instances and rollinglog anywhere in a
+        // request.
+        std::optional<std::string> fromHex(std::string_view hex) {
+            if (hex.size() % 2 != 0)
+                return std::nullopt;
+            std::string out;
+            out.reserve(hex.size() / 2);
+            for (size_t i = 0; i < hex.size(); i += 2) {
+                unsigned char byte   = 0;
+                const auto [end, ec] = std::from_chars(hex.data() + i, hex.data() + i + 2, byte, 16);
+                if (ec != std::errc{} || end != hex.data() + i + 2)
+                    return std::nullopt;
+                out.push_back(sc<char>(byte));
+            }
+            return out;
+        }
+
+        // launch <workspace> <token> <command line>, with the workspace and the command line in hex.
+        std::string launchCommand(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
+            if (args.size() != 3)
+                return usage(format);
+            const auto workspace = fromHex(args[0]);
+            const auto line      = fromHex(args[2]);
+            if (!workspace || !line)
+                return error(format, eErrorCode::INVALID_ARGUMENTS, "the workspace and the command line must be written in hex");
+            const auto pid = launch::start(*workspace, args[1], *line);
+            if (!pid)
+                return error(format, pid.error());
+            return format == FORMAT_JSON ? std::format(R"({{"ok":true,"pid":{}}})", *pid) : std::format("launched pid {}", *pid);
+        }
+
+        std::string launched(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
+            if (!args.empty())
+                return usage(format);
+            std::string out;
+            for (const auto& w : launch::windows()) {
+                if (format == FORMAT_JSON)
+                    out +=
+                        std::format(R"({}{{"address":{},"stableId":{},"token":{}}})", out.empty() ? "" : ",", jsonString(w.address), jsonString(w.stableId), jsonString(w.token));
+                else
+                    out += std::format("{} {}\n", w.address, w.token);
+            }
+            if (format == FORMAT_JSON)
+                return R"({"ok":true,"windows":[)" + out + "]}";
+            // hyprctl prints "unknown request" for an empty reply.
+            return out.empty() ? "no launched windows" : out;
         }
 
         std::string state(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
@@ -341,6 +393,10 @@ namespace hyprmasq {
             return waitCommand(format, args);
         if (words[1] == "state")
             return state(format, args);
+        if (words[1] == "launched")
+            return launched(format, args);
+        if (words[1] == "launch")
+            return launchCommand(format, args);
         if (words[1] == "lease")
             return leaseCommand(format, args);
 

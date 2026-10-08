@@ -12,20 +12,6 @@ import (
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
 )
 
-const launchVariable = "HYPRMASQ_LAUNCH"
-
-// launchToken returns the HYPRMASQ_LAUNCH token in the process's environment, or "".
-func (s *Server) launchToken(pid int) string {
-	if pid <= 0 {
-		return ""
-	}
-	environ, err := s.cfg.Environ(pid)
-	if err != nil {
-		return ""
-	}
-	return environValue(environ, launchVariable)
-}
-
 // environValue returns the value of the variable in the contents of /proc/<pid>/environ, or "".
 func environValue(environ []byte, name string) string {
 	for _, entry := range bytes.Split(environ, []byte{0}) {
@@ -36,15 +22,22 @@ func environValue(environ []byte, name string) string {
 	return ""
 }
 
-// launched tells whether the process carries the token of a launch by this server.
-func (s *Server) launched(pid int) bool {
-	token := s.launchToken(pid)
-	if token == "" {
-		return false
+// launchedWindows returns the windows of this server's launches, by windowKey, which the plugin found by their process
+// or a parent of it. The address alone could be one that Hyprland gave to another window since.
+func (s *Server) launchedWindows(ctx context.Context) map[string]bool {
+	windows, err := s.hypr.Launched(ctx)
+	if err != nil {
+		return nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.tokens[token]
+	launched := map[string]bool{}
+	for _, w := range windows {
+		if s.tokens[w.Token] {
+			launched[windowKey(hypr.Window{Address: w.Address, StableID: w.StableID})] = true
+		}
+	}
+	return launched
 }
 
 // listWindows lists the windows, and forgets the shots of windows that have closed.
@@ -62,18 +55,22 @@ func windowKey(w hypr.Window) string {
 }
 
 // newWindows lists the windows in after that are not in before. A window at a reused address is new.
-func (s *Server) newWindows(before, after []hypr.Window, targetPID int) []newWindowOut {
+func (s *Server) newWindows(ctx context.Context, before, after []hypr.Window, targetPID int) []newWindowOut {
 	known := map[string]bool{}
 	for _, w := range before {
 		known[windowKey(w)] = true
 	}
 	windows := []newWindowOut{}
+	var launched map[string]bool
 	for _, w := range after {
 		if known[windowKey(w)] {
 			continue
 		}
+		if launched == nil {
+			launched = s.launchedWindows(ctx)
+		}
 		windows = append(windows, newWindowOut{Window: w.Address, StableID: w.StableID, Class: w.Class, Title: w.Title, PID: w.PID,
-			SamePID: targetPID > 0 && w.PID == targetPID, Launched: s.launched(w.PID)})
+			SamePID: targetPID > 0 && w.PID == targetPID, Launched: launched[windowKey(w)]})
 	}
 	return windows
 }
@@ -115,9 +112,9 @@ type windowOut struct {
 	Capabilities *capabilitiesOut `json:"capabilities"`
 }
 
-func (s *Server) describeWindow(ctx context.Context, w hypr.Window, visible map[int]bool) windowOut {
+func (s *Server) describeWindow(ctx context.Context, w hypr.Window, visible map[int]bool, launched map[string]bool) windowOut {
 	out := windowOut{Window: w.Address, StableID: w.StableID, Class: w.Class, Title: w.Title, PID: w.PID,
-		Workspace: w.Workspace.Name, Visible: visible[w.Workspace.ID], XWayland: w.XWayland, Launched: s.launched(w.PID)}
+		Workspace: w.Workspace.Name, Visible: visible[w.Workspace.ID], XWayland: w.XWayland, Launched: launched[windowKey(w)]}
 	if len(w.Size) == 2 {
 		out.Size = sizeOut{float64(w.Size[0]), float64(w.Size[1])}
 	}
@@ -177,13 +174,14 @@ func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
 			}
 		}
 	}
+	launched := s.launchedWindows(ctx)
 	windows := []windowOut{}
 	var lines []string
 	for _, w := range clients {
 		if !matches(w, args.Match) {
 			continue
 		}
-		out := s.describeWindow(ctx, w, visible)
+		out := s.describeWindow(ctx, w, visible, launched)
 		windows = append(windows, out)
 		lines = append(lines, windowLine(out))
 	}

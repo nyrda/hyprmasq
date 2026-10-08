@@ -1043,8 +1043,8 @@ os.rename(sys.argv[2] + ".part", sys.argv[2])
         return json.loads(machine.succeed(f"cat {output}"))
 
     with subtest("plugin version and window state"):
-        assert json.loads(hypr("-j hyprmasq version")) == {"ok": True, "version": "0.3.0", "interface": 2}
-        assert hypr("hyprmasq version") == "hyprmasq 0.3.0 interface 2"
+        assert json.loads(hypr("-j hyprmasq version")) == {"ok": True, "version": "0.3.0", "interface": 3}
+        assert hypr("hyprmasq version") == "hyprmasq 0.3.0 interface 3"
         # The module installs the MCP server of the same version, which runs the package's own hyprmasq-input.
         package = plugin.removesuffix("/lib/hyprmasq.so")
         assert alice("hyprmasq-mcp --version").strip() == "0.3.0"
@@ -2015,8 +2015,47 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
             "su - alice -c " + shlex.quote(f"{ipc} hyprmasq-launch --timeout 2 -- true 2>&1")
         )
         assert status == 1 and "no window" in output, (status, output)
-        for window in [address, child["address"], direct["address"]]:
+
+        # Children whose environment lacks Hyprland's variables, as a browser's that its launcher script starts without
+        # exec and that overwrites its environment: the plugin finds them by their parent, the launched process, and
+        # places them before they map, without the focus or the visible workspace changing.
+        cleared = "env -u HL_EXEC_RULE_TOKEN -u HL_INITIAL_WORKSPACE_TOKEN"
+        orphans = {}
+        for title, command in [("hm-cleared", f"{cleared} foot -T hm-cleared"), ("hm-cleared-x", f"{cleared} xterm -T hm-cleared-x")]:
+            found = alice(f"{ipc} hyprmasq-launch --workspace hm-launch -- sh -c {shlex.quote(command + '; true')}").strip()
+            orphans[title] = launched(found)
+            assert orphans[title]["initialTitle"] == title and orphans[title]["workspace"]["name"] == "hm-launch", orphans[title]
+            assert snapshot() == before_focus
+        assert orphans["hm-cleared-x"]["xwayland"], orphans
+        # So is the second window of an app, each window with a rule of its own.
+        first = alice(
+            f"{ipc} hyprmasq-launch --workspace hm-launch -- sh -c "
+            + shlex.quote(f"foot -T hm-first & sleep 1; {cleared} foot -T hm-second; wait")
+        ).strip()
+        def second_window():
+            return next((c for c in clients() if c["initialTitle"] == "hm-second"), None)
+
+        wait_for("hm-second", lambda: second_window() is not None)
+        second = second_window()
+        assert launched(first)["initialTitle"] == "hm-first" and second["workspace"]["name"] == "hm-launch", second
+        assert snapshot() == before_focus
+        # Words that hyprctl and Hyprland look for anywhere in a request reach the application unchanged, in hex: a
+        # title of /instances, rollinglog -f and /--batch;kill; would otherwise list instances, keep the connection open
+        # or kill a window. A workspace that starts with - is no option of hyprctl's, and a request that fills
+        # Hyprland's 1023-byte piece exactly gets padded: "/hyprmasq launch 2d64617368 <16 hex> " is 45 bytes, and the
+        # line "exec 'foot' '-T' '<title>'" in hex twice its length, 38 bytes and twice the title's.
+        started = time.monotonic()
+        tricky = "/instances rollinglog -f /--batch;kill;"
+        title = tricky + "x" * (470 - len(tricky))
+        assert 45 + 38 + 2 * len(title) == 1023
+        edge = launched(alice(f"{ipc} hyprmasq-launch --workspace -dash -- foot -T {shlex.quote(title)}").strip())
+        assert edge["initialTitle"] == title and edge["workspace"]["name"] == "-dash" and time.monotonic() - started < 4, edge
+        dispatch('hl.dsp.window.close({ window = "address:' + edge["address"] + '" })')
+        tokens = {w["address"]: w["token"] for w in json.loads(hypr("-j hyprmasq launched"))["windows"]}
+        assert tokens[first] == tokens[second["address"]] and tokens[first] != tokens[orphans["hm-cleared"]["address"]], tokens
+        for window in [address, child["address"], direct["address"], first, second["address"], *(o["address"] for o in orphans.values())]:
             dispatch('hl.dsp.window.close({ window = "address:' + window + '" })')
+        wait_for("no launched windows", lambda: hypr("hyprmasq launched") == "no launched windows")
 
     with subtest("hidden wev pointer events"):
         focus_workspace(6)
@@ -3128,10 +3167,15 @@ print(longest)
         # It carries the launch token, and has a process of its own.
         assert child["class"] == "foot" and child["launched"] and not child["same_pid"] and child["pid"] != shell_pid, opened
         assert f'new window {child["window"]} (foot "hm-m-child", launched)' in opened.text.splitlines()[0], opened
-        assert client("hm-m-child")["workspace"]["id"] == 58 and snapshot() == before_focus
+        # Within a minute of the shell's launch, the plugin puts it on the launch's workspace, as Hyprland's exec rule
+        # does, before the rule's workspace 58; later the rule decides. Either way it opens hidden.
+        workspace = client("hm-m-child")["workspace"]["name"]
+        assert workspace in ("58", "hm-m") and snapshot() == before_focus, client("hm-m-child")
         closed = mcp.call("close", {"window": child["window"]})
         assert not closed.is_error and closed.data["closed"] and closed.data["new_windows"] == [] and closed.data["elapsed_ms"] < 2000, closed
-        assert re.fullmatch(rf"closed {child['window']} after \d+ ms", closed.text), closed
+        # Next to the shell, closing it resizes the shell, which the hint names.
+        resized = r"\nClosing a tiled window resizes the tiled windows on its workspace \(" + re.escape(shell) + r"\), .*" if workspace == "hm-m" else ""
+        assert re.fullmatch(rf"closed {child['window']} after \d+ ms" + resized, closed.text), closed
         assert client("hm-m-child") is None
 
     with subtest("two hyprmasq-mcp servers take turns on one window"):

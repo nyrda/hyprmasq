@@ -74,7 +74,7 @@ type Server struct {
 	mu sync.Mutex
 	// Windows whose lease this server started or renewed.
 	leased map[string]bool
-	// HYPRMASQ_LAUNCH tokens of this server's launches.
+	// The tokens of this server's launches, by which the plugin names their windows.
 	tokens map[string]bool
 	// Set once the session ends: calls still running are cancelled, and no new lease is taken.
 	closing bool

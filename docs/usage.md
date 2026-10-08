@@ -21,12 +21,14 @@ underneath, for scripts, tests and people.
 | `hyprctl hyprmasq wait <addr> since COMMITS [expect MS] [quiet MS] [deadline MS] [id WORD]` | Waits for a change since a value of the window's commit counter, then until it is quiet. Prints how the wait ended. See [Waiting for a change](#waiting-for-a-change). |
 | `hyprctl hyprmasq cancel <word>` | Ends the pending `wait` with that id. Prints `cancelled` or `no pending wait`. |
 | `hyprctl hyprmasq state <addr>` | Prints the window's size, scale, socket, commit counter, lease and capabilities. See [Window state](#window-state). |
+| `hyprctl hyprmasq launch <workspace-hex> <token> <command-line-hex>` | Starts the shell command line and opens its windows silently on the workspace, both written in hex. Prints `launched pid N`. See [Launching applications](#launching-applications). |
+| `hyprctl hyprmasq launched` | Prints one `address token` line per mapped window of a launch, or `no launched windows`. See [Launching applications](#launching-applications). |
 | `hyprctl hyprmasq lease <addr> <ms> <owner>` | Starts or renews the window's focus lease. Prints `held N ms by OWNER`. See [Focus lease](#focus-lease). |
 | `hyprctl hyprmasq lease <addr> release [owner]` | Ends the lease, only if `owner` holds it when one is given. Prints `released` or `no lease released`. |
 | `hyprctl hyprmasq eis open <addr> [force]` | Creates the window's input socket and prints its path. Opening it again returns the same path. `force` drives an X11 window even while another window of its X server has the focus; see [X11 windows](#x11-windows). Each `open` sets or clears it. |
 | `hyprctl hyprmasq eis close <addr>` | Removes the socket and disconnects its client. Prints `ok`. |
 | `hyprctl hyprmasq eis list` | Prints one `address path` line per open socket, followed by `force` for sockets opened with `force`. |
-| `hyprctl hyprmasq version` | Prints the plugin version and its interface version, such as `hyprmasq 0.3.0 interface 2`. |
+| `hyprctl hyprmasq version` | Prints the plugin version and its interface version, such as `hyprmasq 0.3.0 interface 3`. |
 | `hyprctl hyprmasq help` | Prints the command summary. |
 
 New keywords such as `since`, `max` and `release` are plain words, because
@@ -52,7 +54,9 @@ With `hyprctl -j`, every command answers in JSON:
 | `eis open` | `{"ok":true,"path":"/run/user/1000/hyprmasq/<instance>/<addr>.eis","socketId":"9f3a61c2-3"}` |
 | `eis close` | `{"ok":true}` |
 | `eis list` | `[{"address":"0x...","path":"...","socketId":"9f3a61c2-3","force":false}]` |
-| `version` | `{"ok":true,"version":"0.3.0","interface":2}` |
+| `launch` | `{"ok":true,"pid":4242}` |
+| `launched` | `{"ok":true,"windows":[{"address":"0x...","stableId":"1a","token":"9c1f0e4ab27d3365"}]}` |
+| `version` | `{"ok":true,"version":"0.3.0","interface":3}` |
 | any error | `{"ok":false,"error":"...","code":"window_gone"}` |
 
 Every JSON error has a `code` that scripts can rely on:
@@ -391,15 +395,32 @@ addr=$(hyprmasq-launch --workspace tests --timeout 60 -- firefox --new-instance 
 | `--workspace NAME` | `hyprmasq` | Named workspace for the windows. It opens silently: the visible workspace and the focus stay as they are. |
 | `--timeout SECONDS` | `30` | How long to wait for the window. |
 
-Hyprland starts the command with a window rule, the way `hl.dsp.exec_cmd` does.
-The command gets a random `HYPRMASQ_LAUNCH` token in its environment, and
-`hyprmasq-launch` prints the first window whose process has that token. Child
-processes inherit it, so wrapper scripts and applications that open their
-windows from another process work. Applications that hand the request to an
-instance that is already running, such as a `footclient` of a `foot --server`
-or a browser that is already open, open the window from a process without the
-token. The launch then times out, and the window opens wherever that instance
-puts it. Start such applications with an option for a separate instance.
+The plugin starts the command through Hyprland's executor, with
+`hyprctl hyprmasq launch WORKSPACE TOKEN COMMAND-LINE`, and remembers the
+process under a random token. The workspace and the command line go in hex,
+since `hyprctl` and Hyprland look for words such as `--batch`, `/instances`
+and `rollinglog` anywhere in a request. When Hyprland creates a window, before it maps
+it, the plugin follows the parents of the window's process up to 32 levels. A
+window whose process is the launched one or descends from it belongs to the
+launch, and `hyprmasq-launch` prints the first one that
+`hyprctl hyprmasq launched` lists. This finds the windows of a launcher script
+that starts the application as a child instead of with `exec`, such as
+Chromium's and so Brave's, and every window of the application.
+
+For a window created within a minute of the launch, the plugin tags the window
+and registers a window rule for that tag, so it opens silently on the
+workspace: the visible workspace and the focus stay as they are. Registered
+after the rules of your configuration, it takes precedence over their
+workspaces. Once the window has mapped, the plugin removes the rule and the
+tag. Windows that the application opens later, or that a program
+started in a launched shell opens a minute after the launch, open where
+Hyprland and your rules put them.
+
+Applications that hand the request to an instance that is already running,
+such as a `footclient` of a `foot --server` or a browser that is already open,
+open the window from a process outside the launch. The launch then times out,
+and the window opens wherever that instance puts it. Start such applications
+with an option for a separate instance.
 
 `hyprmasq-launch` needs `hyprctl` and `jq`. The Nix package brings `jq`.
 

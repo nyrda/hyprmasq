@@ -8,7 +8,7 @@
 namespace hyprmasq {
     inline constexpr std::string_view VERSION = "0.3.0";
     // Increases with every incompatible change to the commands.
-    inline constexpr int INTERFACE = 2;
+    inline constexpr int INTERFACE = 3;
 
     // Handler for `hyprctl hyprmasq ...`.
     std::string handleCommand(eHyprCtlOutputFormat format, std::string request);

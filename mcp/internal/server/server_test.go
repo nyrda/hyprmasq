@@ -1443,8 +1443,8 @@ func TestNewWindows(t *testing.T) {
 	e.window("0xa1", "1a", 320, 200)
 	e.screenshot(`{"window":"0xa1"}`)
 	e.server.tokens["t0k3n"] = true
-	e.setEnviron(777, "PATH=/bin\x00HYPRMASQ_LAUNCH=t0k3n\x00")
-	e.setEnviron(888, "HYPRMASQ_LAUNCH=foreign\x00")
+	e.setLaunched(777, "t0k3n")
+	e.setLaunched(888, "foreign")
 	onWait := func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
 		e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd1", StableID: "d1", Class: "test.app", Title: "Save As", PID: 4242}, Width: 100, Height: 100})
 		e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd2", StableID: "d2", Class: "helper", Title: "Helper", PID: 777}, Width: 100, Height: 100})
@@ -1470,53 +1470,32 @@ func TestNewWindows(t *testing.T) {
 	// A new window at a reused address is new.
 	before := []hypr.Window{{Address: "0xd1", StableID: "d1"}}
 	after := []hypr.Window{{Address: "0xd1", StableID: "e9", PID: 1}}
-	if got := e.server.newWindows(before, after, 0); len(got) != 1 || got[0].StableID != "e9" {
+	if got := e.server.newWindows(t.Context(), before, after, 0); len(got) != 1 || got[0].StableID != "e9" {
 		t.Errorf("reused address: %v", got)
 	}
-}
-
-var execPattern = regexp.MustCompile(`^hl\.dsp\.exec_cmd\("((?:\\\d{3})*)", \{ workspace = "name:([^"]+) silent" \}\)$`)
-
-func decodeLua(t *testing.T, escaped string) string {
-	var b []byte
-	for i := 0; i+4 <= len(escaped); i += 4 {
-		n, err := strconv.Atoi(escaped[i+1 : i+4])
-		if err != nil {
-			t.Fatal(err)
-		}
-		b = append(b, byte(n))
-	}
-	return string(b)
 }
 
 func TestLaunch(t *testing.T) {
 	e := newTestEnv(t)
 	// A window of another launch whose process carries a foreign token.
 	e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xc0", StableID: "c0", Class: "decoy", PID: 5001}, Width: 50, Height: 50})
-	e.setEnviron(5001, "HYPRMASQ_LAUNCH=0123456789abcdef\x00")
-	var line, workspace string
-	onDispatch := func(expression string) string {
-		m := execPattern.FindStringSubmatch(expression)
-		if m == nil {
-			return "error: bad expression " + expression
+	e.setLaunched(5001, "0123456789abcdef")
+	var line, workspace, token string
+	e.fake.with(func() {
+		e.fake.onLaunch = func(w, k, l string) {
+			workspace, token, line = w, k, l
+			time.AfterFunc(250*time.Millisecond, func() {
+				e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xe1", StableID: "e1", Class: "foot", Title: "it's", PID: 5000,
+					Workspace: hypr.Workspace{ID: -98, Name: "name:tests"}}, Width: 320, Height: 200})
+			})
 		}
-		line, workspace = decodeLua(t, m[1]), m[2]
-		token := strings.TrimPrefix(strings.Fields(line)[0], "HYPRMASQ_LAUNCH=")
-		time.AfterFunc(250*time.Millisecond, func() {
-			// A window of the same process that existed before cannot be the launched one, so this one counts.
-			e.setEnviron(5000, "HYPRMASQ_LAUNCH="+token+"\x00")
-			e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xe1", StableID: "e1", Class: "foot", Title: "it's", PID: 5000,
-				Workspace: hypr.Workspace{ID: -98, Name: "name:tests"}}, Width: 320, Height: 200})
-		})
-		return "ok"
-	}
-	e.fake.with(func() { e.fake.onDispatch = onDispatch })
+	})
 	res := e.launch(`{"command":["foot","-T","it's"],"workspace":"tests"}`)
 	if res.IsError {
 		t.Fatal(text(res))
 	}
-	if !regexp.MustCompile(`^HYPRMASQ_LAUNCH=[0-9a-f]{16} exec 'foot' '-T' 'it'\\''s'$`).MatchString(line) || workspace != "tests" {
-		t.Errorf("command line %q on %q", line, workspace)
+	if line != `exec 'foot' '-T' 'it'\''s'` || workspace != "tests" || !regexp.MustCompile(`^[0-9a-f]{16}$`).MatchString(token) {
+		t.Errorf("command line %q on %q as %q", line, workspace, token)
 	}
 	if got := get(t, res, "window.window"); got != "0xe1" {
 		t.Errorf("window %v", got)
@@ -1542,6 +1521,54 @@ func TestLaunch(t *testing.T) {
 	}
 }
 
+// The window of a child process of the launched one counts, as a browser's that its launcher script starts without exec.
+func TestLaunchFindsTheWindowOfAChild(t *testing.T) {
+	e := newTestEnv(t)
+	e.fake.with(func() {
+		e.fake.onLaunch = func(workspace, token, line string) {
+			time.AfterFunc(100*time.Millisecond, func() {
+				e.setParent(5001, 5000)
+				e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xe2", StableID: "e2", Class: "brave", PID: 5001,
+					Workspace: hypr.Workspace{ID: -98, Name: "name:tests"}}, Width: 320, Height: 200})
+			})
+		}
+	})
+	res := e.launch(`{"command":["brave"],"workspace":"tests"}`)
+	if res.IsError || get(t, res, "window.window") != "0xe2" || get(t, res, "window.pid") != 5001.0 {
+		t.Fatal(text(res))
+	}
+	res = e.server.windowsTool(context.Background(), &call{})
+	if w := get(t, res, "windows").([]any)[0].(map[string]any); w["window"] != "0xe2" || w["launched"] != true {
+		t.Errorf("windows %v", w)
+	}
+}
+
+// A launched window that closed between the plugin's list and the window list may have left its address to another
+// window, which is not the launch's.
+func TestLaunchIgnoresAWindowAtAReusedAddress(t *testing.T) {
+	e := newTestEnv(t)
+	var token string
+	e.fake.with(func() {
+		e.fake.onLaunch = func(workspace, k, line string) {
+			token = k
+			e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xe1", StableID: "bb", Class: "other", PID: 7000}, Width: 320, Height: 200})
+		}
+		e.fake.onPlugin = func(words []string) (string, bool) {
+			if words[0] != "launched" || token == "" {
+				return "", false
+			}
+			return jsonReply(map[string]any{"ok": true, "windows": []map[string]string{{"address": "0xe1", "stableId": "aa", "token": token}}}), true
+		}
+	})
+	if code := errorCode(t, e.launch(`{"command":["foot"],"timeout_s":1}`)); code != "deadline" {
+		t.Errorf("code %q", code)
+	}
+	res := e.server.windowsTool(context.Background(), &call{})
+	if w := get(t, res, "windows").([]any)[0].(map[string]any); w["window"] != "0xe1" || w["launched"] != false {
+		t.Errorf("windows %v", w)
+	}
+}
+
 // A launched tiled window takes space from the windows on its workspace, whose earlier shots are then stale.
 func TestLaunchNamesResizedWindows(t *testing.T) {
 	e := newTestEnv(t)
@@ -1550,13 +1577,10 @@ func TestLaunchNamesResizedWindows(t *testing.T) {
 	e.window("0xb2", "2b", 640, 480, func(w *fakeWindow) { w.Workspace = tests })
 	other := e.window("0xc3", "3c", 640, 480)
 	e.fake.with(func() {
-		e.fake.onDispatch = func(expression string) string {
-			token := strings.TrimPrefix(strings.Fields(decodeLua(t, execPattern.FindStringSubmatch(expression)[1]))[0], "HYPRMASQ_LAUNCH=")
-			e.setEnviron(5000, "HYPRMASQ_LAUNCH="+token+"\x00")
+		e.fake.onLaunch = func(workspace, token, line string) {
 			e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xe1", StableID: "e1", Class: "foot", PID: 5000, Workspace: tests}, Width: 320, Height: 480})
 			// Only the size counts: 0xb2 keeps its own, and 0xc3 on another workspace is resized by something else.
 			e.fake.with(func() { left.Width, other.Width = 320, 320 })
-			return "ok"
 		}
 	})
 	res := e.launch(`{"command":["foot"],"workspace":"tests"}`)
@@ -2599,11 +2623,8 @@ func TestLaunchedWindowThatDoesNotSettle(t *testing.T) {
 	} {
 		e := newTestEnv(t)
 		e.fake.with(func() {
-			e.fake.onDispatch = func(expression string) string {
-				token := strings.TrimPrefix(strings.Fields(decodeLua(t, execPattern.FindStringSubmatch(expression)[1]))[0], "HYPRMASQ_LAUNCH=")
-				e.setEnviron(5000, "HYPRMASQ_LAUNCH="+token+"\x00")
+			e.fake.onLaunch = func(workspace, token, line string) {
 				e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xe1", StableID: "e1", Class: "foot", PID: 5000}, Width: 320, Height: 200, Resizing: c.resizing})
-				return "ok"
 			}
 			e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
 				return jsonReply(map[string]any{"ok": true, "ended": "timeout", "commits": 0, "redrawObserved": c.redrawn, "commitsSince": 0, "quietMs": 0, "elapsedMs": 5000, "resizing": c.resizing})
@@ -2622,11 +2643,8 @@ func TestLaunchedWindowThatDoesNotSettle(t *testing.T) {
 func TestLaunchCancelledWhileSettling(t *testing.T) {
 	e := newTestEnv(t)
 	e.fake.with(func() {
-		e.fake.onDispatch = func(expression string) string {
-			token := strings.TrimPrefix(strings.Fields(decodeLua(t, execPattern.FindStringSubmatch(expression)[1]))[0], "HYPRMASQ_LAUNCH=")
-			e.setEnviron(5000, "HYPRMASQ_LAUNCH="+token+"\x00")
+		e.fake.onLaunch = func(workspace, token, line string) {
 			e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xe1", StableID: "e1", Class: "foot", PID: 5000}, Width: 320, Height: 200})
-			return "ok"
 		}
 		e.fake.onWait = blockingWait(make(chan struct{}))
 	})
@@ -2701,13 +2719,13 @@ func TestRemoveStaleShots(t *testing.T) {
 
 func TestLaunchRejectsOverlongCommands(t *testing.T) {
 	e := newTestEnv(t)
-	args, _ := json.Marshal(map[string]any{"command": []string{"sh", "-c", strings.Repeat("x", hypr.MaxRequest/4)}})
+	args, _ := json.Marshal(map[string]any{"command": []string{"sh", "-c", strings.Repeat("x", hypr.MaxRequest)}})
 	res := e.server.launchTool(context.Background(), &call{args: args})
 	if code := errorCode(t, res); code != "invalid_arguments" || !strings.Contains(text(res), "too long") {
 		t.Errorf("code %q: %s", code, text(res))
 	}
-	if got := e.fake.requestsMatching("/dispatch"); got != nil {
-		t.Errorf("dispatched %d requests", len(got))
+	if got := e.fake.requestsMatching("j/hyprmasq launch"); got != nil {
+		t.Errorf("sent %d launch requests", len(got))
 	}
 }
 

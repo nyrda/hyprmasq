@@ -33,13 +33,14 @@ func shellQuote(arg string) string {
 	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
 }
 
-// launchExpression is the dispatcher that starts command with the token, as hyprmasq-launch does.
-func launchExpression(command []string, token, workspace string) string {
-	line := launchVariable + "=" + token + " exec"
+// launchLine is the shell command line that the plugin runs, as hyprmasq-launch does: the command executed by the
+// shell, so the launched process is the one the plugin started.
+func launchLine(command []string) string {
+	line := "exec"
 	for _, arg := range command {
 		line += " " + shellQuote(arg)
 	}
-	return fmt.Sprintf(`hl.dsp.exec_cmd(%s, { workspace = "name:%s silent" })`, hypr.LuaString(line), workspace)
+	return line
 }
 
 type launchedOut struct {
@@ -76,9 +77,9 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 		return simpleError(err)
 	}
 	token := randomHex(8)
-	expression := launchExpression(args.Command, token, workspace)
-	if len("/dispatch "+expression) > hypr.MaxRequest {
-		return simpleError(invalidf("command is too long: %d bytes as a dispatcher, at most %d", len(expression), hypr.MaxRequest))
+	line := launchLine(args.Command)
+	if request := "j/hyprmasq " + hypr.LaunchRequest(workspace, token, line); len(request) > hypr.MaxRequest {
+		return simpleError(invalidf("command is too long: %d bytes as a request to the plugin, at most %d", len(request), hypr.MaxRequest))
 	}
 	timeout := time.Duration(timeoutS) * time.Second
 	p := c.startProgress(ctx, timeout)
@@ -97,7 +98,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	s.mu.Lock()
 	s.tokens[token] = true
 	s.mu.Unlock()
-	if err := s.hypr.Dispatch(ctx, expression); err != nil {
+	if _, err := s.hypr.Launch(ctx, workspace, token, line); err != nil {
 		return simpleError(err)
 	}
 
@@ -142,7 +143,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 		after = latest
 	}
 	others := []newWindowOut{}
-	for _, w := range s.newWindows(before, after, window.PID) {
+	for _, w := range s.newWindows(capCtx, before, after, window.PID) {
 		if w.Window != window.Address {
 			others = append(others, w)
 		}
@@ -217,13 +218,27 @@ func (s *Server) findLaunched(ctx context.Context, before []hypr.Window, token s
 	ctx, cancel := context.WithDeadline(ctx, until)
 	defer cancel()
 	for {
-		clients, err := s.listWindows(ctx)
+		launched, err := s.hypr.Launched(ctx)
 		if err != nil {
 			return hypr.Window{}, nil, err
 		}
-		for _, w := range clients {
-			if !known[windowKey(w)] && s.launchToken(w.PID) == token {
-				return w, clients, nil
+		// The address and the stable id, since the window may close between the two requests and leave its address to
+		// another window.
+		ours := map[string]bool{}
+		for _, w := range launched {
+			if w.Token == token {
+				ours[windowKey(hypr.Window{Address: w.Address, StableID: w.StableID})] = true
+			}
+		}
+		if len(ours) > 0 {
+			clients, err := s.listWindows(ctx)
+			if err != nil {
+				return hypr.Window{}, nil, err
+			}
+			for _, w := range clients {
+				if ours[windowKey(w)] && !known[windowKey(w)] {
+					return w, clients, nil
+				}
 			}
 		}
 		select {
@@ -311,7 +326,7 @@ func (s *Server) closeTool(ctx context.Context, c *call) *mcp.CallToolResult {
 		}
 	}
 	elapsed := time.Since(start).Milliseconds()
-	out := &closeOut{Closed: closed, ElapsedMs: elapsed, NewWindows: s.newWindows(before, after, target.PID)}
+	out := &closeOut{Closed: closed, ElapsedMs: elapsed, NewWindows: s.newWindows(ctx, before, after, target.PID)}
 	out.Summary = fmt.Sprintf("closed %s after %d ms", window, elapsed)
 	if closed {
 		s.shots.dropWindow(window)

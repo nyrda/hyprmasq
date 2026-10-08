@@ -3,6 +3,7 @@
 #include "Deferred.hpp"
 #include "Eis.hpp"
 #include "Hooks.hpp"
+#include "Launch.hpp"
 #include "Wait.hpp"
 #include "X11.hpp"
 
@@ -21,7 +22,9 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         hyprmasq::x11::init(handle);
         hyprmasq::deferred::init(handle);
         hyprmasq::cursor::init(handle);
+        hyprmasq::launch::init();
     } catch (...) {
+        hyprmasq::launch::shutdown();
         hyprmasq::wait::shutdown();
         hyprmasq::shutdownEis();
         hyprmasq::cursor::shutdown();
@@ -37,6 +40,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
+    hyprmasq::launch::shutdown();
     // Pending waits hold threads that deferred::shutdown() joins.
     hyprmasq::wait::shutdown();
     hyprmasq::deferred::shutdown();

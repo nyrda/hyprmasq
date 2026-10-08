@@ -506,7 +506,7 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		}
 	}
 	if after, err := s.listWindows(capCtx); err == nil {
-		out.NewWindows = s.newWindows(before, after, windowPID(before, r.window))
+		out.NewWindows = s.newWindows(capCtx, before, after, windowPID(before, r.window))
 	}
 
 	out.Summary = summaryLine(out, r.batch)

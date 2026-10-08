@@ -4,6 +4,7 @@ package hypr
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +16,7 @@ import (
 )
 
 // Interface is the plugin interface version this package is written against.
-const Interface = 2
+const Interface = 3
 
 // Client sends one request per connection, as hyprctl does. Hyprland keeps the connection open until a deferred
 // plugin reply is ready, so a request can take as long as its context allows.
@@ -170,10 +171,45 @@ type State struct {
 	Capabilities Capabilities `json:"capabilities"`
 }
 
+// LaunchRequest is the plugin request that starts the shell command line on the workspace under the token. The
+// workspace and the line are written in hex, since hyprctl and Hyprland look for words such as --batch, /instances and
+// rollinglog anywhere in a request.
+func LaunchRequest(workspace, token, line string) string {
+	return fmt.Sprintf("launch %s %s %s", hex.EncodeToString([]byte(workspace)), token, hex.EncodeToString([]byte(line)))
+}
+
+// Launch has the plugin start the shell command line through Hyprland on the workspace, under the token that
+// Launched names its windows by, and returns the process's pid.
+func (c *Client) Launch(ctx context.Context, workspace, token, line string) (int, error) {
+	var r struct {
+		PID int `json:"pid"`
+	}
+	err := c.Plugin(ctx, LaunchRequest(workspace, token, line), &r)
+	return r.PID, err
+}
+
 func (c *Client) State(ctx context.Context, addr string) (State, error) {
 	var s State
 	err := c.Plugin(ctx, "state "+addr, &s)
 	return s, err
+}
+
+// LaunchedWindow is a mapped window of a process that a launch started, or of one of its children.
+type LaunchedWindow struct {
+	Address string `json:"address"`
+	// Tells the window from a later one that Hyprland gives the address to.
+	StableID string `json:"stableId"`
+	Token    string `json:"token"`
+}
+
+// Launched lists the mapped windows of launches, which the plugin found by the launched process among the parents of
+// their process.
+func (c *Client) Launched(ctx context.Context) ([]LaunchedWindow, error) {
+	var r struct {
+		Windows []LaunchedWindow `json:"windows"`
+	}
+	err := c.Plugin(ctx, "launched", &r)
+	return r.Windows, err
 }
 
 // EisOpen opens the window's input socket, or returns the one that is open.
