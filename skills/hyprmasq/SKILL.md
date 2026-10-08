@@ -32,9 +32,9 @@ descriptions and results explain the rest. What `act` returns:
 - `N tiny changes left out`: a blinking caret or a few pixels changed.
 - A full shot, which says why it came instead: without an earlier shot, after
   a resize or a change of popups past the window's edge, for a change of more
-  than 35% of the window or in more than 5 regions, and after 10 changes shots
-  in a row, each compared with the one before. Read coordinates from it from
-  then on.
+  than 35% of the window or too scattered to join into 5 regions, and after 10
+  changes shots in a row, each compared with the one before. Read coordinates
+  from it from then on.
 - When you no longer have the earlier shot, for example after your context was
   compacted, ask for a full shot with `capture: "window"`.
 

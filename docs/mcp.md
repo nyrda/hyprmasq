@@ -279,7 +279,11 @@ tall, such as a blinking caret, or at most 5 in both directions, such as a
 speck, is tiny: it is left out, and counted unless a zoom shows all of it.
 Every other change gets a margin of 24 logical pixels for context; changes
 whose margins overlap or touch share a region, and regions are cut to the
-whole logical pixels that cover the box of the shot.
+whole logical pixels that cover the box of the shot. More than 5 regions are
+joined until at most 5 are left, each time the two whose joined box adds the
+least area, along with the regions that box touches, as a form that moved and
+the text typed into it become one zoom instead of a full shot. A joined zoom
+shows the unchanged pixels between its changes too.
 
 **Result.** A changes shot keeps the base's coordinates: it has the base's
 width, height, frame and scale, so the agent goes on with coordinates read
@@ -332,7 +336,7 @@ and it is the next base:
 | `the monitor's scale changed since sN` | The detail images have different scales, as after a move between monitors at or below scale 1. Above scale 1 detail images have logical pixels, which stay comparable, and coordinates are in logical pixels anyway. |
 | `popups outside the window changed since sN` | The box of the window and its popups changed, as when a menu that reaches past the window's edge opens or closes. The base's coordinates would not cover it. |
 | `N% changed since sN` | More than 35% of the pixels changed, or the regions cover more than 35% of the window, as after scrolling or navigating. |
-| `N changed regions since sN` | More than 5 regions. |
+| `N changed regions since sN` | More than 5 regions, which joined into 5 would cover more than 35% of the window, or more than 128, too many to join. |
 | `the zooms into the changes since sN would be larger` | The zooms, at the monitor's scale, have more pixels than the full shot, as for a large window whose overview is shrunk to half. |
 | `too little time left to compare with sN` | The call's deadline would not leave the full shot the 500 ms it may need after the comparison. The comparison takes about 60 ns a pixel of the detail images, and stops once that time is reached. |
 | `the window changed while the changes since sN were captured` | A captured zoom failed, or shows another frame than the compared one, as when the window drew, was resized or closed a popup past its edge after the comparison. The zooms made before go with the changes shot. |
@@ -1375,7 +1379,8 @@ statuses, argument errors of every tool through an SDK client, `null` among
 them, the hints, the length of every tool description, structured content by
 client and `--structured-content`, `windows` with `match`, the sleep in
 front of keys that follow a click or drag too soon, and changes shots: one
-region and several, merged regions, no change and the hint after input that
+region and several, merged regions, regions joined until 5 are left and
+regions too scattered or too many to join, no change and the hint after input that
 changed nothing, tiny changes left out and counted, each reason for a full
 shot, detail images of shrunk shots, the base by shot, zoom, session and
 window, coordinates of changes shots and their zooms, error paths, the files

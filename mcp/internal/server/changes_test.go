@@ -156,12 +156,37 @@ func TestChangesShotOfSeveralRegions(t *testing.T) {
 	}
 }
 
+// More than 5 regions are joined, the two that add the least area first, until at most 5 are left.
+func TestChangesJoinNearbyRegions(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 640, 400)
+	e.screenshot(`{"window":"0xa1"}`)
+	var blocks []hypr.Rect
+	for i := range 6 {
+		blocks = append(blocks, hypr.Rect{X: float64(20 + 100*i), Y: float64(20 + 50*(i%2)), Width: 10, Height: 10})
+	}
+	e.paint("0xa1", blocks...)
+	res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
+	if res.IsError || images(res) != 4 {
+		t.Fatalf("%d images: %s", images(res), text(res))
+	}
+	// The first and third, in a row and cut by the window's edge, add the least. Their box reaches into the second's
+	// region, which joins them.
+	if got, want := summaryOf(t, res), "shot s2 = s1 + 4 changes · lease 60 s\nzoom s3 510×210 of s2 at 0,0 510×210\n"; !strings.Contains(got, want) {
+		t.Errorf("summary %q, want %q", got, want)
+	}
+}
+
 // A full shot comes instead of the changes when there is nothing to compare with, when the window's geometry changed,
 // when the changes are large or many, after a run of changes shots, and when the zooms would take more pixels than it.
 func TestChangesFallBackToAFullShot(t *testing.T) {
+	// Six large blocks in the corners and the middle of the edges cover 33% of the window with their margins, and any
+	// two joined would cover more than 35%.
 	spread := []hypr.Rect{}
-	for i := range 6 {
-		spread = append(spread, hypr.Rect{X: float64(20 + 100*i), Y: float64(20 + 50*(i%2)), Width: 10, Height: 10})
+	for _, x := range []float64{0, 275, 550} {
+		for _, y := range []float64{0, 310} {
+			spread = append(spread, hypr.Rect{X: x, Y: y, Width: 90, Height: 90})
+		}
 	}
 	cases := []struct {
 		name   string
@@ -472,6 +497,61 @@ func TestPlanRegions(t *testing.T) {
 	regions, leftOut := planRegions(res, g)
 	if want := []hypr.IntRect{{X: 76, Y: 76, Width: 68, Height: 58}}; !reflect.DeepEqual(regions, want) || leftOut != 1 {
 		t.Errorf("regions %+v, %d left out", regions, leftOut)
+	}
+}
+
+func TestPlanRegionsJoinsNearbyRegions(t *testing.T) {
+	g := detailGeometry{frame: hypr.Rect{Width: 1000, Height: 1000}, scale: 1}
+	box := func(x, y int) image.Rectangle { return image.Rect(x, y, x+10, y+10) }
+	// A form that moved, eight changes 60 pixels apart at the bottom, and a tab's icon at the top are joined into five
+	// regions that show all of them, the top one alone.
+	res := delta.Result{Changes: []image.Rectangle{box(900, 20)}}
+	for i := range 8 {
+		res.Changes = append(res.Changes, box(100+60*i, 900))
+	}
+	regions, _ := planRegions(res, g)
+	if len(regions) != maxRegions || regions[0] != (hypr.IntRect{X: 876, Y: 0, Width: 58, Height: 54}) {
+		t.Fatalf("regions %+v", regions)
+	}
+	for _, c := range res.Changes {
+		shown := false
+		for _, r := range regions {
+			shown = shown || c.In(rectOf(r))
+		}
+		if !shown {
+			t.Errorf("%v is in no region of %+v", c, regions)
+		}
+	}
+	// Regions that joined would cover more than 35% of the window stay apart, for a full shot.
+	res = delta.Result{}
+	for _, x := range []int{0, 395, 790} {
+		for _, y := range []int{0, 790} {
+			res.Changes = append(res.Changes, image.Rect(x, y, x+210, y+210))
+		}
+	}
+	if regions, _ := planRegions(res, g); len(regions) != 6 {
+		t.Errorf("scattered: regions %+v", regions)
+	}
+	// So do more than maxJoined regions.
+	res = delta.Result{}
+	for i := range maxJoined + 1 {
+		res.Changes = append(res.Changes, box(60*(i%16), 60*(i/16)))
+	}
+	if regions, _ := planRegions(delta.Result{Changes: res.Changes}, detailGeometry{frame: hypr.Rect{Width: 4000, Height: 4000}, scale: 1}); len(regions) != maxJoined+1 {
+		t.Errorf("many: %d regions", len(regions))
+	}
+}
+
+// joinNearest joins the two regions that add the least area, and then those that the joined one touches.
+func TestJoinNearest(t *testing.T) {
+	rects := []image.Rectangle{image.Rect(0, 0, 10, 10), image.Rect(100, 0, 110, 10), image.Rect(0, 30, 10, 40), image.Rect(8, 18, 18, 22)}
+	// Joining the two on the left edge adds 200 pixels, less than either with the small one between them, which the
+	// box they make overlaps.
+	got := joinNearest(rects, 3)
+	want := []image.Rectangle{image.Rect(0, 0, 18, 40), image.Rect(100, 0, 110, 10)}
+	sort.Slice(got, func(i, j int) bool { return got[i].Min.X < got[j].Min.X })
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%v, want %v", got, want)
 	}
 }
 

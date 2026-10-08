@@ -3310,6 +3310,31 @@ print(longest)
         draw("\033[48;2;44;44;44m", *(f"\033[{row};1H{' ' * 40}" for row in range(20, 25)), "\033[0m")
         faint = mcp.call("act", {"window": canvas, "shot": tiny_shot["id"]})
         assert not faint.is_error and not faint.images and faint.data["shot"]["changes"] == {"base": tiny_shot["id"], "regions": []}, faint
+
+        # Seven blocks, six of them in a row about 110 pixels apart, whose margins do not touch, are more than 5
+        # regions: the neighbours that add the least area are joined until 5 are left, and every block is in a zoom,
+        # the one far apart alone. The cell size comes from the block drawn at row 5 and column 10.
+        cell_width, cell_height = (block[2] - block[0]) // 4, block[3] - block[1]
+        pad_x, pad_y = block[0] - 9 * cell_width, block[1] - 4 * cell_height
+        columns, rows = (640 - pad_x) // cell_width, (480 - pad_y) // cell_height
+
+        def cell_box(row, column, width=4):
+            """The box of white cells from the row and column on."""
+            x, y = pad_x + (column - 1) * cell_width, pad_y + (row - 1) * cell_height
+            return [x, y, x + width * cell_width, y + cell_height]
+
+        step = -(-110 // cell_width)
+        spots = [(15, 3 + step * i) for i in range(6)] + [(2, 3 + step * 5)]
+        assert cell_box(*spots[-1])[2] <= 640, (cell_width, step)
+        draw(*(cells(row, column) for row, column in spots))
+        joined = mcp.call("act", {"window": canvas, "shot": faint.data["shot"]["id"]})
+        regions = joined.data["shot"]["changes"]["regions"]
+        assert not joined.is_error and len(regions) == 5 and len(joined.images) == 5, joined
+        keep(joined, "changes-joined")
+        inside = [[i for i, z in enumerate(regions) if z["x"] <= box[0] and z["y"] <= box[1] and box[2] <= z["x"] + z["width"] and box[3] <= z["y"] + z["height"]]
+                  for box in (cell_box(row, column) for row, column in spots)]
+        assert all(len(found) == 1 for found in inside), (inside, regions)
+        assert [found[0] for found in inside].count(inside[-1][0]) == 1, (inside, regions)
         assert snapshot() == before_focus
 
     with subtest("hyprmasq-mcp takes coordinates from a changes shot and from its zooms"):
@@ -3371,8 +3396,11 @@ print(longest)
         # Clearing the canvas changes as much. The call waits until foot has drawn it, so its shot is the next base.
         draw("\033[2J")
         last = full_shot(mcp.call("act", {"window": canvas, "shot": last}), rf"\d+% changed since {last}")
-        # More than 5 regions changed.
-        draw(*(cells(row, column) for row in (3, 18) for column in (3, 30, 55)))
+        # More than 5 regions changed, which joined would cover more than 35% of the window: blocks about 72 pixels
+        # wide and 125 tall in the corners and the middle of the top and bottom edges.
+        wide, tall = round(72 / cell_width), round(125 / cell_height)
+        draw(*(cells(row, column, wide) for column in (1, (columns - wide) // 2 + 1, columns - wide + 1)
+               for row in [*range(1, tall + 1), *range(rows - tall + 1, rows + 1)]))
         last = full_shot(mcp.call("act", {"window": canvas, "shot": last}), f"6 changed regions since {last}")
         # The window was resized.
         float_window(canvas, 0, 0, 600, 440)

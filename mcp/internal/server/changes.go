@@ -33,9 +33,12 @@ const (
 	changeSpeck = 5
 	// The margin around each change in its zoom, for context. Changes whose zooms would overlap share one.
 	regionMargin = 24
-	// More regions than this, or regions that cover more of the window than maxChangedArea, come as a full shot.
+	// Regions that cover more of the window than maxChangedArea come as a full shot. More regions than maxRegions are
+	// joined, the two that add the least area first, until maxRegions are left; the changes come as a full shot when
+	// the joined regions would cover more than maxChangedArea, or when more than maxJoined regions are left to join.
 	maxRegions     = 5
 	maxChangedArea = 0.35
+	maxJoined      = 128
 	// After this many changes shots in a row, the next shot is a full one.
 	maxDeltas = 10
 )
@@ -87,8 +90,9 @@ func intRectOf(r image.Rectangle) hypr.IntRect {
 }
 
 // planRegions turns the changes into the regions to zoom into, in whole logical pixels: each change with a margin,
-// cut to the frame, and joined with the regions it overlaps or touches. It also counts the tiny changes that no region
-// shows whole.
+// cut to the frame, and joined with the regions it overlaps or touches. More than maxRegions are joined further, as
+// joinNearest does, when that leaves them within maxChangedArea; otherwise they stay, for a full shot. It also counts
+// the tiny changes that no region shows whole.
 func planRegions(res delta.Result, g detailGeometry) (regions []hypr.IntRect, leftOut int) {
 	bounds := rectOf(g.bounds())
 	var rects []image.Rectangle
@@ -99,6 +103,12 @@ func planRegions(res delta.Result, g detailGeometry) (regions []hypr.IntRect, le
 		}
 	}
 	rects = joinTouching(rects)
+	if len(rects) > maxRegions && len(rects) <= maxJoined {
+		joined := joinNearest(append([]image.Rectangle(nil), rects...), maxRegions)
+		if area(joined) <= maxChangedArea*g.frame.Width*g.frame.Height {
+			rects = joined
+		}
+	}
 	// Top to bottom, then left to right, as one reads them.
 	for i := 1; i < len(rects); i++ {
 		for j := i; j > 0 && (rects[j].Min.Y < rects[j-1].Min.Y || rects[j].Min.Y == rects[j-1].Min.Y && rects[j].Min.X < rects[j-1].Min.X); j-- {
@@ -153,6 +163,34 @@ func joinTouching(rects []image.Rectangle) []image.Rectangle {
 		rects = kept
 	}
 	return rects
+}
+
+// joinNearest joins regions that do not touch until at most n are left, each time the two whose joined box adds the
+// least area to theirs, as changes in one part of a page, and joins the regions that the box then touches.
+func joinNearest(rects []image.Rectangle, n int) []image.Rectangle {
+	for len(rects) > n {
+		bi, bj, best := 0, 1, -1
+		for i := range rects {
+			for j := i + 1; j < len(rects); j++ {
+				u := rects[i].Union(rects[j])
+				if added := u.Dx()*u.Dy() - rects[i].Dx()*rects[i].Dy() - rects[j].Dx()*rects[j].Dy(); best < 0 || added < best {
+					bi, bj, best = i, j, added
+				}
+			}
+		}
+		rects[bi] = rects[bi].Union(rects[bj])
+		rects = joinTouching(append(rects[:bj], rects[bj+1:]...))
+	}
+	return rects
+}
+
+// area is the number of logical pixels that the regions, which do not overlap, cover.
+func area(rects []image.Rectangle) float64 {
+	sum := 0
+	for _, r := range rects {
+		sum += r.Dx() * r.Dy()
+	}
+	return float64(sum)
 }
 
 // regionsArea is the share of the frame that the regions cover.
