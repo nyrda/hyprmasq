@@ -187,7 +187,10 @@ func (c *Client) EisOpen(ctx context.Context, addr string) (string, error) {
 
 // IntRect is a region in whole window-local logical pixels.
 type IntRect struct {
-	X, Y, Width, Height int
+	X      int `json:"x"`
+	Y      int `json:"y"`
+	Width  int `json:"width"`
+	Height int `json:"height"`
 }
 
 type Screenshot struct {
@@ -238,6 +241,9 @@ type WaitReply struct {
 	SocketID *string `json:"socketId"`
 	// The window had not caught up with its size when the wait ended.
 	Resizing bool `json:"resizing"`
+	// The boxes of animations drawn during the wait, which the quiet phase did not wait for, in window-local logical
+	// pixels. A plugin that tells no animation apart sends none.
+	Animated []IntRect `json:"animated"`
 }
 
 func (c *Client) Wait(ctx context.Context, addr string, a WaitArgs) (WaitReply, error) {

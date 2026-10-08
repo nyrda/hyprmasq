@@ -134,6 +134,49 @@ func planRegions(res delta.Result, g detailGeometry) (regions []hypr.IntRect, le
 	return regions, leftOut
 }
 
+// animatedPixels is the number of pixels of a detail image that the animations of the wait cover.
+func animatedPixels(out *actOut, d *detail) int {
+	if out.Wait == nil {
+		return 0
+	}
+	n := 0
+	for _, a := range out.Wait.animated {
+		n += d.pixelsOf(a).Dx() * d.pixelsOf(a).Dy()
+	}
+	return n
+}
+
+// withoutAnimations leaves out the changes, tiny ones too, that lie within the boxes of animations, such as a progress
+// bar or a video that the wait did not wait for, and counts them. The boxes reach a pixel further, which the 3×3
+// average spreads a change to.
+func withoutAnimations(res delta.Result, g detailGeometry, animated []hypr.IntRect) (delta.Result, int) {
+	if len(animated) == 0 {
+		return res, 0
+	}
+	n := 0
+	keep := func(boxes []image.Rectangle) []image.Rectangle {
+		kept := boxes[:0:0]
+		for _, box := range boxes {
+			r := rectOf(g.logicalBox(box))
+			inside := false
+			for _, a := range animated {
+				if r.In(rectOf(a).Inset(-1)) {
+					inside = true
+					break
+				}
+			}
+			if inside {
+				n++
+			} else {
+				kept = append(kept, box)
+			}
+		}
+		return kept
+	}
+	res.Changes, res.Tiny = keep(res.Changes), keep(res.Tiny)
+	return res, n
+}
+
 // joinTouching joins rectangles that overlap or touch until none do. Sorted by their left edges, a rectangle can only
 // touch those that start at or before its right edge, so a pass compares neighbours along x; a rectangle that grew may
 // touch one before it, which the next pass joins.
@@ -191,6 +234,23 @@ func area(rects []image.Rectangle) float64 {
 		sum += r.Dx() * r.Dy()
 	}
 	return float64(sum)
+}
+
+// animatedShare is the share of the frame where the regions and the animations of the wait overlap, which does not
+// count towards maxChangedArea: a region can hold an animation and a change next to it. Animations that overlap each
+// other count once for each.
+func animatedShare(regions []hypr.IntRect, g detailGeometry, out *actOut) float64 {
+	if out.Wait == nil {
+		return 0
+	}
+	area := 0
+	for _, r := range regions {
+		for _, a := range out.Wait.animated {
+			overlap := rectOf(r).Intersect(rectOf(a))
+			area += overlap.Dx() * overlap.Dy()
+		}
+	}
+	return float64(area) / (g.frame.Width * g.frame.Height)
 }
 
 // regionsArea is the share of the frame that the regions cover.
@@ -329,7 +389,8 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 	if before.Bounds().Size() != now.Bounds().Size() {
 		return full(fmt.Sprintf("%s cannot be compared", base.ID))
 	}
-	o := deltaOptions(after.Scale, int(maxChangedArea*float64(pixels)))
+	// Animations, which are left out below, do not count towards the limit of changed pixels.
+	o := deltaOptions(after.Scale, int(maxChangedArea*float64(pixels))+animatedPixels(out, after))
 	if hasDeadline {
 		o.Stop = func() bool { return time.Now().After(stopBy) }
 	}
@@ -341,8 +402,12 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 		return full(fmt.Sprintf("%d%% changed since %s", int(math.Round(100*float64(res.Changed)/float64(pixels))), base.ID))
 	}
 	g := after.geometry()
+	var animated int
+	if out.Wait != nil {
+		res, animated = withoutAnimations(res, g, out.Wait.animated)
+	}
 	regions, leftOut := planRegions(res, g)
-	if area := regionsArea(regions, g); area > maxChangedArea {
+	if area := regionsArea(regions, g) - animatedShare(regions, g, out); area > maxChangedArea {
 		return full(fmt.Sprintf("%d%% changed since %s", int(math.Round(100*area)), base.ID))
 	}
 	if len(regions) > maxRegions {
@@ -362,7 +427,7 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 	keep = true
 	s.shots.add(sh)
 	info := shotInfo(sh)
-	info.Changes = &changesOut{Base: base.ID, Regions: []regionOut{}, LeftOut: leftOut}
+	info.Changes = &changesOut{Base: base.ID, Regions: []regionOut{}, LeftOut: leftOut, Animated: animated}
 	// The zooms are cut from the compared image when it has the monitor's pixels, so that they show what was compared.
 	// Otherwise they are captured, and a zoom of another frame, as when the window drew or a popup closed in between,
 	// gives up the changes.

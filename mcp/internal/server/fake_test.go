@@ -193,6 +193,8 @@ type fakeWindow struct {
 	PopupBox *hypr.Rect
 	// The window has not caught up with its size. A wait without onWait ends once it has.
 	Resizing bool
+	// The animations that a wait without onWait reports, in window-local logical pixels.
+	Animated []hypr.IntRect
 	// The gray level at a window-local logical point, which screenshots sample at their scale, or nil for black.
 	Paint func(x, y float64) uint8
 }
@@ -506,7 +508,9 @@ func (f *fakeHyprland) plugin(words []string) string {
 		w.Resizing = false
 		f.mu.Unlock()
 		quiet, _ := strconv.Atoi(args["quiet"])
-		return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": commits + 3, "socketId": socketID, "redrawObserved": true, "commitsSince": 3, "quietMs": quiet, "elapsedMs": 412, "resizing": false})
+		animated := append([]hypr.IntRect{}, w.Animated...)
+		return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": commits + 3, "socketId": socketID, "redrawObserved": true, "commitsSince": 3, "quietMs": quiet, "elapsedMs": 412, "resizing": false,
+			"animated": animated})
 	}
 	f.mu.Unlock()
 	return pluginError("invalid_arguments", "unknown subcommand "+words[0])
@@ -774,12 +778,13 @@ func get(t *testing.T, res *mcp.CallToolResult, path string) any {
 	return v
 }
 
+// errorCode returns the code of a failure, which is a tool error unless its result has a shot.
 func errorCode(t *testing.T, res *mcp.CallToolResult) string {
 	t.Helper()
-	if !res.IsError {
-		return ""
-	}
 	code, _ := get(t, res, "error.code").(string)
+	if hasShot := get(t, res, "shot") != nil; code != "" && res.IsError == hasShot {
+		t.Errorf("isError %v for a failure with a shot %v: %s", res.IsError, hasShot, text(res))
+	}
 	return code
 }
 

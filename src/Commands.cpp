@@ -11,6 +11,7 @@
 #include <hyprland/src/output/Monitor.hpp>
 
 #include <charconv>
+#include <cmath>
 #include <format>
 #include <optional>
 #include <set>
@@ -273,10 +274,19 @@ namespace hyprmasq {
                 const auto result = future.get();
                 if (result.error)
                     return error(format, *result.error);
-                if (format == FORMAT_JSON)
-                    return std::format(R"({{"ok":true,"ended":"{}","commits":{},"socketId":{},"redrawObserved":{},"commitsSince":{},"quietMs":{},"elapsedMs":{},"resizing":{}}})",
-                                         result.ended, result.commits, jsonString(result.socketId), result.commitsSince > 0, result.commitsSince, result.quietMs, result.elapsedMs,
-                                         result.resizing);
+                if (format == FORMAT_JSON) {
+                    // The whole window-local logical pixels that cover each animation.
+                    std::string animated;
+                    for (const auto& box : result.animated) {
+                        const int x = sc<int>(std::floor(box.x)), y = sc<int>(std::floor(box.y));
+                        animated += std::format(R"({}{{"x":{},"y":{},"width":{},"height":{}}})", animated.empty() ? "" : ",", x, y, sc<int>(std::ceil(box.x + box.w)) - x,
+                                                  sc<int>(std::ceil(box.y + box.h)) - y);
+                    }
+                    return std::format(
+                        R"({{"ok":true,"ended":"{}","commits":{},"socketId":{},"redrawObserved":{},"commitsSince":{},"quietMs":{},"elapsedMs":{},"resizing":{},"animated":[{}]}})",
+                        result.ended, result.commits, jsonString(result.socketId), result.commitsSince > 0, result.commitsSince, result.quietMs, result.elapsedMs, result.resizing,
+                        animated);
+                }
                 return std::string{result.ended};
             });
         }

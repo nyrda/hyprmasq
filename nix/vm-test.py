@@ -2622,9 +2622,13 @@ sys.stdout.write(reply.decode())
         entry = next(w for w in listing.data["windows"] if w["window"] == address)
         return entry, next(line for line in listing.text.splitlines() if line.startswith(address + " "))
 
+    def failure(result, code):
+        """Checks that the call failed with code, as a tool error only when its result has no shot."""
+        assert result.data["error"]["code"] == code and result.is_error == ("shot" not in result.data), result
+
     def refused(result, code):
         """Checks that the call failed with code and sent nothing."""
-        assert result.is_error and result.data["error"]["code"] == code, result
+        failure(result, code)
         assert result.data["actions"]["done"] == 0 and result.data["actions"]["delivery"] == "none", result
         assert result.data["hint"].endswith("Nothing was sent."), result
 
@@ -2947,7 +2951,7 @@ print(longest)
         focus_workspace(57)
         wait_for("X11 window active", lambda: snapshot() == (57, x_active))
         paused = mcp.result(typing)
-        assert paused.is_error and paused.data["error"]["code"] == "input_paused", paused
+        failure(paused, "input_paused")
         actions = paused.data["actions"]
         keys = actions["progress"]["keys"]
         assert (actions["done"], actions["total"], actions["delivery"], actions["failed_index"]) == (0, 1, "partial", 0), paused
@@ -3034,6 +3038,27 @@ print(longest)
             r"Look at the shot; to wait longer, act with no actions and a larger deadline_ms \(at most 30000\)\.",
             timed.text,
         ), timed
+        assert snapshot() == before_focus
+
+    with subtest("hyprmasq-mcp does not wait for an animation, names it, and leaves its changes out"):
+        # A digit at the top left of a foot window counts ten times a second, a small box that keeps redrawing. The
+        # plugin takes it for an animation once it has redrawn for a second, so the wait settles long before the
+        # deadline. The digit's changes since the shot are left out of the zooms.
+        machine.succeed("printf '%s\\n' 'printf \"\\033[?25l\"; i=0' 'while :; do printf \"\\033[1;1H%d\" $((i % 10)); i=$((i + 1)); sleep 0.1; done' > /tmp/hm-tick.sh")
+        focus_workspace(55)
+        ticking = foot("hm-m-ticking", "sh /tmp/hm-tick.sh")
+        focus_workspace(4)
+        ticking_shot = mcp.call("screenshot", {"window": ticking}).data["shot"]["id"]
+        settled = mcp.call("act", {"window": ticking, "shot": ticking_shot, "wait": {"expect_change": False}})
+        wait = settled.data["wait"]
+        assert not settled.is_error and wait["ended"] == "quiet" and wait["elapsed_ms"] < 5000, settled
+        assert len(wait["animated"]) == 1, settled
+        box = wait["animated"][0]
+        assert box["x"] <= 2 and box["y"] <= 2 and box["height"] < 60, settled
+        assert re.search(r"· quiet \d+ ms except animation at \d+,\d+ \d+×\d+ · ", settled.text), settled
+        assert settled.data["shot"]["changes"]["regions"] == [], settled
+        keep(mcp.call("screenshot", {"window": ticking}), "ticking")
+        assert mcp.call("close", {"window": ticking}).data["closed"]
         assert snapshot() == before_focus
 
     with subtest("hyprmasq-mcp lets a click settle before the keys after it"):
@@ -3176,7 +3201,7 @@ print(longest)
         wait_for("sending", progressed(mcp, "hm-m-resized", "sending input"), timeout=10)
         float_window(probe, 100, 100, 320, 220)
         resized = mcp.result(resizing)
-        assert resized.is_error and resized.data["error"]["code"] == "stale_shot", resized
+        failure(resized, "stale_shot")
         assert resized.data["error"]["message"] == "the window was resized from 300×200 to 320×220 during the batch, so the batch stopped", resized
         # The first click was sent; the pause stopped, and the second click never went out.
         assert resized.data["actions"] == {"done": 1, "total": 3, "delivery": "partial", "failed_index": 1}, resized
@@ -3526,7 +3551,8 @@ print(longest)
         # act takes no coordinates from it and sends nothing; the shot it returns still shows the older frame.
         start = log_size("m-resize")
         refusal = mcp.call("act", {"window": catching, "shot": stale_shot["id"], "actions": [{"action": "click", "x": 500, "y": 100}]})
-        assert refusal.is_error and refusal.data["error"]["code"] == "stale_shot" and refusal.data["actions"]["delivery"] == "none", refusal
+        failure(refusal, "stale_shot")
+        assert refusal.data["actions"]["delivery"] == "none", refusal
         assert refusal.data["error"]["message"] == (
             f"shot {stale_shot['id']} shows an older frame, since the window had not yet redrawn at its new size 640×480 when it was taken"
         ), refusal
@@ -3613,7 +3639,8 @@ print(longest)
         time.sleep(0.5)
         closed = mcp.call("act", {"window": closing, "actions": [{"action": "key", "keys": ["esc"]}, {"action": "type", "text": "after"}]})
         machine.log(f"hyprmasq-mcp: input that closes its window: {closed}")
-        assert closed.is_error and closed.data["error"]["code"] == "window_gone" and closed.data["wait"]["ended"] == "window_closed", closed
+        failure(closed, "window_gone")
+        assert closed.data["wait"]["ended"] == "window_closed", closed
         actions = closed.data["actions"]
         assert actions["delivery"] in ("partial", "uncertain") and actions["done"] == actions["failed_index"] <= 1, closed
         assert re.match(rf"error window_gone: window {closing} closed while actions\[{actions['failed_index']}\] \((key|type)\) was sent\n", closed.text), closed
@@ -3655,7 +3682,7 @@ print(longest)
         assert not closed.is_error and closed.data["closed"] and closed.data["new_windows"] == [], closed
         assert re.fullmatch(rf"closed {shell} after \d+ ms", closed.text) and client("hm-m-shell") is None, closed
         gone = mcp.call("act", {"window": shell, "actions": [{"action": "key", "keys": ["a"]}]})
-        assert gone.is_error and gone.data["error"]["code"] == "window_gone", gone
+        failure(gone, "window_gone")
         shots = f"{instance_dir}/mcp/{mcp.command(op='pid')['pid']}"
         machine.succeed(f"test -d {shots}")
         assert mcp.stop() == 0

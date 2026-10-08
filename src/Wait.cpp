@@ -2,6 +2,7 @@
 #include "Eis.hpp"
 
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/desktop/view/Popup.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
@@ -24,6 +25,98 @@ namespace hyprmasq::wait {
 
         int elapsedMs(Time::steady_tp since, Time::steady_tp now) {
             return sc<int>(std::chrono::duration_cast<milliseconds>(now - since).count());
+        }
+
+        // A commit is part of an animation when, at least kAfterInput after the last input, it damages a box of at most
+        // kMaxShare of the window that at least kRepeats commits since the last input, this one included, have damaged
+        // within kHistory, the first of them kSpan or more ago. Typing, which damages the same field again and again,
+        // ends before kSpan has passed since its first key, the commits that answer input come within kAfterInput, and a
+        // box that animated before the input has to keep animating for kSpan after it.
+        constexpr auto   kHistory    = std::chrono::seconds(3);
+        constexpr auto   kSpan       = milliseconds(1000);
+        constexpr auto   kAfterInput = milliseconds(500);
+        constexpr int    kRepeats    = 3;
+        constexpr double kMaxShare   = 0.15;
+        // Two boxes are of the same thing when they overlap or touch, and the box around both is at most this much
+        // larger than the larger of them.
+        constexpr double kSameBox   = 1.5;
+        constexpr size_t kMaxDamage = 1024;
+
+        double           area(const CBox& box) {
+            return std::max(0.0, box.w) * std::max(0.0, box.h);
+        }
+
+        CBox unite(const CBox& a, const CBox& b) {
+            const double x = std::min(a.x, b.x), y = std::min(a.y, b.y);
+            return {x, y, std::max(a.x + a.w, b.x + b.w) - x, std::max(a.y + a.h, b.y + b.h) - y};
+        }
+
+        bool same(const CBox& a, const CBox& b) {
+            return a.copy().expand(1).overlaps(b) && area(unite(a, b)) <= kSameBox * std::max(area(a), area(b));
+        }
+
+        // The geometry offset of an xdg window, which the window-local coordinates of screenshots leave out.
+        Vector2D geometryOffset(const PHLWINDOW& window) {
+            return !window->m_isX11 && window->m_xdgSurface ? window->m_xdgSurface->m_current.geometry.pos() : Vector2D{};
+        }
+
+        // Surface pixels per logical pixel: an X11 window's surface is scaled up when Hyprland forces zero scaling for
+        // Xwayland, as input to it is (see Eis.cpp).
+        double surfaceScale(const PHLWINDOW& window) {
+            return window->m_isX11 && window->m_X11SurfaceScaledBy > 0 ? window->m_X11SurfaceScaledBy : 1.0;
+        }
+
+        // The window's own box in window-local logical pixels: its xdg geometry, or the size of its surface.
+        CBox contentBox(const PHLWINDOW& window) {
+            if (!window->m_isX11 && window->m_xdgSurface && window->m_xdgSurface->m_current.geometry.w > 0)
+                return {{0, 0}, window->m_xdgSurface->m_current.geometry.size()};
+            const auto surface = window->wlSurface() ? window->wlSurface()->resource() : nullptr;
+            return surface ? CBox{{0, 0}, surface->m_current.size / surfaceScale(window)} : CBox{};
+        }
+
+        // Where a surface of the window lies, in window-local logical pixels, as screenshots place it.
+        std::optional<Vector2D> surfaceOrigin(const PHLWINDOW& window, const CWLSurfaceResource* target) {
+            const auto              geometry = geometryOffset(window);
+            std::optional<Vector2D> found;
+            auto                    find = [&](const SP<CWLSurfaceResource>& root, const Vector2D& base) {
+                if (!root || found)
+                    return;
+                root->breadthfirst(
+                    [&](SP<CWLSurfaceResource> s, const Vector2D& offset, void*) {
+                        if (!found && s.get() == target)
+                            found = base + offset;
+                    },
+                    nullptr);
+            };
+            find(window->wlSurface() ? window->wlSurface()->resource() : nullptr, -geometry);
+            if (!found && window->m_popupHead)
+                window->m_popupHead->breadthfirst([&](SP<Desktop::View::CPopup> p, void*) { find(p->resource(), p->coordsRelativeToParent() - geometry); }, nullptr);
+            return found;
+        }
+
+        // Adds an animation's box to the list, joined with a box of the same thing, so that the boxes cover no part of the
+        // window that no animation drew, as long as there are at most kMaxAnimations.
+        constexpr size_t kMaxAnimations = 16;
+
+        void             merge(std::vector<CBox>& boxes, CBox box) {
+            for (bool joined = true; joined;) {
+                joined = false;
+                for (auto it = boxes.begin(); it != boxes.end(); ++it) {
+                    if (same(*it, box)) {
+                        box = unite(*it, box);
+                        boxes.erase(it);
+                        joined = true;
+                        break;
+                    }
+                }
+            }
+            if (boxes.size() < kMaxAnimations) {
+                boxes.push_back(box);
+                return;
+            }
+            // Beyond the limit, the box joins the one that grows the least, so that every animation stays covered.
+            auto best = std::ranges::min_element(boxes, {}, [&](const CBox& b) { return area(unite(b, box)) - area(b); });
+            *best     = unite(*best, box);
         }
 
         struct SWaiter {
@@ -86,6 +179,7 @@ namespace hyprmasq::wait {
             std::shared_ptr<CContentWatch> content;
             std::string                    socketId; // of the socket that content counts for
             SChangeOptions                 options;
+            std::vector<CBox>              animated; // drawn during the wait
             Time::steady_tp                start = Time::steadyNow(), lastInput = start;
             bool                           changing = false; // in the change phase
             wl_event_source*               timer    = nullptr;
@@ -109,9 +203,10 @@ namespace hyprmasq::wait {
                         .commits      = content->commits,
                         .commitsSince = content->commits > options.since ? content->commits - options.since : 0,
                         .socketId     = socketId,
-                        .quietMs      = elapsedMs(std::max({content->lastCommit, lastInput, start}), now),
+                        .quietMs      = elapsedMs(std::max({content->lastChange, lastInput, start}), now),
                         .elapsedMs    = elapsedMs(start, now),
                         .resizing     = w && w->m_isMapped && hyprmasq::resizing(w),
+                        .animated     = animated,
                         .error        = std::nullopt};
             }
         };
@@ -151,7 +246,7 @@ namespace hyprmasq::wait {
                 phaseEnd    = waiter->start + milliseconds(*options.expectMs);
                 phaseEnding = "no_redraw";
             } else {
-                phaseEnd    = std::max({waiter->content->lastCommit, waiter->lastInput, waiter->start}) + milliseconds(options.quietMs);
+                phaseEnd    = std::max({waiter->content->lastChange, waiter->lastInput, waiter->start}) + milliseconds(options.quietMs);
                 phaseEnding = "quiet";
                 behind      = hyprmasq::resizing(w);
             }
@@ -180,20 +275,82 @@ namespace hyprmasq::wait {
             wl_event_source_remove(m_rescan);
     }
 
-    void CContentWatch::count(uint64_t n) {
+    void CContentWatch::count(uint64_t n, std::optional<CBox> box) {
+        const auto now = Time::steadyNow();
         commits += n;
-        lastCommit = Time::steadyNow();
+        lastCommit            = now;
+        const bool isAnimated = box && animated(*box, now);
+        lastAnimated          = isAnimated ? box : std::nullopt;
+        if (!isAnimated)
+            lastChange = now;
+        if (box)
+            m_damage.push_back({.at = now, .box = *box});
+        while (!m_damage.empty() && (now - m_damage.front().at > kHistory || m_damage.size() > kMaxDamage))
+            m_damage.pop_front();
         committed.emit();
+    }
+
+    bool CContentWatch::animated(const CBox& box, Time::steady_tp now) const {
+        const auto window = m_window.lock();
+        if (!window || now - lastInput < kAfterInput || area(box) <= 0 || area(box) > kMaxShare * area(contentBox(window)))
+            return false;
+        int                            repeats = 1;
+        std::optional<Time::steady_tp> first;
+        for (const auto& d : m_damage) {
+            // Only commits since the last input are evidence, so that a box that animated before it cannot make the
+            // window's answer in that box look like animation.
+            if (d.at < lastInput || now - d.at > kHistory || !same(d.box, box))
+                continue;
+            ++repeats;
+            first = first ? std::min(*first, d.at) : d.at;
+        }
+        return repeats >= kRepeats && first && now - *first >= kSpan;
+    }
+
+    // The box that a commit damaged, in window-local logical pixels, or none when it is not known, as for a surface not
+    // in the window's tree. Damage in buffer pixels is scaled to the surface; a transformed or cropped buffer counts as
+    // damaged whole, and so does a new buffer without damage.
+    std::optional<CBox> CContentWatch::damageBox(const SP<CWLSurfaceResource>& surface, const SSurfaceState& state) const {
+        const auto window = m_window.lock();
+        if (!window || !surface)
+            return std::nullopt;
+        const auto origin = surfaceOrigin(window, surface.get());
+        if (!origin)
+            return std::nullopt;
+        const Vector2D size = state.size.x > 0 && state.size.y > 0 ? state.size : surface->m_current.size;
+        if (size.x <= 0 || size.y <= 0)
+            return std::nullopt;
+        std::optional<CBox> box;
+        const auto          add = [&](CRegion region) {
+            region.intersect(0, 0, size.x, size.y);
+            if (region.empty())
+                return;
+            const auto extents = region.getExtents();
+            box                = box ? unite(*box, extents) : extents;
+        };
+        if (state.transform != WL_OUTPUT_TRANSFORM_NORMAL || state.viewport.hasSource)
+            box = CBox{{0, 0}, size};
+        else {
+            add(state.damage);
+            if (state.bufferSize.x > 0 && state.bufferSize.y > 0) {
+                CRegion buffer = state.bufferDamage;
+                add(buffer.scale(Vector2D{size.x / state.bufferSize.x, size.y / state.bufferSize.y}));
+            }
+            if (!box)
+                box = CBox{{0, 0}, size};
+        }
+        // Subsurfaces of an X11 window lie at surface pixels too.
+        return box->translate(*origin).scale(1.0 / surfaceScale(window));
     }
 
     CContentWatch::SWatched CContentWatch::watch(const SP<CWLSurfaceResource>& s) {
         SWatched watched{.surface = s, .listeners = {}};
         auto&    listeners = watched.listeners;
-        listeners.push_back(s->m_events.stateCommit.listen([this](WP<SSurfaceState> state) {
+        listeners.push_back(s->m_events.stateCommit.listen([this, surface = WP<CWLSurfaceResource>(s)](WP<SSurfaceState> state) {
             // The state queue owns its states through unique pointers, which cannot be locked.
             const auto* st = state.get();
             if (st && (st->updated.bits.buffer || st->updated.bits.damage))
-                count();
+                count(1, damageBox(surface.lock(), *st));
         }));
         // A null buffer, which unmaps the surface, is applied at once without a queued state.
         listeners.push_back(s->m_events.precommit.listen([this, surface = WP<CWLSurfaceResource>(s)] {
@@ -303,6 +460,8 @@ namespace hyprmasq::wait {
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot start a timer"});
         // The change phase ends at the first commit after the baseline, unless expect ran out before it.
         waiter->commit  = socket->content->committed.listen([raw] {
+            if (raw->content->lastAnimated)
+                merge(raw->animated, *raw->content->lastAnimated);
             if (raw->changing && raw->content->commits > raw->options.since && Time::steadyNow() < raw->start + milliseconds(*raw->options.expectMs)) {
                 raw->changing = false;
                 raw->wake();

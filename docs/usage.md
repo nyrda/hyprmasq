@@ -44,7 +44,7 @@ With `hyprctl -j`, every command answers in JSON:
 | --- | --- |
 | `screenshot` | `{"ok":true,"path":"/tmp/w.png","width":1280,"height":960,"scale":2,"region":{"x":0,"y":0,"width":640,"height":480},"commits":123,"socketId":"9f3a61c2-3","resizing":false}` |
 | `wait` | `{"ok":true,"settled":true,"waited":230,"frames":0,"framesSinceInput":3}` |
-| `wait … since` | `{"ok":true,"ended":"quiet","commits":131,"socketId":"9f3a61c2-3","redrawObserved":true,"commitsSince":8,"quietMs":200,"elapsedMs":412,"resizing":false}` |
+| `wait … since` | `{"ok":true,"ended":"quiet","commits":131,"socketId":"9f3a61c2-3","redrawObserved":true,"commitsSince":8,"quietMs":200,"elapsedMs":412,"resizing":false,"animated":[]}` |
 | `cancel` | `{"ok":true,"cancelled":true}` |
 | `state` | See [Window state](#window-state). |
 | `lease` | `{"ok":true,"held":true,"remainingMs":60000,"owner":"mcp-4242-a1b2c3d4"}` |
@@ -254,9 +254,10 @@ includes a window that is hidden only after the wait started.
 | `socketId` | The socket whose counter the wait read. If it is not the one that COMMITS came from, `commitsSince` is not a change since COMMITS. |
 | `commitsSince` | Commits after COMMITS. |
 | `redrawObserved` | `commitsSince` is above 0. |
-| `quietMs` | How long the window had been quiet when the wait ended. |
+| `quietMs` | How long the window had been quiet when the wait ended, not counting the commits of animations. |
 | `elapsedMs` | How long the wait took. |
 | `resizing` | The window had not caught up with a resize when the wait ended, as after a `timeout` while it was resizing. |
+| `animated` | The boxes of the animations drawn during the wait, `{"x","y","width","height"}` in whole window-local logical pixels: small boxes that commits since the last input damaged again and again for a second or more, at least 500 ms after it. The quiet phase does not wait for them. |
 
 COMMITS above the counter is an error (`invalid_arguments`): it can only come
 from another socket of the window. So is an id that a pending wait already

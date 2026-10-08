@@ -469,6 +469,8 @@ namespace hyprmasq {
                     wl_client_flush(w->resource()->client());
                 holdUntil = until.value_or(Time::steadyNow() + std::chrono::milliseconds(50));
                 lastInput = Time::steadyNow();
+                if (content)
+                    content->lastInput = lastInput;
                 wl_event_source_timer_update(timer, 16);
             }
             // xwayland-satellite drops keys that share a batch of Wayland events with the keyboard leave that follows
@@ -738,8 +740,9 @@ namespace hyprmasq {
                 auto realKeyboard = g_pSeatManager->m_state.keyboardFocus.lock();
                 if (takesFocus && realKeyboard && realKeyboard->client() == s->client())
                     x11::release(w);
-                lastInput      = Time::steadyNow();
-                commitsAtInput = content->commits;
+                lastInput          = Time::steadyNow();
+                commitsAtInput     = content->commits;
+                content->lastInput = lastInput;
                 wl_event_source_timer_update(timer, 16);
             }
             int tick() {

@@ -479,6 +479,13 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 			out.CaptureError = &errorOut{Code: te.Code, Message: te.Message}
 		} else {
 			s.shots.returned(sh)
+			if out.Wait != nil {
+				for _, a := range out.Wait.animated {
+					if box, ok := sh.pixelBox(a); ok {
+						out.Wait.Animated = append(out.Wait.Animated, box)
+					}
+				}
+			}
 		}
 	}
 	switch {
@@ -529,9 +536,9 @@ func (s *Server) captureResult(ctx context.Context, r *actRequest, out *actOut, 
 	return sh, png, err
 }
 
-// withError turns a finished result into an error result, keeping its images.
+// withError turns a finished result into a failure, keeping its images, unless it reports a failure already.
 func withError(res *mcp.CallToolResult, te *toolError, out *actOut, batch []action) *mcp.CallToolResult {
-	if res.IsError {
+	if out.Error != nil {
 		return res
 	}
 	var images [][]byte

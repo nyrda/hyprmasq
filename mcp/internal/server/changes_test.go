@@ -156,6 +156,72 @@ func TestChangesShotOfSeveralRegions(t *testing.T) {
 	}
 }
 
+// Changes within an animation that the wait did not wait for are left out and counted, and the summary names the
+// animation's box in the shot's pixels.
+func TestChangesLeaveOutAnimations(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = []hypr.IntRect{{X: 90, Y: 40, Width: 40, Height: 30}} })
+	e.screenshot(`{"window":"0xa1"}`)
+	e.paint("0xa1", hypr.Rect{X: 100, Y: 50, Width: 20, Height: 10}, hypr.Rect{X: 300, Y: 200, Width: 10, Height: 10})
+	res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
+	if res.IsError || images(res) != 1 {
+		t.Fatalf("%d images: %s", images(res), text(res))
+	}
+	want := "redraw observed · quiet 200 ms except animation at 180,80 80×60 · 412 ms · shot s2 = s1 + 1 change · lease 60 s\nzoom s3 "
+	if got := summaryOf(t, res); !strings.Contains(got, want) || !strings.HasSuffix(got, "\n1 change in an animation left out") {
+		t.Errorf("summary %q, want %q and the animation's line", got, want)
+	}
+	if got := get(t, res, "wait.animated"); !reflect.DeepEqual(got, []any{map[string]any{"x": 180.0, "y": 80.0, "width": 80.0, "height": 60.0}}) {
+		t.Errorf("wait.animated %v", got)
+	}
+	if got := get(t, res, "shot.changes.animated"); got != 1.0 {
+		t.Errorf("shot.changes.animated %v", got)
+	}
+}
+
+// Animations together may cover more than 35% of the window without a full shot, and when only they changed, the
+// result says so instead of no change, and its hint says that the input's effect may lie inside them. A tiny change
+// inside an animation counts as one of its changes.
+func TestChangesOfAnimationsOnly(t *testing.T) {
+	e := newTestEnv(t)
+	animated := []hypr.IntRect{{X: 0, Y: 0, Width: 300, Height: 200}, {X: 320, Y: 0, Width: 300, Height: 200}, {X: 0, Y: 220, Width: 300, Height: 150}}
+	e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = animated })
+	e.screenshot(`{"window":"0xa1"}`)
+	e.paint("0xa1", hypr.Rect{X: 10, Y: 10, Width: 280, Height: 180}, hypr.Rect{X: 330, Y: 10, Width: 280, Height: 180}, hypr.Rect{X: 10, Y: 230, Width: 280, Height: 130},
+		hypr.Rect{X: 400, Y: 300, Width: 2, Height: 30})
+	e.fake.with(func() {
+		e.fake.find("0xa1").Animated = append(animated, hypr.IntRect{X: 390, Y: 290, Width: 30, Height: 50})
+	})
+	res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
+	if res.IsError || images(res) != 0 {
+		t.Fatalf("%d images: %s", images(res), text(res))
+	}
+	if got := summaryOf(t, res); !strings.Contains(got, "shot s2 = s1, no change outside animations · lease 60 s\n4 changes in animations left out") {
+		t.Errorf("summary %q", got)
+	}
+	if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, "Nothing changed since s1 outside the animations, so the input may have missed, or its effect lies inside them.") {
+		t.Errorf("hint %q", hint)
+	}
+	if got := get(t, res, "shot.changes.left_out"); got != nil {
+		t.Errorf("left_out %v", got)
+	}
+}
+
+// A region that holds an animation and a change next to it counts only the change towards the 35% that gives a full
+// shot.
+func TestChangesNextToAnAnimation(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = []hypr.IntRect{{X: 0, Y: 0, Width: 200, Height: 190}} })
+	e.screenshot(`{"window":"0xa1"}`)
+	// The animation's change touches another change, so the two make one region of 38% of the window, 23% of it
+	// outside the animation.
+	e.paint("0xa1", hypr.Rect{X: 10, Y: 10, Width: 180, Height: 170}, hypr.Rect{X: 190, Y: 10, Width: 200, Height: 200})
+	res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
+	if res.IsError || get(t, res, "shot.full_shot") != nil || images(res) != 1 {
+		t.Fatalf("%d images: %s", images(res), text(res))
+	}
+}
+
 // More than 5 regions are joined, the two that add the least area first, until at most 5 are left.
 func TestChangesJoinNearbyRegions(t *testing.T) {
 	e := newTestEnv(t)

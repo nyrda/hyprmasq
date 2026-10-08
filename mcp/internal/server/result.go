@@ -11,7 +11,7 @@ import (
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
 )
 
-// toolError is a failure reported as a tool result with isError.
+// toolError is a failure, reported as a tool result with isError unless the result has a shot.
 type toolError struct {
 	Code    string
 	Message string
@@ -86,6 +86,14 @@ func asToolError(err error) *toolError {
 	return &toolError{Code: "internal", Message: err.Error()}
 }
 
+// boxOut is a box in pixels of a shot.
+type boxOut struct {
+	X      int `json:"x"`
+	Y      int `json:"y"`
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
 type rectOut struct {
 	X      float64 `json:"x"`
 	Y      float64 `json:"y"`
@@ -113,6 +121,8 @@ type changesOut struct {
 	Regions []regionOut `json:"regions"`
 	// Tiny changes, such as a blinking caret, that no zoom shows.
 	LeftOut int `json:"left_out,omitempty"`
+	// Changes within the animations of the wait, which no zoom shows.
+	Animated int `json:"animated,omitempty"`
 }
 
 // regionOut is a zoom shot of a changes shot, and the box of the changes shot's pixels that it shows.
@@ -138,6 +148,9 @@ func shotText(s *shotOut) string {
 	if c := s.Changes; c != nil {
 		switch len(c.Regions) {
 		case 0:
+			if c.Animated > 0 {
+				return fmt.Sprintf("shot %s = %s, no change outside animations", s.ID, c.Base)
+			}
 			return fmt.Sprintf("shot %s = %s, no change", s.ID, c.Base)
 		case 1:
 			return fmt.Sprintf("shot %s = %s + 1 change", s.ID, c.Base)
@@ -173,6 +186,12 @@ func changesLines(s *shotOut) []string {
 		lines = append(lines, "1 tiny change left out")
 	case n > 1:
 		lines = append(lines, fmt.Sprintf("%d tiny changes left out", n))
+	}
+	switch n := s.Changes.Animated; {
+	case n == 1:
+		lines = append(lines, "1 change in an animation left out")
+	case n > 1:
+		lines = append(lines, fmt.Sprintf("%d changes in animations left out", n))
 	}
 	return lines
 }
@@ -227,6 +246,11 @@ type waitOut struct {
 	ElapsedMs      int    `json:"elapsed_ms"`
 	// Present only when true: the wait timed out while the window had not caught up with a resize.
 	Resizing bool `json:"resizing,omitempty"`
+	// The animations the window drew during the wait, which the quiet phase did not wait for, in pixels of the result's
+	// shot.
+	Animated []boxOut `json:"animated,omitempty"`
+	// The animations in window-local logical pixels.
+	animated []hypr.IntRect
 	// The change phase's limit, for the summary line.
 	expectMs int
 	// The deadline left no time for the wait, so it did not run.
@@ -255,7 +279,7 @@ func waitSummary(ended string, redrawObserved, resizing bool) string {
 func waitResult(r hypr.WaitReply) *waitOut {
 	resizing := r.Ended == "timeout" && r.Resizing
 	return &waitOut{Ended: r.Ended, Summary: waitSummary(r.Ended, r.RedrawObserved, resizing), RedrawObserved: r.RedrawObserved,
-		Commits: r.CommitsSince, QuietMs: r.QuietMs, ElapsedMs: r.ElapsedMs, Resizing: resizing}
+		Commits: r.CommitsSince, QuietMs: r.QuietMs, ElapsedMs: r.ElapsedMs, Resizing: resizing, animated: r.Animated}
 }
 
 type leaseOut struct {
@@ -371,6 +395,26 @@ func actionsText(a *actionsOut, batch []action) string {
 	return text
 }
 
+// animationText names the animations that a quiet phase did not wait for, by their boxes in the result's shot when it
+// has one.
+func animationText(w *waitOut) string {
+	if len(w.animated) == 0 {
+		return ""
+	}
+	noun := "animation"
+	if len(w.animated) > 1 {
+		noun = "animations"
+	}
+	if len(w.Animated) == 0 {
+		return " except " + noun
+	}
+	boxes := make([]string, len(w.Animated))
+	for i, b := range w.Animated {
+		boxes[i] = fmt.Sprintf("%d,%d %d×%d", b.X, b.Y, b.Width, b.Height)
+	}
+	return fmt.Sprintf(" except %s at %s", noun, strings.Join(boxes, ", "))
+}
+
 func waitText(w *waitOut) string {
 	if w == nil {
 		return ""
@@ -381,7 +425,7 @@ func waitText(w *waitOut) string {
 		if !w.RedrawObserved {
 			observed = "no redraw"
 		}
-		return fmt.Sprintf("%s · quiet %d ms · %d ms", observed, w.QuietMs, w.ElapsedMs)
+		return fmt.Sprintf("%s · quiet %d ms%s · %d ms", observed, w.QuietMs, animationText(w), w.ElapsedMs)
 	case "no_redraw":
 		return fmt.Sprintf("no redraw within %d ms", w.expectMs)
 	case "timeout":
@@ -524,7 +568,9 @@ func errorResult(te *toolError, out *actOut, batch []action, images [][]byte) *m
 		out.Summary = summaryLine(out, batch)
 	}
 	res := newResult(out, out.resultText, images, errorLine(te))
-	res.IsError = true
+	// A call that fell short but captured a shot is no tool error: clients such as Claude Code show only the text of an
+	// error, and the agent goes on from the shot.
+	res.IsError = out.Shot == nil
 	return res
 }
 
@@ -592,6 +638,10 @@ func noChangeHint(out *actOut, batch []action) string {
 		return ""
 	}
 	base := out.Shot.Changes.Base
+	if out.Shot.Changes.Animated > 0 {
+		return fmt.Sprintf("Nothing changed since %s outside the animations, so the input may have missed, or its effect lies inside them. Look at %s, or take a screenshot to see the animations as they are now, before repeating it.",
+			base, base)
+	}
 	if out.Shot.Changes.LeftOut > 0 {
 		return fmt.Sprintf("Only tiny changes since %s, such as a caret that moved or blinked, so the input may have missed or had little visible effect. Look at %s before repeating it.",
 			base, base)

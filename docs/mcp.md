@@ -573,7 +573,37 @@ After the last action has been applied, the server starts the plugin's
    the start of the wait, and the window has caught up with any resize (the
    plugin's `resizing`). The wait ends with `quiet`. An animation of
    Hyprland's, such as a window popping in, does not keep it from ending,
-   since shots draw the window as it is once the animation has ended.
+   since shots draw the window as it is once the animation has ended. Neither
+   does an animation of the window's own (see below).
+
+### Animations
+
+The plugin tells animation apart from other drawing by the box that each
+commit damages, as the application reports it to Hyprland: a commit is part of an animation when it
+damages a box of at most 15% of the window that at least 3 commits since the
+last input, this one included, have damaged within the last 3 seconds, the
+first of them a second or more ago, and it comes at least 500 ms after the last
+input. A box that animated before the input has to keep animating for a second
+after it, so that the window's answer in that box, such as content that
+replaces a spinner, counts as a change. Two damaged boxes
+are of the same thing when they overlap or touch and the box around both is at
+most 1.5 times the larger one. A progress bar, a video, a spinner or a blinking
+caret qualify; typing, which ends within a second of its first key, the redraw
+that answers input, and an application that damages its whole window do not.
+
+The quiet phase does not wait for commits of an animation, and `quiet_ms`
+counts from the last other one. The result names the animations drawn during
+the wait in the summary, `quiet 200 ms except animation at 12,40 300×20`, and in
+`wait.animated`, as boxes in the pixels of the result's shot. With capture
+`"changes"`, the changes within them are left out of the zooms and counted in
+`shot.changes.animated`, with the line `1 change in an animation left out`.
+They do not count towards the 35% of the window that gives a full shot. When
+nothing changed outside them, the summary says `shot s7 = s5, no change
+outside animations`, and after input the hint says that its effect may lie
+inside them.
+Before an animation has redrawn for a second, it counts as drawing like any
+other, so a wait over a window that keeps animating ends about 1.2 seconds
+after the input instead of at the deadline.
 
 With `expect_change: false` only the quiet phase runs. Use it for input that
 may legitimately change nothing on screen: hover, harmless keys, scrolling at
@@ -706,8 +736,8 @@ A result has three parts:
    | Part | Forms |
    | --- | --- |
    | Actions, if any | `N/M delivered`, with `, nothing sent`, `, delivery partial: actions[i] (type) may be partly applied (K keys sent)` or `, delivery uncertain from actions[i] (click) on` |
-   | Wait | `redraw observed · quiet N ms · N ms`, `no redraw · quiet N ms · N ms`, `no redraw within N ms`, `timeout after N ms, still resizing`, `timeout after N ms, still drawing`, `timeout after N ms, no redraw`, `no time left to wait`, `window closed`, `cancelled` |
-   | Capture | `shot sN W×H`, `shot sN W×H (full shot: REASON)`, `shot sN W×H (stale: not yet redrawn at its new size)`, both as `(full shot: REASON; stale: …)`, `shot sN = sM + K changes` followed by the lines `zoom sZ W×H of sN at X,Y W×H` and `K tiny changes left out`, `shot sN = sM, no change`, or `capture failed: MESSAGE` |
+   | Wait | `redraw observed · quiet N ms · N ms`, `no redraw · quiet N ms · N ms`, either with `quiet N ms except animation at X,Y W×H` or `except animations at …, …`, `no redraw within N ms`, `timeout after N ms, still resizing`, `timeout after N ms, still drawing`, `timeout after N ms, no redraw`, `no time left to wait`, `window closed`, `cancelled` |
+   | Capture | `shot sN W×H`, `shot sN W×H (full shot: REASON)`, `shot sN W×H (stale: not yet redrawn at its new size)`, both as `(full shot: REASON; stale: …)`, `shot sN = sM + K changes` followed by the lines `zoom sZ W×H of sN at X,Y W×H`, `K tiny changes left out` and `K changes in animations left out`, `shot sN = sM, no change`, `shot sN = sM, no change outside animations`, or `capture failed: MESSAGE` |
    | Lease | `lease N s` or `no lease` |
    | New windows | `new window ADDR (CLASS "TITLE"[, launched][, same pid])`, or `new windows` with a list |
 
@@ -829,9 +859,13 @@ because its screenshot failed.
 
 ### Errors
 
-Errors are tool results with `isError: true`. The text is
-`error <code>: <message>`, then for `act` the summary line when something was
-sent or a shot is attached, then the hint. The structured content has `error`
+A failure that comes with a shot is a result without `isError`: the call fell
+short, but captured the window, and the agent goes on from that shot. Clients
+such as Claude Code show only the text of a tool error, so the shot would not
+reach the agent otherwise. Failures without a shot are tool results with
+`isError: true`. Either way the text is `error <code>: <message>`, then for
+`act` the summary line when something was sent or a shot is attached, then the
+hint. The structured content has `error`
 (`code`, `message`), `summary` when the text has one, and `hint`, and for
 `act` also `actions`, `new_windows` and, when there is one, `shot`.
 
@@ -1114,7 +1148,8 @@ socket (`unsupported` otherwise). Each option may come once, in any order.
 - The quiet phase ends once there has been no commit and no input through the
   socket for `quiet` milliseconds (default 200), counted from the later of the
   last commit and the last input, but not before the wait started, and the
-  window is not `resizing`. A client waits for a window to catch up with a
+  window is not `resizing`. Commits of an animation do not count (see
+  [Animations](#animations)). A client waits for a window to catch up with a
   resize with a wait without `expect`.
 - `deadline` (default 5000) ends the wait with `timeout` in either phase. A
   phase's ending wins a tie with it.
@@ -1132,14 +1167,15 @@ socket (`unsupported` otherwise). Each option may come once, in any order.
   thread for it, the reply is `internal`.
 
 ```json
-{"ok":true,"ended":"quiet","commits":131,"socketId":"9f3a61c2-3","redrawObserved":true,"commitsSince":8,"quietMs":200,"elapsedMs":412,"resizing":false}
+{"ok":true,"ended":"quiet","commits":131,"socketId":"9f3a61c2-3","redrawObserved":true,"commitsSince":8,"quietMs":200,"elapsedMs":412,"resizing":false,"animated":[{"x":12,"y":40,"width":300,"height":20}]}
 ```
 
 `ended` is `quiet`, `no_redraw`, `timeout`, `window_closed` or `cancelled`.
 `commits` is the counter when the wait ended, `socketId` the socket whose
 counter the wait read, `commitsSince` the commits after COMMITS,
 `redrawObserved` whether there were any, `quietMs` how long the window had
-been quiet when the wait ended, and `resizing` whether it was resizing then. When several endings hold at once,
+been quiet when the wait ended, apart from animations, `resizing` whether it was resizing then, and
+`animated` the boxes of the animations drawn during the wait, in whole window-local logical pixels. When several endings hold at once,
 `window_closed` wins, then `cancelled`. Plain text prints `ended`.
 
 **`cancel WORD`** ends the wait with that id with `ended: cancelled` and

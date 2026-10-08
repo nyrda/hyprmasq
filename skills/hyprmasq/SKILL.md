@@ -30,6 +30,13 @@ descriptions and results explain the rest. What `act` returns:
   count, such as a hover highlight. After input, the hint says that it may
   have missed; look at s5 before repeating it.
 - `N tiny changes left out`: a blinking caret or a few pixels changed.
+- `quiet 200 ms except animation at 12,40 300×20`: a small part of the window
+  kept redrawing, such as a progress bar, a video or a spinner. The wait did
+  not wait for it, and `N changes in animations left out` counts what changed
+  there. Look at that box in the shot if it matters, such as a spinner that
+  says the page is still loading.
+- A failure that comes with a shot is a normal result whose text starts with
+  `error CODE:`, so you get its shot; go on from it.
 - A full shot, which says why it came instead: without an earlier shot, after
   a resize or a change of popups past the window's edge, for a change of more
   than 35% of the window or too scattered to join into 5 regions, and after 10

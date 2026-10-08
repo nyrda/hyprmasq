@@ -107,6 +107,19 @@ func (s *shot) logicalRegion(x, y, width, height float64) hypr.IntRect {
 	return hypr.IntRect{X: int(left), Y: int(top), Width: max(1, int(right-left)), Height: max(1, int(bottom-top))}
 }
 
+// pixelBox maps a box in window-local logical pixels to the whole shot pixels that cover it, cut to the shot. False
+// when no part of it is in the shot.
+func (s *shot) pixelBox(r hypr.IntRect) (boxOut, bool) {
+	x0 := max(0, math.Floor((float64(r.X)-s.Frame.X)*s.Scale+1e-6))
+	y0 := max(0, math.Floor((float64(r.Y)-s.Frame.Y)*s.Scale+1e-6))
+	x1 := min(float64(s.Width), math.Ceil((float64(r.X+r.Width)-s.Frame.X)*s.Scale-1e-6))
+	y1 := min(float64(s.Height), math.Ceil((float64(r.Y+r.Height)-s.Frame.Y)*s.Scale-1e-6))
+	if x1 <= x0 || y1 <= y0 {
+		return boxOut{}, false
+	}
+	return boxOut{X: int(x0), Y: int(y0), Width: int(x1 - x0), Height: int(y1 - y0)}, true
+}
+
 const shotsPerWindow = 64
 
 // shotStore keeps the most recently used shots of every window and deletes the files of the ones it drops.
