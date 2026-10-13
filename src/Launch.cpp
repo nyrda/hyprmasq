@@ -1,8 +1,10 @@
 #include "Launch.hpp"
+#include "Eis.hpp"
 #include "Process.hpp"
 #include "Windows.hpp"
 
 #include <hyprland/src/config/supplementary/executor/Executor.hpp>
+#include <hyprland/src/desktop/Workspace.hpp>
 #include <hyprland/src/desktop/rule/Engine.hpp>
 #include <hyprland/src/desktop/rule/windowRule/WindowRule.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
@@ -12,6 +14,7 @@
 #include <algorithm>
 #include <chrono>
 #include <format>
+#include <optional>
 #include <unistd.h>
 
 namespace hyprmasq::launch {
@@ -35,9 +38,10 @@ namespace hyprmasq::launch {
 
         struct STracked {
             PHLWINDOWREF                   window;
-            std::string                    token;
-            SP<Desktop::Rule::CWindowRule> rule; // places the window as it maps, until then
-            std::string                    tag;  // that the rule matches
+            std::string                    token; // of its launch, empty for a window only placed next to its opener
+            SP<Desktop::Rule::CWindowRule> rule;  // places the window as it maps, until then
+            std::string                    tag;   // that the rule matches
+            bool                           placed = false;
         };
         std::vector<STracked> tracked;
         unsigned              serial = 0;
@@ -57,17 +61,37 @@ namespace hyprmasq::launch {
             return process::started(launch.pid) == launch.started;
         }
 
+        // The workspace as a window rule names it: a numbered one by its number, others by their name, which has to
+        // keep to the characters of a launch's workspace.
+        std::optional<std::string> selector(const PHLWORKSPACE& workspace) {
+            if (!workspace)
+                return std::nullopt;
+            if (workspace->m_isSpecialWorkspace) {
+                const auto& name = workspace->m_name;
+                if (name.starts_with("special:") && validWorkspace(std::string_view(name).substr(8)))
+                    return name;
+                return std::nullopt;
+            }
+            if (workspace->m_id > 0)
+                return std::to_string(workspace->m_id);
+            if (validWorkspace(workspace->m_name))
+                return "name:" + workspace->m_name;
+            return std::nullopt;
+        }
+
         // Tags the window and registers a window rule for that tag that puts it silently on the workspace as it maps.
         // Hyprland matches a tag on the window itself, while an exec rule would read the environment of the window's
-        // process, which can wait for that process.
+        // process, which can wait for that process. Hyprland drops a workspace rule, silent included, that names the
+        // workspace the window maps on anyway, the active one, so no_initial_focus keeps the focus there too.
         void place(STracked& t, const PHLWINDOW& window, const std::string& workspace) {
-            auto rule = Desktop::Rule::CWindowRule::buildFromExecString(std::format("workspace name:{} silent", workspace));
+            auto rule = Desktop::Rule::CWindowRule::buildFromExecString(std::format("workspace {} silent;no_initial_focus 1", workspace));
             if (!rule)
                 return;
             t.tag = std::format("hyprmasq-{}", ++serial);
             window->m_ruleApplicator->m_tagKeeper.applyTag("+" + t.tag);
             (*rule)->registerMatch(Desktop::Rule::RULE_PROP_TAG, t.tag);
-            t.rule = *rule;
+            t.rule   = *rule;
+            t.placed = true;
             Desktop::Rule::ruleEngine()->registerRule(SP<Desktop::Rule::IRule>(*rule));
         }
 
@@ -81,20 +105,32 @@ namespace hyprmasq::launch {
             t.tag.clear();
         }
 
-        void onCreate(const PHLWINDOW& window) {
-            if (!window || launches.empty())
-                return;
+        const SLaunch* launchOf(const PHLWINDOW& window) {
             const pid_t self = getpid();
-            const pid_t own  = window->getPID();
-            for (pid_t pid = own, depth = 0; pid > 1 && pid != self && depth < MAX_DEPTH; pid = process::parent(pid), ++depth) {
+            for (pid_t pid = window->getPID(), depth = 0; pid > 1 && pid != self && depth < MAX_DEPTH; pid = process::parent(pid), ++depth) {
                 const auto launch = std::ranges::find_if(launches, [&](const auto& l) { return l.pid == pid; });
-                if (launch == launches.end() || !alive(*launch))
-                    continue;
-                auto& t = tracked.emplace_back(STracked{.window = window, .token = launch->token, .rule = nullptr, .tag = ""});
-                if (Time::steadyNow() - launch->at <= PLACE_WITHIN)
-                    place(t, window, launch->workspace);
-                return;
+                if (launch != launches.end() && alive(*launch))
+                    return &*launch;
             }
+            return nullptr;
+        }
+
+        // A window that emulated input opened, such as a browser's popup, opens next to the driven window, also one of
+        // an app that no launch started, and one that opens later than a minute after its launch.
+        void onCreate(const PHLWINDOW& window) {
+            if (!window)
+                return;
+            const auto*                launch = launches.empty() ? nullptr : launchOf(window);
+            std::optional<std::string> workspace;
+            if (launch && Time::steadyNow() - launch->at <= PLACE_WITHIN)
+                workspace = "name:" + launch->workspace;
+            else if (const auto opener = openerOf(window))
+                workspace = selector(opener->m_workspace);
+            if (!launch && !workspace)
+                return;
+            auto& t = tracked.emplace_back(STracked{.window = window, .token = launch ? launch->token : "", .rule = nullptr, .tag = ""});
+            if (workspace)
+                place(t, window, *workspace);
         }
 
         void onMapped(const PHLWINDOW& window) {
@@ -150,8 +186,12 @@ namespace hyprmasq::launch {
         std::erase_if(tracked, [](const auto& t) { return t.window.expired() && !t.rule; });
         std::vector<SLaunched> result;
         for (const auto& t : tracked)
-            if (const auto window = t.window.lock(); window && window->m_isMapped)
+            if (const auto window = t.window.lock(); window && window->m_isMapped && !t.token.empty())
                 result.push_back({.address = windowAddress(window), .stableId = std::format("{:x}", window->m_stableID), .token = t.token});
         return result;
+    }
+
+    bool placed(const PHLWINDOW& window) {
+        return window && std::ranges::any_of(tracked, [&](const auto& t) { return t.placed && t.window.lock() == window; });
     }
 }

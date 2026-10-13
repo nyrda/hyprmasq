@@ -2109,6 +2109,72 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
         assert snapshot() == before_focus
         machine.succeed("test ! -s /tmp/hyprmasq-visible-input")
 
+    with subtest("a window that emulated input opens opens silently next to the driven window"):
+        # The foot server opens the windows of footclients that the hidden shell starts: windows of the driven window's
+        # process, as a browser's popups are, in an app that no launch started.
+        # With bell, the window rings its bell that many seconds after it starts, which foot answers with an
+        # xdg-activation request when it has no keyboard focus, and the test's focus_on_activate focuses it.
+        machine.succeed("cat > /tmp/hm-bell.sh <<'EOF'\nsleep \"$1\"\nprintf '\\a'\nexec sleep 600\nEOF")
+
+        def open_from_hidden(title, delay=0, bell=None):
+            program = f"sh /tmp/hm-bell.sh {bell}" if bell else "sleep 600"
+            command = f"sleep {delay}; footclient -s /tmp/hyprmasq-foot.sock -o bell.urgent=yes -T {title} {program}"
+            send(path, "type", f"({command}) &", "key", 28)
+            wait_for(title, lambda: client(title) is not None, timeout=delay + 30)
+            return client(title)
+
+        hidden_workspace = client("hm-shared-hidden")["workspace"]["id"]
+        focus_workspace(60)
+        other = foot("hm-opener-other")
+        wait_for("other app focused", lambda: snapshot() == (60, other))
+        # With the user's focus in another app, the window opens on the driven window's workspace, and its activation
+        # request later marks it urgent without taking the focus.
+        opened = open_from_hidden("hm-opened-other-app", bell=2)
+        assert opened["workspace"]["id"] == hidden_workspace, opened
+        assert snapshot() == (60, other)
+        time.sleep(4)
+        assert snapshot() == (60, other)
+        # Placed windows of an app that no launch started are not listed as launched.
+        assert hypr("hyprmasq launched") == "no launched windows"
+        # On the workspace the user is on, where Hyprland drops a workspace rule with its silent, the focus stays too.
+        focus_workspace(hidden_workspace)
+        beside = foot("hm-opener-beside")
+        wait_for("app beside focused", lambda: snapshot() == (hidden_workspace, beside))
+        opened_beside = open_from_hidden("hm-opened-beside")
+        assert opened_beside["workspace"]["id"] == hidden_workspace, opened_beside
+        assert snapshot() == (hidden_workspace, beside)
+        focus_workspace(60)
+        wait_for("other app focused", lambda: snapshot() == (60, other))
+        # Input more than 5 seconds before the window opens did not open it: it opens as usual, with the focus.
+        late = open_from_hidden("hm-opened-late", delay=6, bell=3)
+        assert late["workspace"]["id"] == 60, late
+        wait_for("late window focused", lambda: snapshot() == (60, late["address"]))
+        # Its activation request takes the focus back, as that of a window the plugin did not place does.
+        dispatch(f'hl.dsp.focus({{ window = "address:{other}" }})')
+        wait_for("other app focused", lambda: snapshot() == (60, other))
+        wait_for("late window activated", lambda: snapshot() == (60, late["address"]), timeout=10)
+        # With the user's focus in the same app and no key of theirs since the input, the input opened it.
+        focus_workspace(8)
+        wait_for("shared visible focus", lambda: snapshot() == (8, shared_visible))
+        opened_same = open_from_hidden("hm-opened-same-app")
+        assert opened_same["workspace"]["id"] == hidden_workspace, opened_same
+        assert snapshot() == (8, shared_visible)
+        # A real key after the input means the user's own input opened it, also in the same app.
+        send(path, "type", "(sleep 2; footclient -s /tmp/hyprmasq-foot.sock -T hm-opened-user sleep 600) &", "key", 28)
+        machine.send_key("shift")
+        wait_for("hm-opened-user", lambda: client("hm-opened-user") is not None)
+        user = client("hm-opened-user")
+        assert user["workspace"]["id"] == 8, user
+        wait_for("user window focused", lambda: snapshot() == (8, user["address"]))
+        for title in [
+            "hm-opened-other-app", "hm-opened-beside", "hm-opened-late", "hm-opened-same-app", "hm-opened-user", "hm-opener-other", "hm-opener-beside"
+        ]:
+            dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
+        wait_for("opened windows closed", lambda: not any(c["title"].startswith(("hm-opened-", "hm-opener-")) for c in clients()))
+        dispatch(f'hl.dsp.focus({{ window = "address:{shared_visible}" }})')
+        wait_for("shared visible focus", lambda: snapshot() == (8, shared_visible))
+        machine.succeed("test ! -s /tmp/hyprmasq-visible-input")
+
     with subtest("a click keeps its modifiers only where the window has hold"):
         # Input to a window of the connection that has the real keyboard focus hands that focus back, with the user's
         # modifiers, after every keyboard frame. A click then arrives without the modifiers held around it, which the

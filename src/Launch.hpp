@@ -2,6 +2,8 @@
 
 #include "Error.hpp"
 
+#include <hyprland/src/desktop/DesktopTypes.hpp>
+
 #include <expected>
 #include <string>
 #include <sys/types.h>
@@ -13,7 +15,8 @@
 // up to a launched one. Such a window belongs to the launch, also one of a child process, as a browser that its
 // launcher script starts without exec. Within a minute of the launch, the plugin tags the window and registers a window
 // rule for that tag, which puts the window silently on the launch's workspace as it maps, and removes both once it has
-// mapped or is destroyed. Main thread only.
+// mapped or is destroyed. A window that emulated input opened, see openerOf, it puts on the driven window's workspace
+// the same way, also when no launch started its app. Main thread only.
 namespace hyprmasq::launch {
     void init();
     void shutdown();
@@ -28,4 +31,7 @@ namespace hyprmasq::launch {
     };
     // The mapped windows of launches, in the order Hyprland created them.
     std::vector<SLaunched> windows();
+
+    // True for a window that the plugin placed silently, for as long as it lives.
+    bool placed(const PHLWINDOW& window);
 }

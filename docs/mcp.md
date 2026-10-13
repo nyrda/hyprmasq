@@ -1116,14 +1116,35 @@ window whose process is a launched one or descends from it belongs to that
 launch, also one of a child that a launcher script starts without `exec`, as
 Chromium's does. Within a minute of the launch, the plugin tags the window
 `hyprmasq-<n>` and registers a window rule, `workspace name:<workspace>
-silent`, that matches that tag. Hyprland matches tags on the window itself,
+silent;no_initial_focus 1`, that matches that tag. Hyprland ignores a workspace
+rule, `silent` included, that names the workspace the window would open on
+anyway, so `no_initial_focus` keeps the focus also when that is the active
+workspace. Hyprland matches tags on the window itself,
 while matching an exec rule would read the environment of the window's
 process, which can wait for that process. Hyprland applies the rule as the
 window maps, and the plugin then removes the rule and the tag, as it does for
 a window that is destroyed before it maps. Registered after the rules of the
 configuration, the rule takes precedence over their workspaces. A window that a
 program started in a launched shell opens later than a minute after the
-launch opens where Hyprland and the user's rules put it.
+launch opens where Hyprland and the user's rules put it, unless input opened
+it.
+
+**Windows that input opens.** An application cannot tell emulated input from
+the user's, so a window that input opens, such as a browser's popup, would open
+on the user's workspace and take the focus. The plugin places a new Wayland
+window silently on the workspace of the driven window whose input most likely
+opened it, with the same tag and rule, naming a numbered workspace by its
+number and others by their name: a window of the same process that input
+reached through its socket within the last 5 seconds, while the user's focus
+was in another process, or after the user's last key press, button or touch.
+The window with the latest input wins. A window that the plugin placed, by a
+launch or next to its opener, is marked urgent but not focused when it asks for
+activation, also with `misc:focus_on_activate`, for as long as it lives; a
+forced activation, such as one through a taskbar, still focuses it. This also covers apps that no launch
+started, such as the user's own browser, and the windows of a launch after its
+first minute. `launched` lists such a window only when it belongs to a launch.
+Windows of xwayland-satellite, whose process hosts every app of its X server,
+and XWayland windows are left to the X11 rules in [usage](usage.md#security-model).
 
 **Commit counter.** From `eis open` until the socket closes, the plugin counts
 the window's commits as defined in [Waiting](#definitions). It never falls

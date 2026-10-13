@@ -1,6 +1,7 @@
 #include "Eis.hpp"
 #include "Cursor.hpp"
 #include "Hooks.hpp"
+#include "Launch.hpp"
 #include "Wait.hpp"
 #include "X11.hpp"
 #include <hyprland/src/Compositor.hpp>
@@ -48,6 +49,10 @@ namespace hyprmasq {
         void*                                           originalKeyboardFocus = nullptr;
         void*                                           originalPointerFocus  = nullptr;
         CHyprSignalListener                             monitorLayout;
+        // The user's real input, which emulated input bypasses. Motion does not count: a moving pointer opens no window.
+        CHyprSignalListener userKey, userButton, userTouch, userTip;
+        Time::steady_tp     lastUserInput;
+        constexpr auto      OPENS_WITHIN = std::chrono::seconds(5); // see openerOf
 
         // Socket ids: random for each load of the plugin, then counting.
         uint64_t socketNonce = 0, socketCount = 0;
@@ -176,6 +181,7 @@ namespace hyprmasq {
             uint64_t                             commitsAtInput = 0;
             bool                                 force = false, paused = false, deferredKeys = false, restoreDue = false;
             Time::steady_tp                      pausedAt, holdUntil = Time::steadyNow(), lastKeys = Time::steadyNow(), lastPing;
+            std::optional<Time::steady_tp>       delivered;             // when input last reached the window, see openerOf
             eis_event*                           stashed     = nullptr; // taken from libeis, waiting for a hold to end
             wl_client*                           server      = nullptr; // the window's X server, looked up once
             bool                                 serverKnown = false;
@@ -741,6 +747,7 @@ namespace hyprmasq {
                 if (takesFocus && realKeyboard && realKeyboard->client() == s->client())
                     x11::release(w);
                 lastInput          = Time::steadyNow();
+                delivered          = lastInput;
                 commitsAtInput     = content->commits;
                 content->lastInput = lastInput;
                 wl_event_source_timer_update(timer, 16);
@@ -984,12 +991,17 @@ namespace hyprmasq {
             reinterpret_cast<Fn>(originalActivateX11)(self);
         }
         // xwayland-satellite forwards activation requests as xdg-activation. A forced activation comes from the user,
-        // for example through a taskbar.
+        // for example through a taskbar. A window that the plugin placed silently is marked urgent but not focused, also
+        // with focus_on_activate, so that a popup put next to its driven window cannot follow up by taking the focus.
         void activate(Desktop::View::CWindow* self, bool force) {
             if (!force && drivenX11App(self->m_self.lock(), false))
                 return;
-            using Fn = void (*)(Desktop::View::CWindow*, bool);
+            using Fn              = void (*)(Desktop::View::CWindow*, bool);
+            const auto suppressed = self->m_suppressedEvents;
+            if (!force && launch::placed(self->m_self.lock()))
+                self->m_suppressedEvents |= Desktop::View::SUPPRESS_ACTIVATE_FOCUSONLY;
             reinterpret_cast<Fn>(originalActivate)(self, force);
+            self->m_suppressedEvents = suppressed;
         }
         void windowFocus(Desktop::CFocusState* self, PHLWINDOW w, Desktop::eFocusReason reason, SP<CWLSurfaceResource> surface) {
             if (w && reason == Desktop::FOCUS_REASON_NEW_WINDOW && drivenX11App(w, true))
@@ -1099,9 +1111,19 @@ namespace hyprmasq {
             for (auto& [_, session] : sessions)
                 session->checkRegionsLater();
         });
+
+        auto& input = Event::bus()->m_events.input;
+        userKey     = input.keyboard.key.listen([] { lastUserInput = Time::steadyNow(); });
+        userButton  = input.mouse.button.listen([] { lastUserInput = Time::steadyNow(); });
+        userTouch   = input.touch.down.listen([] { lastUserInput = Time::steadyNow(); });
+        userTip     = input.tablet.tip.listen([] { lastUserInput = Time::steadyNow(); });
     }
     void shutdownEis() {
         monitorLayout.reset();
+        userKey.reset();
+        userButton.reset();
+        userTouch.reset();
+        userTip.reset();
         sessions.clear();
     }
     std::expected<SEisInfo, SError> openEis(const PHLWINDOW& w, bool force) {
@@ -1194,6 +1216,31 @@ namespace hyprmasq {
                 .hold     = !keyboardShared && !pointerShared,
                 .dnd      = window == Desktop::focusState()->window(),
                 .x11Focus = isX11 && !(session && session->force)};
+    }
+    PHLWINDOW openerOf(const PHLWINDOW& window) {
+        if (!window || window->m_isX11)
+            return nullptr;
+        const pid_t pid = window->getPID();
+        if (pid <= 0)
+            return nullptr;
+        // Which window of a process input reached last, the process knows and the plugin does not. While the user is in
+        // another process, their input went elsewhere; while they are in this one, the later input opened the window.
+        const auto      focused   = Desktop::focusState()->window();
+        const bool      userInApp = focused && !focused->m_isX11 && focused->getPID() == pid;
+        const auto      now       = Time::steadyNow();
+        PHLWINDOW       opener;
+        Time::steady_tp latest;
+        for (auto& [_, session] : sessions) {
+            auto w = session->window.lock();
+            if (!w || w == window || w->m_isX11 || !session->delivered || session->xServer() || w->getPID() != pid)
+                continue;
+            const auto at = *session->delivered;
+            if (now - at > OPENS_WITHIN || (userInApp && lastUserInput >= at) || (opener && at <= latest))
+                continue;
+            opener = w;
+            latest = at;
+        }
+        return opener;
     }
     std::expected<SLeaseState, SError> holdLease(const PHLWINDOW& window, int ms, const std::string& owner) {
         auto* session = sessionOf(window);

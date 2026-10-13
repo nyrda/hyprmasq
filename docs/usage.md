@@ -414,7 +414,8 @@ after the rules of your configuration, it takes precedence over their
 workspaces. Once the window has mapped, the plugin removes the rule and the
 tag. Windows that the application opens later, or that a program
 started in a launched shell opens a minute after the launch, open where
-Hyprland and your rules put them.
+Hyprland and your rules put them, unless input to a driven window opened them
+(see [Security model](#security-model)).
 
 Applications that hand the request to an instance that is already running,
 such as a `footclient` of a `foot --server` or a browser that is already open,
@@ -899,6 +900,15 @@ loss close once the sender exits. Open them and pick the entry in one run.
   report their process, the plugin cannot tell the apps of one X server apart:
   it ignores activation requests from all of them, but focuses their new
   windows as usual, so apps you start still get the focus.
+- A window that a driven Wayland app opens, such as a browser's popup, opens
+  silently on the driven window's workspace when input reached that app within
+  the last 5 seconds, while you were in another app or before your last key
+  press, click or touch. Such a window, like any window the plugin placed,
+  also one of a launch, is only marked urgent when it asks for activation, even
+  with `focus_on_activate`. Windows that the app opens later, or after your own
+  input in it, open as usual. A window of that app that you open from another
+  app within those 5 seconds, such as a link you open from a terminal, also
+  opens next to the driven window.
 - X11 has no isolation between the apps of one X server. Any X11 app can
   already read and inject input into the others, so these protections do not
   extend to other X11 apps of the target's X server.
