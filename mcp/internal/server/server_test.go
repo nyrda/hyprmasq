@@ -1045,8 +1045,18 @@ func TestSummaryLines(t *testing.T) {
 			"1/1 delivered · no time left to wait · shot s5 1280×800 · no lease\nThe deadline left no time to wait for a redraw. Look at the shot before repeating anything; to wait, act with no actions."},
 		{"no redraw without a shot", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "no_redraw", expectMs: 1000}, Lease: &leaseOut{}}, click,
 			"1/1 delivered · no redraw within 1000 ms · no lease\nThe click may have missed or had no visible effect. Take a screenshot and look at it before repeating it."},
-		{"window closed", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "window_closed"}},
+		{"window closed", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "window_closed"}, WindowClosed: true},
 			[]action{{Kind: "key"}}, "1/1 delivered · window closed\nThe window closed. Any new windows are listed; call windows for the rest."},
+		{"window closed after the wait, back to the window it came from", actOut{Actions: &actionsOut{Done: 3, Total: 3, Delivery: "complete"},
+			Wait: &waitOut{Ended: "quiet", RedrawObserved: true, QuietMs: 201, ElapsedMs: 492}, WindowClosed: true,
+			Source: &sourceOut{Window: "0xa1", Class: "chromium-browser", Title: "Upload", Workspace: "web", Shot: &shotOut{ID: "s9", Width: 1280, Height: 720}}}, three,
+			"3/3 delivered · redraw observed · quiet 201 ms · 492 ms · window closed · back to 0xa1 (chromium-browser \"Upload\") on workspace web (hidden)\n" +
+				"shot s9 1280×720 of 0xa1, the window it came from\n" +
+				"The window closed. It came from window 0xa1, which shot s9 shows now: go on there with that shot's pixels. Any new windows are listed; call windows for the rest."},
+		{"window closed, back to a window without a shot", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "window_closed"}, WindowClosed: true,
+			Source: &sourceOut{Window: "0xa1", Class: "thunderbird", Title: "Inbox", Workspace: "1", Visible: true}}, click,
+			"1/1 delivered · window closed · back to 0xa1 (thunderbird \"Inbox\") on workspace 1 (visible)\n" +
+				"The window closed. It came from window 0xa1: take a screenshot of it to go on there. Any new windows are listed; call windows for the rest."},
 		{"cancelled", actOut{Actions: &actionsOut{Done: 1, Total: 2, Delivery: "partial", FailedIndex: ptr(1)}, Wait: &waitOut{Ended: "cancelled"}, Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 60}},
 			[]action{{Kind: "click"}, {Kind: "type"}}, "1/2 delivered, delivery partial: actions[1] (type) may be partly applied · cancelled · shot s5 1280×800 · lease 60 s\nThe call was cancelled while the input was sent. Look at the shot before repeating anything."},
 		{"empty batch", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "no_redraw", expectMs: 20000}, Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 60}},
@@ -1056,10 +1066,20 @@ func TestSummaryLines(t *testing.T) {
 				Workspace: "mail", Shot: &shotOut{ID: "s6", Width: 400, Height: 300}}}},
 			click, "1/1 delivered · redraw observed · quiet 200 ms · 300 ms · shot s5 1280×800 · lease 60 s · new window 0xb2 (org.gnome.Nautilus \"Save As\", launched) on workspace mail (hidden)\n" +
 				"shot s6 400×300 of new window 0xb2"},
+		{"late window", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "quiet", RedrawObserved: true, QuietMs: 200, ElapsedMs: 300},
+			Shot: shot5, Lease: &leaseOut{}, LateWindows: []newWindowOut{{Window: "0xc3", Class: "xdg-desktop-portal-gtk", Title: "Open Files", Workspace: "web", Source: "0xa1",
+				Shot: &shotOut{ID: "s6", Width: 960, Height: 540}}}},
+			click, "1/1 delivered · redraw observed · quiet 200 ms · 300 ms · shot s5 1280×800 · no lease · late window 0xc3 (xdg-desktop-portal-gtk \"Open Files\") on workspace web (hidden)\n" +
+				"shot s6 960×540 of late window 0xc3\n" +
+				"Your input to 0xa1 in an earlier act opened window 0xc3 \"Open Files\" after that act had returned; it is in shot s6."},
 	}
 	for _, c := range cases {
 		line := summaryLine(&c.out, c.batch)
-		if hint := waitHint(c.out.Wait, c.batch, "s4", c.out.Actions, c.out.Shot); hint != "" {
+		hint := joinHints(waitHint(c.out.Wait, c.batch, "s4", c.out.Actions, c.out.Shot), lateHint(c.out.LateWindows))
+		if c.out.WindowClosed {
+			hint = joinHints(hint, closedHint(c.out.Source))
+		}
+		if hint != "" {
 			line += "\n" + hint
 		}
 		if line != c.want {
@@ -3143,6 +3163,211 @@ func TestFailedActWithANewWindowShot(t *testing.T) {
 	}
 }
 
+// Input that closes its window after the wait has ended quiet, as a file chooser does a moment after Enter, before or
+// after the capture, is delivered and closed the window: no failed capture, and no shot of a window that is gone.
+func TestWindowClosedAfterTheWait(t *testing.T) {
+	quiet := jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": 1, "redrawObserved": true, "commitsSince": 1, "quietMs": 201, "elapsedMs": 492})
+	for _, c := range []struct {
+		name, capture string
+		// Whether the window closes right after the wait, before the capture, or a moment later, during the grace.
+		beforeCapture bool
+	}{
+		{"before the changes", "changes", true},
+		{"before the shot", "window", true},
+		{"after the shot", "changes", false},
+		{"without a capture", "none", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.server.cfg.NewWindowGrace = 500 * time.Millisecond
+			e.window("0xa1", "1a", 320, 200)
+			e.screenshot(`{"window":"0xa1"}`)
+			e.fake.with(func() {
+				e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+					if c.beforeCapture {
+						e.fake.removeWindow("0xa1")
+					} else {
+						time.AfterFunc(200*time.Millisecond, func() { e.fake.removeWindow("0xa1") })
+					}
+					return quiet
+				}
+			})
+			res := e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["enter"]}],"capture":"` + c.capture + `"}`)
+			if res.IsError || get(t, res, "error") != nil || get(t, res, "capture_error") != nil || get(t, res, "shot") != nil || hasImage(res) {
+				t.Fatalf("result: %s", text(res))
+			}
+			if get(t, res, "window_closed") != true || get(t, res, "wait.ended") != "quiet" || get(t, res, "actions.delivery") != "complete" || get(t, res, "lease") != nil {
+				t.Errorf("result: %v", structured(t, res))
+			}
+			if want := "1/1 delivered · redraw observed · quiet 201 ms · 492 ms · window closed\nThe window closed. Any new windows are listed; call windows for the rest."; text(res) != want {
+				t.Errorf("text %q", text(res))
+			}
+			if e.server.shots.lastOf("0xa1", "1a") != nil {
+				t.Error("kept a shot of the closed window")
+			}
+		})
+	}
+
+	// A wait that saw no redraw says nothing about a window that closed after it, so the hint does not say that the click
+	// may have missed.
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.screenshot(`{"window":"0xa1"}`)
+	e.fake.with(func() {
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			e.fake.removeWindow("0xa1")
+			return jsonReply(map[string]any{"ok": true, "ended": "no_redraw", "commits": w.Commits, "redrawObserved": false, "commitsSince": 0, "quietMs": 1000, "elapsedMs": 1000})
+		}
+	})
+	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":5,"y":5}]}`)
+	if want := "1/1 delivered · no redraw within 1000 ms · window closed\nThe window closed. Any new windows are listed; call windows for the rest."; res.IsError || text(res) != want {
+		t.Errorf("no redraw, then closed: %q", text(res))
+	}
+
+	// An act without actions whose window closes after the wait reports that too.
+	e = newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.fake.with(func() {
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			e.fake.removeWindow("0xa1")
+			return quiet
+		}
+	})
+	if res := e.act(`{"window":"0xa1"}`); res.IsError || get(t, res, "window_closed") != true || !strings.HasPrefix(text(res), "redraw observed · quiet 201 ms · 492 ms · window closed\n") {
+		t.Errorf("empty act: %s", text(res))
+	}
+}
+
+// When input closes its window, the result carries a shot of the window that it came from, as the plugin found it, if
+// that is still open and not the user's: the agent goes on there.
+func TestShotOfTheWindowAClosedWindowCameFrom(t *testing.T) {
+	closing := jsonReply(map[string]any{"ok": true, "ended": "window_closed", "commits": 1, "redrawObserved": true, "commitsSince": 1, "quietMs": 0, "elapsedMs": 100})
+	for _, c := range []struct {
+		name   string
+		source *hypr.Source
+		// Replaces the parent with another window at its address.
+		replaced bool
+		capture  string
+		// Whether the result names the parent, and has its shot.
+		named, shot bool
+	}{
+		{"from its parent", &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true}, false, "changes", true, true},
+		{"without a capture", &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true}, false, "none", true, false},
+		{"opened by the user", &hypr.Source{Window: "0xa1", StableID: "1a", Reason: "user_input"}, false, "changes", false, false},
+		{"from one gone", &hypr.Source{Window: "0xa1", Placed: true}, false, "changes", false, false},
+		{"address reused", &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true}, true, "changes", false, false},
+		{"from no window", nil, false, "changes", false, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			stableID := "1a"
+			if c.replaced {
+				stableID = "9z"
+			}
+			e.window("0xa1", stableID, 320, 200, func(w *fakeWindow) { w.Title = "Upload"; w.Workspace = hypr.Workspace{ID: 5, Name: "web"} })
+			e.window("0xd1", "d1", 100, 80, func(w *fakeWindow) { w.Title = "Open Files"; w.Source = c.source })
+			id := shotID(t, e.screenshot(`{"window":"0xd1"}`))
+			e.fake.with(func() {
+				e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+					if w.Address == "0xd1" {
+						e.fake.removeWindow("0xd1")
+						return closing
+					}
+					return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": w.Commits, "redrawObserved": true, "commitsSince": 0, "quietMs": 200, "elapsedMs": 250})
+				}
+			})
+			res := e.act(`{"window":"0xd1","shot":"` + id + `","actions":[{"action":"click","x":5,"y":5}],"capture":"` + c.capture + `"}`)
+			if res.IsError || get(t, res, "window_closed") != true {
+				t.Fatalf("result: %s", text(res))
+			}
+			lines := strings.Split(text(res), "\n")
+			hint, _ := get(t, res, "hint").(string)
+			if !c.named {
+				if get(t, res, "source") != nil || hasImage(res) || strings.Contains(text(res), "0xa1") || text(res) != "1/1 delivered · window closed\nThe window closed. Any new windows are listed; call windows for the rest." {
+					t.Errorf("result: %s", text(res))
+				}
+				if e.fake.find("0xa1").Socket {
+					t.Error("drove the window")
+				}
+				return
+			}
+			if lines[0] != `1/1 delivered · window closed · back to 0xa1 (test.app "Upload") on workspace web (hidden)` || get(t, res, "source.window") != "0xa1" ||
+				get(t, res, "source.stable_id") != "1a" || get(t, res, "source.workspace") != "web" || get(t, res, "source.visible") != false {
+				t.Errorf("result: %s", text(res))
+			}
+			if !c.shot {
+				if hasImage(res) || get(t, res, "source.shot") != nil ||
+					hint != "The window closed. It came from window 0xa1: take a screenshot of it to go on there. Any new windows are listed; call windows for the rest." {
+					t.Errorf("without a capture: %s", text(res))
+				}
+				return
+			}
+			shot, _ := get(t, res, "source.shot.id").(string)
+			if shot == "" || len(res.Content) != 2 || lines[1] != "shot "+shot+" 640×400 of 0xa1, the window it came from" ||
+				hint != "The window closed. It came from window 0xa1, which shot "+shot+" shows now: go on there with that shot's pixels. Any new windows are listed; call windows for the rest." {
+				t.Fatalf("result: %s", text(res))
+			}
+			// The window settled before its shot, which takes coordinates and is the window's last shot, which the next
+			// changes compare with.
+			if waits := e.fake.requestsMatching("j/hyprmasq wait 0xa1"); len(waits) != 1 {
+				t.Errorf("waits %q", waits)
+			}
+			if last := e.server.shots.lastOf("0xa1", "1a"); last == nil || last.ID != shot {
+				t.Errorf("last shot %v", last)
+			}
+			if res := e.act(`{"window":"0xa1","shot":"` + shot + `","actions":[{"action":"click","x":5,"y":5}]}`); res.IsError {
+				t.Errorf("click in its shot: %s", text(res))
+			}
+		})
+	}
+}
+
+// A window that the closed window came from, and that closes before its shot, is no window to go back to.
+func TestClosedSourceThatClosesBeforeItsShot(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.window("0xd1", "d1", 100, 80, func(w *fakeWindow) { w.Source = &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true} })
+	e.fake.with(func() {
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			e.fake.removeWindow(w.Address)
+			if w.Address == "0xd1" {
+				return jsonReply(map[string]any{"ok": true, "ended": "window_closed", "commits": 1, "redrawObserved": true, "commitsSince": 1, "quietMs": 0, "elapsedMs": 100})
+			}
+			return pluginError("window_gone", "no mapped window "+w.Address)
+		}
+	})
+	res := e.act(`{"window":"0xd1","actions":[{"action":"key","keys":["enter"]}]}`)
+	if res.IsError || get(t, res, "source") != nil || hasImage(res) || text(res) != "1/1 delivered · window closed\nThe window closed. Any new windows are listed; call windows for the rest." {
+		t.Errorf("result: %s", text(res))
+	}
+}
+
+// Input that closes its window with more input after it fails, but its result has the shot of the window that the
+// closed window came from, so it is no tool error.
+func TestFailedActWithTheShotOfTheWindowItCameFrom(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.window("0xd1", "d1", 100, 80, func(w *fakeWindow) { w.Source = &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true} })
+	t.Setenv("FAKE_INPUT_MODE", "fail:unconfirmed:1:partial:0")
+	closed := false
+	e.fake.with(func() {
+		e.fake.onPlugin = func(words []string) (string, bool) {
+			if !closed && e.senderLogged("exit") {
+				closed = true
+				e.fake.removeWindow("0xd1")
+			}
+			return "", false
+		}
+	})
+	res := e.act(`{"window":"0xd1","actions":[{"action":"key","keys":["enter"]},{"action":"type","text":"more"}]}`)
+	if code := errorCode(t, res); code != "window_gone" || res.IsError || !hasImage(res) || get(t, res, "source.shot.id") == nil {
+		t.Fatalf("result: error %v %s", res.IsError, text(res))
+	}
+	if hint, _ := get(t, res, "hint").(string); !strings.Contains(hint, "It came from window 0xa1, which shot") {
+		t.Errorf("hint %q", hint)
+	}
+}
+
 func TestZoomIntoAClosedPopup(t *testing.T) {
 	e := newTestEnv(t)
 	w := e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.PopupBox = &hypr.Rect{X: -20, Y: -10, Width: 340, Height: 210} })
@@ -3201,6 +3426,25 @@ func TestCaptureRegionAfterAResize(t *testing.T) {
 		}
 		if got := zoomed(e, 0); got != nil {
 			t.Errorf("zoomed: %q", got)
+		}
+	})
+
+	t.Run("closed", func(t *testing.T) {
+		// The window closes after the whole window was captured in place of the region, during the grace, so the note
+		// about that shot goes with it.
+		e := newTestEnv(t)
+		e.server.cfg.NewWindowGrace = 500 * time.Millisecond
+		w := e.window("0xa1", "1a", 320, 200)
+		e.screenshot(`{"window":"0xa1"}`)
+		e.fake.with(func() {
+			e.fake.onWait = func(w2 *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+				time.AfterFunc(200*time.Millisecond, func() { e.fake.removeWindow("0xa1") })
+				return resize(w)(w2, args, cancel)
+			}
+		})
+		res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":10,"y":10}],"capture":` + region + `}`)
+		if hint, _ := get(t, res, "hint").(string); res.IsError || get(t, res, "window_closed") != true || get(t, res, "shot") != nil || strings.Contains(hint, "resized") {
+			t.Errorf("result: %s", text(res))
 		}
 	})
 

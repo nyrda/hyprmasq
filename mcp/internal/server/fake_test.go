@@ -846,11 +846,13 @@ func get(t *testing.T, res *mcp.CallToolResult, path string) any {
 func errorCode(t *testing.T, res *mcp.CallToolResult) string {
 	t.Helper()
 	code, _ := get(t, res, "error.code").(string)
-	// A shot of a window that the input opened counts as one.
-	hasShot := get(t, res, "shot") != nil
-	if windows, ok := get(t, res, "new_windows").([]any); ok {
-		for _, w := range windows {
-			hasShot = hasShot || w.(map[string]any)["shot"] != nil
+	// A shot of a window that input opened counts as one, and so does one of the window that a closed window came from.
+	hasShot := get(t, res, "shot") != nil || get(t, res, "source.shot") != nil
+	for _, list := range []string{"new_windows", "late_windows"} {
+		if windows, ok := get(t, res, list).([]any); ok {
+			for _, w := range windows {
+				hasShot = hasShot || w.(map[string]any)["shot"] != nil
+			}
 		}
 	}
 	if code != "" && res.IsError == hasShot {

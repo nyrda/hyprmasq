@@ -25,9 +25,10 @@ namespace hyprmasq::placement {
     // The window that a new window came from, as the plugin found it when the new window mapped: its parent, or the
     // window of its app that got emulated input last.
     struct SSource {
-        std::string address;
-        bool        placed = false; // on that window's workspace, without the focus
-        std::string reason = {};    // why not: disabled, user_input or workspace
+        std::string  address;
+        PHLWINDOWREF window = {};    // while it lives, which tells it from a later window at its address
+        bool         placed = false; // on that window's workspace, without the focus
+        std::string  reason = {};    // why not: disabled, user_input or workspace
     };
     std::optional<SSource> source(const PHLWINDOW& window);
 }

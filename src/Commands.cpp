@@ -229,12 +229,15 @@ namespace hyprmasq {
             return out.empty() ? "no launched windows" : out;
         }
 
-        // The window a new window came from, see "New windows" in docs/usage.md.
+        // The window a new window came from, see "New windows" in docs/usage.md. Its stableId tells it from a later window
+        // at its address, and is null once it is gone.
         std::string sourceJson(const std::optional<placement::SSource>& source) {
             if (!source)
                 return "null";
-            const auto reason = source->reason.empty() ? std::string{} : std::format(R"(,"reason":"{}")", source->reason);
-            return std::format(R"({{"window":{},"placed":{}{}}})", jsonString(source->address), source->placed, reason);
+            const auto reason   = source->reason.empty() ? std::string{} : std::format(R"(,"reason":"{}")", source->reason);
+            const auto window   = source->window.lock();
+            const auto stableId = window ? std::format(R"("{:x}")", window->m_stableID) : std::string{"null"};
+            return std::format(R"({{"window":{},"stableId":{},"placed":{}{}}})", jsonString(source->address), stableId, source->placed, reason);
         }
 
         std::string sourceText(const std::optional<placement::SSource>& source) {

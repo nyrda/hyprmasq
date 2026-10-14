@@ -78,6 +78,10 @@ type Server struct {
 	leased map[string]bool
 	// The tokens of this server's launches, by which the plugin names their windows.
 	tokens map[string]bool
+	// The windows that acts of this session sent input to that can open a window, oldest first, and the windows that a
+	// result has reported, or that came from none of them, by windowKey, with when. See late.go.
+	openers []*opener
+	settled map[string]time.Time
 	// Set once the session ends: calls still running are cancelled, and no new lease is taken.
 	closing bool
 	calls   sync.WaitGroup
@@ -105,6 +109,7 @@ func New(cfg Config) *Server {
 		owner:     fmt.Sprintf("mcp-%d-%s", os.Getpid(), randomHex(4)),
 		leased:    map[string]bool{},
 		tokens:    map[string]bool{},
+		settled:   map[string]time.Time{},
 		stopCalls: stopCalls,
 		stop:      stop,
 	}
@@ -216,7 +221,7 @@ Never repeat input whose delivery is partial or uncertain, or from a call that t
 Example: {"window":"0x55d1c0a3e4b0","shot":"s4","actions":[{"action":"click","x":412,"y":88},{"action":"type","text":"hello"},{"action":"key","keys":["enter"]}]}`,
 	typedWithin(defaultDeadline), typedWithin(maxDeadline))
 
-const windowsDescription = `List the windows, or with match only those whose class or title contains it, ignoring case. Each has its address (pass it as window to the other tools), class, title, workspace, whether it is visible (on a shown workspace) or hidden, and its size in logical pixels. Where they apply, it is also resizing (not yet redrawn at its new size, so a screenshot shows an older frame), xwayland, launched (by this server) or leased, and names the capabilities it lacks, such as "lacks lease, hold" or "keyboard x11-focus"; without them, it has them all.
+const windowsDescription = `List the windows, or with match only those whose class or title contains it, ignoring case. Each has its address (pass it as window to the other tools), class, title, workspace, whether it is visible (on a shown workspace) or hidden, and its size in logical pixels. Where they apply, it is also resizing (not yet redrawn at its new size, so a screenshot shows an older frame), xwayland, launched (by this server), opened by your input to another window after that act returned (your next act or screenshot returns it with a shot) or leased, and names the capabilities it lacks, such as "lacks lease, hold" or "keyboard x11-focus"; without them, it has them all.
 capabilities: lease (focus can be held between act calls, so menus stay open), hold (buttons and keys can stay pressed across input frames, needed for drag, for clicks with modifiers, and for key chords that hold a key other than a modifier), keyboard ("yes", or "x11-focus" when X11 keyboard input depends on which window has the focus).
 The size is not a coordinate system: take a screenshot, and act with the pixels of that shot.
 Example: {"match":"firefox"}`

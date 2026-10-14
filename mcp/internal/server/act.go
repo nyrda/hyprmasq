@@ -448,7 +448,16 @@ func (s *Server) failCaptured(ctx context.Context, r *actRequest, out *actOut, t
 	}
 	out.Shot = shotInfo(sh)
 	s.shots.returned(sh)
-	return errorResult(te, out, r.batch, oneImage(png))
+	images := oneImage(png)
+	// The windows that earlier input opened after its act come with this result too, which the agent reads before it
+	// acts again.
+	if ctx.Err() == nil {
+		capEnd, _ := capCtx.Deadline()
+		var lateImages [][]byte
+		out.LateWindows, lateImages = s.lateShots(ctx, capEnd, s.lateWindowsFor(capCtx, r.window, stableID))
+		images = append(images, lateImages...)
+	}
+	return errorResult(te, out, r.batch, images)
 }
 
 func lockError(ctx context.Context, err error, start time.Time, what string) error {
@@ -494,11 +503,16 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 			}
 		}
 		if err != nil {
-			te := asToolError(err)
-			if !applied {
+			switch te := asToolError(err); {
+			case te.Code == "window_gone":
+				// The window closed after the wait, as a file chooser does a moment after it has drawn the path that Enter
+				// gave it.
+				closed = true
+			case !applied:
 				return errorResult(te, out, r.batch, nil)
+			default:
+				out.CaptureError = &errorOut{Code: te.Code, Message: te.Message}
 			}
-			out.CaptureError = &errorOut{Code: te.Code, Message: te.Message}
 		} else {
 			s.shots.returned(sh)
 			if out.Wait != nil {
@@ -510,20 +524,19 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 			}
 		}
 	}
-	switch {
-	case closed:
-		s.shots.dropWindow(r.window)
-		s.setLeased(r.window, false)
-	case applied:
-		out.Lease = leaseInfo(s.renewLease(capCtx, r.window, st.Capabilities))
-	default:
-		// A lease keeps the emulated focus that input gave, and gives none itself. A call that sent nothing renews a
-		// lease that is held, unless it was cancelled, but starts none, and none of another window at the address.
-		if cur, err := s.hypr.State(capCtx, r.window); err == nil && cur.StableID == st.StableID {
-			if cur.Lease != nil && cur.Lease.Held && !cancelled {
-				out.Lease = leaseInfo(s.renewLease(capCtx, r.window, cur.Capabilities))
-			} else {
-				out.Lease = leaseInfo(cur.Lease)
+	if !closed {
+		switch {
+		case applied:
+			out.Lease = leaseInfo(s.renewLease(capCtx, r.window, st.Capabilities))
+		default:
+			// A lease keeps the emulated focus that input gave, and gives none itself. A call that sent nothing renews a
+			// lease that is held, unless it was cancelled, but starts none, and none of another window at the address.
+			if cur, err := s.hypr.State(capCtx, r.window); err == nil && cur.StableID == st.StableID {
+				if cur.Lease != nil && cur.Lease.Held && !cancelled {
+					out.Lease = leaseInfo(s.renewLease(capCtx, r.window, cur.Capabilities))
+				} else {
+					out.Lease = leaseInfo(cur.Lease)
+				}
 			}
 		}
 	}
@@ -532,11 +545,67 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	if applied && !cancelled && opensWindows(r.batch) {
 		s.newWindowGrace(ctx, waited.Add(s.cfg.NewWindowGrace), end.Add(-newWindowListing))
 	}
-	if after, err := s.listWindows(capCtx); err == nil {
-		out.NewWindows = s.newWindows(capCtx, before, after, r.window, windowPID(before, r.window), r.launch)
+	after, err := s.listWindows(capCtx)
+	if err == nil && !closed {
+		if w := findWindow(after, r.window); w == nil || w.StableID != st.StableID {
+			// The window closed after its capture, during the grace: the shot is of a window that is gone, which the
+			// listing has forgotten, and so is the note about a capture region that it replaced.
+			closed = true
+			out.Shot, out.CaptureError, out.Lease, images, out.captureNote = nil, nil, nil, nil, ""
+			if out.Wait != nil {
+				out.Wait.Animated = nil
+			}
+		}
 	}
-	if r.captureMode != "none" && !cancelled && ctx.Err() == nil && !s.stopping() {
-		images = append(images, s.newWindowShots(ctx, out.NewWindows, end)...)
+	if closed {
+		out.WindowClosed = true
+		s.shots.dropWindow(r.window)
+		s.setLeased(r.window, false)
+	}
+	reports := !cancelled && ctx.Err() == nil && !s.stopping()
+	var late []newWindowOut
+	if err == nil {
+		out.NewWindows = s.newWindows(capCtx, before, after, r.window, windowPID(before, r.window), r.launch)
+		if reports {
+			// The result reports the window and the windows that its input opened, which are not late, and claims the
+			// late windows of earlier acts when it can give them a shot.
+			s.settle(append(newWindowKeys(out.NewWindows, nil, true), r.window+"/"+st.StableID)...)
+			// The window that a closed one came from is reported as such, and not again as a late window.
+			if closed {
+				if out.Source = s.closedSource(capCtx, st.Source, r.window, after); out.Source != nil {
+					s.settle(out.Source.Window + "/" + out.Source.StableID)
+				}
+			}
+			if r.captureMode != "none" {
+				late = s.claimLate(capCtx, after)
+			}
+		}
+		if applied && !cancelled && opensWindows(r.batch) {
+			s.watchOpener(r.window, st.StableID, windowPID(before, r.window), after)
+		}
+	}
+	if r.captureMode != "none" && reports {
+		if src := out.Source; src != nil {
+			switch sh, png, err := s.newWindowShot(ctx, src.Window, src.StableID, end); {
+			case err == nil:
+				s.shots.returned(sh)
+				src.Shot = shotInfo(sh)
+				images = append(images, png)
+			case asToolError(err).Code == "window_gone":
+				// It closed too, so there is no window to go back to.
+				out.Source = nil
+			}
+		}
+		images = append(images, s.newWindowShots(ctx, end, out.NewWindows, late)...)
+	}
+	// A late window that maps while this act runs is reported as late, with its shot, and not as one of the act's new
+	// windows. One without a shot stays for a later result.
+	out.LateWindows = s.keepLate(late)
+	out.NewWindows = withoutLate(out.NewWindows, out.LateWindows)
+	// Without a claim, as with capture "none", a new window may be a late one of an earlier act, which a later result
+	// reports with its shot.
+	if reports && r.captureMode != "none" {
+		s.settle(newWindowKeys(out.NewWindows, late, false)...)
 	}
 
 	out.Summary = summaryLine(out, r.batch)
@@ -548,7 +617,16 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		}
 		unchanged = opened
 	}
-	out.Hint = joinHints(wait, unchanged, out.captureNote, frameHints(out.Shot), newWindowsHint(out.NewWindows))
+	if closed {
+		// The window is gone, so what the wait saw of it, such as no redraw after a click, says nothing that the input
+		// should be repeated for.
+		if out.Wait == nil || out.Wait.Ended != "cancelled" {
+			wait = ""
+		}
+		wait = joinHints(wait, closedHint(out.Source))
+	}
+	out.Hint = joinHints(wait, unchanged, out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows),
+		lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
 	if out.Actions != nil {
 		out.Hint = joinHints(out.Hint, out.Actions.composeNote)
 	}
@@ -556,6 +634,21 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		out.Hint = joinHints(out.Hint, "The input was applied, but the screenshot failed. Take a screenshot before repeating anything.")
 	}
 	return newResult(out, out.resultText, images, "")
+}
+
+// closedSource describes the window that the target came from, as the plugin found it when the target mapped, once the
+// target has closed: the agent works in it, since the plugin found the target to come from it, and goes on there. A
+// target that the user's own input opened has none, and nor has one whose source is gone or no longer open, which the
+// plugin's stable_id tells from a later window at its address.
+func (s *Server) closedSource(ctx context.Context, src *hypr.Source, target string, windows []hypr.Window) *sourceOut {
+	if src == nil || src.Reason == "user_input" || src.Window == target || src.StableID == "" {
+		return nil
+	}
+	w := findWindow(windows, src.Window)
+	if w == nil || w.StableID != src.StableID {
+		return nil
+	}
+	return &sourceOut{Window: w.Address, StableID: w.StableID, Class: w.Class, Title: w.Title, Workspace: w.Workspace.Name, Visible: s.visibleWorkspaces(ctx)[w.Workspace.ID]}
 }
 
 // opensWindows tells whether a batch has input that can open a window, after which act watches for new windows: a
@@ -593,22 +686,24 @@ func (s *Server) newWindowGrace(ctx context.Context, until, latest time.Time) {
 	}
 }
 
-// newWindowShots takes a shot of each new window that came from the target, up to newWindowShots of them, within the
-// deadline, so the agent can act in it without another call. It returns their images.
-func (s *Server) newWindowShots(ctx context.Context, windows []newWindowOut, end time.Time) [][]byte {
+// newWindowShots takes a shot of each new window that came from the target, up to newWindowShots of them in all the
+// lists, within the deadline, so the agent can act in it without another call. It returns their images.
+func (s *Server) newWindowShots(ctx context.Context, end time.Time, lists ...[]newWindowOut) [][]byte {
 	var images [][]byte
-	for i := range windows {
-		w := &windows[i]
-		if !w.fromTarget || len(images) == newWindowShots {
-			continue
+	for _, windows := range lists {
+		for i := range windows {
+			w := &windows[i]
+			if !w.fromTarget || len(images) == newWindowShots {
+				continue
+			}
+			sh, png, err := s.newWindowShot(ctx, w.Window, w.StableID, end)
+			if err != nil {
+				continue
+			}
+			s.shots.returned(sh)
+			w.Shot = shotInfo(sh)
+			images = append(images, png)
 		}
-		sh, png, err := s.newWindowShot(ctx, w.Window, w.StableID, end)
-		if err != nil {
-			continue
-		}
-		s.shots.returned(sh)
-		w.Shot = shotInfo(sh)
-		images = append(images, png)
 	}
 	return images
 }

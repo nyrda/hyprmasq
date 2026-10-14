@@ -42,9 +42,12 @@
 // SIGUSR1 starts one for the first toplevel without input. That process leaves
 // the probe's process tree, as a portal is no child of the app. S in a toplevel
 // that the probe opened closes it and opens a toplevel without a parent 300 ms
-// later, NAME-after, as a mail client's progress window after Send. It logs
-// "opened" when it creates a toplevel and "mapped" when it draws its first frame,
-// and destroys one that is asked to close.
+// later, NAME-after, as a mail client's progress window after Send. A right
+// click in a toplevel that the probe opened closes it at once, as a dialog's
+// button does, and Enter redraws it in another color and closes it 300 ms
+// later, as a file chooser does once it has taken the path. It logs "opened"
+// when it creates a toplevel and "mapped" when it draws its first frame, and
+// destroys one that is asked to close.
 #define _GNU_SOURCE
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
@@ -113,8 +116,8 @@ static void say(const char *format, ...) {
 // xdg-foreign handles of its first toplevels.
 static bool opener_mode;
 static struct window opened[16];
-static int opened_count, foreign_count, late_timer = -1;
-static struct window *late_from;
+static int opened_count, foreign_count, late_timer = -1, close_timer = -1;
+static struct window *late_from, *closing; // closing: the toplevel that close_timer closes
 static const char *late_kind;
 static bool late_parented;
 static char *late_after; // the name of the toplevel to open, when a toplevel closed for an S
@@ -347,6 +350,7 @@ static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time, wl_f
 }
 static void opener_input(struct wl_surface *s, char action);
 static void close_and_follow(struct wl_surface *s);
+static void close_opened(struct wl_surface *s, bool later);
 // Close mode: the window goes away at once, as a dialog does on the button that closes it.
 static void close_window(void) {
     if (!close_mode || !windows[0].toplevel)
@@ -365,6 +369,7 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial, ui
         close_window();
     if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && (button == BTN_LEFT || button == BTN_RIGHT || button == BTN_MIDDLE))
         opener_input(pointer_surface, button == BTN_LEFT ? 'n' : button == BTN_RIGHT ? 'd' : 'm');
+    if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && button == BTN_RIGHT) close_opened(pointer_surface, false);
 }
 static void pointer_axis(void *data, struct wl_pointer *p, uint32_t time, uint32_t axis, wl_fixed_t value) {}
 static const struct wl_pointer_listener pointer_listener = {
@@ -384,6 +389,7 @@ static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial, ui
     if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_N || key == KEY_D || key == KEY_L || key == KEY_K || key == KEY_F))
         opener_input(keyboard_surface, key == KEY_N ? 'n' : key == KEY_D ? 'd' : key == KEY_L ? 'l' : key == KEY_K ? 'k' : 'f');
     if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && key == KEY_S) close_and_follow(keyboard_surface);
+    if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && key == KEY_ENTER) close_opened(keyboard_surface, true);
     if (key == KEY_ESC && state == WL_KEYBOARD_KEY_STATE_PRESSED)
         close_window();
 }
@@ -485,6 +491,24 @@ static void close_and_follow(struct wl_surface *s) {
         return;
     }
 }
+// Closes a toplevel that the probe opened: at once, or after redrawing it in another color, 300 ms later.
+static void close_opened(struct wl_surface *s, bool later) {
+    for (int i = 0; s && i < opened_count; ++i) {
+        if (opened[i].surface != s) continue;
+        if (!later) {
+            destroy_opened(&opened[i]);
+            wl_display_flush(display);
+            return;
+        }
+        if (close_timer < 0) return;
+        opened[i].color = opened[i].color == 0xff22aa44 ? 0xff7722aa : 0xff22aa44;
+        draw(&opened[i]);
+        closing = &opened[i];
+        struct itimerspec in = {.it_value = {.tv_nsec = 300 * 1000000}};
+        assert(timerfd_settime(close_timer, 0, &in, NULL) == 0);
+        return;
+    }
+}
 // Input to one of the first toplevels redraws it in another color, so it draws something, and opens a toplevel.
 static void opener_input(struct wl_surface *s, char action) {
     struct window *from = s == windows[0].surface ? &windows[0] : s && s == windows[1].surface ? &windows[1] : NULL;
@@ -504,17 +528,21 @@ static void opener_input(struct wl_surface *s, char action) {
 }
 static int run_opener(void) {
     late_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
-    assert(late_timer >= 0);
+    close_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    assert(late_timer >= 0 && close_timer >= 0);
     sigset_t mask;
     sigemptyset(&mask);
     sigaddset(&mask, SIGUSR1);
     assert(sigprocmask(SIG_BLOCK, &mask, NULL) == 0);
     int signals = signalfd(-1, &mask, SFD_CLOEXEC);
     assert(signals >= 0);
-    struct pollfd fds[3] = {{.fd = wl_display_get_fd(display), .events = POLLIN}, {.fd = late_timer, .events = POLLIN}, {.fd = signals, .events = POLLIN}};
+    struct pollfd fds[4] = {{.fd = wl_display_get_fd(display), .events = POLLIN},
+                            {.fd = late_timer, .events = POLLIN},
+                            {.fd = signals, .events = POLLIN},
+                            {.fd = close_timer, .events = POLLIN}};
     for (;;) {
         while (wl_display_prepare_read(display) != 0) wl_display_dispatch_pending(display);
-        if (wl_display_flush(display) < 0 || poll(fds, 3, -1) < 0) {
+        if (wl_display_flush(display) < 0 || poll(fds, 4, -1) < 0) {
             wl_display_cancel_read(display);
             return 1;
         }
@@ -537,6 +565,12 @@ static int run_opener(void) {
             struct signalfd_siginfo info;
             assert(read(signals, &info, sizeof(info)) == sizeof(info));
             open_foreign(&windows[0]);
+        }
+        if (fds[3].revents & POLLIN) {
+            uint64_t expirations;
+            assert(read(close_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
+            if (closing && closing->surface) destroy_opened(closing);
+            closing = NULL;
         }
     }
 }

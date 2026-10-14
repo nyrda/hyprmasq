@@ -37,6 +37,16 @@ descriptions and results explain the rest. What `act` returns:
   says the page is still loading.
 - A failure that comes with a shot is a normal result whose text starts with
   `error CODE:`, so you get its shot; go on from it.
+- `new window ADDR …` with a line `shot sN … of new window ADDR`: your input
+  opened a window, such as a dialog, and sN is its shot, which `act` takes.
+  A window that opens after the call returned, as a file chooser can a second
+  later, comes as `late window ADDR …` with a shot in your next `act` or
+  `screenshot`, and until then `windows` marks it `opened by your input to …`.
+- `window closed`: your input closed the window, also when it closed just
+  after the wait. That is no failure; do not repeat the input. `back to ADDR
+  …` with a line `shot sN … of ADDR, the window it came from` names the window
+  that opened it, such as the page behind a file chooser or a popup, and sN
+  shows it now: go on there with that shot.
 - A full shot, which says why it came instead: without an earlier shot, after
   a resize or a change of popups past the window's edge, for a change of more
   than 35% of the window or too scattered to join into 5 regions, and after 10

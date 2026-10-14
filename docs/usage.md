@@ -931,10 +931,16 @@ for the active workspace.
 | `source` | Meaning |
 | --- | --- |
 | `null` | The window came from no window that emulated input reached. |
-| `{"window":"0x…","placed":true}` | It opened on the workspace of that window, without the focus. |
-| `{"window":"0x…","placed":false,"reason":"user_input"}` | Your own input to that window or app was newer, so Hyprland placed it. |
-| `{"window":"0x…","placed":false,"reason":"disabled"}` | `place_new_windows` is off. |
-| `{"window":"0x…","placed":false,"reason":"workspace"}` | A window rule cannot name the workspace of that window: a named or special workspace whose name has characters other than letters, digits, `_`, `.` and `-`. |
+| `{"window":"0x…","stableId":"1a","placed":true}` | It opened on the workspace of that window, without the focus. |
+| `{"window":"0x…","stableId":"1a","placed":false,"reason":"user_input"}` | Your own input to that window or app was newer, so Hyprland placed it. |
+| `{"window":"0x…","stableId":"1a","placed":false,"reason":"disabled"}` | `place_new_windows` is off. |
+| `{"window":"0x…","stableId":"1a","placed":false,"reason":"workspace"}` | A window rule cannot name the workspace of that window: a named or special workspace whose name has characters other than letters, digits, `_`, `.` and `-`. |
+
+`stableId` is the `stableId` of the window it came from while that window
+lives, and `null` once it is gone, so it tells that window from a later one at
+its address. `hyprmasq-mcp` uses `source` to find the windows that an agent's
+input opened after its call had returned, and the window to go on in once a
+window it drove has closed (see [MCP server](mcp.md#late-windows)).
 
 Plain `state` prints it as `source: 0x… placed`, `source: 0x… not placed:
 user_input` or `source: none`.

@@ -147,6 +147,7 @@ namespace hyprmasq::placement {
 
         struct SCandidate {
             std::string  address;
+            PHLWINDOWREF window;
             PHLWORKSPACE workspace;
             bool         yours = false; // the user's own input came later, so Hyprland places it
         };
@@ -160,7 +161,7 @@ namespace hyprmasq::placement {
                 const auto* d = find(parent);
                 if (!d)
                     return std::nullopt;
-                return SCandidate{.address = windowAddress(parent), .workspace = parent->m_workspace, .yours = d->user && *d->user >= d->agent};
+                return SCandidate{.address = windowAddress(parent), .window = parent, .workspace = parent->m_workspace, .yours = d->user && *d->user >= d->agent};
             }
             // Without one, the window of its app that got emulated input last, within RECENT, also one that has closed
             // since: on its workspace, or if that is gone, on that of its parent. The windows of an xwayland-satellite
@@ -198,7 +199,7 @@ namespace hyprmasq::placement {
             // their click there takes one that the agent's typing came after.
             const auto user  = std::ranges::find_if(userInput, [&](const auto& entry) { return entry.first == *app; });
             const bool yours = (best->user && *best->user >= *best->input) || (user != userInput.end() && user->second >= trigger.value_or(*best->input));
-            return SCandidate{.address = best->address, .workspace = workspace, .yours = yours};
+            return SCandidate{.address = best->address, .window = best->window, .workspace = workspace, .yours = yours};
         }
 
         // Before Hyprland reads a window's rules: at a Wayland window's first commit, before Hyprland suggests a size for
@@ -223,7 +224,7 @@ namespace hyprmasq::placement {
             std::erase_if(opened, [&](const SOpened& o) { return o.window.lock() == w; });
             if (!usable)
                 return;
-            SSource source{.address = found->address};
+            SSource source{.address = found->address, .window = found->window};
             if (!enabled->value())
                 source.reason = "disabled";
             else if (yours)

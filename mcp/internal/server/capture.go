@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -391,18 +392,33 @@ func (s *Server) screenshotTool(ctx context.Context, c *call) *mcp.CallToolResul
 	}
 	s.shots.returned(sh)
 	out := &screenshotOut{Shot: shotInfo(sh)}
+	images := oneImage(png)
+	// The windows that the input of an earlier act opened after it had returned come with the next shot, so that the
+	// agent sees them before it acts again.
+	if late := s.lateWindowsFor(ctx, args.Window, st.StableID); len(late) > 0 {
+		end, _ := ctx.Deadline()
+		var lateImages [][]byte
+		out.LateWindows, lateImages = s.lateShots(ctx, end, late)
+		images = append(images, lateImages...)
+	}
 	out.Summary = shotText(out.Shot)
 	if asked != nil {
 		out.Summary += fmt.Sprintf(" · zoom of %s at %s,%s %s×%s", asked.Shot, formatNumber(asked.X), formatNumber(asked.Y), formatNumber(asked.Width), formatNumber(asked.Height))
 	}
 	out.Summary += fmt.Sprintf(" · window %s %s", args.Window, formatSize(sh.Size))
-	out.Hint = frameHints(out.Shot)
-	return newResult(out, out.resultText, oneImage(png), "")
+	if text := lateWindowsText(out.LateWindows); text != "" {
+		out.Summary += " · " + text
+	}
+	out.Summary = strings.Join(append([]string{out.Summary}, newWindowLines(out.LateWindows, "late window")...), "\n")
+	out.Hint = joinHints(frameHints(out.Shot), lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
+	return newResult(out, out.resultText, images, "")
 }
 
 type screenshotOut struct {
 	resultText
 	Shot *shotOut `json:"shot"`
+	// Windows that the input of earlier acts opened after those acts had returned, which no result has reported yet.
+	LateWindows []newWindowOut `json:"late_windows,omitempty"`
 }
 
 // parseCapture reads act's capture argument: "changes", the default, "window", "none", or a region object.

@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
@@ -347,6 +348,8 @@ type newWindowOut struct {
 	workspaceID int
 	// It came from the target, as the plugin found it, or belongs to a launch by this server.
 	fromTarget bool
+	// For a late window: when this call claimed it.
+	claimed time.Time
 }
 
 type errorOut struct {
@@ -399,12 +402,18 @@ func joinHints(hints ...string) string {
 type actOut struct {
 	Error *errorOut `json:"error,omitempty"`
 	resultText
-	Actions      *actionsOut    `json:"actions,omitempty"`
-	Wait         *waitOut       `json:"wait,omitempty"`
-	Shot         *shotOut       `json:"shot,omitempty"`
-	CaptureError *errorOut      `json:"capture_error,omitempty"`
-	Lease        *leaseOut      `json:"lease,omitempty"`
-	NewWindows   []newWindowOut `json:"new_windows"`
+	Actions      *actionsOut `json:"actions,omitempty"`
+	Wait         *waitOut    `json:"wait,omitempty"`
+	Shot         *shotOut    `json:"shot,omitempty"`
+	CaptureError *errorOut   `json:"capture_error,omitempty"`
+	// The window closed during the call: its wait ended so, or it closed after the wait.
+	WindowClosed bool `json:"window_closed,omitempty"`
+	// For a window that closed, the window it came from, if that is still open.
+	Source     *sourceOut     `json:"source,omitempty"`
+	Lease      *leaseOut      `json:"lease,omitempty"`
+	NewWindows []newWindowOut `json:"new_windows"`
+	// Windows that the input of earlier acts opened after those acts had returned, which no result has reported yet.
+	LateWindows []newWindowOut `json:"late_windows,omitempty"`
 	// Why the shot shows the whole window instead of the capture region, for the hint.
 	captureNote string
 }
@@ -494,6 +503,11 @@ func waitText(w *waitOut) string {
 }
 
 func newWindowsText(windows []newWindowOut) string {
+	return windowsText(windows, "new window", "new windows")
+}
+
+// windowsText names windows that appeared, under the noun for one and for several of them, or "" for none.
+func windowsText(windows []newWindowOut, one, several string) string {
 	if len(windows) == 0 {
 		return ""
 	}
@@ -514,22 +528,78 @@ func newWindowsText(windows []newWindowOut) string {
 		}
 		parts = append(parts, fmt.Sprintf("%s (%s %q%s) on workspace %s (%s)", w.Window, w.Class, w.Title, relation, w.Workspace, where))
 	}
-	noun := "new window"
+	noun := one
 	if len(windows) > 1 {
-		noun = "new windows"
+		noun = several
 	}
 	return noun + " " + strings.Join(parts, ", ")
 }
 
-// newWindowLines are the lines after the summary line for the shots of new windows, in the order of their images.
-func newWindowLines(windows []newWindowOut) []string {
+// newWindowLines are the lines after the summary line for the shots of new windows, or with the noun of other windows
+// that appeared, in the order of their images.
+func newWindowLines(windows []newWindowOut, noun string) []string {
 	var lines []string
 	for _, w := range windows {
 		if w.Shot != nil {
-			lines = append(lines, fmt.Sprintf("%s of new window %s", shotText(w.Shot), w.Window))
+			lines = append(lines, fmt.Sprintf("%s of %s %s", shotText(w.Shot), noun, w.Window))
 		}
 	}
 	return lines
+}
+
+// sourceOut is the window that a target that closed came from, where the agent goes on.
+type sourceOut struct {
+	Window    string   `json:"window"`
+	StableID  string   `json:"stable_id"`
+	Class     string   `json:"class"`
+	Title     string   `json:"title"`
+	Workspace string   `json:"workspace"`
+	Visible   bool     `json:"visible"`
+	Shot      *shotOut `json:"shot,omitempty"`
+}
+
+// sourceText is the summary's part about the window that a closed target came from, or "".
+func sourceText(src *sourceOut) string {
+	if src == nil {
+		return ""
+	}
+	where := "hidden"
+	if src.Visible {
+		where = "visible"
+	}
+	return fmt.Sprintf("back to %s (%s %q) on workspace %s (%s)", src.Window, src.Class, src.Title, src.Workspace, where)
+}
+
+// sourceLines is the line after the summary line for the shot of the window that a closed target came from.
+func sourceLines(src *sourceOut) []string {
+	if src == nil || src.Shot == nil {
+		return nil
+	}
+	return []string{fmt.Sprintf("%s of %s, the window it came from", shotText(src.Shot), src.Window)}
+}
+
+// sourceShot is the shot of the window that a closed target came from, or nil.
+func sourceShot(src *sourceOut) *shotOut {
+	if src == nil {
+		return nil
+	}
+	return src.Shot
+}
+
+// sourceHint names the window that a closed target came from, where the agent goes on, or "".
+func sourceHint(src *sourceOut) string {
+	switch {
+	case src == nil:
+		return ""
+	case src.Shot != nil:
+		return fmt.Sprintf("It came from window %s, which shot %s shows now: go on there with that shot's pixels.", src.Window, src.Shot.ID)
+	}
+	return fmt.Sprintf("It came from window %s: take a screenshot of it to go on there.", src.Window)
+}
+
+// closedHint says that the target closed, and where the agent goes on.
+func closedHint(src *sourceOut) string {
+	return joinHints("The window closed.", sourceHint(src), "Any new windows are listed; call windows for the rest.")
 }
 
 // notPlacedReasons say why the plugin did not open a window on the workspace of the window it came from.
@@ -598,11 +668,15 @@ func summaryLine(out *actOut, batch []action) string {
 	}
 	add(actionsText(out.Actions, batch))
 	add(waitText(out.Wait))
+	if out.WindowClosed && (out.Wait == nil || out.Wait.Ended != "window_closed") {
+		add("window closed")
+	}
 	if out.Shot != nil {
 		add(shotText(out.Shot))
 	} else if out.CaptureError != nil {
 		add("capture failed: " + out.CaptureError.Message)
 	}
+	add(sourceText(out.Source))
 	if out.Lease != nil {
 		if out.Lease.Held {
 			add(fmt.Sprintf("lease %d s", out.Lease.RemainingS))
@@ -611,8 +685,11 @@ func summaryLine(out *actOut, batch []action) string {
 		}
 	}
 	add(newWindowsText(out.NewWindows))
+	add(lateWindowsText(out.LateWindows))
 	lines := append([]string{strings.Join(parts, " · ")}, changesLines(out.Shot)...)
-	return strings.Join(append(lines, newWindowLines(out.NewWindows)...), "\n")
+	lines = append(lines, sourceLines(out.Source)...)
+	lines = append(lines, newWindowLines(out.NewWindows, "new window")...)
+	return strings.Join(append(lines, newWindowLines(out.LateWindows, "late window")...), "\n")
 }
 
 // waitHint explains a wait outcome that needs a decision. A commit only shows that the window drew, so the hints say
@@ -666,8 +743,6 @@ func waitHint(w *waitOut, batch []action, shotID string, actions *actionsOut, sh
 			return "The window kept drawing until the deadline, so it may be animating or still loading. " + look + "; to wait longer, act with no actions and a larger deadline_ms (at most 30000)."
 		}
 		return "Nothing was drawn before the deadline. " + look + "; to wait longer for a first redraw, act with no actions and a larger deadline_ms (at most 30000)."
-	case "window_closed":
-		return "The window closed. Any new windows are listed; call windows for the rest."
 	}
 	return ""
 }
@@ -688,9 +763,11 @@ func errorResult(te *toolError, out *actOut, batch []action, images [][]byte) *m
 		out.Summary = summaryLine(out, batch)
 	}
 	res := newResult(out, out.resultText, images, errorLine(te))
-	// A call that fell short but captured a shot, of the window or of a window that the input opened, is no tool error:
-	// clients such as Claude Code show only the text of an error, and the agent goes on from the shot.
-	res.IsError = out.Shot == nil && !slices.ContainsFunc(out.NewWindows, func(w newWindowOut) bool { return w.Shot != nil })
+	// A call that fell short but captured a shot, of the window, of the window that a window that closed came from, or
+	// of a window that input opened, is no tool error: clients such as Claude Code show only the text of an error, and
+	// the agent goes on from the shot.
+	hasShot := func(w newWindowOut) bool { return w.Shot != nil }
+	res.IsError = out.Shot == nil && sourceShot(out.Source) == nil && !slices.ContainsFunc(out.NewWindows, hasShot) && !slices.ContainsFunc(out.LateWindows, hasShot)
 	return res
 }
 
@@ -723,7 +800,8 @@ func finalHint(te *toolError, out *actOut) string {
 			hint = joinHints(hint, add)
 		}
 	}
-	return joinHints(hint, frameHints(out.Shot), openedHint(out.NewWindows), newWindowsHint(out.NewWindows))
+	return joinHints(hint, frameHints(out.Shot), sourceHint(out.Source), frameHints(sourceShot(out.Source)), openedHint(out.NewWindows), newWindowsHint(out.NewWindows),
+		lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
 }
 
 // errorOnlyOut is the structured content of a failure of a tool other than act.

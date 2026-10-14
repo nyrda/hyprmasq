@@ -163,9 +163,13 @@ type windowOut struct {
 	Launched     bool             `json:"launched"`
 	Lease        *windowLeaseOut  `json:"lease"`
 	Capabilities *capabilitiesOut `json:"capabilities"`
+	// The window whose input in an earlier act opened this one after that act had returned, while no result has reported
+	// it: the next act or screenshot does, with a shot.
+	OpenedByInput string `json:"opened_by_input,omitempty"`
 }
 
-func (s *Server) describeWindow(ctx context.Context, w hypr.Window, visible map[int]bool, launched map[string]string) windowOut {
+// describeWindow describes a window of the list, whose windowKeys open holds.
+func (s *Server) describeWindow(ctx context.Context, w hypr.Window, visible map[int]bool, launched map[string]string, open map[string]bool) windowOut {
 	out := windowOut{Window: w.Address, StableID: w.StableID, Class: w.Class, Title: w.Title, PID: w.PID,
 		Workspace: w.Workspace.Name, Visible: visible[w.Workspace.ID], XWayland: w.XWayland, Launched: launched[windowKey(w)] != ""}
 	if len(w.Size) == 2 {
@@ -177,6 +181,9 @@ func (s *Server) describeWindow(ctx context.Context, w hypr.Window, visible map[
 		out.Capabilities = &capabilitiesOut{Lease: st.Capabilities.Lease, Hold: st.Capabilities.Hold, Keyboard: st.Capabilities.Keyboard}
 		if st.Lease != nil && st.Lease.Held {
 			out.Lease = &windowLeaseOut{Held: true, RemainingS: int(math.Round(float64(st.Lease.RemainingMs) / 1000)), Mine: st.Lease.Owner == s.owner}
+		}
+		if st.StableID == w.StableID {
+			out.OpenedByInput = s.lateFrom(w, st.Source, open)
 		}
 	}
 	return out
@@ -220,13 +227,14 @@ func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	}
 	visible := s.visibleWorkspaces(ctx)
 	launched := s.launchedWindows(ctx)
+	open := openKeys(clients)
 	windows := []windowOut{}
 	var lines []string
 	for _, w := range clients {
 		if !matches(w, args.Match) {
 			continue
 		}
-		out := s.describeWindow(ctx, w, visible, launched)
+		out := s.describeWindow(ctx, w, visible, launched, open)
 		windows = append(windows, out)
 		lines = append(lines, windowLine(out))
 	}
@@ -269,6 +277,9 @@ func windowLine(w windowOut) string {
 	}
 	if w.Launched {
 		parts = append(parts, "launched")
+	}
+	if w.OpenedByInput != "" {
+		parts = append(parts, fmt.Sprintf("opened by your input to %s, not yet reported", w.OpenedByInput))
 	}
 	if w.Lease != nil {
 		owner := "another session"

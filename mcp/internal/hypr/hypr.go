@@ -180,9 +180,12 @@ type State struct {
 // input last.
 type Source struct {
 	Window string `json:"window"`
+	// The stable_id of that window while it lives, which tells it from a later window at its address, or "" once it is
+	// gone, and from a plugin that names none.
+	StableID string `json:"stableId"`
 	// The plugin opened the new window on that window's workspace, without the focus.
 	Placed bool `json:"placed"`
-	// Why it did not: disabled or user_input.
+	// Why it did not: disabled, user_input or workspace.
 	Reason string `json:"reason"`
 }
 
