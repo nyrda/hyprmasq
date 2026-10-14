@@ -22,22 +22,39 @@ func environValue(environ []byte, name string) string {
 	return ""
 }
 
-// launchedWindows returns the windows of this server's launches, by windowKey, which the plugin found by their process
-// or a parent of it. The address alone could be one that Hyprland gave to another window since.
-func (s *Server) launchedWindows(ctx context.Context) map[string]bool {
+// launchedWindows returns the tokens of this server's launches by the windowKey of their windows, which the plugin
+// found by their process or a parent of it. The address alone could be one that Hyprland gave to another window since.
+func (s *Server) launchedWindows(ctx context.Context) map[string]string {
 	windows, err := s.hypr.Launched(ctx)
 	if err != nil {
 		return nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	launched := map[string]bool{}
+	launched := map[string]string{}
 	for _, w := range windows {
 		if s.tokens[w.Token] {
-			launched[windowKey(hypr.Window{Address: w.Address, StableID: w.StableID})] = true
+			launched[windowKey(hypr.Window{Address: w.Address, StableID: w.StableID})] = w.Token
 		}
 	}
 	return launched
+}
+
+// launchOf returns the token of the launch by this server that the window at the address in windows belongs to, or "".
+// It asks the plugin only when this server has launched something.
+func (s *Server) launchOf(ctx context.Context, windows []hypr.Window, address string) string {
+	s.mu.Lock()
+	launches := len(s.tokens)
+	s.mu.Unlock()
+	if launches == 0 {
+		return ""
+	}
+	for _, w := range windows {
+		if w.Address == address {
+			return s.launchedWindows(ctx)[windowKey(w)]
+		}
+	}
+	return ""
 }
 
 // listWindows lists the windows, and forgets the shots of windows that have closed.
@@ -54,14 +71,16 @@ func windowKey(w hypr.Window) string {
 	return w.Address + "/" + w.StableID
 }
 
-// newWindows lists the windows in after that are not in before. A window at a reused address is new.
-func (s *Server) newWindows(ctx context.Context, before, after []hypr.Window, targetPID int) []newWindowOut {
+// newWindows lists the windows in after that are not in before, with where they opened and where the plugin found
+// them to come from. A window at a reused address is new. target is the window that the call is about, targetPID its
+// process and targetLaunch the token of its launch by this server, or "".
+func (s *Server) newWindows(ctx context.Context, before, after []hypr.Window, target string, targetPID int, targetLaunch string) []newWindowOut {
 	known := map[string]bool{}
 	for _, w := range before {
 		known[windowKey(w)] = true
 	}
 	windows := []newWindowOut{}
-	var launched map[string]bool
+	var launched map[string]string
 	for _, w := range after {
 		if known[windowKey(w)] {
 			continue
@@ -69,10 +88,44 @@ func (s *Server) newWindows(ctx context.Context, before, after []hypr.Window, ta
 		if launched == nil {
 			launched = s.launchedWindows(ctx)
 		}
+		token := launched[windowKey(w)]
 		windows = append(windows, newWindowOut{Window: w.Address, StableID: w.StableID, Class: w.Class, Title: w.Title, PID: w.PID,
-			SamePID: targetPID > 0 && w.PID == targetPID, Launched: launched[windowKey(w)]})
+			SamePID: targetPID > 0 && w.PID == targetPID, Launched: token != "", Workspace: w.Workspace.Name, workspaceID: w.Workspace.ID,
+			fromTarget: token != "" && token == targetLaunch})
+	}
+	if len(windows) == 0 {
+		return windows
+	}
+	visible := s.visibleWorkspaces(ctx)
+	focused, _ := s.hypr.ActiveWindow(ctx)
+	for i := range windows {
+		w := &windows[i]
+		w.Visible, w.Focused = visible[w.workspaceID], w.Window == focused
+		// state opens no socket, so it leaves windows of other apps undriven.
+		if st, err := s.hypr.State(ctx, w.Window); err == nil && st.StableID == w.StableID && st.Source != nil {
+			w.Source, w.Placed, w.NotPlaced = st.Source.Window, st.Source.Placed, st.Source.Reason
+			// A window that the plugin found the user's own input to have opened is theirs, also when it came from the
+			// target.
+			w.fromTarget = w.fromTarget || (st.Source.Window == target && st.Source.Reason != "user_input")
+		}
+		// Besides the source, only a launch of the target's tells: the process says too little, since xwayland-satellite
+		// hosts every X11 app of its server in one, and another launch of this server is another app.
 	}
 	return windows
+}
+
+// visibleWorkspaces returns the ids of the workspaces that the monitors show, active and special ones.
+func (s *Server) visibleWorkspaces(ctx context.Context) map[int]bool {
+	visible := map[int]bool{}
+	if monitors, err := s.hypr.Monitors(ctx); err == nil {
+		for _, m := range monitors {
+			visible[m.ActiveWorkspace.ID] = true
+			if m.SpecialWorkspace.ID != 0 {
+				visible[m.SpecialWorkspace.ID] = true
+			}
+		}
+	}
+	return visible
 }
 
 type sizeOut struct {
@@ -112,9 +165,9 @@ type windowOut struct {
 	Capabilities *capabilitiesOut `json:"capabilities"`
 }
 
-func (s *Server) describeWindow(ctx context.Context, w hypr.Window, visible map[int]bool, launched map[string]bool) windowOut {
+func (s *Server) describeWindow(ctx context.Context, w hypr.Window, visible map[int]bool, launched map[string]string) windowOut {
 	out := windowOut{Window: w.Address, StableID: w.StableID, Class: w.Class, Title: w.Title, PID: w.PID,
-		Workspace: w.Workspace.Name, Visible: visible[w.Workspace.ID], XWayland: w.XWayland, Launched: launched[windowKey(w)]}
+		Workspace: w.Workspace.Name, Visible: visible[w.Workspace.ID], XWayland: w.XWayland, Launched: launched[windowKey(w)] != ""}
 	if len(w.Size) == 2 {
 		out.Size = sizeOut{float64(w.Size[0]), float64(w.Size[1])}
 	}
@@ -165,15 +218,7 @@ func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	if err != nil {
 		return simpleError(err)
 	}
-	visible := map[int]bool{}
-	if monitors, err := s.hypr.Monitors(ctx); err == nil {
-		for _, m := range monitors {
-			visible[m.ActiveWorkspace.ID] = true
-			if m.SpecialWorkspace.ID != 0 {
-				visible[m.SpecialWorkspace.ID] = true
-			}
-		}
-	}
+	visible := s.visibleWorkspaces(ctx)
 	launched := s.launchedWindows(ctx)
 	windows := []windowOut{}
 	var lines []string

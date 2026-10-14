@@ -44,6 +44,10 @@ together.
 - **Your input stays yours.** A window driven through its socket cannot grab
   your real pointer or keyboard with a popup, start a drag, or begin an
   interactive move or resize.
+- **New windows stay out of your way.** A window that an app opens in
+  response to emulated input, such as a dialog, a popup or a file chooser,
+  opens on the workspace of the window it came from, without your focus. The
+  windows you open yourself open as usual.
 - **Visible activity.** On visible workspaces, a light blue copy of your cursor
   shows where emulated pointer input lands, with a ripple for each click.
 - **Hidden windows keep repainting.** For a second after input, while a sender

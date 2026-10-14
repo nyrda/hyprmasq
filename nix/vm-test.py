@@ -2239,9 +2239,11 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
         opened_same = open_from_hidden("hm-opened-same-app")
         assert opened_same["workspace"]["id"] == hidden_workspace, opened_same
         assert snapshot() == (8, shared_visible)
-        # A real key after the input means the user's own input opened it, also in the same app.
+        # A real click after the input means the user's own input opened it, also in the same app.
         send(path, "type", "(sleep 2; footclient -s /tmp/hyprmasq-foot.sock -T hm-opened-user sleep 600) &", "key", 28)
-        machine.send_key("shift")
+        (x, y), (width, height) = client("hm-shared-visible")["at"], client("hm-shared-visible")["size"]
+        dispatch(f"hl.dsp.cursor.move({{ x = {x + width // 2}, y = {y + height // 2} }})")
+        alice(f"{client_env} wlrctl pointer click left")
         wait_for("hm-opened-user", lambda: client("hm-opened-user") is not None)
         user = client("hm-opened-user")
         assert user["workspace"]["id"] == 8, user
@@ -3324,6 +3326,206 @@ print(longest)
         assert re.fullmatch(rf"closed {child['window']} after \d+ ms" + resized, closed.text), closed
         assert client("hm-m-child") is None
 
+    def opened_window(title):
+        """The client entry of a window that an opener probe opened, once it is mapped."""
+        wait_for(title, lambda: client(title) is not None, timeout=20)
+        return client(title)
+
+    def real_click(address, button="left"):
+        """Clicks in the middle of a window through a virtual pointer, which is real input to Hyprland."""
+        (x, y), (width, height) = client_at(address)
+        dispatch(f"hl.dsp.cursor.move({{ x = {x + width // 2}, y = {y + height // 2} }})")
+        alice(f"{client_env} wlrctl pointer click {button}")
+
+    def client_at(address):
+        c = next(c for c in clients() if c["address"] == address)
+        return c["at"], c["size"]
+
+    def close_titled(*titles):
+        for title in titles:
+            if client(title):
+                dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
+            wait_for(f"{title} closed", lambda: client(title) is None)
+
+    green_window = (0x22, 0xAA, 0x44)
+
+    with subtest("windows that input opens open on the workspace of the window that got it, without the focus"):
+        # focus-probe's opener mode opens a toplevel on N and a dialog of the window that got the key on D, and on F
+        # another process opens a dialog of it through xdg-foreign, as a portal's file chooser does, naming the parent
+        # after Hyprland has created the window.
+        focus_workspace(61)
+        spawn("hyprmasq-focus-probe opener hm-o-agent", "o-agent")
+        agent = opened_window("hm-o-agent")["address"]
+        agent_size = client("hm-o-agent")["size"]
+        assert agent_size == [640, 480], agent_size
+        focus_workspace(4)
+        wait_for("focus back", lambda: snapshot() == (4, visible))
+        before_focus = snapshot()
+        opener = Mcp("o")
+        opener.initialize()
+        actions = [{"action": "key", "keys": [k]} for k in ["f", "n", "d"]]
+        both = opener.call("act", {"window": agent, "actions": actions})
+        assert not both.is_error and both.data["actions"]["delivery"] == "complete", both
+        new, dialog, foreign = opened_window("hm-o-agent-new1"), opened_window("hm-o-agent-dialog2"), opened_window("hm-o-agent-foreign1")
+        assert new["workspace"]["id"] == dialog["workspace"]["id"] == foreign["workspace"]["id"] == 61 and dialog["floating"] and foreign["floating"], (new, dialog, foreign)
+        assert foreign["pid"] != new["pid"], (new, foreign)
+        assert snapshot() == before_focus
+        # They float at the size they ask for, so the driven window keeps its size and its shots stay valid.
+        assert new["floating"] and new["size"] == [250, 200], new
+        assert client("hm-o-agent")["size"] == agent_size, client("hm-o-agent")
+        for c in [new, dialog, foreign]:
+            assert window_state(c["address"])["source"] == {"window": agent, "placed": True}, window_state(c["address"])
+        # The act returns all three, with a shot of each after the one of the agent's window, in the order of the list.
+        # The toplevel is blank until it gets a frame callback, which a hidden workspace does not send, so its shot
+        # shows it green only when the capture fed it callbacks first, as for any starved window.
+        assert "content hm-o-agent-new1" in [e for _, e in probe_events("o-agent")], probe_events("o-agent")
+        entries = {w["title"]: w for w in both.data["new_windows"]}
+        assert sorted(entries) == ["hm-o-agent-dialog2", "hm-o-agent-foreign1", "hm-o-agent-new1"] and len(both.images) == 4, both
+        lines = both.text.splitlines()
+        for entry, image in zip(both.data["new_windows"], both.images[1:]):
+            c = next(c for c in [new, dialog, foreign] if c["title"] == entry["title"])
+            assert (entry["window"], entry["workspace"], entry["visible"], entry["focused"], entry["placed"], entry["source"], entry["same_pid"]) == (
+                c["address"], "61", False, False, True, agent, c is not foreign,
+            ), entry
+            shot = entry["shot"]
+            assert [shot["width"], shot["height"]] == c["size"] and "may_be_stale" not in shot, (shot, c)
+            relation = "" if c is foreign else ", same pid"
+            assert f'{c["address"]} ({c["class"]} "{c["title"]}"{relation}) on workspace 61 (hidden)' in lines[0], both
+            assert f'shot {shot["id"]} {shot["width"]}×{shot["height"]} of new window {c["address"]}' in lines[1:], both
+            assert near(pixels(image, (5, 5))[0], green_window), (c, pixels(image, (5, 5)))
+        assert "New window" not in both.data.get("hint", ""), both
+        keep(both, "o-both")
+        # The dialog's shot takes coordinates at once.
+        start = len(probe_events("o-agent"))
+        clicked = opener.call("act", {"window": dialog["address"], "shot": entries[dialog["title"]]["shot"]["id"], "actions": [{"action": "click", "x": 20, "y": 30}],
+                                      "wait": {"expect_change": False}})
+        assert not clicked.is_error and clicked.data["new_windows"] == [], clicked
+        assert "motion hm-o-agent-dialog2 20 30" in [e for _, e in probe_events("o-agent", start)], probe_events("o-agent", start)
+        assert snapshot() == before_focus
+
+    with subtest("a window that maps after the wait has ended is still reported by that act"):
+        # L opens a toplevel 300 ms after the key, and the wait ends 100 ms after the window that got it redrew, so
+        # usually before. The Go tests cover a window that maps after the wait.
+        start = len(probe_events("o-agent"))
+        late = opener.call("act", {"window": agent, "actions": [{"action": "key", "keys": ["l"]}], "wait": {"quiet_ms": 100}})
+        assert not late.is_error and late.data["wait"]["ended"] == "quiet", late
+        events = probe_events("o-agent", start)
+        pressed = next(t for t, e in events if e == "key hm-o-agent 38 1")
+        mapped = next(t for t, e in events if e == "mapped hm-o-agent-late3")
+        assert mapped - pressed >= 300, events
+        entry = next(w for w in late.data["new_windows"] if w["title"] == "hm-o-agent-late3")
+        assert entry["placed"] and entry["workspace"] == "61" and entry["shot"], late
+        assert opened_window("hm-o-agent-late3")["workspace"]["id"] == 61 and snapshot() == before_focus
+        close_titled("hm-o-agent-new1", "hm-o-agent-dialog2", "hm-o-agent-foreign1", "hm-o-agent-late3")
+
+    with subtest("a window that an app opens once the dialog that got the input has closed opens next to it"):
+        # As Thunderbird's progress window after Send in its confirmation dialog: S in a dialog of the probe closes the
+        # dialog, and 300 ms later the probe opens a toplevel, when the window that got the input is gone. No window of
+        # the probe that is still open got input within the last 5 seconds.
+        assert not opener.call("act", {"window": agent, "actions": [{"action": "key", "keys": ["d"]}]}).is_error
+        dialog = opened_window("hm-o-agent-dialog4")
+        assert dialog["workspace"]["id"] == 61, dialog
+        time.sleep(5.5)
+        sent = opener.call("act", {"window": dialog["address"], "actions": [{"action": "key", "keys": ["s"]}]})
+        after = opened_window("hm-o-agent-dialog4-after")
+        assert client("hm-o-agent-dialog4") is None
+        assert after["workspace"]["id"] == 61 and after["floating"], after
+        assert window_state(after["address"])["source"] == {"window": dialog["address"], "placed": True}, window_state(after["address"])
+        assert snapshot() == before_focus
+        entry = next(w for w in sent.data["new_windows"] if w["title"] == "hm-o-agent-dialog4-after")
+        assert entry["placed"] and entry["source"] == dialog["address"] and entry["shot"], sent
+        close_titled("hm-o-agent-dialog4-after")
+
+    with subtest("with place_new_windows off, a window that input opens opens as Hyprland places it, with the focus"):
+        hypr("eval " + shlex.quote("hl.config({ plugin = { hyprmasq = { place_new_windows = false } } })"))
+        off = opener.call("act", {"window": agent, "actions": [{"action": "key", "keys": ["n"]}]})
+        assert not off.is_error, off
+        taken = opened_window("hm-o-agent-new6")
+        wait_for("new window focus", lambda: snapshot() == (4, taken["address"]))
+        assert window_state(taken["address"])["source"] == {"window": agent, "placed": False, "reason": "disabled"}
+        entry = next(w for w in off.data["new_windows"] if w["title"] == "hm-o-agent-new6")
+        assert (entry["workspace"], entry["visible"], entry["focused"], entry["placed"], entry["not_placed"]) == ("4", True, True, False, "disabled"), off
+        assert f'{taken["address"]} ({taken["class"]} "hm-o-agent-new6", same pid) on workspace 4 (visible, focused)' in off.text.splitlines()[0], off
+        assert (
+            f"New window {taken['address']} opened on the user's visible workspace 4 and has their keyboard focus, so what they type goes there, "
+            "since the plugin's place_new_windows option is off. Tell the user."
+        ) in off.data["hint"], off
+        hypr("eval " + shlex.quote("hl.config({ plugin = { hyprmasq = { place_new_windows = true } } })"))
+        close_titled("hm-o-agent-new6")
+        dispatch(f'hl.dsp.focus({{ window = "address:{visible}" }})')
+        wait_for("focus back", lambda: snapshot() == (4, visible))
+        assert opener.stop() == 0
+
+    machine.execute("pkill -f 'hyprmasq-focus-probe [o]pener hm-o-agent'")
+    machine.execute("pkill -f 'hyprmasq-focus-probe [i]mported'")
+
+    with subtest("a dialog of the user's own window opens as usual, also when input reached another window of its app since"):
+        # As a browser with the user's window on their workspace and the agent's on a hidden one. A middle click opens a
+        # dialog of the clicked window 1.5 s later; meanwhile, input reaches the hidden window. By the process alone, as
+        # when Hyprland creates the window, the input would have opened it; its parent, known when it maps, says the
+        # user did.
+        focus_workspace(62)
+        spawn("hyprmasq-focus-probe opener hm-o-user hm-o-hidden", "o-browser")
+        user, hidden = opened_window("hm-o-user")["address"], opened_window("hm-o-hidden")["address"]
+        dispatch(f'hl.dsp.window.move({{ window = "address:{hidden}", workspace = "63", follow = false }})')
+        dispatch(f'hl.dsp.focus({{ window = "address:{user}" }})')
+        wait_for("user window focus", lambda: snapshot() == (62, user))
+        hidden_path = open_socket(hidden)
+        start = len(probe_events("o-browser"))
+        real_click(user, "middle")
+        send(hidden_path, "move", 5, 5)
+        child = opened_window("hm-o-user-late-dialog1")
+        events = probe_events("o-browser", start)
+        clicked = next(t for t, e in events if e == "button hm-o-user 1")
+        driven = next(t for t, e in events if e == "motion hm-o-hidden 5 5")
+        mapped = next(t for t, e in events if e == "mapped hm-o-user-late-dialog1")
+        assert clicked < driven < mapped, events
+        wait_for("dialog focus", lambda: snapshot() == (62, child["address"]))
+        assert child["workspace"]["id"] == 62 and window_state(child["address"])["source"] is None, child
+
+    with subtest("the user's typing into one window of an app does not take a window that input to another opens"):
+        # K in the hidden window opens a toplevel without a parent 1.5 s later, while the user types into a window of the
+        # same app on their workspace. Typing into another window opens no window, unlike a click, Enter or a shortcut.
+        start = len(probe_events("o-browser"))
+        send(hidden_path, "key", 37)
+        machine.send_chars("abc", delay=0.05)
+        later = opened_window("hm-o-hidden-later2")
+        events = probe_events("o-browser", start)
+        driven = next(t for t, e in events if e == "key hm-o-hidden 37 1")
+        user_keys = [t for t, e in events if e.startswith("key hm-o-user") and e.endswith(" 1")]
+        mapped = next(t for t, e in events if e == "mapped hm-o-hidden-later2")
+        assert len(user_keys) == 3 and driven < min(user_keys) and max(user_keys) < mapped, events
+        assert later["workspace"]["id"] == 63 and later["floating"], later
+        assert window_state(later["address"])["source"] == {"window": hidden, "placed": True}, window_state(later["address"])
+        assert snapshot() == (62, child["address"])
+        machine.execute("pkill -f 'hyprmasq-focus-probe [o]pener hm-o-user'")
+        wait_for("browser probe closed", lambda: client("hm-o-user") is None)
+        focus_workspace(4)
+        wait_for("focus back", lambda: snapshot() == (4, visible))
+
+    with subtest("a dialog that another process opens for a launched window opens next to it"):
+        # A launch's window is one the agent works in before any input reaches it. A dialog that a process outside the
+        # launch names it the parent of, as a portal does, opens floating on the launch's workspace.
+        launched_probe = alice(f"{ipc} hyprmasq-launch --workspace hm-o-launch -- hyprmasq-focus-probe opener hm-o-launched").strip()
+        before_focus = snapshot()
+        machine.succeed("pkill -USR1 -f 'hyprmasq-focus-probe [o]pener hm-o-launched'")
+        foreign = opened_window("hm-o-launched-foreign1")
+        assert foreign["workspace"]["name"] == "hm-o-launch" and foreign["floating"], foreign
+        assert window_state(foreign["address"])["source"] == {"window": launched_probe, "placed": True}, window_state(foreign["address"])
+        assert snapshot() == before_focus
+        # A toplevel that N opens in the launch's first minute is the launch's to place, and floats there at its size, as
+        # any window that input opens, so the launched window keeps its size.
+        launched_size = client("hm-o-launched")["size"]
+        send(open_socket(launched_probe), "key", 49)
+        launched_new = opened_window("hm-o-launched-new1")
+        assert launched_new["workspace"]["name"] == "hm-o-launch" and launched_new["floating"] and launched_new["size"] == [250, 200], launched_new
+        assert client("hm-o-launched")["size"] == launched_size, client("hm-o-launched")
+        assert window_state(launched_new["address"])["source"] == {"window": launched_probe, "placed": True}, window_state(launched_new["address"])
+        assert snapshot() == before_focus
+        machine.execute("pkill -f 'hyprmasq-focus-probe [o]pener hm-o-launched'")
+        machine.execute("pkill -f 'hyprmasq-focus-probe [i]mported'")
+        wait_for("launched probe closed", lambda: client("hm-o-launched") is None and client("hm-o-launched-foreign1") is None and client("hm-o-launched-new1") is None)
+
     with subtest("two hyprmasq-mcp servers take turns on one window"):
         other = Mcp("c")
         other.initialize()
@@ -3911,6 +4113,8 @@ print(longest)
             assert closed.data["actions"] == {"done": 2, "total": 2, "delivery": "complete"}, closed
             assert closed.data["wait"]["ended"] == "window_closed" and closed.text.startswith("2/2 delivered · window closed"), closed
             assert not closed.images and "shot" not in closed.data, closed
+            # It opened no window, so the grace for new windows changes nothing in the result.
+            assert closed.data["new_windows"] == [] and closed.data["hint"] == "The window closed. Any new windows are listed; call windows for the rest.", closed
         assert snapshot() == before_focus
 
     with subtest("hyprmasq-mcp ends its calls and releases its leases on SIGTERM"):
@@ -4036,9 +4240,12 @@ finally:
         "/tmp/hyprmasq-x-cover.log",
         "/tmp/hyprmasq-satellite.log",
         "/tmp/hyprmasq-m-probe.log",
+        "/tmp/hyprmasq-o-agent.log",
+        "/tmp/hyprmasq-o-browser.log",
         "/tmp/hyprmasq-m-a-server.log",
         "/tmp/hyprmasq-m-b-server.log",
         "/tmp/hyprmasq-m-c-server.log",
+        "/tmp/hyprmasq-m-o-server.log",
     ]:
         if machine.execute(f"test -e {artifact}")[0] == 0:
             machine.copy_from_machine(artifact)

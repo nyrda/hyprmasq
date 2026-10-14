@@ -29,9 +29,26 @@
 // Nth frame callback, asking for each one before with a commit that draws nothing.
 // With N 0, it never draws again, and keeps asking. It waits for one frame callback
 // at a time, also when it draws, so each one counts once.
+// With `opener TITLE [TITLE]`, it logs like the focus mode and opens windows on
+// input to one of its toplevels, which it redraws in another color: N or a left
+// click opens a toplevel without a parent, TITLE-newK, which is blank until its first
+// frame callback, then green, and logs "content", D or a right click one with
+// that toplevel as its parent, TITLE-dialogK, L a toplevel without a parent 300 ms
+// later, TITLE-lateK, K one 1500 ms later, TITLE-laterK, and a middle click a dialog
+// 1500 ms later, TITLE-late-dialogK.
+// F starts another process, `imported HANDLE TITLE-foreignK`, which opens a
+// toplevel and names the toplevel that got the key as its parent through
+// xdg-foreign, after its initial commit, as a portal's file chooser does; a
+// SIGUSR1 starts one for the first toplevel without input. That process leaves
+// the probe's process tree, as a portal is no child of the app. S in a toplevel
+// that the probe opened closes it and opens a toplevel without a parent 300 ms
+// later, NAME-after, as a mail client's progress window after Send. It logs
+// "opened" when it creates a toplevel and "mapped" when it draws its first frame,
+// and destroys one that is asked to close.
 #define _GNU_SOURCE
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
+#include "xdg-foreign-unstable-v2-client-protocol.h"
 #include <libei.h>
 #include <linux/input-event-codes.h>
 #include <assert.h>
@@ -45,6 +62,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/signalfd.h>
+#include <sys/timerfd.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -55,6 +73,8 @@ struct window {
     int width, height;
     const char *name;
     uint32_t color;
+    bool drawn;
+    bool hungry; // draws its content only in answer to a frame callback
 };
 static struct wl_display *display;
 static struct wl_compositor *compositor;
@@ -63,6 +83,8 @@ static struct wl_seat *seat;
 static struct xdg_wm_base *wm;
 static struct wl_data_device_manager *data_manager;
 static struct wl_data_device *data_device;
+static struct zxdg_exporter_v2 *exporter;
+static struct zxdg_importer_v2 *importer;
 static struct window windows[3];
 static struct wl_surface *pointer_surface, *keyboard_surface;
 static bool requested;
@@ -87,9 +109,22 @@ static void say(const char *format, ...) {
     putchar('\n');
 }
 
+// Opener mode: the toplevels it opened, the one that opens a late toplevel when its timer expires, and the
+// xdg-foreign handles of its first toplevels.
+static bool opener_mode;
+static struct window opened[16];
+static int opened_count, foreign_count, late_timer = -1;
+static struct window *late_from;
+static const char *late_kind;
+static bool late_parented;
+static char *late_after; // the name of the toplevel to open, when a toplevel closed for an S
+static char *handles[2];
+
 static const char *surface_name(struct wl_surface *s) {
     for (size_t i = 0; i < 3; ++i)
         if (windows[i].surface == s) return windows[i].name;
+    for (int i = 0; i < opened_count; ++i)
+        if (opened[i].surface == s) return opened[i].name;
     return "unknown";
 }
 static void buffer_release(void *data, struct wl_buffer *buffer) { wl_buffer_destroy(buffer); }
@@ -173,6 +208,8 @@ static void configure(void *data, struct xdg_surface *surface, uint32_t serial) 
     xdg_surface_ack_configure(surface, serial);
     draw(w);
 }
+static void content_frame(void *data, struct wl_callback *callback, uint32_t time);
+static const struct wl_callback_listener content_listener = {.done = content_frame};
 static void draw(struct window *w) {
     // Only the first toplevel has a margin, which its window geometry leaves out.
     const int mx = w == &windows[0] ? margin_x : 0, my = w == &windows[0] ? margin_y : 0;
@@ -197,6 +234,7 @@ static void draw(struct window *w) {
     wl_surface_attach(w->surface, buffer, 0, 0);
     wl_surface_damage(w->surface, 0, 0, width, height);
     if (frames_mode) request_frame(w);
+    if (w->hungry) wl_callback_add_listener(wl_surface_frame(w->surface), &content_listener, w);
     wl_surface_commit(w->surface);
     if (resize_mode && w == &windows[0]) {
         drawn_width = w->width;
@@ -208,6 +246,8 @@ static void draw(struct window *w) {
         printf("drew %s %d %d\n", content_drawn ? "content" : "blank", w->width, w->height);
     } else
         printf("configured %s\n", w->name);
+    if (opener_mode && !w->drawn) say("mapped %s", w->name);
+    w->drawn = true;
 }
 static const struct xdg_surface_listener surface_listener = {.configure = configure};
 static void toplevel_configure(void *data, struct xdg_toplevel *top, int32_t width, int32_t height, struct wl_array *states) {
@@ -215,7 +255,19 @@ static void toplevel_configure(void *data, struct xdg_toplevel *top, int32_t wid
     if (width > 0) w->width = width;
     if (height > 0) w->height = height;
 }
-static void toplevel_close(void *data, struct xdg_toplevel *top) { exit(0); }
+static void destroy_opened(struct window *w) {
+    xdg_toplevel_destroy(w->toplevel);
+    xdg_surface_destroy(w->xdg);
+    wl_surface_destroy(w->surface);
+    w->toplevel = NULL;
+    w->surface = NULL;
+    say("destroyed %s", w->name);
+}
+static void toplevel_close(void *data, struct xdg_toplevel *top) {
+    struct window *w = data;
+    if (w < opened || w >= opened + opened_count) exit(0);
+    destroy_opened(w);
+}
 static const struct xdg_toplevel_listener toplevel_listener = {.configure = toplevel_configure, .close = toplevel_close};
 static void ping(void *data, struct xdg_wm_base *base, uint32_t serial) { xdg_wm_base_pong(base, serial); }
 static const struct xdg_wm_base_listener wm_listener = {.ping = ping};
@@ -293,6 +345,8 @@ static void pointer_leave(void *data, struct wl_pointer *p, uint32_t serial, str
 static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time, wl_fixed_t x, wl_fixed_t y) {
     say("motion %s %g %g", surface_name(pointer_surface), wl_fixed_to_double(x), wl_fixed_to_double(y));
 }
+static void opener_input(struct wl_surface *s, char action);
+static void close_and_follow(struct wl_surface *s);
 // Close mode: the window goes away at once, as a dialog does on the button that closes it.
 static void close_window(void) {
     if (!close_mode || !windows[0].toplevel)
@@ -309,6 +363,8 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial, ui
     if (pointer_surface == windows[0].surface && state == WL_POINTER_BUTTON_STATE_PRESSED && !requested) request_grabs(serial);
     if (pointer_surface == windows[0].surface && button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED)
         close_window();
+    if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && (button == BTN_LEFT || button == BTN_RIGHT || button == BTN_MIDDLE))
+        opener_input(pointer_surface, button == BTN_LEFT ? 'n' : button == BTN_RIGHT ? 'd' : 'm');
 }
 static void pointer_axis(void *data, struct wl_pointer *p, uint32_t time, uint32_t axis, wl_fixed_t value) {}
 static const struct wl_pointer_listener pointer_listener = {
@@ -325,6 +381,9 @@ static void keyboard_leave(void *data, struct wl_keyboard *kb, uint32_t serial, 
 }
 static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
     say("key %s %u %u", surface_name(keyboard_surface), key, state);
+    if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_N || key == KEY_D || key == KEY_L || key == KEY_K || key == KEY_F))
+        opener_input(keyboard_surface, key == KEY_N ? 'n' : key == KEY_D ? 'd' : key == KEY_L ? 'l' : key == KEY_K ? 'k' : 'f');
+    if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && key == KEY_S) close_and_follow(keyboard_surface);
     if (key == KEY_ESC && state == WL_KEYBOARD_KEY_STATE_PRESSED)
         close_window();
 }
@@ -357,18 +416,129 @@ static void global(void *data, struct wl_registry *registry, uint32_t name, cons
         seat = wl_registry_bind(registry, name, &wl_seat_interface, 1);
         wl_seat_add_listener(seat, &seat_listener, NULL);
     } else if (!strcmp(interface, "wl_data_device_manager")) data_manager = wl_registry_bind(registry, name, &wl_data_device_manager_interface, 1);
+    else if (!strcmp(interface, "zxdg_exporter_v2")) exporter = wl_registry_bind(registry, name, &zxdg_exporter_v2_interface, 1);
+    else if (!strcmp(interface, "zxdg_importer_v2")) importer = wl_registry_bind(registry, name, &zxdg_importer_v2_interface, 1);
 }
 static void global_remove(void *data, struct wl_registry *registry, uint32_t name) {}
 static const struct wl_registry_listener registry_listener = {.global = global, .global_remove = global_remove};
-static void create_toplevel(struct window *w, const char *name) {
-    *w = (struct window){.width = 250, .height = 200, .name = name, .color = 0xff224466};
+static void create_toplevel_with(struct window *w, const char *name, struct xdg_toplevel *parent, uint32_t color) {
+    *w = (struct window){.width = 250, .height = 200, .name = name, .color = color};
     w->surface = wl_compositor_create_surface(compositor);
     w->xdg = xdg_wm_base_get_xdg_surface(wm, w->surface);
     xdg_surface_add_listener(w->xdg, &surface_listener, w);
     w->toplevel = xdg_surface_get_toplevel(w->xdg);
     xdg_toplevel_add_listener(w->toplevel, &toplevel_listener, w);
     xdg_toplevel_set_title(w->toplevel, w->name);
+    if (parent) xdg_toplevel_set_parent(w->toplevel, parent);
     wl_surface_commit(w->surface);
+}
+static void create_toplevel(struct window *w, const char *name) { create_toplevel_with(w, name, NULL, 0xff224466); }
+// A hungry toplevel draws green at its first frame callback.
+static void content_frame(void *data, struct wl_callback *callback, uint32_t time) {
+    struct window *w = data;
+    wl_callback_destroy(callback);
+    if (!w->hungry) return;
+    w->hungry = false;
+    w->color = 0xff22aa44;
+    draw(w);
+    say("content %s", w->name);
+}
+// Opens a green toplevel named after the toplevel that got the input, with that one as its parent if parented. One
+// without a parent is blank until its first frame callback, as a mail client's compose window on a hidden workspace.
+static void open_toplevel(struct window *from, const char *kind, bool parented) {
+    if (opened_count == (int)(sizeof(opened) / sizeof(opened[0]))) return;
+    char *name;
+    assert(asprintf(&name, "%s-%s%d", from->name, kind, opened_count + 1) > 0);
+    struct window *w = &opened[opened_count++];
+    create_toplevel_with(w, name, parented ? from->toplevel : NULL, parented ? 0xff22aa44 : 0xff224466);
+    w->hungry = !parented;
+    say("opened %s", name);
+}
+static void exported_handle(void *data, struct zxdg_exported_v2 *exported, const char *handle) { *(char **)data = strdup(handle); }
+static const struct zxdg_exported_v2_listener exported_listener = {.handle = exported_handle};
+// Starts another process that opens a toplevel with this one as its parent, through xdg-foreign.
+static void open_foreign(struct window *from) {
+    const char *handle = handles[from - windows];
+    if (!handle) {
+        say("no handle for %s", from->name);
+        return;
+    }
+    char *name;
+    assert(asprintf(&name, "%s-foreign%d", from->name, ++foreign_count) > 0);
+    if (fork() == 0) {
+        if (fork() == 0) {
+            execl("/proc/self/exe", "hyprmasq-focus-probe", "imported", handle, name, (char *)NULL);
+            _exit(127);
+        }
+        _exit(0);
+    }
+}
+// Closes a toplevel that the probe opened, and opens another one 300 ms later, when the first is gone.
+static void close_and_follow(struct wl_surface *s) {
+    for (int i = 0; s && i < opened_count; ++i) {
+        if (opened[i].surface != s) continue;
+        assert(asprintf(&late_after, "%s-after", opened[i].name) > 0);
+        destroy_opened(&opened[i]);
+        wl_display_flush(display);
+        struct itimerspec in = {.it_value = {.tv_nsec = 300 * 1000000}};
+        assert(timerfd_settime(late_timer, 0, &in, NULL) == 0);
+        return;
+    }
+}
+// Input to one of the first toplevels redraws it in another color, so it draws something, and opens a toplevel.
+static void opener_input(struct wl_surface *s, char action) {
+    struct window *from = s == windows[0].surface ? &windows[0] : s && s == windows[1].surface ? &windows[1] : NULL;
+    if (!from) return;
+    from->color = from->color == 0xff224466 ? 0xff664422 : 0xff224466;
+    draw(from);
+    if (action == 'l' || action == 'k' || action == 'm') {
+        late_from = from;
+        late_kind = action == 'l' ? "late" : action == 'k' ? "later" : "late-dialog";
+        late_parented = action == 'm';
+        struct itimerspec in = {.it_value = {.tv_sec = action == 'l' ? 0 : 1, .tv_nsec = (action == 'l' ? 300 : 500) * 1000000}};
+        assert(timerfd_settime(late_timer, 0, &in, NULL) == 0);
+    } else if (action == 'f')
+        open_foreign(from);
+    else
+        open_toplevel(from, action == 'n' ? "new" : "dialog", action == 'd');
+}
+static int run_opener(void) {
+    late_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    assert(late_timer >= 0);
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGUSR1);
+    assert(sigprocmask(SIG_BLOCK, &mask, NULL) == 0);
+    int signals = signalfd(-1, &mask, SFD_CLOEXEC);
+    assert(signals >= 0);
+    struct pollfd fds[3] = {{.fd = wl_display_get_fd(display), .events = POLLIN}, {.fd = late_timer, .events = POLLIN}, {.fd = signals, .events = POLLIN}};
+    for (;;) {
+        while (wl_display_prepare_read(display) != 0) wl_display_dispatch_pending(display);
+        if (wl_display_flush(display) < 0 || poll(fds, 3, -1) < 0) {
+            wl_display_cancel_read(display);
+            return 1;
+        }
+        if (fds[0].revents & POLLIN) {
+            if (wl_display_read_events(display) < 0) return 1;
+        } else
+            wl_display_cancel_read(display);
+        if (wl_display_dispatch_pending(display) < 0) return 1;
+        if (fds[1].revents & POLLIN) {
+            uint64_t expirations;
+            assert(read(late_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
+            if (late_after) {
+                create_toplevel_with(&opened[opened_count++], late_after, NULL, 0xff22aa44);
+                say("opened %s", late_after);
+                late_after = NULL;
+            } else
+                open_toplevel(late_from, late_kind, late_parented);
+        }
+        if (fds[2].revents & POLLIN) {
+            struct signalfd_siginfo info;
+            assert(read(signals, &info, sizeof(info)) == sizeof(info));
+            open_foreign(&windows[0]);
+        }
+    }
 }
 // Each SIGUSR1 opens or destroys the popup. Nothing else happens in between, so the
 // popup's commits are the only ones of the window.
@@ -588,6 +758,27 @@ int main(int argc, char **argv) {
         stamped = close_mode = true;
         requested = true;
         create_toplevel(&windows[0], argv[2]);
+        while (wl_display_dispatch(display) >= 0) {}
+        return 1;
+    }
+    if ((argc == 3 || argc == 4) && !strcmp(argv[1], "opener")) {
+        stamped = opener_mode = true;
+        requested = true; // clicks request nothing
+        signal(SIGCHLD, SIG_IGN);
+        create_toplevel(&windows[0], argv[2]);
+        if (argc == 4) create_toplevel(&windows[1], argv[3]);
+        for (int i = 0; exporter && i < argc - 2; ++i)
+            zxdg_exported_v2_add_listener(zxdg_exporter_v2_export_toplevel(exporter, windows[i].surface), &exported_listener, &handles[i]);
+        return run_opener();
+    }
+    if (argc == 4 && !strcmp(argv[1], "imported")) {
+        stamped = opener_mode = true;
+        requested = true;
+        assert(importer);
+        // The parent follows the initial commit, so Hyprland learns it after it created the window, before it maps.
+        create_toplevel_with(&opened[opened_count++], argv[3], NULL, 0xff22aa44);
+        say("opened %s", argv[3]);
+        zxdg_imported_v2_set_parent_of(zxdg_importer_v2_import_toplevel(importer, argv[2]), opened[0].surface);
         while (wl_display_dispatch(display) >= 0) {}
         return 1;
     }

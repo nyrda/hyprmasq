@@ -4,6 +4,7 @@
 #include "Eis.hpp"
 #include "Error.hpp"
 #include "Launch.hpp"
+#include "Placement.hpp"
 #include "Screenshot.hpp"
 #include "Wait.hpp"
 #include "Windows.hpp"
@@ -228,6 +229,20 @@ namespace hyprmasq {
             return out.empty() ? "no launched windows" : out;
         }
 
+        // The window a new window came from, see "New windows" in docs/usage.md.
+        std::string sourceJson(const std::optional<placement::SSource>& source) {
+            if (!source)
+                return "null";
+            const auto reason = source->reason.empty() ? std::string{} : std::format(R"(,"reason":"{}")", source->reason);
+            return std::format(R"({{"window":{},"placed":{}{}}})", jsonString(source->address), source->placed, reason);
+        }
+
+        std::string sourceText(const std::optional<placement::SSource>& source) {
+            if (!source)
+                return "none";
+            return source->placed ? source->address + " placed" : std::format("{} not placed: {}", source->address, source->reason);
+        }
+
         std::string state(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
             if (args.size() != 1)
                 return usage(format);
@@ -245,17 +260,18 @@ namespace hyprmasq {
             const std::string_view keyboard = caps.x11Focus ? "x11-focus" : "yes";
             const bool             behind   = resizing(window);
             const bool             hungry   = starved(window);
+            const auto             source   = placement::source(window);
             if (format == FORMAT_JSON)
                 return std::format(R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"scale":{},)"
-                                   R"("socket":{},"socketId":{},"commits":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"keyboard":"{}"}}}})",
+                                   R"("socket":{},"socketId":{},"commits":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"keyboard":"{}"}},"source":{}}})",
                                    jsonString(windowAddress(window)), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
                                    socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits),
-                                   lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, keyboard);
+                                   lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, keyboard, sourceJson(source));
             return std::format("address: {}\nstableId: {:x}\nxwayland: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
-                               "lease: {}\ncapabilities: lease={} hold={} dnd={} keyboard={}\n",
+                               "lease: {}\ncapabilities: lease={} hold={} dnd={} keyboard={}\nsource: {}\n",
                                windowAddress(window), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
                                socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none", lease ? leaseText(*lease) : "none",
-                               caps.lease, caps.hold, caps.dnd, keyboard);
+                               caps.lease, caps.hold, caps.dnd, keyboard, sourceText(source));
         }
 
         constexpr int MAX_LEASE_MS = 600000;

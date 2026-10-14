@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -323,13 +324,29 @@ func leaseInfo(l *hypr.Lease) *leaseOut {
 }
 
 type newWindowOut struct {
-	Window   string `json:"window"`
-	StableID string `json:"stable_id"`
-	Class    string `json:"class"`
-	Title    string `json:"title"`
-	PID      int    `json:"pid"`
-	SamePID  bool   `json:"same_pid"`
-	Launched bool   `json:"launched"`
+	Window    string `json:"window"`
+	StableID  string `json:"stable_id"`
+	Class     string `json:"class"`
+	Title     string `json:"title"`
+	PID       int    `json:"pid"`
+	SamePID   bool   `json:"same_pid"`
+	Launched  bool   `json:"launched"`
+	Workspace string `json:"workspace"`
+	Visible   bool   `json:"visible"`
+	// It has the user's keyboard focus.
+	Focused bool `json:"focused"`
+	// The window it came from, as the plugin found it when it mapped, if it found one.
+	Source string `json:"source,omitempty"`
+	// The plugin opened it on the workspace of its source, without the focus.
+	Placed bool `json:"placed"`
+	// Why the plugin did not: disabled, user_input or workspace.
+	NotPlaced string `json:"not_placed,omitempty"`
+	// A shot of it, for a window that came from the target of an act.
+	Shot *shotOut `json:"shot,omitempty"`
+
+	workspaceID int
+	// It came from the target, as the plugin found it, or belongs to a launch by this server.
+	fromTarget bool
 }
 
 type errorOut struct {
@@ -488,13 +505,87 @@ func newWindowsText(windows []newWindowOut) string {
 		} else if w.SamePID {
 			relation = ", same pid"
 		}
-		parts = append(parts, fmt.Sprintf("%s (%s %q%s)", w.Window, w.Class, w.Title, relation))
+		where := "hidden"
+		if w.Visible {
+			where = "visible"
+		}
+		if w.Focused {
+			where += ", focused"
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s %q%s) on workspace %s (%s)", w.Window, w.Class, w.Title, relation, w.Workspace, where))
 	}
 	noun := "new window"
 	if len(windows) > 1 {
 		noun = "new windows"
 	}
 	return noun + " " + strings.Join(parts, ", ")
+}
+
+// newWindowLines are the lines after the summary line for the shots of new windows, in the order of their images.
+func newWindowLines(windows []newWindowOut) []string {
+	var lines []string
+	for _, w := range windows {
+		if w.Shot != nil {
+			lines = append(lines, fmt.Sprintf("%s of new window %s", shotText(w.Shot), w.Window))
+		}
+	}
+	return lines
+}
+
+// notPlacedReasons say why the plugin did not open a window on the workspace of the window it came from.
+var notPlacedReasons = map[string]string{
+	"disabled":  "the plugin's place_new_windows option is off",
+	"workspace": "no window rule can name the workspace of the window it came from",
+	"":          "the plugin could not tell that hyprmasq's input opened it",
+}
+
+// openedHint says which new windows the input opened, the ones that came from the target, or "" when it opened none.
+func openedHint(windows []newWindowOut) string {
+	var parts []string
+	for _, w := range windows {
+		if !w.fromTarget {
+			continue
+		}
+		part := fmt.Sprintf("%s %q", w.Window, w.Title)
+		if w.Shot != nil {
+			part += " in shot " + w.Shot.ID
+		}
+		parts = append(parts, part)
+	}
+	switch len(parts) {
+	case 0:
+		return ""
+	case 1:
+		return "The input opened new window " + parts[0] + "."
+	}
+	return "The input opened new windows " + strings.Join(parts, ", ") + "."
+}
+
+// newWindowsHint names the new windows from the target that opened where the user sees them, since the plugin did not
+// place them, those that have no shot, and those whose shot shows, or may show, an older frame.
+func newWindowsHint(windows []newWindowOut) string {
+	var hints []string
+	for _, w := range windows {
+		if !w.fromTarget {
+			continue
+		}
+		hints = append(hints, frameHints(w.Shot))
+		if w.Visible && !w.Placed {
+			hint := fmt.Sprintf("New window %s opened on the user's visible workspace %s", w.Window, w.Workspace)
+			if w.Focused {
+				hint += " and has their keyboard focus, so what they type goes there"
+			}
+			reason, ok := notPlacedReasons[w.NotPlaced]
+			if !ok {
+				reason = notPlacedReasons[""]
+			}
+			hints = append(hints, hint+", since "+reason+". Tell the user.")
+		}
+		if w.Shot == nil {
+			hints = append(hints, fmt.Sprintf("Take a screenshot of new window %s before acting in it.", w.Window))
+		}
+	}
+	return joinHints(hints...)
 }
 
 // summaryLine is the one line every act result starts with.
@@ -520,7 +611,8 @@ func summaryLine(out *actOut, batch []action) string {
 		}
 	}
 	add(newWindowsText(out.NewWindows))
-	return strings.Join(append([]string{strings.Join(parts, " · ")}, changesLines(out.Shot)...), "\n")
+	lines := append([]string{strings.Join(parts, " · ")}, changesLines(out.Shot)...)
+	return strings.Join(append(lines, newWindowLines(out.NewWindows)...), "\n")
 }
 
 // waitHint explains a wait outcome that needs a decision. A commit only shows that the window drew, so the hints say
@@ -596,9 +688,9 @@ func errorResult(te *toolError, out *actOut, batch []action, images [][]byte) *m
 		out.Summary = summaryLine(out, batch)
 	}
 	res := newResult(out, out.resultText, images, errorLine(te))
-	// A call that fell short but captured a shot is no tool error: clients such as Claude Code show only the text of an
-	// error, and the agent goes on from the shot.
-	res.IsError = out.Shot == nil
+	// A call that fell short but captured a shot, of the window or of a window that the input opened, is no tool error:
+	// clients such as Claude Code show only the text of an error, and the agent goes on from the shot.
+	res.IsError = out.Shot == nil && !slices.ContainsFunc(out.NewWindows, func(w newWindowOut) bool { return w.Shot != nil })
 	return res
 }
 
@@ -631,7 +723,7 @@ func finalHint(te *toolError, out *actOut) string {
 			hint = joinHints(hint, add)
 		}
 	}
-	return joinHints(hint, frameHints(out.Shot))
+	return joinHints(hint, frameHints(out.Shot), openedHint(out.NewWindows), newWindowsHint(out.NewWindows))
 }
 
 // errorOnlyOut is the structured content of a failure of a tool other than act.

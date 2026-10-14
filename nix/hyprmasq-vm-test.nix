@@ -86,6 +86,8 @@ pkgs.testers.runNixOSTest {
         pkgs.procps
         python
         pkgs.wev
+        # A virtual pointer, whose clicks are real input to Hyprland.
+        pkgs.wlrctl
         focusProbe
         pkgs.xterm
         pkgs.xev

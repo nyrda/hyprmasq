@@ -238,8 +238,10 @@ Use this for an application you are developing or testing.
      instance: `firefox --new-instance -P test`, `foot` instead of
      `footclient`, `chromium --user-data-dir=/tmp/profile`.
 2. Find other windows of the app, such as dialogs, in
-   `hyprctl -j clients` by `pid` or `title`. Menus and popups of Wayland apps
-   are part of their window and show in its screenshots.
+   `hyprctl -j clients` by `pid` or `title`. Windows that your input opens
+   open on the workspace of the window they came from, without taking the
+   user's focus. Menus and popups of Wayland apps are part of their window and show
+   in its screenshots.
 3. Assert on what you see in screenshots, and keep them as evidence for the
    user.
 4. Close your windows when you are done:

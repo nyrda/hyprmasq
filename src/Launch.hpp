@@ -15,8 +15,8 @@
 // up to a launched one. Such a window belongs to the launch, also one of a child process, as a browser that its
 // launcher script starts without exec. Within a minute of the launch, the plugin tags the window and registers a window
 // rule for that tag, which puts the window silently on the launch's workspace as it maps, and removes both once it has
-// mapped or is destroyed. A window that emulated input opened, see openerOf, it puts on the driven window's workspace
-// the same way, also when no launch started its app. Main thread only.
+// mapped or is destroyed. A window that emulated input opened, see placement.hpp, it puts on the workspace of the window
+// it came from the same way, also when no launch started its app. Main thread only.
 namespace hyprmasq::launch {
     void init();
     void shutdown();
@@ -31,6 +31,13 @@ namespace hyprmasq::launch {
     };
     // The mapped windows of launches, in the order Hyprland created them.
     std::vector<SLaunched> windows();
+
+    // Puts a window that has not mapped yet silently on the workspace as it maps, floating at the size it asks for, with
+    // a tag and a rule, or keeps or moves the placement that an earlier call made. A window that a launch places stays
+    // on the launch's workspace, and floats there. False when the workspace has no name that a rule can give.
+    bool placeOn(const PHLWINDOW& window, const PHLWORKSPACE& workspace);
+    // Takes back what placeOn did for a window that has not mapped yet.
+    void withdraw(const PHLWINDOW& window);
 
     // True for a window that the plugin placed silently, for as long as it lives.
     bool placed(const PHLWINDOW& window);

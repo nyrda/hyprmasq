@@ -52,6 +52,8 @@ type Config struct {
 	// Fit overview and zoom shots within this many pixels on the long side, or 0 for the monitor's scale.
 	MaxImageSize int
 	LeaseMs      int
+	// How long act goes on watching for new windows after its wait, when it delivered input.
+	NewWindowGrace time.Duration
 	// Whether results carry structured content: StructuredAlways, StructuredNever, or StructuredAuto or "", which
 	// leaves it out for the clients in textClients.
 	StructuredContent string

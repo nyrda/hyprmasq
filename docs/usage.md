@@ -342,6 +342,8 @@ hyprctl -j hyprmasq state "$addr"
   `socketId` names the socket that `commits` counts for; see
   [The commit counter](#the-commit-counter). `lease` is `null` when none is
   held.
+- `source` is the window that this one came from, as the plugin found it when
+  the window mapped, or `null`; see [New windows](#new-windows).
 - `capabilities` describe what input can do in the window at the moment:
 
 | Capability | True when |
@@ -431,8 +433,8 @@ after the rules of your configuration, it takes precedence over their
 workspaces. Once the window has mapped, the plugin removes the rule and the
 tag. Windows that the application opens later, or that a program
 started in a launched shell opens a minute after the launch, open where
-Hyprland and your rules put them, unless input to a driven window opened them
-(see [Security model](#security-model)).
+Hyprland and your rules put them, unless emulated input opened them
+(see [New windows](#new-windows)).
 
 Applications that hand the request to an instance that is already running,
 such as a `footclient` of a `foot --server` or a browser that is already open,
@@ -845,6 +847,115 @@ hl.config({
 })
 ```
 
+## New windows
+
+Hyprland opens a new window on the active workspace and gives it the keyboard
+focus. An app cannot tell emulated input from yours, so a window that it opens
+in response to emulated input, such as a compose window, a dialog, a browser's
+popup or a portal's file chooser, would land on your screen and take your
+typing. The plugin opens such a window silently on the workspace of the window
+it came from instead: the visible workspace and the focus stay as they are.
+When you are on that workspace yourself, you see the window open there, and
+keep working in your window. This also covers apps that no launch started, such
+as your own browser.
+
+Hyprland creates a Wayland window when the app asks for it, before the app can
+name its parent, and an X11 window before it has its `WM_TRANSIENT_FOR` and
+`_NET_WM_PID`. So the plugin decides before Hyprland reads the window's rules: for
+a Wayland window at its first commit, where apps have usually named the parent,
+and again when it maps; for an X11 window when it maps. A new window comes from
+
+- its parent, when it has one: an `xdg_toplevel` parent, `WM_TRANSIENT_FOR`,
+  or through xdg-foreign a window of another process, as a portal's file
+  chooser has. The parent counts when emulated input reached it or the plugin
+  placed it, also as a window of a launch, and your own input to it is older
+  than that. A window whose parent is one you work in, such as a dialog of your
+  own window of a driven app, opens as usual.
+- otherwise the window of its app that emulated input reached last, in the last
+  5 seconds, when your own input to that app is older. That window may have
+  closed since, as a dialog whose Send button made the app open a progress
+  window: the new window then opens on the workspace the closed window was on,
+  or if that is gone, on that of its parent. An app is a Wayland
+  connection, and for Hyprland's XWayland, which serves every X11 app on one
+  connection, an X11 process. The apps of an xwayland-satellite share its
+  connection and report its process, so they cannot be told apart, and its
+  windows without a parent open as usual.
+
+Your input is a key, pressed or released, or a mouse button, to the window and
+app with the real keyboard or pointer focus, and a touch or a tablet tip, to the
+window that Hyprland focuses for it. When it is newer, the window is yours, and
+Hyprland places and focuses it as usual:
+
+- for a window with a parent, any of your input to the parent;
+- for one without, any of your input to the window of the app that emulated
+  input reached last, or input elsewhere in the app that can open a window,
+  newer than the agent's last such input to the app. Input that can open a
+  window is a click, a touch, a tablet tip, and a key held with Ctrl, Alt or
+  Super or one that does not type, edit or move in text, such as Enter or a
+  function key. Characters, Space, Tab, Backspace, Delete, Escape, the arrows,
+  Home, End and the page keys do not count, nor do modifiers alone, and neither
+  does Enter while the app's focused text field takes text through
+  text-input, since Enter types a line break there. Emulated input counts the
+  same way, without the text field: when the agent's input to the app had none
+  that can open a window, any of it counts.
+
+So with your browser window on your workspace and an agent's window of the
+same browser on a hidden one, a popup that the agent's click opens stays on the
+hidden workspace while you type in your window, and one you open from your
+window opens on your screen. An app does not tell which input made it open a
+window, so when your click or Enter in one window of the app races the agent's
+click in another, the newer one decides.
+
+The plugin places a window as it places the windows of a
+[launch](#launching-applications): it tags the window and registers a rule
+`workspace <workspace> silent;no_initial_focus 1;float` for that tag, which
+Hyprland applies as the window maps, and removes both then. Registered after the
+rules of your configuration, the rule takes precedence over their workspaces and
+over Hyprland's workspace token. A window that the plugin placed, by a launch or
+next to the window it came from, is only marked urgent when it asks for
+activation, also with `misc:focus_on_activate`, for as long as it lives; an
+activation that you force, for example through a taskbar, still focuses it.
+
+For now, such a window floats at the size the app asks for, centered on its
+workspace, while a launch's windows tile as usual. A window that input opens in
+a launch's first minute, which the launch places, floats on the launch's
+workspace too. Tiled, it would take half of
+the space of the window the agent works in, which would then have to redraw at
+a new size, and on your visible workspace it would move your own windows. A
+Wayland window that the plugin places only when it maps, such as one that names
+its parent after its first commit, floats at the size Hyprland suggested to it
+for the active workspace.
+
+`state` reports what the plugin found in `source`:
+
+| `source` | Meaning |
+| --- | --- |
+| `null` | The window came from no window that emulated input reached. |
+| `{"window":"0x…","placed":true}` | It opened on the workspace of that window, without the focus. |
+| `{"window":"0x…","placed":false,"reason":"user_input"}` | Your own input to that window or app was newer, so Hyprland placed it. |
+| `{"window":"0x…","placed":false,"reason":"disabled"}` | `place_new_windows` is off. |
+| `{"window":"0x…","placed":false,"reason":"workspace"}` | A window rule cannot name the workspace of that window: a named or special workspace whose name has characters other than letters, digits, `_`, `.` and `-`. |
+
+Plain `state` prints it as `source: 0x… placed`, `source: 0x… not placed:
+user_input` or `source: none`.
+
+A placed window on a hidden workspace gets frame callbacks as any window
+there does: from the plugin, once input reaches it through its socket or
+during a `wait … since` on it.
+
+Turn it off to get Hyprland's behaviour back for windows that input opens; the
+windows of a launch stay placed:
+
+```lua
+hl.config({
+  plugin = {
+    hyprmasq = {
+      place_new_windows = false, -- windows that input opens open where Hyprland puts them, with the focus
+    },
+  },
+})
+```
+
 ## X11 windows
 
 Screenshots and input work for windows of Hyprland's XWayland and of
@@ -921,21 +1032,16 @@ loss close once the sender exits. Open them and pick the entry in one run.
   button serials it generates, so they cannot start interactive moves or
   resizes. For a driven window that is not focused, it also suppresses popup
   grabs and cancels drag-and-drop. The popups themselves still open.
+- An app cannot take your focus by opening a window in response to emulated
+  input: the window opens silently on the workspace of the window it came from,
+  and is only marked urgent when it asks for activation. See
+  [New windows](#new-windows).
 - An X11 app with a driven window cannot take focus while you are in another
   app: the plugin ignores its activation requests and does not focus the
   windows it maps. For xwayland-satellite, and for XWayland apps that do not
   report their process, the plugin cannot tell the apps of one X server apart:
   it ignores activation requests from all of them, but focuses their new
   windows as usual, so apps you start still get the focus.
-- A window that a driven Wayland app opens, such as a browser's popup, opens
-  silently on the driven window's workspace when input reached that app within
-  the last 5 seconds, while you were in another app or before your last key
-  press, click or touch. Such a window, like any window the plugin placed,
-  also one of a launch, is only marked urgent when it asks for activation, even
-  with `focus_on_activate`. Windows that the app opens later, or after your own
-  input in it, open as usual. A window of that app that you open from another
-  app within those 5 seconds, such as a link you open from a terminal, also
-  opens next to the driven window.
 - X11 has no isolation between the apps of one X server. Any X11 app can
   already read and inject input into the others, so these protections do not
   extend to other X11 apps of the target's X server.
@@ -985,5 +1091,16 @@ loss close once the sender exits. Open them and pick the entry in one run.
   real keys still go to the lock screen.
 - `hyprmasq-launch` cannot find windows that an already running instance
   opens.
+- Placing [new windows](#new-windows) does not count scrolling or pointer
+  motion as your input, so that hovering over your own window of a driven app
+  does not take the agent's windows. A window that an app opens without a
+  parent more than 5 seconds after emulated input opens as usual. A window that
+  another app makes a driven app open, such as a link you open from a terminal
+  or your mail in a driven browser, lands next to the driven window when input
+  reached the browser in the last 5 seconds and your own input to it is older:
+  the plugin cannot tell it from a popup. Your Enter in a text field of an app
+  that does not use text-input, or a shortcut, counts as input that can open a
+  window, so it takes a parentless window that the agent's click before it
+  opens in the same app.
 - The plugin uses Hyprland internals. Other Hyprland versions need a port and a
   passing VM test.

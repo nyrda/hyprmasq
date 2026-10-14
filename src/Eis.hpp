@@ -62,10 +62,4 @@ namespace hyprmasq {
         bool x11Focus = false; // keys follow X input focus, which the plugin moves
     };
     SCapabilities capabilities(const PHLWINDOW& window);
-
-    // For a new Wayland window, the driven window whose emulated input most likely opened it, such as a link to a popup
-    // in a browser: one of the same process that input reached within the last 5 seconds, while the user's focus was in
-    // another process or before the user's last key, button or touch. The latest such input wins. Sockets of
-    // xwayland-satellite windows do not count, since its process hosts every app of its X server. Main thread only.
-    PHLWINDOW openerOf(const PHLWINDOW& window);
 }

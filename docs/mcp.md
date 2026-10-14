@@ -53,7 +53,7 @@ plugin's deferred reply is ready, so waits are not limited by `hyprctl`'s
 | `windows` | optional `match` | All windows, or with `match` those whose class or title contains it, ignoring case as Unicode simple case folding does (`Σ` finds `ς`): `window` (address), `stable_id`, `class`, `title`, `pid`, `workspace` (name), `visible` (on a monitor's active or special workspace), `size` (logical), `resizing` (not yet redrawn at its size, see [Shots](#shots-and-coordinates)), `xwayland`, `launched` (by this server), `lease` (`held`, `remaining_s`, `mine`, or `null`), `capabilities`. |
 | `launch` | `command` (array, required), `workspace` (default `hyprmasq`), `timeout_s` (1 to 300, default 30) | Starts the command on a hidden workspace like `hyprmasq-launch`, waits for its first window and for that window to settle, and returns `window`, `wait`, `shot` and `new_windows`, the other windows that appeared, with the image. The hint names the windows on its workspace whose size changed meanwhile, such as tiled windows that made room for it, so that their earlier shots are stale. |
 | `screenshot` | `window`, optional `region` | A shot, with the image. No lock, and no waiting except for a window that has not caught up with a resize, or a hidden one that has not drawn since it got no frame callbacks. See [Shots](#shots-and-coordinates). |
-| `act` | `window`, `shot`, `actions`, `wait`, `capture`, `deadline_ms` | Runs the actions, waits, and captures what changed. See [act](#act) and [Changes](#changes). |
+| `act` | `window`, `shot`, `actions`, `wait`, `capture`, `deadline_ms` | Runs the actions, waits, and captures what changed, and the windows that the input opened, with a shot of each. See [act](#act), [Changes](#changes) and [New windows](#new-windows). |
 | `release` | `window` | Ends the window's focus lease, whichever session holds it. The window stays open. Returns `released`. |
 | `close` | `window` | Asks the window to close, as Hyprland's close dispatcher does, ends its lease, and reports whether it closed within 2 s (`closed`, `elapsed_ms`) and which windows appeared (`new_windows`), such as a confirmation dialog. A window that stays open is not an error. When a tiled window closed, the hint names the tiled windows on its workspace, which take up its space, so that their earlier shots are stale. |
 
@@ -698,8 +698,8 @@ has got none from hyprmasq, it lets the window draw: see
 - A commit is not proof that the pixels changed, and not proof that the input
   did what the agent wanted. Only the screenshot shows that.
 - X11 menus and tooltips are separate windows and do not count as commits of
-  the app's window. They show up as new windows in the result, if they appear
-  before the call ends.
+  the app's window. They show up as [new windows](#new-windows) in the result,
+  if they map before the call lists the windows.
 
 ## Focus lease
 
@@ -780,10 +780,11 @@ A result has three parts:
    | Wait | `redraw observed · quiet N ms · N ms`, `no redraw · quiet N ms · N ms`, either with `quiet N ms except animation at X,Y W×H` or `except animations at …, …`, `no redraw within N ms`, `timeout after N ms, still resizing`, `timeout after N ms, still drawing`, `timeout after N ms, no redraw`, `no time left to wait`, `window closed`, `cancelled` |
    | Capture | `shot sN W×H`, `shot sN W×H (full shot: REASON)`, `shot sN W×H (stale: not yet redrawn at its new size)`, `shot sN W×H (may be stale: not redrawn within N ms)` or `(may be stale: no time to redraw)`, several of them as `(full shot: REASON; stale: …)`, `shot sN = sM + K changes` followed by the lines `zoom sZ W×H of sN at X,Y W×H`, `K tiny changes left out` and `K changes in animations left out`, `shot sN = sM, no change`, `shot sN = sM, no change outside animations`, or `capture failed: MESSAGE` |
    | Lease | `lease N s` or `no lease` |
-   | New windows | `new window ADDR (CLASS "TITLE"[, launched][, same pid])`, or `new windows` with a list |
+   | New windows | `new window ADDR (CLASS "TITLE"[, launched][, same pid]) on workspace NAME (hidden\|visible[, focused])`, or `new windows` with a list, followed by a line `shot sN W×H of new window ADDR` for each shot of one |
 
-2. The image, when one was captured: the shot, or the zooms of a changes
-   shot in the order of their lines.
+2. The images, when they were captured: the shot, or the zooms of a changes
+   shot in the order of their lines, then the shots of new windows in the
+   order of their lines.
 3. Structured content, except for clients that would pass it to the model in
    place of the text (see below): the summary and the hint again, in
    `summary` and `hint`, and the facts in fields, for scripts and for pi's
@@ -796,7 +797,9 @@ A result has three parts:
   "wait": {"ended": "quiet", "summary": "settled", "redraw_observed": true, "commits": 7, "quiet_ms": 214, "elapsed_ms": 655},
   "shot": {"id": "s5", "width": 1280, "height": 800, "frame": {"x": 0, "y": 0, "width": 640, "height": 400}},
   "lease": {"held": true, "remaining_s": 60},
-  "new_windows": [{"window": "0x55d1c0b11230", "stable_id": "1a", "class": "org.gnome.Nautilus", "title": "Save As", "pid": 4242, "same_pid": true, "launched": true}]
+  "new_windows": [{"window": "0x55d1c0b11230", "stable_id": "1a", "class": "org.gnome.Nautilus", "title": "Save As", "pid": 4242, "same_pid": true, "launched": true,
+                   "workspace": "hyprmasq", "visible": false, "focused": false, "source": "0x55d1c0a3e4b0", "placed": true,
+                   "shot": {"id": "s6", "width": 900, "height": 640, "frame": {"x": 0, "y": 0, "width": 450, "height": 320}}}]
 }
 ```
 
@@ -817,12 +820,7 @@ long the window had been quiet when the wait ended. An error adds `error`
 (`code`, `message`), and a failed capture after applied input adds
 `capture_error`.
 
-`new_windows` lists every window in the window list at the end of the call
-that was not there at its start, including ones whose relation to the target
-is unknown. `same_pid` (the target's process) and `launched` (the process
-carries the launch token of a `launch` by this server) are the only relations
-claimed. A window that maps after the call's last listing is not reported by
-any later call, since each call compares its own start and end.
+`new_windows` lists the [new windows](#new-windows) of the call.
 
 The summary counts actions as delivered: the plugin passed every event to the
 window's application. Whether the application acted on them as meant, for
@@ -860,6 +858,59 @@ phase: `waiting for other calls on the window`, `waiting for input to other
 windows`, `sending input`, `waiting for the window to settle` or `capturing`,
 and for `launch` `waiting for the first window`. pi resets its tool timeout on
 progress. Other clients may not, which is one reason for the deadline cap.
+
+### New windows
+
+`new_windows` lists every window in the window list at the end of the call
+that was not there at its start, including ones whose relation to the target
+is unknown. An app may open a window a moment after the window that got the
+input has settled, as Thunderbird's compose window did 70 to 170 ms after the
+`act` that pressed Reply had returned, in a benchmark. So a call that
+delivered input that can open a window, a click, a drag, a key, or text with a
+line break, lists the windows `--new-window-grace-ms` after its wait, 500 ms by
+default, while it captures and renews the lease; the grace ends at the latest
+250 ms before the deadline, which leaves time for the listing. Text without a
+line break, scrolling, motion and pauses list them at once. A window that maps
+after that is reported by no call, since each call compares its own start and
+end.
+
+Each entry has the window's `workspace` (name), whether it is `visible` on a
+monitor and whether it has the user's keyboard focus (`focused`). `source` is
+the window it came from as the plugin found it when it mapped, and `placed`
+whether the plugin opened it on that window's workspace without the focus, as
+[usage.md](usage.md#new-windows) describes; `not_placed` says why it did not:
+`disabled`, `user_input` or `workspace`. `source` is left out when the plugin found none.
+`same_pid` (the target's process) and `launched` (the window belongs to a
+`launch` by this server, as the plugin's `launched` lists it) are relations of
+the server's own.
+
+A new window that came from the target, by its `source`, unless the plugin
+found the user's own input to have opened it, or that belongs to the target's
+launch by this server gets a `shot` in the same result, up to 3 of them and none with
+capture `"none"`, so the agent can act in it at once with the shot's pixels.
+The server opens its socket and waits up to 1 s for it to draw what it opened
+with, until it has been quiet for 200 ms, since a window on a hidden
+workspace gets frame callbacks only from such a wait, and then captures the
+whole window, all within the deadline. A new window that is
+[starved](#shots-and-coordinates), as one that an app opens on a hidden
+workspace and draws only in answer to frame callbacks, skips that wait: the
+capture's own wait for a starved window feeds it frame callbacks, and its shot
+has `"may_be_stale": true` and the hint about it when the window did not draw.
+Windows of other apps, and the user's, get no shot and stay undriven. A call
+that waited for another call on the window compares with the windows as they
+are once it holds the window's lock, so the windows that the other call's
+input opened are not its own. The hint names the new windows from the target, in place of the
+hint that the target did not change, which says nothing about input that opened
+a window. It also names a new window from the target that has no shot, and one
+that the plugin did not place that is visible, and whether it has the user's
+focus and why, so the agent can tell the user:
+
+```
+1/1 delivered · redraw observed · quiet 200 ms · 655 ms · shot s7 = s5 + 1 change · lease 60 s · new window 0x55d1c0b11230 (thunderbird "Write: (no subject)", same pid) on workspace 1 (visible, focused)
+zoom s8 214×98 of s7 at 40,120 107×49
+shot s9 960×1080 of new window 0x55d1c0b11230
+The input opened new window 0x55d1c0b11230 "Write: (no subject)" in shot s9. New window 0x55d1c0b11230 opened on the user's visible workspace 1 and has their keyboard focus, so what they type goes there, since the plugin's place_new_windows option is off. Tell the user.
+```
 
 ## Failures
 
@@ -1154,6 +1205,11 @@ The server refuses to run against another interface (`plugin_version`).
   - `keyboard`: `x11-focus` for X11 windows of Hyprland's XWayland or
     xwayland-satellite whose socket was opened without `force`, or that have
     no socket, otherwise `yes`.
+- `source`: the window this one came from, as the plugin found it when it
+  mapped, see [Windows that input opens](#windows-that-input-opens):
+  `{"window", "placed"}`, with `reason` (`disabled`, `user_input` or
+  `workspace`) when `placed` is false, or `null`. Plain text prints a `source:` line.
+
 **`launch <workspace> <token> <command line>`** starts the command line with
 `/bin/sh -c` through Hyprland's executor, and answers `{"ok":true,"pid":N}`.
 The workspace and the command line are written in hex, two digits a byte,
@@ -1187,21 +1243,65 @@ launch opens where Hyprland and the user's rules put it, unless input opened
 it.
 
 **Windows that input opens.** An application cannot tell emulated input from
-the user's, so a window that input opens, such as a browser's popup, would open
-on the user's workspace and take the focus. The plugin places a new Wayland
-window silently on the workspace of the driven window whose input most likely
-opened it, with the same tag and rule, naming a numbered workspace by its
-number and others by their name: a window of the same process that input
-reached through its socket within the last 5 seconds, while the user's focus
-was in another process, or after the user's last key press, button or touch.
-The window with the latest input wins. A window that the plugin placed, by a
-launch or next to its opener, is marked urgent but not focused when it asks for
-activation, also with `misc:focus_on_activate`, for as long as it lives; a
-forced activation, such as one through a taskbar, still focuses it. This also covers apps that no launch
-started, such as the user's own browser, and the windows of a launch after its
-first minute. `launched` lists such a window only when it belongs to a launch.
-Windows of xwayland-satellite, whose process hosts every app of its X server,
-and XWayland windows are left to the X11 rules in [usage](usage.md#security-model).
+the user's, so a window that input opens, such as a browser's popup, a dialog
+or a portal's file chooser, would open on the user's workspace and take the
+focus. Hyprland creates a Wayland window, and emits `window.create`, when the
+client asks for its `xdg_toplevel`, before the client can name a parent, and an
+X11 window at its `CreateNotify`, before `WM_TRANSIENT_FOR` and `_NET_WM_PID` are
+set. So the plugin decides where a new window came from in a hook on
+`Desktop::Rule::CWindowRuleApplicator::readStaticRules`, before Hyprland reads
+the window's rules: for a Wayland window at its first commit, where clients
+have usually named the parent and before Hyprland suggests a size for the
+window, and again when Hyprland maps it, where the parent and the X11 process
+are known; for an X11 window when it maps. The decision at the map keeps,
+moves or takes back what the first commit placed. A new window comes from
+
+- its parent, when it has one: an `xdg_toplevel` parent, `WM_TRANSIENT_FOR`, or
+  through xdg-foreign a window of another process, as a portal's file chooser
+  has. The parent counts when input reached it through its socket or the plugin
+  placed it, also by a launch, and the user's own input to it is older than that;
+- otherwise the window of the same app, a Wayland connection or for Hyprland's
+  XWayland an X11 process, that input reached last, within the last 5 seconds,
+  when the user's own input to that app is older. The plugin keeps the
+  workspace and parent of each window that input reached for those 5 seconds,
+  so a window that the app opens after that one closed, such as a progress
+  window after Send in a dialog, still opens on its workspace, or on that of its
+  parent when the workspace is gone. The windows of an
+  xwayland-satellite, which hosts every app of its X server on one connection
+  and process, are left out.
+
+The user's own input is a key or a mouse button, counted for the window and app
+with the keyboard or pointer focus that gets it, and a touch or a tablet tip,
+counted for the window that Hyprland focuses for it. Any of it counts for a
+window that the agent works in, but for the rest of the app only input that
+can open a window: a button, a touch, a tablet tip, or a key press with Ctrl,
+Alt or Super, or of a key that does not type, edit or move in text, such as
+Enter or a function key. Enter does not count while
+`m_relay.getFocusedTextInput()` is enabled, since the focused text field takes
+it as a line break. Without a parent, the window is the user's when their input
+to the window that the agent's input reached last is newer than that input, or
+their input to the app that can open a window is newer than the agent's last
+such input to the app, or than its last input when it had none, counting the
+modifiers that the sender holds for emulated keys. An app does not tell
+which input made it open a window: Hyprland's `xdg_activation_v1` ignores the
+serial and surface of a token, and Chromium names the last press on the seat
+and the surface with the keyboard focus, which are the user's while they type.
+The plugin then places the
+window silently on that window's workspace with the same tag and rule as a
+launch, naming a numbered workspace by its number and others by their name,
+and adds `float` to the rule: for now, the window floats at the size it asks
+for, so the window it came from keeps its size, and shots of it stay valid.
+A window that a launch's rule places already, in the launch's first minute,
+keeps the launch's workspace, and its rule gains `float`. A window from a
+workspace whose name a rule cannot give, a named or special one with
+characters other than letters, digits, `_`, `.` and `-`, is not placed, and
+its `source` says `workspace`. With `plugin:hyprmasq:place_new_windows` false, it places none. A window that
+the plugin placed, by a launch or next to its source, is marked urgent but not
+focused when it asks for activation, also with `misc:focus_on_activate`, for as
+long as it lives; a forced activation, such as one through a taskbar, still
+focuses it. This also covers apps that no launch started, such as the user's own
+browser, and the windows of a launch after its first minute. `launched` lists
+such a window only when it belongs to a launch.
 
 **Commit counter.** From `eis open` until the socket closes, the plugin counts
 the window's commits as defined in [Waiting](#definitions). It never falls
@@ -1446,11 +1546,14 @@ exit statuses and JSON output. What the server relies on:
   official Go SDK v1.8.0.
 - Options: `--input PATH` (default: `hyprmasq-input` from `PATH`),
   `--max-image-size N` (default 1280, 0 for the monitor's scale), `--lease-ms`
-  (default 60000, 1 to 600000), `--structured-content auto|always|never`
-  (default `auto`, see [Results](#results)), `--version`. It needs
+  (default 60000, 1 to 600000), `--new-window-grace-ms` (default 500, 0 to
+  5000, see [New windows](#new-windows)), `--structured-content
+  auto|always|never` (default `auto`, see [Results](#results)), `--version`.
+  It needs
   `XDG_RUNTIME_DIR` and `HYPRLAND_INSTANCE_SIGNATURE`.
 - Talks to `$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock`
-  with `j/hyprmasq …`, `j/clients`, `j/monitors` and `/dispatch` requests, one
+  with `j/hyprmasq …`, `j/clients`, `j/monitors`, `j/activewindow` and
+  `/dispatch` requests, one
   connection per request, each written at once. Hyprland reads requests in
   pieces of 1023 bytes and blocks its main thread on a request that fills its
   last piece exactly, so such requests get a trailing space. Requests over 32
@@ -1489,7 +1592,10 @@ frame callbacks, in `state` and screenshots, until a wait feeds it; Wayland and 
 shots have their size while Hyprland draws them smaller, and popups of a
 window that moves; the lease, its end when the real focus moves to its
 connection or input reaches another window of it, and release of held input
-on disconnect, also when libeis reports none; pacing measured with `wev`
+on disconnect, also when libeis reports none; new windows that input opens,
+placed on the workspace of the window they came from without the focus, by
+their app or their parent, also one of another process that names its parent
+through xdg-foreign, and a dialog of the user's own window of the same app; pacing measured with `wev`
 timestamps; 2000 characters typed exactly; a budget that refuses text the
 keymap types through Compose as more keys; Compose sequences of the target's
 locale, also without a table for it; input paused on X11 with the keys
@@ -1511,7 +1617,9 @@ Compose table of the window's locale and the hint without a table for it,
 a drag, a click with modifiers and a chord that holds a letter on a shared
 connection, where a chord of Shift and a letter still types a capital, partial
 delivery when X11 input is paused, the wait outcomes, the lease across calls and on exit, new
-windows, two servers acting at once on one window, the deadline,
+windows that the input opens, placed beside the target with a shot each, also
+one that maps after the wait, and with placement off one that has the user's
+focus, two servers acting at once on one window, the deadline,
 cancellation, `act` with a capture region, also when the window is resized
 during the call, changes shots of a terminal that the test draws in, from no
 change and one region, whose zoom shows the drawn cells at their place, to
@@ -1535,7 +1643,8 @@ one that `act` had no time to let draw, cancellation while sending and
 waiting, lock contention, the checks after the locks, also of an `act`
 without actions whose window another one replaced while it waited, capture regions of a window resized during the call,
 socket ids, lost lease answers, session ends and exit
-statuses, argument errors of every tool through an SDK client, `null` among
+statuses, new windows with their workspace, focus, source and shots, also
+one that maps after the wait, argument errors of every tool through an SDK client, `null` among
 them, the hints, the length of every tool description, structured content by
 client and `--structured-content`, `windows` with `match`, the sleep in
 front of keys that follow a click or drag too soon, and changes shots: one
@@ -1614,10 +1723,16 @@ timeouts.
 - If the plugin ever replaced the keyboard, for example on a keymap change,
   the sender would stop with `no_devices`. Reconnecting picks up the new
   keymap.
+- A window that maps more than `--new-window-grace-ms` after an `act`'s wait
+  is reported by no call. Call `windows` when the app is known to open windows
+  slowly.
 - The hooks on `Desktop::View::CWindow::updateWindowDecos`,
-  `CSeatManager::setKeyboardFocus` and `CSeatManager::setPointerFocus`, and
+  `Desktop::Rule::CWindowRuleApplicator::readStaticRules`,
+  `CSeatManager::setKeyboardFocus` and
+  `CSeatManager::setPointerFocus`, and
   the access to the private `m_currentSurface` of `CWLKeyboardResource` and
-  `CWLPointerResource`, have to be checked again whenever the Hyprland pin
+  `CWLPointerResource` and to the private `m_window` of
+  `CWindowRuleApplicator`, have to be checked again whenever the Hyprland pin
   moves.
 
 ## Later

@@ -201,6 +201,8 @@ type fakeWindow struct {
 	Animated []hypr.IntRect
 	// The gray level at a window-local logical point, which screenshots sample at their scale, or nil for black.
 	Paint func(x, y float64) uint8
+	// Where the plugin found the window to come from, which state reports.
+	Source *hypr.Source
 }
 
 // fakeHyprland serves Hyprland's request socket with the plugin commands of the contract.
@@ -212,10 +214,12 @@ type fakeHyprland struct {
 	requests []string
 	times    []time.Time
 	windows  []*fakeWindow
-	scale    float64
-	iface    int
-	missing  bool
-	waits    map[string]chan struct{}
+	// The address of the window with the keyboard focus, or "".
+	active  string
+	scale   float64
+	iface   int
+	missing bool
+	waits   map[string]chan struct{}
 	// Called for every wait with its arguments; returns the reply. Nil answers quiet at once.
 	onWait func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string
 	// Called for every state request before it is answered, with the lock held.
@@ -394,6 +398,13 @@ func (f *fakeHyprland) reply(request string) string {
 			windows = append(windows, win)
 		}
 		return jsonReply(windows)
+	case request == "j/activewindow":
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.active == "" {
+			return "{}"
+		}
+		return jsonReply(map[string]any{"address": f.active})
 	case request == "j/monitors":
 		return `[{"activeWorkspace":{"id":1,"name":"1"},"specialWorkspace":{"id":0,"name":""}}]`
 	case strings.HasPrefix(request, "/dispatch "):
@@ -416,7 +427,7 @@ func (f *fakeHyprland) reply(request string) string {
 func (f *fakeHyprland) state(w *fakeWindow) map[string]any {
 	st := map[string]any{"ok": true, "address": w.Address, "stableId": w.StableID, "xwayland": w.XWayland,
 		"size": map[string]any{"width": w.Width, "height": w.Height}, "resizing": w.Resizing, "starved": w.Starved, "scale": f.scale, "socket": nil, "commits": nil,
-		"lease": nil, "capabilities": w.Caps}
+		"lease": nil, "capabilities": w.Caps, "source": w.Source}
 	if w.Socket {
 		st["socket"] = "/fake/" + w.Address + ".eis"
 		st["socketId"] = w.socketID()
@@ -835,7 +846,14 @@ func get(t *testing.T, res *mcp.CallToolResult, path string) any {
 func errorCode(t *testing.T, res *mcp.CallToolResult) string {
 	t.Helper()
 	code, _ := get(t, res, "error.code").(string)
-	if hasShot := get(t, res, "shot") != nil; code != "" && res.IsError == hasShot {
+	// A shot of a window that the input opened counts as one.
+	hasShot := get(t, res, "shot") != nil
+	if windows, ok := get(t, res, "new_windows").([]any); ok {
+		for _, w := range windows {
+			hasShot = hasShot || w.(map[string]any)["shot"] != nil
+		}
+	}
+	if code != "" && res.IsError == hasShot {
 		t.Errorf("isError %v for a failure with a shot %v: %s", res.IsError, hasShot, text(res))
 	}
 	return code

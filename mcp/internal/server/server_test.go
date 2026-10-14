@@ -1052,8 +1052,10 @@ func TestSummaryLines(t *testing.T) {
 		{"empty batch", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "no_redraw", expectMs: 20000}, Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 60}},
 			nil, "no redraw within 20000 ms · shot s5 1280×800 · lease 60 s\nNothing was drawn since shot s4. If the window is still loading, wait again: act with no actions, a larger wait.expect_ms, and a deadline_ms at least 1000 above it."},
 		{"new window", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "quiet", RedrawObserved: true, QuietMs: 200, ElapsedMs: 300},
-			Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 60}, NewWindows: []newWindowOut{{Window: "0xb2", Class: "org.gnome.Nautilus", Title: "Save As", SamePID: true, Launched: true}}},
-			click, `1/1 delivered · redraw observed · quiet 200 ms · 300 ms · shot s5 1280×800 · lease 60 s · new window 0xb2 (org.gnome.Nautilus "Save As", launched)`},
+			Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 60}, NewWindows: []newWindowOut{{Window: "0xb2", Class: "org.gnome.Nautilus", Title: "Save As", SamePID: true, Launched: true,
+				Workspace: "mail", Shot: &shotOut{ID: "s6", Width: 400, Height: 300}}}},
+			click, "1/1 delivered · redraw observed · quiet 200 ms · 300 ms · shot s5 1280×800 · lease 60 s · new window 0xb2 (org.gnome.Nautilus \"Save As\", launched) on workspace mail (hidden)\n" +
+				"shot s6 400×300 of new window 0xb2"},
 	}
 	for _, c := range cases {
 		line := summaryLine(&c.out, c.batch)
@@ -1516,10 +1518,21 @@ func TestNewWindows(t *testing.T) {
 	e.server.tokens["t0k3n"] = true
 	e.setLaunched(777, "t0k3n")
 	e.setLaunched(888, "foreign")
+	mail := hypr.Workspace{ID: 5, Name: "mail"}
 	onWait := func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
-		e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd1", StableID: "d1", Class: "test.app", Title: "Save As", PID: 4242}, Width: 100, Height: 100})
-		e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd2", StableID: "d2", Class: "helper", Title: "Helper", PID: 777}, Width: 100, Height: 100})
-		e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd3", StableID: "d3", Class: "other", Title: "Other", PID: 888}, Width: 100, Height: 100})
+		if w.Address == "0xa1" {
+			// The plugin placed the dialog on the target's hidden workspace. A window of another launch of this server
+			// opened on the user's workspace and took the focus, and another app's window too, neither of them the
+			// target's.
+			e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd1", StableID: "d1", Class: "test.app", Title: "Save As", PID: 4242, Workspace: mail}, Width: 100, Height: 100,
+				Source: &hypr.Source{Window: "0xa1", Placed: true}})
+			e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd2", StableID: "d2", Class: "helper", Title: "Helper", PID: 777}, Width: 100, Height: 50})
+			e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd3", StableID: "d3", Class: "other", Title: "Other", PID: 888}, Width: 100, Height: 100})
+			// Of the target's process but from no window the plugin knows of, as another app of an xwayland-satellite,
+			// which hosts every app of its X server in one process.
+			e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd4", StableID: "d4", Class: "xterm", Title: "Other X11 app", PID: 4242}, Width: 100, Height: 100})
+			e.fake.active = "0xd2"
+		}
 		return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": 1, "redrawObserved": true, "commitsSince": 1, "quietMs": 200, "elapsedMs": 300})
 	}
 	e.fake.with(func() { e.fake.onWait = onWait })
@@ -1527,22 +1540,210 @@ func TestNewWindows(t *testing.T) {
 	if res.IsError {
 		t.Fatal(text(res))
 	}
+	shot := func(id string, width, height float64) map[string]any {
+		return map[string]any{"id": id, "width": width, "height": height, "frame": map[string]any{"x": 0.0, "y": 0.0, "width": width / 2, "height": height / 2}}
+	}
 	want := []any{
-		map[string]any{"window": "0xd1", "stable_id": "d1", "class": "test.app", "title": "Save As", "pid": 4242.0, "same_pid": true, "launched": false},
-		map[string]any{"window": "0xd2", "stable_id": "d2", "class": "helper", "title": "Helper", "pid": 777.0, "same_pid": false, "launched": true},
-		map[string]any{"window": "0xd3", "stable_id": "d3", "class": "other", "title": "Other", "pid": 888.0, "same_pid": false, "launched": false},
+		map[string]any{"window": "0xd1", "stable_id": "d1", "class": "test.app", "title": "Save As", "pid": 4242.0, "same_pid": true, "launched": false,
+			"workspace": "mail", "visible": false, "focused": false, "source": "0xa1", "placed": true, "shot": shot("s3", 200, 200)},
+		map[string]any{"window": "0xd2", "stable_id": "d2", "class": "helper", "title": "Helper", "pid": 777.0, "same_pid": false, "launched": true,
+			"workspace": "1", "visible": true, "focused": true, "placed": false},
+		map[string]any{"window": "0xd3", "stable_id": "d3", "class": "other", "title": "Other", "pid": 888.0, "same_pid": false, "launched": false,
+			"workspace": "1", "visible": true, "focused": false, "placed": false},
+		map[string]any{"window": "0xd4", "stable_id": "d4", "class": "xterm", "title": "Other X11 app", "pid": 4242.0, "same_pid": true, "launched": false,
+			"workspace": "1", "visible": true, "focused": false, "placed": false},
 	}
 	if got := get(t, res, "new_windows"); !reflect.DeepEqual(got, want) {
 		t.Errorf("new windows %v", got)
 	}
-	if !strings.Contains(text(res), `new windows 0xd1 (test.app "Save As", same pid), 0xd2 (helper "Helper", launched), 0xd3 (other "Other")`) {
+	// The click changed nothing, so the image is the shot of the window from the target.
+	lines := strings.Split(text(res), "\n")
+	if !strings.HasSuffix(lines[0], ` · new windows 0xd1 (test.app "Save As", same pid) on workspace mail (hidden), 0xd2 (helper "Helper", launched) on workspace 1 (visible, focused), `+
+		`0xd3 (other "Other") on workspace 1 (visible), 0xd4 (xterm "Other X11 app", same pid) on workspace 1 (visible)`) || lines[1] != "shot s3 200×200 of new window 0xd1" || len(lines) != 3 {
 		t.Errorf("text %q", text(res))
+	}
+	// The click changed nothing in its window, but it opened windows, which the hint says in place of the click missing.
+	if hint := get(t, res, "hint").(string); hint != `The input opened new window 0xd1 "Save As" in shot s3.` {
+		t.Errorf("hint %q", hint)
+	}
+	if n := len(res.Content) - 1; n != 1 {
+		t.Errorf("%d images", n)
+	}
+	// Its shot takes coordinates, and its socket is open. The other apps' windows stay undriven.
+	if !e.fake.find("0xd1").Socket || e.fake.find("0xd2").Socket || e.fake.find("0xd3").Socket || e.fake.find("0xd4").Socket {
+		t.Errorf("sockets %v %v %v %v", e.fake.find("0xd1").Socket, e.fake.find("0xd2").Socket, e.fake.find("0xd3").Socket, e.fake.find("0xd4").Socket)
+	}
+	if res := e.act(`{"window":"0xd1","shot":"s3","actions":[{"action":"click","x":5,"y":5}]}`); res.IsError {
+		t.Errorf("click in the new window's shot: %s", text(res))
 	}
 	// A new window at a reused address is new.
 	before := []hypr.Window{{Address: "0xd1", StableID: "d1"}}
 	after := []hypr.Window{{Address: "0xd1", StableID: "e9", PID: 1}}
-	if got := e.server.newWindows(t.Context(), before, after, 0); len(got) != 1 || got[0].StableID != "e9" {
+	if got := e.server.newWindows(t.Context(), before, after, "", 0, ""); len(got) != 1 || got[0].StableID != "e9" {
 		t.Errorf("reused address: %v", got)
+	}
+}
+
+// A window of the target's own launch comes from the target without a source, and one whose source is the target but
+// that the plugin could not place says why, both with a shot and the hint that they took the user's screen.
+func TestNewWindowsOfTheTargetsLaunch(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.PID = 777 })
+	e.screenshot(`{"window":"0xa1"}`)
+	e.server.tokens["t0k3n"] = true
+	e.setLaunched(777, "t0k3n")
+	e.fake.with(func() {
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			if w.Address == "0xa1" {
+				e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd2", StableID: "d2", Class: "helper", Title: "Helper", PID: 777}, Width: 100, Height: 50})
+				e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd5", StableID: "d5", Class: "test.app", Title: "Odd", PID: 4242}, Width: 100, Height: 50,
+					Source: &hypr.Source{Window: "0xa1", Reason: "workspace"}})
+				// The user's own input to the app came later, so the plugin left this one to them.
+				e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd7", StableID: "d7", Class: "test.app", Title: "Theirs", PID: 4242}, Width: 100, Height: 50,
+					Source: &hypr.Source{Window: "0xa1", Reason: "user_input"}})
+				e.fake.active = "0xd2"
+			}
+			return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": 1, "redrawObserved": true, "commitsSince": 1, "quietMs": 200, "elapsedMs": 300})
+		}
+	})
+	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":5,"y":5}]}`)
+	if res.IsError || get(t, res, "new_windows.0.launched") != true || get(t, res, "new_windows.0.shot.id") != "s3" || get(t, res, "new_windows.1.shot.id") != "s4" {
+		t.Fatal(text(res))
+	}
+	if get(t, res, "new_windows.2.window") != "0xd7" || get(t, res, "new_windows.2.not_placed") != "user_input" || get(t, res, "new_windows.2.shot") != nil || e.fake.find("0xd7").Socket {
+		t.Errorf("the user's window: %s", text(res))
+	}
+	hint, _ := get(t, res, "hint").(string)
+	if strings.Contains(hint, "0xd7") {
+		t.Errorf("hint %q names the user's window", hint)
+	}
+	for _, want := range []string{`The input opened new windows 0xd2 "Helper" in shot s3, 0xd5 "Odd" in shot s4.`,
+		"New window 0xd2 opened on the user's visible workspace 1 and has their keyboard focus, so what they type goes there, since the plugin could not tell that hyprmasq's input opened it. Tell the user.",
+		"New window 0xd5 opened on the user's visible workspace 1, since no window rule can name the workspace of the window it came from. Tell the user."} {
+		if !strings.Contains(hint, want) {
+			t.Errorf("hint %q lacks %q", hint, want)
+		}
+	}
+
+	// Input that closes the launched window, after which the launch opens another one, still counts it as the target's,
+	// although the closed window is no longer the launch's.
+	e.fake.with(func() {
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			if w.Address == "0xa1" {
+				e.fake.removeWindow("0xa1")
+				e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd6", StableID: "d6", Class: "helper", Title: "Next", PID: 777}, Width: 100, Height: 50})
+			}
+			return jsonReply(map[string]any{"ok": true, "ended": "window_closed", "commits": 1, "redrawObserved": true, "commitsSince": 1, "quietMs": 0, "elapsedMs": 100})
+		}
+	})
+	res = e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl+w"]}]}`)
+	if got := get(t, res, "new_windows.0.window"); got != "0xd6" || get(t, res, "new_windows.0.shot.id") == nil {
+		t.Errorf("after the close: %s", text(res))
+	}
+}
+
+// A window that another call's input opened while this call waited for the window's lock is not new to this call.
+func TestNewWindowsCountFromTheLock(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.screenshot(`{"window":"0xa1"}`)
+	windowLock, err := acquireLock(context.Background(), e.server.lockPath("1a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	states := len(e.fake.requestsMatching("j/hyprmasq state"))
+	done := make(chan *mcp.CallToolResult)
+	go func() { done <- e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":5,"y":5}]}`) }()
+	e.waitFor(func() bool { return len(e.fake.requestsMatching("j/hyprmasq state")) > states })
+	time.Sleep(100 * time.Millisecond)
+	e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd1", StableID: "d1", Class: "test.app", Title: "Other call's", PID: 4242}, Width: 100, Height: 100,
+		Source: &hypr.Source{Window: "0xa1", Placed: true}})
+	windowLock.release()
+	res := <-done
+	if windows, _ := get(t, res, "new_windows").([]any); res.IsError || len(windows) != 0 || e.fake.find("0xd1").Socket {
+		t.Errorf("result %s", text(res))
+	}
+}
+
+// Text without a line break opens no window, so the act does not wait for one after its wait.
+func TestTypingWaitsForNoNewWindow(t *testing.T) {
+	e := newTestEnv(t)
+	e.server.cfg.NewWindowGrace = 3 * time.Second
+	e.window("0xa1", "1a", 320, 200)
+	start := time.Now()
+	if res := e.act(`{"window":"0xa1","actions":[{"action":"type","text":"hello"},{"action":"pause","ms":10}]}`); res.IsError {
+		t.Fatal(text(res))
+	}
+	if took := time.Since(start); took > 2*time.Second {
+		t.Errorf("typing took %v, as if it waited for new windows", took)
+	}
+	if !opensWindows([]action{{Kind: "type", Text: "hello\n"}}) || !opensWindows([]action{{Kind: "click"}}) || !opensWindows([]action{{Kind: "key"}}) ||
+		opensWindows([]action{{Kind: "type", Text: "a\tb"}, {Kind: "scroll"}, {Kind: "move"}, {Kind: "pause"}}) {
+		t.Error("opensWindows")
+	}
+}
+
+// A window that maps a moment after the window that got the input has settled is still reported, with its shot.
+func TestNewWindowAfterTheWait(t *testing.T) {
+	e := newTestEnv(t)
+	e.server.cfg.NewWindowGrace = 500 * time.Millisecond
+	e.window("0xa1", "1a", 320, 200)
+	e.screenshot(`{"window":"0xa1"}`)
+	onWait := func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+		if w.Address == "0xa1" {
+			time.AfterFunc(150*time.Millisecond, func() {
+				e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd1", StableID: "d1", Class: "test.app", Title: "Compose", PID: 4242,
+					Workspace: hypr.Workspace{ID: 5, Name: "mail"}}, Width: 100, Height: 100, Source: &hypr.Source{Window: "0xa1", Placed: true}})
+			})
+		}
+		return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": 1, "redrawObserved": true, "commitsSince": 1, "quietMs": 200, "elapsedMs": 300})
+	}
+	e.fake.with(func() { e.fake.onWait = onWait })
+	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"key","keys":["ctrl","r"]}]}`)
+	if res.IsError {
+		t.Fatal(text(res))
+	}
+	if got := get(t, res, "new_windows.0.window"); got != "0xd1" || get(t, res, "new_windows.0.shot.id") == nil {
+		t.Errorf("new windows %v", get(t, res, "new_windows"))
+	}
+}
+
+// A new window on a hidden workspace that waits for frame callbacks gets them from the wait of its capture, with no wait
+// of its own before, and its shot says that it may show an older frame when it did not draw.
+func TestShotOfAStarvedNewWindow(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.screenshot(`{"window":"0xa1"}`)
+	e.fake.with(func() {
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			if w.Address == "0xa1" {
+				e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd1", StableID: "d1", Class: "test.app", Title: "Compose", PID: 4242,
+					Workspace: hypr.Workspace{ID: 5, Name: "mail"}}, Width: 100, Height: 100, Starved: true, Source: &hypr.Source{Window: "0xa1", Placed: true}})
+				return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": 1, "redrawObserved": true, "commitsSince": 1, "quietMs": 200, "elapsedMs": 300})
+			}
+			expect, _ := strconv.Atoi(args["expect"])
+			return jsonReply(map[string]any{"ok": true, "ended": "no_redraw", "commits": w.Commits, "socketId": w.socketID(), "redrawObserved": false,
+				"commitsSince": 0, "quietMs": expect, "elapsedMs": expect, "resizing": false})
+		}
+	})
+	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":10,"y":10}]}`)
+	if res.IsError {
+		t.Fatal(text(res))
+	}
+	id, _ := get(t, res, "new_windows.0.shot.id").(string)
+	if id == "" || get(t, res, "new_windows.0.shot.may_be_stale") != true ||
+		!strings.Contains(text(res), "(may be stale: not redrawn within 1000 ms) of new window 0xd1") {
+		t.Errorf("new window shot: %s", text(res))
+	}
+	if hint, _ := get(t, res, "hint").(string); !strings.Contains(hint, "Shot "+id+" may show an older frame") {
+		t.Errorf("hint %q", hint)
+	}
+	waits := e.fake.requestsMatching("j/hyprmasq wait 0xd1")
+	if len(waits) != 1 {
+		t.Fatalf("waits %q", waits)
+	}
+	if args := waitArgsOf(t, waits[0]); args["expect"] != "1000" || args["quiet"] != "100" {
+		t.Errorf("wait %q", waits[0])
 	}
 }
 
@@ -2899,6 +3100,11 @@ func TestWindowClosedBySentInput(t *testing.T) {
 				t.Errorf("tried to capture: %s", text(res))
 			}
 			if c.code == "" {
+				// The input opened no window, so the result is only that the window closed.
+				newWindows, _ := get(t, res, "new_windows").([]any)
+				if text(res) != "2/2 delivered · window closed\nThe window closed. Any new windows are listed; call windows for the rest." || len(newWindows) != 0 {
+					t.Errorf("result %q", text(res))
+				}
 				return
 			}
 			hint := get(t, res, "hint").(string)
@@ -2909,6 +3115,31 @@ func TestWindowClosedBySentInput(t *testing.T) {
 				t.Errorf("waited: %q", got)
 			}
 		})
+	}
+}
+
+// An act whose input closed its window and failed, but opened a window that it returns a shot of, is no tool error:
+// clients drop the images of an error, and the agent goes on from that shot.
+func TestFailedActWithANewWindowShot(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.screenshot(`{"window":"0xa1"}`)
+	t.Setenv("FAKE_INPUT_MODE", "fail:unconfirmed:1:partial:0")
+	closed := false
+	e.fake.with(func() {
+		e.fake.onPlugin = func(words []string) (string, bool) {
+			if !closed && e.senderLogged("exit") {
+				closed = true
+				e.fake.removeWindow("0xa1")
+				e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd1", StableID: "d1", Class: "test.app", Title: "Sending", PID: 4242,
+					Workspace: hypr.Workspace{ID: 5, Name: "mail"}}, Width: 100, Height: 100, Source: &hypr.Source{Window: "0xa1", Placed: true}})
+			}
+			return "", false
+		}
+	})
+	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"key","keys":["ctrl+q"]},{"action":"type","text":"more"}]}`)
+	if code := errorCode(t, res); code != "window_gone" || res.IsError || !hasImage(res) || get(t, res, "new_windows.0.shot.id") == nil {
+		t.Errorf("result: error %v %s", res.IsError, text(res))
 	}
 }
 

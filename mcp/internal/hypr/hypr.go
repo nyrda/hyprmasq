@@ -172,6 +172,18 @@ type State struct {
 	Commits      *int64       `json:"commits"`
 	Lease        *Lease       `json:"lease"`
 	Capabilities Capabilities `json:"capabilities"`
+	// The window a new window came from, as the plugin found it when the window mapped, or nil when it found none.
+	Source *Source `json:"source"`
+}
+
+// Source is the window whose input a new window came from: its parent, or the window of its app that got emulated
+// input last.
+type Source struct {
+	Window string `json:"window"`
+	// The plugin opened the new window on that window's workspace, without the focus.
+	Placed bool `json:"placed"`
+	// Why it did not: disabled or user_input.
+	Reason string `json:"reason"`
 }
 
 // LaunchRequest is the plugin request that starts the shell command line on the workspace under the token. The
@@ -391,6 +403,21 @@ func (c *Client) Clients(ctx context.Context) ([]Window, error) {
 type Monitor struct {
 	ActiveWorkspace  Workspace `json:"activeWorkspace"`
 	SpecialWorkspace Workspace `json:"specialWorkspace"`
+}
+
+// ActiveWindow returns the address of the window with the keyboard focus, or "" when no window has it.
+func (c *Client) ActiveWindow(ctx context.Context) (string, error) {
+	reply, err := c.Request(ctx, "j/activewindow")
+	if err != nil {
+		return "", err
+	}
+	var w struct {
+		Address string `json:"address"`
+	}
+	if err := json.Unmarshal(reply, &w); err != nil {
+		return "", fmt.Errorf("unexpected reply to activewindow: %v", err)
+	}
+	return w.Address, nil
 }
 
 func (c *Client) Monitors(ctx context.Context) ([]Monitor, error) {

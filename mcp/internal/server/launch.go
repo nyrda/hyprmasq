@@ -143,7 +143,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 		after = latest
 	}
 	others := []newWindowOut{}
-	for _, w := range s.newWindows(capCtx, before, after, window.PID) {
+	for _, w := range s.newWindows(capCtx, before, after, window.Address, window.PID, token) {
 		if w.Window != window.Address {
 			others = append(others, w)
 		}
@@ -326,7 +326,7 @@ func (s *Server) closeTool(ctx context.Context, c *call) *mcp.CallToolResult {
 		}
 	}
 	elapsed := time.Since(start).Milliseconds()
-	out := &closeOut{Closed: closed, ElapsedMs: elapsed, NewWindows: s.newWindows(ctx, before, after, target.PID)}
+	out := &closeOut{Closed: closed, ElapsedMs: elapsed, NewWindows: s.newWindows(ctx, before, after, window, target.PID, "")}
 	out.Summary = fmt.Sprintf("closed %s after %d ms", window, elapsed)
 	if closed {
 		s.shots.dropWindow(window)

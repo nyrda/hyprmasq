@@ -2,6 +2,7 @@
 #include "Cursor.hpp"
 #include "Hooks.hpp"
 #include "Launch.hpp"
+#include "Placement.hpp"
 #include "Wait.hpp"
 #include "X11.hpp"
 #include <hyprland/src/Compositor.hpp>
@@ -49,10 +50,6 @@ namespace hyprmasq {
         void*                                           originalKeyboardFocus = nullptr;
         void*                                           originalPointerFocus  = nullptr;
         CHyprSignalListener                             monitorLayout;
-        // The user's real input, which emulated input bypasses. Motion does not count: a moving pointer opens no window.
-        CHyprSignalListener userKey, userButton, userTouch, userTip;
-        Time::steady_tp     lastUserInput;
-        constexpr auto      OPENS_WITHIN = std::chrono::seconds(5); // see openerOf
 
         // Socket ids: random for each load of the plugin, then counting.
         uint64_t socketNonce = 0, socketCount = 0;
@@ -181,7 +178,6 @@ namespace hyprmasq {
             uint64_t                             commitsAtInput = 0;
             bool                                 force = false, paused = false, deferredKeys = false, restoreDue = false;
             Time::steady_tp                      pausedAt, holdUntil = Time::steadyNow(), lastKeys = Time::steadyNow(), lastPing;
-            std::optional<Time::steady_tp>       delivered;             // when input last reached the window, see openerOf
             eis_event*                           stashed     = nullptr; // taken from libeis, waiting for a hold to end
             wl_client*                           server      = nullptr; // the window's X server, looked up once
             bool                                 serverKnown = false;
@@ -615,7 +611,8 @@ namespace hyprmasq {
                     return;
                 }
                 // Resource focus is client-local. Restore it before the event loop can dispatch real input.
-                const auto now = Time::millis(Time::steadyNow());
+                const auto now     = Time::millis(Time::steadyNow());
+                bool       trigger = false; // the frame has input that can open a window, see placement::triggers
                 for (auto* e : pending) {
                     if (eis_event_get_device(e) != device)
                         continue;
@@ -633,6 +630,10 @@ namespace hyprmasq {
                         lastKeys = Time::steadyNow();
                         xkb_state_update_key(state, code + 8, down ? XKB_KEY_DOWN : XKB_KEY_UP);
                         mods(s);
+                        trigger |= down &&
+                            placement::triggers(code,
+                                                xkb_state_mod_names_are_active(state, XKB_STATE_MODS_EFFECTIVE, XKB_STATE_MATCH_ANY, XKB_MOD_NAME_CTRL, XKB_MOD_NAME_ALT,
+                                                                               XKB_MOD_NAME_LOGO, nullptr) > 0);
                     } else {
                         if (type == EIS_EVENT_POINTER_MOTION_ABSOLUTE) {
                             const double x = eis_event_pointer_get_absolute_x(e), y = eis_event_pointer_get_absolute_y(e);
@@ -705,6 +706,7 @@ namespace hyprmasq {
                         }
                         cursor::show(w, position, type == EIS_EVENT_BUTTON_BUTTON && eis_event_button_get_is_press(e));
                         if (type == EIS_EVENT_BUTTON_BUTTON) {
+                            trigger = true;
                             if (eis_event_button_get_is_press(e))
                                 buttons.insert(eis_event_button_get_button(e));
                             else
@@ -747,9 +749,9 @@ namespace hyprmasq {
                 if (takesFocus && realKeyboard && realKeyboard->client() == s->client())
                     x11::release(w);
                 lastInput          = Time::steadyNow();
-                delivered          = lastInput;
                 commitsAtInput     = content->commits;
                 content->lastInput = lastInput;
+                placement::emulatedInput(w, trigger);
                 wl_event_source_timer_update(timer, 16);
             }
             int tick() {
@@ -1111,19 +1113,9 @@ namespace hyprmasq {
             for (auto& [_, session] : sessions)
                 session->checkRegionsLater();
         });
-
-        auto& input = Event::bus()->m_events.input;
-        userKey     = input.keyboard.key.listen([] { lastUserInput = Time::steadyNow(); });
-        userButton  = input.mouse.button.listen([] { lastUserInput = Time::steadyNow(); });
-        userTouch   = input.touch.down.listen([] { lastUserInput = Time::steadyNow(); });
-        userTip     = input.tablet.tip.listen([] { lastUserInput = Time::steadyNow(); });
     }
     void shutdownEis() {
         monitorLayout.reset();
-        userKey.reset();
-        userButton.reset();
-        userTouch.reset();
-        userTip.reset();
         sessions.clear();
     }
     std::expected<SEisInfo, SError> openEis(const PHLWINDOW& w, bool force) {
@@ -1225,31 +1217,6 @@ namespace hyprmasq {
                 .hold     = !keyboardShared && !pointerShared,
                 .dnd      = window == Desktop::focusState()->window(),
                 .x11Focus = isX11 && !(session && session->force)};
-    }
-    PHLWINDOW openerOf(const PHLWINDOW& window) {
-        if (!window || window->m_isX11)
-            return nullptr;
-        const pid_t pid = window->getPID();
-        if (pid <= 0)
-            return nullptr;
-        // Which window of a process input reached last, the process knows and the plugin does not. While the user is in
-        // another process, their input went elsewhere; while they are in this one, the later input opened the window.
-        const auto      focused   = Desktop::focusState()->window();
-        const bool      userInApp = focused && !focused->m_isX11 && focused->getPID() == pid;
-        const auto      now       = Time::steadyNow();
-        PHLWINDOW       opener;
-        Time::steady_tp latest;
-        for (auto& [_, session] : sessions) {
-            auto w = session->window.lock();
-            if (!w || w == window || w->m_isX11 || !session->delivered || session->xServer() || w->getPID() != pid)
-                continue;
-            const auto at = *session->delivered;
-            if (now - at > OPENS_WITHIN || (userInApp && lastUserInput >= at) || (opener && at <= latest))
-                continue;
-            opener = w;
-            latest = at;
-        }
-        return opener;
     }
     std::expected<SLeaseState, SError> holdLease(const PHLWINDOW& window, int ms, const std::string& owner) {
         auto* session = sessionOf(window);

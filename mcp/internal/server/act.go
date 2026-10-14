@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -50,6 +51,8 @@ type actRequest struct {
 	// For capture "changes": the shot to compare with, or why there is none.
 	base       *shot
 	baseReason string
+	// The token of the launch by this server that the window belongs to, read before the input, which may close it.
+	launch string
 }
 
 func intArg(v *int, def, lo, hi int, name string) (int, error) {
@@ -297,6 +300,7 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 	if err != nil {
 		return fail(err)
 	}
+	r.launch = s.launchOf(callCtx, before, r.window)
 	st, err := s.openState(callCtx, r.window, "")
 	if err != nil {
 		return fail(err)
@@ -339,6 +343,7 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 	sendCtx, sendCancel := context.WithDeadline(ctx, inputBy)
 	defer sendCancel()
 	p.set("waiting for other calls on the window")
+	lockStart := time.Now()
 	windowLock, err := acquireLock(sendCtx, s.lockPath(st.StableID))
 	if err != nil {
 		err = lockError(ctx, err, start, "the window lock, held by another call on this window")
@@ -349,6 +354,12 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 		return failShot(err)
 	}
 	defer windowLock.release()
+	// Another call held the lock, and the windows that its input opened meanwhile are not new to this one.
+	if time.Since(lockStart) >= lockPoll {
+		if latest, err := s.listWindows(sendCtx); err == nil {
+			before = latest
+		}
+	}
 
 	var base baseline
 	applied := false
@@ -451,8 +462,19 @@ func lockError(ctx context.Context, err error, start time.Time, what string) err
 	return err
 }
 
+const (
+	// How many new windows from the target an act returns a shot of.
+	newWindowShots = 3
+	// How long a new window gets at most to draw what it opened with before its shot, and how quiet it then has to be.
+	newWindowSettle  = time.Second
+	newWindowQuietMs = 200
+	// The time before the deadline that the grace period leaves for listing the new windows.
+	newWindowListing = 250 * time.Millisecond
+)
+
 // finish captures, renews the lease and lists new windows, for every outcome after the locks were taken.
 func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr.State, end time.Time, region *zoom, applied bool, before []hypr.Window) *mcp.CallToolResult {
+	waited := time.Now()
 	capCtx, cancel := captureContext(ctx, end)
 	defer cancel()
 
@@ -505,12 +527,28 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 			}
 		}
 	}
+	// An app may open a window a moment after the window that got the input has settled, so input that was delivered
+	// is followed by a grace period, which the capture and the lease use too: input that can open a window.
+	if applied && !cancelled && opensWindows(r.batch) {
+		s.newWindowGrace(ctx, waited.Add(s.cfg.NewWindowGrace), end.Add(-newWindowListing))
+	}
 	if after, err := s.listWindows(capCtx); err == nil {
-		out.NewWindows = s.newWindows(capCtx, before, after, windowPID(before, r.window))
+		out.NewWindows = s.newWindows(capCtx, before, after, r.window, windowPID(before, r.window), r.launch)
+	}
+	if r.captureMode != "none" && !cancelled && ctx.Err() == nil && !s.stopping() {
+		images = append(images, s.newWindowShots(ctx, out.NewWindows, end)...)
 	}
 
 	out.Summary = summaryLine(out, r.batch)
-	out.Hint = joinHints(waitHint(out.Wait, r.batch, r.shotID, out.Actions, out.Shot), noChangeHint(out, r.batch), out.captureNote, frameHints(out.Shot))
+	wait, unchanged := waitHint(out.Wait, r.batch, r.shotID, out.Actions, out.Shot), noChangeHint(out, r.batch)
+	// That the window did not change says nothing about the input when it opened a window.
+	if opened := openedHint(out.NewWindows); opened != "" {
+		if out.Wait != nil && out.Wait.Ended == "no_redraw" {
+			wait = ""
+		}
+		unchanged = opened
+	}
+	out.Hint = joinHints(wait, unchanged, out.captureNote, frameHints(out.Shot), newWindowsHint(out.NewWindows))
 	if out.Actions != nil {
 		out.Hint = joinHints(out.Hint, out.Actions.composeNote)
 	}
@@ -518,6 +556,85 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		out.Hint = joinHints(out.Hint, "The input was applied, but the screenshot failed. Take a screenshot before repeating anything.")
 	}
 	return newResult(out, out.resultText, images, "")
+}
+
+// opensWindows tells whether a batch has input that can open a window, after which act watches for new windows: a
+// click, a drag, a key, or text with a line break, which presses Enter. Text that only types characters, scrolling,
+// motion and pauses do not, as the plugin counts the user's input.
+func opensWindows(batch []action) bool {
+	for _, a := range batch {
+		switch a.Kind {
+		case "click", "drag", "key":
+			return true
+		case "type":
+			if strings.ContainsAny(a.Text, "\r\n") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// newWindowGrace waits until the grace period for new windows ends, at latest at the time given, or until the call is
+// cancelled.
+func (s *Server) newWindowGrace(ctx context.Context, until, latest time.Time) {
+	if latest.Before(until) {
+		until = latest
+	}
+	wait := time.Until(until)
+	if wait <= 0 {
+		return
+	}
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+	case <-timer.C:
+	}
+}
+
+// newWindowShots takes a shot of each new window that came from the target, up to newWindowShots of them, within the
+// deadline, so the agent can act in it without another call. It returns their images.
+func (s *Server) newWindowShots(ctx context.Context, windows []newWindowOut, end time.Time) [][]byte {
+	var images [][]byte
+	for i := range windows {
+		w := &windows[i]
+		if !w.fromTarget || len(images) == newWindowShots {
+			continue
+		}
+		sh, png, err := s.newWindowShot(ctx, w.Window, w.StableID, end)
+		if err != nil {
+			continue
+		}
+		s.shots.returned(sh)
+		w.Shot = shotInfo(sh)
+		images = append(images, png)
+	}
+	return images
+}
+
+// newWindowShot captures a new window once it has drawn what it opened with. A window on a hidden workspace draws
+// only with the frame callbacks that the plugin sends during a wait. One that is starved, waiting for them, gets them
+// from the capture's own wait, which tells whether it drew, so that its shot says when it may show an older frame.
+func (s *Server) newWindowShot(ctx context.Context, window, stableID string, end time.Time) (*shot, []byte, error) {
+	ctx, cancel := context.WithDeadline(ctx, end)
+	defer cancel()
+	st, err := s.openState(ctx, window, stableID)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Half of the capture's reserve is left for the capture.
+	if settle := min(newWindowSettle, time.Until(end)-captureReserve/2); !st.Starved && settle > newWindowQuietMs*time.Millisecond {
+		_, err := s.wait(ctx, window, hypr.WaitArgs{Since: *st.Commits, QuietMs: newWindowQuietMs, DeadlineMs: int(settle.Milliseconds()), ID: s.waitID()})
+		var pe *hypr.Error
+		switch {
+		case ctx.Err() != nil:
+			return nil, nil, ctx.Err()
+		case errors.As(err, &pe) && pe.Code == "window_gone":
+			return nil, nil, err
+		}
+	}
+	return s.capture(ctx, window, stableID, nil)
 }
 
 // captureResult captures the window for the result of an act. A capture region whose shot no longer has the window's

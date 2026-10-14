@@ -9,7 +9,10 @@ stdenv.mkDerivation {
   buildPhase = ''
     wayland-scanner client-header ${wayland-protocols}/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml xdg-shell-client-protocol.h
     wayland-scanner private-code ${wayland-protocols}/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml xdg-shell-protocol.c
-    $CC -std=gnu17 -Wall -Wextra -Wno-unused-parameter -I. -x c "$src" xdg-shell-protocol.c \
+    foreign=${wayland-protocols}/share/wayland-protocols/unstable/xdg-foreign/xdg-foreign-unstable-v2.xml
+    wayland-scanner client-header $foreign xdg-foreign-unstable-v2-client-protocol.h
+    wayland-scanner private-code $foreign xdg-foreign-unstable-v2-protocol.c
+    $CC -std=gnu17 -Wall -Wextra -Wno-unused-parameter -I. -x c "$src" -x none xdg-shell-protocol.c xdg-foreign-unstable-v2-protocol.c \
       $(pkg-config --cflags --libs wayland-client libei-1.0) -o hyprmasq-focus-probe
   '';
   installPhase = ''

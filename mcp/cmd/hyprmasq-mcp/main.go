@@ -24,6 +24,7 @@ func main() {
 	input := flag.String("input", "", "the hyprmasq-input binary (default: hyprmasq-input from PATH)")
 	maxImage := flag.Int("max-image-size", server.DefaultMaxImageSize, "fit screenshots within `N` pixels on the long side; 0 keeps the monitor's scale")
 	leaseMs := flag.Int("lease-ms", 60000, "length of the focus lease each act starts or renews, in milliseconds")
+	graceMs := flag.Int("new-window-grace-ms", 500, "how long act goes on watching for new windows after its wait, in milliseconds, when it delivered input")
 	structured := flag.String("structured-content", server.StructuredAuto,
 		"give results structured content: `auto` (not to clients that show it to the model in place of the text), always or never")
 	version := flag.Bool("version", false, "print the version and exit")
@@ -33,7 +34,7 @@ func main() {
 		return
 	}
 	validStructured := *structured == server.StructuredAuto || *structured == server.StructuredAlways || *structured == server.StructuredNever
-	if flag.NArg() > 0 || *maxImage < 0 || *leaseMs < 1 || *leaseMs > 600000 || !validStructured {
+	if flag.NArg() > 0 || *maxImage < 0 || *leaseMs < 1 || *leaseMs > 600000 || *graceMs < 0 || *graceMs > 5000 || !validStructured {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -57,6 +58,7 @@ func main() {
 		Input:             *input,
 		MaxImageSize:      *maxImage,
 		LeaseMs:           *leaseMs,
+		NewWindowGrace:    time.Duration(*graceMs) * time.Millisecond,
 		StructuredContent: *structured,
 	})
 
