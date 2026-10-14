@@ -23,8 +23,10 @@
 //   sleep MS                          wait MS milliseconds
 //
 // Exit status 0 means that the server confirmed every event, 1 that the server or a signal stopped the actions, and 2
-// that the actions are invalid or exceed the budget, in which case nothing was sent. --json prints the outcome as JSON
-// on stdout.
+// that the actions are invalid or exceed the budget, in which case nothing was sent. When the server closes the
+// connection after confirming every event sent, as hyprmasq does when the input closed the window, the releases still to
+// come of the running action count as done, since hyprmasq releases what a sender holds when its connection ends.
+// --json prints the outcome as JSON on stdout.
 
 #define _GNU_SOURCE
 
@@ -112,7 +114,10 @@ struct state {
     bool seatRemoved;
     bool stalled;
     // The server removed a device that had unconfirmed events or held keys or buttons.
-    bool     lost;
+    bool lost;
+    // All that the running action has left to send are releases of what it holds, which hyprmasq sends itself when the
+    // connection ends.
+    bool     releasing;
     bool     pace;
     uint32_t sequence;
     // A pong tells that the plugin has taken everything sent before its ping, and unless it paused or removed a device
@@ -567,8 +572,12 @@ static bool releaseMods(struct state* s, const struct chord* c) {
     return true;
 }
 
-static bool pressChord(struct state* s, const struct chord* c, long modMs, long holdMs) {
-    return pressMods(s, c, modMs) && sendKey(s, c->code, true, true) && paceWait(s, holdMs) && sendKey(s, c->code, false, false) && releaseMods(s, c);
+// last tells that the chord is the action's last, after whose key only releases are left.
+static bool pressChord(struct state* s, const struct chord* c, long modMs, long holdMs, bool last) {
+    if (!pressMods(s, c, modMs) || !sendKey(s, c->code, true, true))
+        return false;
+    s->releasing = last;
+    return paceWait(s, holdMs) && sendKey(s, c->code, false, false) && releaseMods(s, c);
 }
 
 static bool parseButton(const char* name, uint32_t* button) {
@@ -1323,9 +1332,13 @@ static bool resolveAction(struct state* s, struct action* a) {
 static bool click(struct state* s, const struct action* a) {
     if (!pressMods(s, &a->chord, CHORD_MOD_MS))
         return false;
-    for (long i = 0; i < a->count; ++i)
-        if ((i && !paceWait(s, CLICK_GAP_MS)) || !sendButton(s, a->code, true) || !paceWait(s, CLICK_HOLD_MS) || !sendButton(s, a->code, false))
+    for (long i = 0; i < a->count; ++i) {
+        if ((i && !paceWait(s, CLICK_GAP_MS)) || !sendButton(s, a->code, true))
             return false;
+        s->releasing = i + 1 == a->count;
+        if (!paceWait(s, CLICK_HOLD_MS) || !sendButton(s, a->code, false))
+            return false;
+    }
     return releaseMods(s, &a->chord);
 }
 
@@ -1348,6 +1361,7 @@ static bool drag(struct state* s, const struct action* a) {
         if ((i > 1 && !paceWait(s, DRAG_STEP_MS)) || !sendMotion(s, last ? a->x2 : a->x + dx * i / steps, last ? a->y2 : a->y + dy * i / steps, last))
             return false;
     }
+    s->releasing = true;
     return paceWait(s, DRAG_HOLD_MS) && sendButton(s, a->code, false) && releaseMods(s, &a->chord);
 }
 
@@ -1384,15 +1398,21 @@ static bool wheel(struct state* s, const struct action* a) {
 }
 
 static bool typeSteps(struct state* s, const struct steps* steps) {
+    // After the press of the last key, only its releases are left, until a wait after it.
+    size_t lastKey = 0;
+    for (size_t i = 0; i < steps->count; ++i)
+        if (steps->items[i].chord.code)
+            lastKey = i;
     bool typed = false;
     for (size_t i = 0; i < steps->count; ++i) {
         const struct step* step = &steps->items[i];
         if (!step->chord.code) {
+            s->releasing = false;
             if (!waitUntil(s, nowNs() + MS(step->waitMs)))
                 return false;
             continue;
         }
-        if ((typed && !paceWait(s, TYPE_GAP_MS)) || !pressChord(s, &step->chord, 0, TYPE_HOLD_MS))
+        if ((typed && !paceWait(s, TYPE_GAP_MS)) || !pressChord(s, &step->chord, 0, TYPE_HOLD_MS, i == lastKey))
             return false;
         typed = true;
     }
@@ -1446,10 +1466,10 @@ static bool runAction(struct state* s, const struct action* a) {
         case ACTION_DRAG: return drag(s, a);
         case ACTION_SCROLL: return scroll(s, a);
         case ACTION_WHEEL: return wheel(s, a);
-        case ACTION_KEY: return pressChord(s, &(struct chord){.code = a->code}, 0, CHORD_HOLD_MS);
+        case ACTION_KEY: return pressChord(s, &(struct chord){.code = a->code}, 0, CHORD_HOLD_MS, true);
         case ACTION_KEYS:
             for (long i = 0; i < a->count; ++i)
-                if ((i && !paceWait(s, CHORD_GAP_MS)) || !pressChord(s, &a->chord, CHORD_MOD_MS, CHORD_HOLD_MS))
+                if ((i && !paceWait(s, CHORD_GAP_MS)) || !pressChord(s, &a->chord, CHORD_MOD_MS, CHORD_HOLD_MS, i + 1 == a->count))
                     return false;
             return true;
         case ACTION_TYPE:
@@ -1630,6 +1650,7 @@ int main(int argc, char** argv) {
         if (i == total - 1)
             releaseAll(&s);
         s.sent.actions = i + 1;
+        s.releasing    = false;
         lastEnd        = nowNs();
         if (!roundTrip(&s) || interrupted(&s))
             break;
@@ -1647,6 +1668,13 @@ int main(int argc, char** argv) {
         // Devices removed with input in flight may also mean that the connection is ending, which a round trip shows.
         if (s.sent.frames != s.confirmed.frames || (s.lost && !s.disconnected))
             roundTrip(&s);
+        // When the server closes the connection after confirming every frame sent, as hyprmasq does when the input closed
+        // the window, an action with only the releases of what it holds left to send counts as done: hyprmasq releases
+        // what a sender holds when its connection ends.
+        if (!failure.code && !cancelled && !s.paused && s.disconnected && s.releasing && s.confirmed.frames == s.sent.frames)
+            s.confirmed.actions = s.sent.actions + 1;
+    }
+    if (running && s.confirmed.actions < total) {
         if (failure.code)
             ; // reported where it happened
         else if (cancelled)

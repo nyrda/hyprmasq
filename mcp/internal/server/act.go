@@ -747,13 +747,64 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 	if reply.Progress != nil && (r.batch[failed].Kind == "type" || r.batch[failed].Kind == "key") {
 		out.Progress = &progressOut{Keys: reply.Progress.Keys}
 	}
+	// The sender stops at a pause when the connection ends, but a pause needs no window. When the window closed, as the
+	// input may have made it, the pauses count as delivered: with only pauses left, the batch is complete and the wait
+	// finds the window closed, and otherwise the error names the input after them. Another sender that took over the
+	// socket leaves the window open, and the batch failed.
+	if next := pausesFrom(steps, reply); next >= 0 && out.Delivery == "partial" && changed == nil && sendCtx.Err() == nil &&
+		reply.Error != nil && reply.Error.Code == "unconfirmed" && s.windowGone(clientCtx, r.window) {
+		if next == len(steps) {
+			return &actionsOut{Done: len(r.batch), Total: len(r.batch), Delivery: "complete", composeNote: out.composeNote}, nil
+		}
+		out.Done, failed, failedStep, out.Progress = steps[next].Batch, steps[next].Batch, steps[next].Argv[0], nil
+	}
 	if changed != nil && clientCtx.Err() == nil {
 		if changed.Code == "window_gone" && out.Delivery != "none" {
-			changed.Hint = hintClosedBySent
+			return out, closedWhileSent(r.window, r.batch, out.Done, failed)
 		}
 		return out, changed
 	}
-	return out, s.senderError(clientCtx, sendCtx, reply, r, failed, failedStep, out.Delivery)
+	return out, s.senderError(clientCtx, sendCtx, reply, r, out.Done, failed, failedStep, out.Delivery)
+}
+
+// pausesFrom is the first step after the pauses that the sender failed at, or -1 when it failed at no pause.
+func pausesFrom(steps []inputStep, reply senderReply) int {
+	if reply.FailedIndex == nil || *reply.FailedIndex < 0 || *reply.FailedIndex >= len(steps) || steps[*reply.FailedIndex].Argv[0] != "sleep" {
+		return -1
+	}
+	next := *reply.FailedIndex
+	for next < len(steps) && steps[next].Argv[0] == "sleep" {
+		next++
+	}
+	return next
+}
+
+// windowGone tells whether the plugin reports the window as closed.
+func (s *Server) windowGone(ctx context.Context, window string) bool {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
+	_, err := s.hypr.State(ctx, window)
+	var pe *hypr.Error
+	return errors.As(err, &pe) && pe.Code == "window_gone"
+}
+
+// closedWhileSent reports a window that closed while the batch was sent, after some of its input was applied. It names
+// the actions before failed, which were delivered, so that they are not sent again.
+func closedWhileSent(window string, batch []action, done, failed int) *toolError {
+	where := describe(failed, batch[failed])
+	if done == 0 {
+		return &toolError{Code: "window_gone", Message: fmt.Sprintf("window %s closed while %s was sent", window, where), Hint: hintClosedBySent}
+	}
+	delivered, verb, them := describe(0, batch[0]), "was", "it"
+	switch {
+	case done == 2:
+		delivered, verb, them = delivered+" and "+describe(1, batch[1]), "were", "them"
+	case done > 2:
+		delivered, verb, them = fmt.Sprintf("actions[0] to actions[%d]", done-1), "were", "them"
+	}
+	return &toolError{Code: "window_gone", Message: fmt.Sprintf("window %s closed after %s %s delivered, while %s was sent", window, delivered, verb, where),
+		Hint: fmt.Sprintf("The window closed after %s %s delivered, maybe because of %s, for example through a quit shortcut or a close button, so do not send %s again. Call windows to see what is open now.",
+			delivered, verb, them, them)}
 }
 
 func ptr[T any](v T) *T {
@@ -789,7 +840,8 @@ func (s *Server) watchGeometry(ctx context.Context, stop context.CancelCauseFunc
 	}
 }
 
-// doneActions counts the batch actions whose every step the sender confirmed.
+// doneActions counts the batch actions whose every step the sender confirmed, or counted as done since only releases
+// were left of it when the connection ended.
 func doneActions(steps []inputStep, stepsDone, total int) int {
 	if stepsDone < 0 {
 		return 0
@@ -811,9 +863,9 @@ func deadlineWhileSending(delivery string, deadline time.Duration) error {
 	return &toolError{Code: "deadline", Message: "the deadline arrived while the input was being sent", Hint: hint}
 }
 
-// senderError maps the error of a failed hyprmasq-input run. step is the sender's action that failed, such as move,
-// and delivery the batch's, which decides the hint.
-func (s *Server) senderError(clientCtx, sendCtx context.Context, reply senderReply, r *actRequest, failed int, step, delivery string) error {
+// senderError maps the error of a failed hyprmasq-input run. done counts the batch actions delivered, step is the
+// sender's action that failed, such as move, and delivery the batch's, which decides the hint.
+func (s *Server) senderError(clientCtx, sendCtx context.Context, reply senderReply, r *actRequest, done, failed int, step, delivery string) error {
 	if clientCtx.Err() != nil {
 		return errCancelled
 	}
@@ -851,17 +903,11 @@ func (s *Server) senderError(clientCtx, sendCtx context.Context, reply senderRep
 		}
 		return &toolError{Code: code, Message: where + ": hyprmasq-input was stopped by a signal from another process", Hint: hint}
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(clientCtx), time.Second)
-	defer cancel()
-	if _, err := s.hypr.State(ctx, r.window); err != nil {
-		var pe *hypr.Error
-		if errors.As(err, &pe) && pe.Code == "window_gone" {
-			hint := hintWindows
-			if delivery != "none" {
-				hint = hintClosedBySent
-			}
-			return &toolError{Code: "window_gone", Message: fmt.Sprintf("window %s closed while %s was sent", r.window, where), Hint: hint}
+	if s.windowGone(clientCtx, r.window) {
+		if delivery != "none" {
+			return closedWhileSent(r.window, r.batch, done, failed)
 		}
+		return &toolError{Code: "window_gone", Message: fmt.Sprintf("window %s closed while %s was sent", r.window, where), Hint: hintWindows}
 	}
 	hint := ""
 	switch {

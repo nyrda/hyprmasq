@@ -562,7 +562,7 @@ the rest.
 
 | Status | Meaning |
 | --- | --- |
-| 0 | The plugin processed every event. |
+| 0 | The plugin processed every event, apart from releases left unsent when it closed the connection, which it sends itself: see [Input that closes its window](#input-that-closes-its-window). |
 | 1 | The run stopped after it started: no connection, no devices, paused input, a lost or replaced device, a closed connection, or a signal. Some input may have been sent; `--json` tells how much. |
 | 2 | An option, action, point, key name or character is invalid, or the actions take longer than `--budget`. Nothing was sent. |
 
@@ -579,7 +579,7 @@ With `--json`, `hyprmasq-input` prints one object on stdout when it exits:
 | Field | Meaning |
 | --- | --- |
 | `ok` | No error. |
-| `done` | Actions that ran to their end and that the plugin confirmed. |
+| `done` | Actions that ran to their end and that the plugin confirmed, and one that the closed connection cut off with only releases left: see [Input that closes its window](#input-that-closes-its-window). |
 | `total` | The number of actions. After a syntax error, the actions up to and including the invalid one. |
 | `failedIndex` | The 0-based index of the action that failed, or `null` on success and when the run failed before its first action, for example because it could not connect. |
 | `delivery` | What reached the plugin, see below. |
@@ -591,7 +591,7 @@ With `--json`, `hyprmasq-input` prints one object on stdout when it exits:
 | `delivery` | Meaning |
 | --- | --- |
 | `none` | Nothing was sent. |
-| `complete` | The plugin processed every event. |
+| `complete` | The plugin processed every event, apart from releases left unsent when it closed the connection. |
 | `partial` | The actions before `failedIndex` were processed. The failed action may be processed in part, for example some keys of a text, and later actions were not sent. The plugin took every frame that was sent, so `progress.keys` counts exactly the keys it processed. |
 | `uncertain` | The connection ended, or the plugin stopped answering, before it took everything that was sent, for example frames sent after the plugin closed the socket. Any action from `failedIndex` on may or may not have been processed. |
 
@@ -647,15 +647,22 @@ answers the pings among it. Input that it took only to drop, because the
 window was gone, is never confirmed. So the outcome depends on what was still
 to come:
 
-- When the closing action was the last one and the plugin confirmed it before
-  the window closed, which is usual for a click on a close button, the run
-  succeeds with delivery `complete`.
-- When input followed, `hyprmasq-input` fails with code `unconfirmed` and the
-  message `the server closed the connection, as hyprmasq does when the window
-  closes or another sender connects`. The delivery is `partial` when the
-  plugin took everything that was sent, and `progress.keys` then counts the
-  keys the window got before it closed. It is `uncertain` when frames were
-  sent after the plugin had closed the socket.
+- When the plugin confirmed every frame that was sent, an action that had
+  only the releases of what it holds left counts as done: the plugin sends
+  those itself when a sender goes away. A dialog that closes as its button
+  goes down closes while the click's button is held, and so does one without
+  the `hold` capability, for which the plugin releases the button right after
+  the press. The click still counts as done.
+- So when the closing action was the last one and the plugin confirmed it,
+  or all of it but its releases, the run succeeds with delivery `complete`,
+  which is usual for a click on a close button.
+- When actions followed, `hyprmasq-input` fails with code `unconfirmed` and
+  the message `the server closed the connection, as hyprmasq does when the
+  window closes or another sender connects`, also at a `sleep`, which stops
+  with the connection. The delivery is `partial` when the plugin took
+  everything that was sent, and `progress.keys` then counts the keys the
+  window got before it closed. It is `uncertain` when frames were sent after
+  the plugin had closed the socket.
 
 So a script cannot tell from the delivery alone whether the window closed;
 check the window list.

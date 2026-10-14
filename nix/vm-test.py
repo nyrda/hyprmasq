@@ -892,7 +892,8 @@ try:
     with subtest("hyprmasq-input confirms input that closes its own window"):
         # Ctrl+D ends cat, so foot closes the window, maybe before the plugin has taken the chord's releases. It answers
         # the pings it got before the window closed, and removes the devices before it answers any after input it
-        # dropped. So the outcome is partial: the chord is done, or its key confirmed, and the sleep after it stops.
+        # dropped. So the outcome is partial: the chord is done, also when foot closed while its key was held and only
+        # its releases were left, or its key confirmed, and the sleep after it stops.
         # When foot closes within the 15 ms that the key is held, the releases sent after it never reach the plugin,
         # and the outcome is uncertain, with nothing confirmed. Several runs meet the close at different points.
         before_focus = snapshot()
@@ -911,6 +912,40 @@ try:
                 assert result["done"] == 0, result
             if result["done"] == 0:
                 assert result["progress"] == {"keys": 1}, result
+        assert snapshot() == before_focus
+
+    with subtest("hyprmasq-input counts an action cut off by its window's close with only releases left as done"):
+        # focus-probe destroys its window as Escape or the left button goes down, so the window closes while the sender
+        # holds the key or the button, as a dialog does on the button that closes it. The plugin confirmed the press, and
+        # the release is the plugin's to send once the connection ends, so the action is done. The sleep after it stops
+        # with the connection, and the run fails there. On a busy host the close can still meet the release as the hold
+        # ends, and the plugin drops it, which the delivery reports at the closing action; such a run is repeated.
+        before_focus = snapshot()
+        # The input, the index of the sleep after it, and what the probe logs before it closes. Escape is evdev key 1.
+        for closing_name, closing_args, closing_sleep, closing_logged in (
+            ("key", ["keys", "esc"], 1, "key {} 1 1"),
+            ("click", ["move", 100, 100, "click"], 2, "button {} 1"),
+        ):
+            for attempt in range(3):
+                closing_title = f"hm-i-closing-{closing_name}-{attempt}"
+                focus_workspace(48)
+                spawn(f"hyprmasq-focus-probe close {closing_title}", closing_title)
+                wait_for(closing_title, lambda: client(closing_title) is not None)
+                closing = client(closing_title)["address"]
+                focus_workspace(4)
+                path = open_socket(closing)
+                started = time.monotonic()
+                status, result = input_json(path, *closing_args, "sleep", 5000)
+                elapsed = time.monotonic() - started
+                machine.log(f"{closing_name} that closes its window, then a sleep: {result} in {elapsed:.2f} s")
+                wait_for("window closed", lambda: client(closing_title) is None)
+                assert status == 1 and result["error"]["code"] == "unconfirmed" and "closed the connection" in result["error"]["message"], result
+                if result["done"] == closing_sleep:
+                    break
+                assert result["delivery"] in ("partial", "uncertain") and result["done"] == result["failedIndex"] == closing_sleep - 1, result
+            assert result["delivery"] == "partial" and result["done"] == result["failedIndex"] == closing_sleep and result["progress"] is None, result
+            assert elapsed < 4, elapsed
+            assert re.search(rf"^\d+ {closing_logged.format(closing_title)}\n\d+ closed$", log_since(closing_title, 0), re.M), log_since(closing_title, 0)
         assert snapshot() == before_focus
 
     with subtest("hyprmasq-input reports a connection that another sender takes over during a burst"):
@@ -3740,7 +3775,8 @@ print(longest)
         assert snapshot() == before_focus
 
     with subtest("hyprmasq-mcp reports input that closes its own window"):
-        # focus-probe closes its window on Escape, before the text after it is sent.
+        # focus-probe closes its window on Escape, before the text after it is sent. The error names Escape as delivered,
+        # unless the plugin dropped its release.
         focus_workspace(59)
         spawn("hyprmasq-focus-probe close hm-m-close", "m-close")
         wait_for("closing probe", lambda: client("hm-m-close") is not None)
@@ -3753,9 +3789,49 @@ print(longest)
         assert closed.data["wait"]["ended"] == "window_closed", closed
         actions = closed.data["actions"]
         assert actions["delivery"] in ("partial", "uncertain") and actions["done"] == actions["failed_index"] <= 1, closed
-        assert re.match(rf"error window_gone: window {closing} closed while actions\[{actions['failed_index']}\] \((key|type)\) was sent\n", closed.text), closed
+        if actions["done"] == 1:
+            assert closed.text.startswith(f"error window_gone: window {closing} closed after actions[0] (key) was delivered, while actions[1] (type) was sent\n"), closed
+            assert "so do not send it again" in closed.data["hint"], closed
+        else:
+            assert closed.text.startswith(f"error window_gone: window {closing} closed while actions[0] (key) was sent\n"), closed
         assert "maybe because of it" in closed.data["hint"] and not closed.images and "shot" not in closed.data, closed
         assert client("hm-m-close") is None and "closed" in log_since("m-close", 0)
+        assert snapshot() == before_focus
+
+    with subtest("hyprmasq-mcp counts input that closes its window as delivered when only pauses follow"):
+        # focus-probe closes its window as Escape or the left button goes down, while the key or the button is held, as
+        # a dialog does on its button: Thunderbird's "Send Message" closed before the click's release in a benchmark.
+        # A pause after it needs no window, so the call does not wait it out and is no error. A call whose release met
+        # the close on a busy host reports it as not delivered, and is repeated.
+        for closing_name in ("key", "click"):
+            for attempt in range(3):
+                closing_title = f"hm-m-closing-{closing_name}-{attempt}"
+                focus_workspace(59)
+                spawn(f"hyprmasq-focus-probe close {closing_title}", closing_title)
+                wait_for(closing_title, lambda: client(closing_title) is not None)
+                focus_workspace(4)
+                closing = client(closing_title)["address"]
+                time.sleep(0.5)
+                closing_action = {"action": "key", "keys": ["esc"]}
+                closing_arguments = {"window": closing}
+                if closing_name == "click":
+                    closing_arguments["shot"] = mcp.call("screenshot", {"window": closing}).data["shot"]["id"]
+                    closing_action = {"action": "click", "x": 100, "y": 100}
+                closing_arguments["actions"] = [closing_action, {"action": "pause", "ms": 3000}]
+                started = time.monotonic()
+                closed = mcp.call("act", closing_arguments)
+                elapsed = time.monotonic() - started
+                machine.log(f"hyprmasq-mcp: {closing_name} that closes its window, then a pause: {closed} in {elapsed:.2f} s")
+                assert client(closing_title) is None and "closed" in log_since(closing_title, 0)
+                if not closed.is_error:
+                    break
+                failure(closed, "window_gone")
+                actions = closed.data["actions"]
+                assert actions["delivery"] in ("partial", "uncertain") and actions["done"] == actions["failed_index"] == 0, closed
+            assert not closed.is_error and "error" not in closed.data and elapsed < 2.5, (closed, elapsed)
+            assert closed.data["actions"] == {"done": 2, "total": 2, "delivery": "complete"}, closed
+            assert closed.data["wait"]["ended"] == "window_closed" and closed.text.startswith("2/2 delivered · window closed"), closed
+            assert not closed.images and "shot" not in closed.data, closed
         assert snapshot() == before_focus
 
     with subtest("hyprmasq-mcp ends its calls and releases its leases on SIGTERM"):

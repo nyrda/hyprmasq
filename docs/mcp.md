@@ -422,7 +422,7 @@ type given as `null` takes its default, as if it were left out.
 | `scroll` | `x`, `y`, `dx`, `dy`, `unit` (`notch` or `px`, default `notch`) | Motion to x,y, then scrolling there. `notch` is a wheel click, whole numbers up to 100 per axis; `px` is smooth scrolling in window-local logical pixels. Positive `dy` scrolls down, positive `dx` right. Neither promises how far the content moves. |
 | `type` | `text` | The text exactly as given, with the active keymap. No tags, no escapes. A line break presses Enter and a tab presses Tab, so a new line in a chat or form field needs a `key` action such as `shift+enter`. At most 65536 bytes of text per batch. |
 | `key` | `keys`, `repeat` (1 to 100) | The keys of `keys` pressed together, in order, and released in reverse. `repeat` presses the chord that many times. At most 9 keys. A chord that holds a key other than a modifier while a later key goes down, such as `["a", "b"]`, needs `hold`; modifiers are `ctrl`, `alt`, `shift`, `super` and the keysyms of modifier keys, such as `Shift_L` or `ISO_Level3_Shift`. |
-| `pause` | `ms` (0 to 5000) | Waits. It does not check that anything is ready. Keys after a click need none, see [Pacing](#pacing). |
+| `pause` | `ms` (0 to 5000) | Waits. It does not check that anything is ready. Keys after a click need none, see [Pacing](#pacing). When the input before it closed the window, it ends there. |
 
 Key names are XKB keysym names, case-insensitive, plus aliases: `ctrl`
 (`control`), `alt`, `shift`, `super` (`meta`, `win`, `cmd`), `enter`
@@ -731,6 +731,13 @@ A result has three parts:
    zoom s8 214×98 of s7 at 40,120 107×49
    ```
 
+   A click that closes its dialog, with a pause after it:
+
+   ```
+   2/2 delivered · window closed · new window 0x55d1c0b2f4a0 (thunderbird "Sending Message - Re: Design review room?", same pid)
+   The window closed. Any new windows are listed; call windows for the rest.
+   ```
+
    The parts, joined by ` · `:
 
    | Part | Forms |
@@ -827,13 +834,17 @@ progress. Other clients may not, which is one reason for the deadline cap.
 | `delivery` | Meaning |
 | --- | --- |
 | `none` | Nothing was sent. Safe to fix and retry. |
-| `complete` | Every action was delivered: the plugin passed every event to the window's application. Whether the application acted on them as meant, only the shot can show. |
+| `complete` | Every action was delivered: the plugin passed every event to the window's application. Whether the application acted on them as meant, only the shot can show. When the input closed the window and the plugin had confirmed every event sent, what needs no window counts as delivered too: the releases still to come of the action that closed it, which the plugin sends itself when the sender goes away, and the pauses after it, which end there. |
 | `partial` | Actions before `failed_index` were applied; the action at `failed_index` may be partly applied, for example some characters of a `type`. The plugin took everything that was sent. Where known, `progress` says how much: the keys the plugin processed, not the characters the application inserted. |
 | `uncertain` | The connection ended, or the plugin stopped answering, before the plugin had taken everything that was sent. Any action from `failed_index` on may or may not have been applied. |
 
 `done` counts the batch actions whose every event was delivered. After input
 was sent, a failed batch reports `done` equal to `failed_index`; with nothing
-sent, `done` is 0, and the message names the action that was refused.
+sent, `done` is 0, and the message names the action that was refused. When
+the window closed during the batch, the message and the hint name the actions
+delivered before it closed, so that they are not sent again, and
+`failed_index` is the first action with input that it no longer got, after any
+pauses.
 
 Hints never suggest repeating input whose delivery is `partial` or `uncertain`.
 Every error hint of an `act` with actions ends with `Nothing was sent.` when
@@ -872,7 +883,7 @@ hint. The structured content has `error`
 | Code | Delivery | Meaning and hint |
 | --- | --- | --- |
 | `invalid_arguments` | none | Names the field by its path, for example `actions[0].count must be 1 to 3, not 5`, `actions[0].from must be [x, y] in shot pixels, not [100]` or `actions[0].x must be a number, not null`, or the key name the sender did not know. Also a batch that its `deadline_ms` cannot fit, also once the sender has resolved its keys with the keymap, or a `wait.expect_ms` that does not fit in it, naming the `deadline_ms` needed. |
-| `window_gone` | none, partial or uncertain | The window closed or its `stable_id` changed. Call `windows`. When it closed while the input was sent, maybe because of it, `wait.ended` is `window_closed` and no shot is taken. When the batch's last action closed it and the plugin had confirmed that action, the result is no error: it reports `complete` and `wait.ended` `window_closed`. |
+| `window_gone` | none, partial or uncertain | The window closed or its `stable_id` changed. Call `windows`. When it closed while the input was sent, maybe because of it, `wait.ended` is `window_closed`, no shot is taken, and the message names the actions delivered before it closed: `window 0x… closed after actions[0] (key) was delivered, while actions[1] (type) was sent`. When only pauses were left once the plugin had confirmed the input, as after a click on the button that closes a dialog, the result is no error: it reports `complete` and `wait.ended` `window_closed`. Events in flight when it closed, such as a release sent as it closed, are not counted as delivered, and the delivery stays `partial` or `uncertain`. |
 | `stale_shot` | none, partial or uncertain | Unknown shot, another window's shot, a shot of an older frame, a resize since the shot, while the call waited for the locks, or during the batch, or a zoom into a popup that has closed or into a window that was resized since the zoom's shot. Read the coordinates from the attached shot, or take a screenshot. |
 | `out_of_bounds` | none or partial | A coordinate lies outside the shot, left of or above the window, or outside the pointer regions, which end at the monitor's edges. Names the action. With `partial`, the window moved during the batch and a later point no longer lies in the new regions. |
 | `cannot_type` | none | The keymap cannot produce a character. Names it, for example U+00E9. |
@@ -1365,12 +1376,20 @@ exit statuses and JSON output. What the server relies on:
 - `error.code`: `invalid_arguments`, `cannot_type` (status 2 when nothing was
   sent), `too_long` (status 2), `connect_failed`, `no_devices`,
   `input_paused`, `unconfirmed`, `cancelled` (status 1).
-- Input that closes its own window: when the closing action was the last one
-  and the plugin confirmed it before the window closed, the run succeeds with
-  `complete`. Otherwise it gives `unconfirmed` with `partial`, or with
-  `uncertain` when frames sent after the close never reached the plugin. The
-  server handles both: after a complete run its wait ends with
-  `window_closed`, and after a failed one the call fails with `window_gone`.
+- Input that closes its own window: when the plugin closes the connection
+  after confirming every frame sent, an action that had only the releases of
+  what it holds left counts as done, since the plugin releases what a sender
+  holds when its connection ends, as when the window closes while a click's
+  button or a key is held. So when that action was the last one, the run
+  succeeds with `complete`. Otherwise it gives `unconfirmed` with `partial`,
+  also at a sleep, which stops with the connection, or with `uncertain` when
+  frames sent after the close never reached the plugin. The server handles
+  both: after a complete run its wait ends with `window_closed`. After a
+  failed one whose window is gone, the pauses from `failedIndex` on count as
+  delivered, since they need no window: with only pauses left the batch is
+  complete, and otherwise the call fails with `window_gone` at the input after
+  them. Another sender that takes over the socket leaves the window open, and
+  a pause it cuts short fails the batch.
 
 ### hyprmasq-mcp
 
@@ -1425,7 +1444,8 @@ on disconnect, also when libeis reports none; pacing measured with `wev`
 timestamps; 2000 characters typed exactly; a budget that refuses text the
 keymap types through Compose as more keys; Compose sequences of the target's
 locale, also without a table for it; input paused on X11 with the keys
-that got through; input that closes its own window, and input that it drops;
+that got through; input that closes its own window, also with only releases
+and sleeps left, and input that it drops;
 a connection taken over during a burst; SIGTERM while the plugin does not
 answer.
 
@@ -1454,7 +1474,8 @@ catches up with a resize during a screenshot and the refusal of coordinates
 from a shot of its older frame, `launch` and `close` naming the window they
 resize, `windows` and an `act` that times out reporting it as resizing,
 coordinates from shots of Wayland and X11 windows that pop in, input that
-closes its window, SIGTERM to the server, `close` and exit.
+closes its window, with text or a pause after it, SIGTERM to the server,
+`close` and exit.
 
 **Go tests** in `mcp/` run the server against a fake Hyprland and a fake
 sender, including resizes during a batch, windows that do not catch up with a

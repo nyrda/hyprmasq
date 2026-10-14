@@ -10,9 +10,10 @@
 // plugin adds, and each removal. With `focus TITLE [TITLE]`, it shows one or two
 // toplevels on one connection and logs their input and focus events, each after
 // a CLOCK_MONOTONIC timestamp in milliseconds. With `close TITLE`, it logs like that
-// for one toplevel, destroys it on Escape and goes on logging the keys that still
-// arrive. With `hold SOCKET X Y stop` or `hold SOCKET X Y disconnect`, it moves the
-// pointer to X,Y as a libei sender, presses Left Shift, A and the left button, and
+// for one toplevel, destroys it when Escape or the left button goes down on it, and
+// goes on logging the keys that still arrive. With `hold SOCKET X Y stop` or
+// `hold SOCKET X Y disconnect`, it moves the pointer to X,Y as a libei sender,
+// presses Left Shift, A and the left button, and
 // then either stops emulating and disconnects a second later, or exits at once,
 // releasing nothing. With `hold SOCKET X Y signal`, it prints "ready" once it has
 // its devices, and on SIGUSR1 presses them and exits at once, without waiting for
@@ -61,7 +62,7 @@ static struct wl_surface *pointer_surface, *keyboard_surface;
 static bool requested;
 static bool placed;
 static bool stamped;
-static bool close_on_escape;
+static bool close_mode;
 static int popup_x, popup_y, popup_width = 40, popup_height = 40;
 static int margin_x, margin_y;
 
@@ -246,9 +247,22 @@ static void pointer_leave(void *data, struct wl_pointer *p, uint32_t serial, str
 static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time, wl_fixed_t x, wl_fixed_t y) {
     say("motion %s %g %g", surface_name(pointer_surface), wl_fixed_to_double(x), wl_fixed_to_double(y));
 }
+// Close mode: the window goes away at once, as a dialog does on the button that closes it.
+static void close_window(void) {
+    if (!close_mode || !windows[0].toplevel)
+        return;
+    xdg_toplevel_destroy(windows[0].toplevel);
+    xdg_surface_destroy(windows[0].xdg);
+    wl_surface_destroy(windows[0].surface);
+    windows[0] = (struct window){.name = windows[0].name};
+    wl_display_flush(display);
+    say("closed");
+}
 static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
     say("button %s %u", surface_name(pointer_surface), state);
     if (pointer_surface == windows[0].surface && state == WL_POINTER_BUTTON_STATE_PRESSED && !requested) request_grabs(serial);
+    if (pointer_surface == windows[0].surface && button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED)
+        close_window();
 }
 static void pointer_axis(void *data, struct wl_pointer *p, uint32_t time, uint32_t axis, wl_fixed_t value) {}
 static const struct wl_pointer_listener pointer_listener = {
@@ -265,14 +279,8 @@ static void keyboard_leave(void *data, struct wl_keyboard *kb, uint32_t serial, 
 }
 static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
     say("key %s %u %u", surface_name(keyboard_surface), key, state);
-    if (close_on_escape && key == KEY_ESC && state == WL_KEYBOARD_KEY_STATE_PRESSED && windows[0].toplevel) {
-        xdg_toplevel_destroy(windows[0].toplevel);
-        xdg_surface_destroy(windows[0].xdg);
-        wl_surface_destroy(windows[0].surface);
-        windows[0] = (struct window){.name = windows[0].name};
-        wl_display_flush(display);
-        say("closed");
-    }
+    if (key == KEY_ESC && state == WL_KEYBOARD_KEY_STATE_PRESSED)
+        close_window();
 }
 static void keyboard_modifiers(void *data, struct wl_keyboard *kb, uint32_t serial, uint32_t dep, uint32_t lat, uint32_t locked, uint32_t group) {
     say("modifiers %s %u", surface_name(keyboard_surface), dep);
@@ -524,7 +532,7 @@ int main(int argc, char **argv) {
         return run_with_signal(argv[2], resize_on_signal);
     }
     if (argc == 3 && !strcmp(argv[1], "close")) {
-        stamped = close_on_escape = true;
+        stamped = close_mode = true;
         requested = true;
         create_toplevel(&windows[0], argv[2]);
         while (wl_display_dispatch(display) >= 0) {}

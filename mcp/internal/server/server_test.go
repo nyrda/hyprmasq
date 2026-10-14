@@ -2766,37 +2766,78 @@ func TestLeaseFollowsInput(t *testing.T) {
 	}
 }
 
+// Input can close its window, as a click on a dialog's button or ctrl+q does. The sender stops when the connection
+// ends and reports how far it got, and the window is gone by the time the server looks again.
 func TestWindowClosedBySentInput(t *testing.T) {
-	e := newTestEnv(t)
-	e.window("0xa1", "1a", 320, 200)
-	// The batch closes the window, as ctrl+q would, before the sender has its confirmation.
-	t.Setenv("FAKE_INPUT_MODE", "fail:unconfirmed:1:partial:0")
-	e.fake.with(func() {
-		e.fake.onPlugin = func(words []string) (string, bool) {
-			if e.senderLogged("exit") {
-				e.fake.removeWindow("0xa1")
+	const clickPause = `[{"action":"click","x":5,"y":5},{"action":"pause","ms":500}]`
+	for _, c := range []struct {
+		name, mode, actions string
+		// Whether the window closes once the sender has exited.
+		closes bool
+		// The error and its message, or "" for a result without an error.
+		code, message string
+		want          map[string]any
+	}{
+		// The sender stops at the pause, which needs no window.
+		{"pause after the input", "fail:unconfirmed:2:partial:0", clickPause, true, "", "",
+			map[string]any{"done": 2.0, "total": 2.0, "delivery": "complete"}},
+		{"input after a pause", "fail:unconfirmed:2:partial:0", `[{"action":"click","x":5,"y":5},{"action":"pause","ms":500},{"action":"type","text":"more"}]`, true,
+			"window_gone", "window 0xa1 closed after actions[0] (click) and actions[1] (pause) were delivered, while actions[2] (type) was sent",
+			map[string]any{"done": 2.0, "total": 3.0, "delivery": "partial", "failed_index": 2.0}},
+		{"input after the close", "fail:unconfirmed:1:partial:0", `[{"action":"key","keys":["ctrl+q"]},{"action":"type","text":"more"}]`, true,
+			"window_gone", "window 0xa1 closed after actions[0] (key) was delivered, while actions[1] (type) was sent",
+			map[string]any{"done": 1.0, "total": 2.0, "delivery": "partial", "failed_index": 1.0}},
+		{"closed by the first action", "fail:unconfirmed:0:uncertain:0", `[{"action":"key","keys":["ctrl+q"]},{"action":"type","text":"more"}]`, true,
+			"window_gone", "window 0xa1 closed while actions[0] (key) was sent",
+			map[string]any{"done": 0.0, "total": 2.0, "delivery": "uncertain", "failed_index": 0.0}},
+		// Another sender that takes over the socket ends the connection too, but the window stays, so the pause was cut short.
+		{"taken over during a pause", "fail:unconfirmed:2:partial:0", clickPause, false, "unconfirmed", "actions[1] (pause): fake unconfirmed",
+			map[string]any{"done": 1.0, "total": 2.0, "delivery": "partial", "failed_index": 1.0}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.window("0xa1", "1a", 320, 200)
+			e.screenshot(`{"window":"0xa1"}`)
+			t.Setenv("FAKE_INPUT_MODE", c.mode)
+			e.fake.with(func() {
+				e.fake.onPlugin = func(words []string) (string, bool) {
+					if c.closes && e.senderLogged("exit") {
+						e.fake.removeWindow("0xa1")
+					}
+					return "", false
+				}
+			})
+			res := e.act(`{"window":"0xa1","shot":"s1","actions":` + c.actions + `}`)
+			if got := get(t, res, "actions"); !reflect.DeepEqual(got, c.want) {
+				t.Errorf("actions %v", got)
 			}
-			return "", false
-		}
-	})
-	res := e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl+q"]},{"action":"type","text":"more"}]}`)
-	if code := errorCode(t, res); code != "window_gone" {
-		t.Fatalf("code %q: %s", code, text(res))
-	}
-	if got := get(t, res, "actions"); !reflect.DeepEqual(got, map[string]any{"done": 1.0, "total": 2.0, "delivery": "partial", "failed_index": 1.0}) {
-		t.Errorf("actions %v", got)
-	}
-	if got := get(t, res, "wait.ended"); got != "window_closed" {
-		t.Errorf("ended %v", got)
-	}
-	if hasImage(res) || get(t, res, "capture_error") != nil {
-		t.Errorf("tried to capture: %s", text(res))
-	}
-	if hint := get(t, res, "hint").(string); !strings.Contains(hint, "maybe because of it") || strings.Contains(hint, "Retry") {
-		t.Errorf("hint %q", hint)
-	}
-	if got := e.fake.requestsMatching("j/hyprmasq wait"); got != nil {
-		t.Errorf("waited: %q", got)
+			if c.code == "" {
+				if res.IsError || get(t, res, "error") != nil || !strings.HasPrefix(text(res), "2/2 delivered · window closed") {
+					t.Errorf("result: %s", text(res))
+				}
+			} else if code := errorCode(t, res); code != c.code || get(t, res, "error.message") != c.message {
+				t.Errorf("code %q: %s", code, text(res))
+			}
+			if !c.closes {
+				return
+			}
+			if got := get(t, res, "wait.ended"); got != "window_closed" {
+				t.Errorf("ended %v", got)
+			}
+			if hasImage(res) || get(t, res, "shot") != nil || get(t, res, "capture_error") != nil {
+				t.Errorf("tried to capture: %s", text(res))
+			}
+			if c.code == "" {
+				return
+			}
+			hint := get(t, res, "hint").(string)
+			if !strings.Contains(hint, "maybe because of") || strings.Contains(hint, "Retry") || strings.Contains(hint, "so do not send") != (c.want["done"] != 0.0) {
+				t.Errorf("hint %q", hint)
+			}
+			if got := e.fake.requestsMatching("j/hyprmasq wait"); got != nil {
+				t.Errorf("waited: %q", got)
+			}
+		})
 	}
 }
 
