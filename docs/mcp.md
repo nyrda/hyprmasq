@@ -52,7 +52,7 @@ plugin's deferred reply is ready, so waits are not limited by `hyprctl`'s
 | --- | --- | --- |
 | `windows` | optional `match` | All windows, or with `match` those whose class or title contains it, ignoring case as Unicode simple case folding does (`Σ` finds `ς`): `window` (address), `stable_id`, `class`, `title`, `pid`, `workspace` (name), `visible` (on a monitor's active or special workspace), `size` (logical), `resizing` (not yet redrawn at its size, see [Shots](#shots-and-coordinates)), `xwayland`, `launched` (by this server), `lease` (`held`, `remaining_s`, `mine`, or `null`), `capabilities`. |
 | `launch` | `command` (array, required), `workspace` (default `hyprmasq`), `timeout_s` (1 to 300, default 30) | Starts the command on a hidden workspace like `hyprmasq-launch`, waits for its first window and for that window to settle, and returns `window`, `wait`, `shot` and `new_windows`, the other windows that appeared, with the image. The hint names the windows on its workspace whose size changed meanwhile, such as tiled windows that made room for it, so that their earlier shots are stale. |
-| `screenshot` | `window`, optional `region` | A shot, with the image. No lock, and no waiting except for a window that has not caught up with a resize. See [Shots](#shots-and-coordinates). |
+| `screenshot` | `window`, optional `region` | A shot, with the image. No lock, and no waiting except for a window that has not caught up with a resize, or a hidden one that has not drawn since it got no frame callbacks. See [Shots](#shots-and-coordinates). |
 | `act` | `window`, `shot`, `actions`, `wait`, `capture`, `deadline_ms` | Runs the actions, waits, and captures what changed. See [act](#act) and [Changes](#changes). |
 | `release` | `window` | Ends the window's focus lease, whichever session holds it. The window stays open. Returns `released`. |
 | `close` | `window` | Asks the window to close, as Hyprland's close dispatcher does, ends its lease, and reports whether it closed within 2 s (`closed`, `elapsed_ms`) and which windows appeared (`new_windows`), such as a confirmation dialog. A window that stays open is not an error. When a tiled window closed, the hint names the tiled windows on its workspace, which take up its space, so that their earlier shots are stale. |
@@ -175,6 +175,34 @@ practice run, an agent took a screenshot right after closing a window, and its
 click on the older frame of the remaining window missed. A warning in the
 result would leave that to the agent; the refusal costs one call, which
 returns the new shot. Keyboard input needs no coordinates, and is sent.
+
+**A starved window** may show an older frame too. Hyprland sends a window on a
+hidden workspace no frame callbacks, and many applications draw only when they
+get one: Thunderbird started on a hidden workspace shows an empty window until
+something sends it frame callbacks. A screenshot alone does not do it: the
+plugin answers the callbacks a hidden window waits for whenever it renders the
+window, but only after the image, and Thunderbird needs a run of them. The
+plugin reports such a window as `starved` (see [`state`](#plugin-commands)):
+it is hidden, waits for a frame callback, and has got none from hyprmasq.
+Before every capture, the server checks for it as for a resize, and if the
+window is starved, runs a `wait … since` with `expect` 1000 ms and a quiet
+time of 100 ms, within the same 1.5 s and the same time left, one wait for
+both when the window is also resizing. The wait sends the window frame
+callbacks every 16 ms; once it has drawn and gone quiet, the shot shows the
+frame it settled on. In a benchmark, Thunderbird drew within 40 ms of its
+first frame callbacks. A window that does not draw within the second is
+captured anyway: its shot has `"may_be_stale": true`, the summary says
+`shot sN W×H (may be stale: not redrawn within 1000 ms)`, or `(may be stale:
+no time to redraw)` when no time was left to wait, and the hint says to go on
+if the shot looks complete, and otherwise to wait with an `act` without
+actions. An application with nothing new to draw does not draw either, so its
+shot is marked although it is current, which is why `act` takes coordinates
+from such a shot. That costs the second once: the wait sends the window frame
+callbacks through its socket, and from then on it is not starved. `act` and
+`launch` send the window frame callbacks before they capture it anyway,
+through input and their waits, so their shots are not starved unless no time
+was left to wait. A window driven before that later waits for frame callbacks
+again is not starved; see [Known limits](#known-limits).
 
 **Checks** before any input is sent:
 
@@ -332,6 +360,7 @@ and it is the next base:
 | `sN cannot be compared` | The base shows an older frame of a window that had not caught up with a resize, or has no detail image, as when the window drew between its overview and detail image twice in a row. |
 | `10 changes shots in a row` | The base is the tenth of a chain of changes shots since a full shot, each compared with the one before, as when `act` gets no `shot`. The eleventh gets a full shot, so that the agent's picture, an overview with the zooms of ten results over it, does not drift from the window. Calls that keep comparing with the same shot show every change since it in their zooms, and need no such refresh. |
 | `the window is resizing` | The window had not caught up with a resize, or was resized, while the detail image was captured. The full shot gives it time to catch up, as every capture does. |
+| `the window waits to draw` | The window was [starved](#shots-and-coordinates) while the detail image was captured, as after an `act` that sent nothing and had no time left to wait. The full shot lets it draw if there is time, and otherwise says that it may be stale. |
 | `resized since sN` | The window's size changed. |
 | `the monitor's scale changed since sN` | The detail images have different scales, as after a move between monitors at or below scale 1. Above scale 1 detail images have logical pixels, which stay comparable, and coordinates are in logical pixels anyway. |
 | `popups outside the window changed since sN` | The box of the window and its popups changed, as when a menu that reaches past the window's edge opens or closes. The base's coordinates would not cover it. |
@@ -653,6 +682,11 @@ wait ends, also when it is cancelled.
 That is the whole guarantee: the window can draw. It does not make the
 application behave as if it were visible. Some throttle in other ways.
 
+A screenshot of a hidden window answers the frame callbacks it waits for once,
+after the image. Before the server captures a window that waits for one and
+has got none from hyprmasq, it lets the window draw: see
+[a starved window](#shots-and-coordinates).
+
 ### What the wait does not tell
 
 - Work an application does without drawing, such as a network request, is
@@ -744,7 +778,7 @@ A result has three parts:
    | --- | --- |
    | Actions, if any | `N/M delivered`, with `, nothing sent`, `, delivery partial: actions[i] (type) may be partly applied (K keys sent)` or `, delivery uncertain from actions[i] (click) on` |
    | Wait | `redraw observed · quiet N ms · N ms`, `no redraw · quiet N ms · N ms`, either with `quiet N ms except animation at X,Y W×H` or `except animations at …, …`, `no redraw within N ms`, `timeout after N ms, still resizing`, `timeout after N ms, still drawing`, `timeout after N ms, no redraw`, `no time left to wait`, `window closed`, `cancelled` |
-   | Capture | `shot sN W×H`, `shot sN W×H (full shot: REASON)`, `shot sN W×H (stale: not yet redrawn at its new size)`, both as `(full shot: REASON; stale: …)`, `shot sN = sM + K changes` followed by the lines `zoom sZ W×H of sN at X,Y W×H`, `K tiny changes left out` and `K changes in animations left out`, `shot sN = sM, no change`, `shot sN = sM, no change outside animations`, or `capture failed: MESSAGE` |
+   | Capture | `shot sN W×H`, `shot sN W×H (full shot: REASON)`, `shot sN W×H (stale: not yet redrawn at its new size)`, `shot sN W×H (may be stale: not redrawn within N ms)` or `(may be stale: no time to redraw)`, several of them as `(full shot: REASON; stale: …)`, `shot sN = sM + K changes` followed by the lines `zoom sZ W×H of sN at X,Y W×H`, `K tiny changes left out` and `K changes in animations left out`, `shot sN = sM, no change`, `shot sN = sM, no change outside animations`, or `capture failed: MESSAGE` |
    | Lease | `lease N s` or `no lease` |
    | New windows | `new window ADDR (CLASS "TITLE"[, launched][, same pid])`, or `new windows` with a list |
 
@@ -773,8 +807,8 @@ A changes shot's `shot` has the base's `width`, `height` and `frame`, and
 shot that capture `"changes"` took in their place has `full_shot` with the
 reason.
 
-`hint` is left out when there is none, and `shot.resizing` and
-`wait.resizing` unless they are true. `wait.resizing` is true when the wait
+`hint` is left out when there is none, and `shot.resizing`,
+`shot.may_be_stale` and `wait.resizing` unless they are true. `wait.resizing` is true when the wait
 timed out while the window had not caught up with a resize. `actions` also
 has `failed_index` and `progress` (`{"keys": N}` for a `type` or `key`
 action) when an action failed.
@@ -814,8 +848,8 @@ The other tools answer in the same way:
 | Tool | Text | Structured content |
 | --- | --- | --- |
 | `windows` | One line per window: `ADDR · CLASS "TITLE" · workspace NAME (hidden\|visible) · W×H [· resizing (not yet redrawn at its new size)] [· xwayland] [· launched] [· lease N s (this session\|another session)] [· lacks lease, hold] [· keyboard x11-focus]`, naming only what the window lacks of `lease`, `hold` and `keyboard yes`, so a line without them has them all, and `capabilities unknown` when the plugin did not answer for it. With `match` and no window matching: `no window has "TEXT" in its class or title, of N windows`. | `{"windows": [...]}`, with `stable_id`, `pid`, `capabilities` `{"lease", "hold", "keyboard"}` and every other fact of the lines, and when it lists none, `summary` with the line that says why |
-| `screenshot` | `shot sN W×H · window ADDR W×H`, with ` · zoom of sM at X,Y W×H` after the shot for a zoom, and ` (stale: not yet redrawn at its new size)` after the shot when it shows an older frame. | `{"summary": "...", "shot": {...}}` |
-| `launch` | `launched ADDR CLASS "TITLE" · pid N · workspace NAME · settled after N ms · shot sN W×H`, or `still resizing after N ms` when the window had not caught up with a resize, `still drawing after N ms`, or `not settled after N ms, no redraw` when input from elsewhere kept the window from counting as quiet, with ` (stale: not yet redrawn at its new size)` after the shot when it shows an older frame, then other new windows. The hint names the windows on its workspace whose size changed. | `{"summary": "...", "window": {...}, "wait": {...}, "shot": {...}, "new_windows": [...]}` |
+| `screenshot` | `shot sN W×H · window ADDR W×H`, with ` · zoom of sM at X,Y W×H` after the shot for a zoom, and ` (stale: not yet redrawn at its new size)` after the shot when it shows an older frame, or ` (may be stale: not redrawn within N ms)` or ` (may be stale: no time to redraw)` when the window was starved and did not draw. | `{"summary": "...", "shot": {...}}` |
+| `launch` | `launched ADDR CLASS "TITLE" · pid N · workspace NAME · settled after N ms · shot sN W×H`, or `still resizing after N ms` when the window had not caught up with a resize, `still drawing after N ms`, or `not settled after N ms, no redraw` when input from elsewhere kept the window from counting as quiet, with ` (stale: not yet redrawn at its new size)` or ` (may be stale: …)` after the shot as for `screenshot`, then other new windows. The hint names the windows on its workspace whose size changed. | `{"summary": "...", "window": {...}, "wait": {...}, "shot": {...}, "new_windows": [...]}` |
 | `release` | `lease released; ADDR stays open`, `lease of another session released; ADDR stays open`, or `no lease was held on ADDR`. | `{"summary": "...", "released": true}` |
 | `close` | `closed ADDR after N ms`, or `ADDR is still open after N ms`, then new windows. The hint says to take a screenshot of a window that stays open, or names the tiled windows that take up the space of a tiled window that closed. | `{"summary": "...", "hint": "...", "closed": true, "elapsed_ms": 140, "new_windows": []}` |
 
@@ -1058,16 +1092,17 @@ and plain-text errors still start with `error:`.
 ```
 
 `interface` increases with every incompatible change to these commands. New
-fields in replies are compatible: `socketId` and `resizing` came without a new
-interface. The server reads replies without `socketId` as from a plugin that
-names no sockets, and without `resizing` as of a window that has caught up.
+fields in replies are compatible: `socketId`, `resizing` and `starved` came
+without a new interface. The server reads replies without `socketId` as from a
+plugin that names no sockets, without `resizing` as of a window that has caught
+up, and without `starved` as of a window that is not starved.
 The server refuses to run against another interface (`plugin_version`).
 
 **`state <addr>`**
 
 ```json
 {"ok":true,"address":"0x55d1c0a3e4b0","stableId":"1a","xwayland":false,
- "size":{"width":640,"height":400},"resizing":false,"scale":2,
+ "size":{"width":640,"height":400},"resizing":false,"starved":false,"scale":2,
  "socket":"/run/user/1000/hyprmasq/<instance>/0x55d1c0a3e4b0.eis","socketId":"9f3a61c2-3",
  "commits":123,"lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
  "capabilities":{"lease":true,"hold":true,"dnd":false,"keyboard":"yes"}}
@@ -1087,6 +1122,17 @@ The server refuses to run against another interface (`plugin_version`).
   differs both from the size it took as reported at the window's last commit
   and from the surface's size. A window that acks a size and then commits a
   frame of the old size is not caught.
+- `starved`: the window is not rendered, has asked for a frame callback that
+  it has not got (on its surface, a subsurface or a popup), and has got none
+  from hyprmasq: its socket has sent it none since it opened, or it has none.
+  Hyprland sends hidden windows no frame callbacks, so such a window may not
+  have drawn what it would draw on screen, such as an application that
+  started on a hidden workspace. Opening the socket sends none; input, a
+  connected sender and a `wait … since` do (see
+  [Frame callbacks](#frame-callbacks)), and from then on the window is not
+  starved, also once it waits for a frame callback again. A screenshot answers
+  the callbacks once, after the image, which leaves a window starved that asks
+  for the next one.
 - `socket`, `socketId` and `commits` are `null` without an open socket.
   `lease` is `null` when none is held.
 - `socketId` names the socket: it differs for every socket the plugin opens,
@@ -1192,7 +1238,9 @@ same commits.
   when the PNG was written, and `socketId` the socket it counts for; both are
   `null` without a socket. `resizing` is the window's `resizing` from `state`
   when it was rendered: the image has the window's size but shows a frame of
-  another size.
+  another size. `starved` is the window's `starved` from `state` right before
+  it was rendered: the image may show an older frame than the window would
+  draw.
 - A box larger than the GPU's texture limit is `internal`.
 
 **`wait <addr> since COMMITS [expect MS] [quiet MS] [deadline MS] [id WORD]`**
@@ -1436,7 +1484,8 @@ a hidden window that keeps drawing during a long wait, while a sender pauses,
 and when it is hidden during a wait; screenshot sizes and popups outside the
 window; popups of a window with an xdg geometry offset; the pointer regions
 and their replacement; a window that has not caught up with a resize, in
-`state`, screenshots and waits; Wayland and X11 windows popping in, whose
+`state`, screenshots and waits; a starved window, which draws only in answer to
+frame callbacks, in `state` and screenshots, until a wait feeds it; Wayland and X11 windows popping in, whose
 shots have their size while Hyprland draws them smaller, and popups of a
 window that moves; the lease, its end when the real focus moves to its
 connection or input reaches another window of it, and release of held input
@@ -1472,16 +1521,19 @@ of its window, each reason for a full shot that a window can give, and
 `"window"` and `"none"` as they were, `--max-image-size`, a window that
 catches up with a resize during a screenshot and the refusal of coordinates
 from a shot of its older frame, `launch` and `close` naming the window they
-resize, `windows` and an `act` that times out reporting it as resizing,
+resize, `windows` and an `act` that times out reporting it as resizing, the
+first shot of a starved window, which shows its content, of one that never
+draws, which is marked as maybe stale, and of the same windows once fed,
 coordinates from shots of Wayland and X11 windows that pop in, input that
 closes its window, with text or a pause after it, SIGTERM to the server,
 `close` and exit.
 
 **Go tests** in `mcp/` run the server against a fake Hyprland and a fake
 sender, including resizes during a batch, windows that do not catch up with a
-resize, cancellation while sending and waiting, lock contention, the checks
-after the locks, also of an `act` without actions whose window another one
-replaced while it waited, capture regions of a window resized during the call,
+resize, starved windows that draw and do not draw before the capture, and
+one that `act` had no time to let draw, cancellation while sending and
+waiting, lock contention, the checks after the locks, also of an `act`
+without actions whose window another one replaced while it waited, capture regions of a window resized during the call,
 socket ids, lost lease answers, session ends and exit
 statuses, argument errors of every tool through an SDK client, `null` among
 them, the hints, the length of every tool description, structured content by
@@ -1539,6 +1591,14 @@ timeouts.
   to click the part over the window or use the keyboard.
 - A window that acks a new size and then commits a frame of the old size is
   not reported as `resizing`, so its shots are not marked as older frames.
+- Only a window that has got no frame callbacks from hyprmasq counts as
+  starved. A hidden window that was driven, and wants to draw again after its
+  frame callbacks stopped, a second after the last input or when the wait
+  ended, shows its older frame in a screenshot without a mark; an `act`
+  without actions lets it draw. Counting every hidden window that waits for a
+  frame callback would delay screenshots of idle windows by a second: many
+  applications ask for one with every frame they draw, also the last, and draw
+  nothing when they get it.
 - A window that is moved during a batch, but keeps its size, is not noticed
   by the server. The plugin replaces the pointer device, and a later point
   that lies outside the new pointer regions fails with `out_of_bounds` and

@@ -1585,6 +1585,51 @@ print(json.dumps([im.getpixel(p) for p in {list(points)!r}] + [im.size]))
             dispatch(f'hl.dsp.window.close({{ window = "address:{resized}" }})')
             wait_for(f"{title} closed", lambda: client(title) is None)
 
+    def frames_probe(title, frames, workspace):
+        """Starts focus-probe's frames mode on a hidden workspace, never shown, and returns its address once it drew its
+        first frame. It draws only in answer to frame callbacks, as Firefox and Thunderbird do on a hidden workspace: a
+        blank frame in the color of the other modes, then its orange content at the frames-th callback, or never with 0.
+        Hyprland may answer its first frame callback as it maps the window."""
+        command = f"WAYLAND_DEBUG=client exec hyprmasq-focus-probe frames {title} {frames} > /tmp/hyprmasq-{title}.log 2>&1"
+        address = alice(f"{ipc} hyprmasq-launch --workspace {workspace} -- sh -c {shlex.quote(command)}").strip()
+        machine.wait_until_succeeds(f"grep -q '^drew blank' /tmp/hyprmasq-{title}.log", timeout=10)
+        return address
+
+    def frames_got(title):
+        """How many frame callbacks the frames probe got."""
+        return int(machine.succeed(f"grep -c '^frame ' /tmp/hyprmasq-{title}.log || true").strip())
+
+    content_rgb = (0xDD, 0x77, 0x11)
+
+    with subtest("a hidden window that waits for frame callbacks is starved until hyprmasq sends it some"):
+        starving = frames_probe("hm-p-frames", 3, "hm-p-frames")
+        state = window_state(starving)
+        assert state["starved"] and not state["resizing"], state
+        assert "\nstarved: true\n" in hypr(f"hyprmasq state {starving}")
+        # A screenshot answers the frame callback it waits for, once, which is not enough: it shows the blank frame,
+        # and the probe asks for the next callback.
+        got = frames_got("hm-p-frames")
+        path, reply = shot(starving, "frames-blank")
+        assert reply["starved"] and near(pixels(path, (100, 100))[0], window_rgb), reply
+        wait_for("the probe answered by the screenshot", lambda: frames_got("hm-p-frames") > got, timeout=10)
+        wait_for("the probe waiting for its next frame callback", lambda: window_state(starving)["starved"], timeout=10)
+        probe_log = machine.succeed("cat /tmp/hyprmasq-hm-p-frames.log")
+        assert "drew content" not in probe_log, probe_log
+        # Opening the socket sends none either.
+        open_socket(starving)
+        state = window_state(starving)
+        assert state["starved"], state
+        # A wait sends frame callbacks every 16 ms, so the probe draws its content, and the window is no longer starved
+        # once the wait is over, although its content asked for another frame callback.
+        reply = json.loads(hypr(f"-j hyprmasq wait {starving} since {state['commits']} expect 1000 quiet 100 deadline 1500"))
+        assert reply["ended"] == "quiet" and reply["redrawObserved"], (reply, window_state(starving), machine.succeed("tail -n 80 /tmp/hyprmasq-hm-p-frames.log"))
+        machine.succeed("grep -q '^drew content' /tmp/hyprmasq-hm-p-frames.log")
+        assert not window_state(starving)["starved"]
+        path, reply = shot(starving, "frames-content")
+        assert not reply["starved"] and near(pixels(path, (100, 100))[0], content_rgb), reply
+        dispatch(f'hl.dsp.window.close({{ window = "address:{starving}" }})')
+        wait_for("hm-p-frames closed", lambda: client("hm-p-frames") is None)
+
     def color_box(path, rgb):
         """The bounding box (x0, y0, x1, y1) of the opaque pixels of the image near rgb, or None."""
         script = f"""
@@ -3732,6 +3777,40 @@ print(longest)
         alone = mcp.call("close", {"window": catching})
         assert alone.data["closed"] and "hint" not in alone.data, alone
         assert snapshot() == before_focus
+
+    with subtest("hyprmasq-mcp lets a starved window draw before its first shot, and says when it did not"):
+        # focus-probe's frames mode, as in the starved subtest, started on hidden workspaces and never driven.
+        starving = frames_probe("hm-m-frames", 3, "hm-m-frames")
+        frozen = frames_probe("hm-m-frozen", 0, "hm-m-frozen")
+        wait_for("both probes waiting for a frame callback", lambda: window_state(starving)["starved"] and window_state(frozen)["starved"], timeout=10)
+
+        # The first shot sends the probe frame callbacks and waits for it to draw.
+        first = mcp.call("screenshot", {"window": starving})
+        assert not first.is_error and "may_be_stale" not in first.data["shot"] and "hint" not in first.data, first
+        assert near(pixels(keep(first, "frames-first"), (100, 100))[0], content_rgb), (first, machine.succeed("tail -n 80 /tmp/hyprmasq-hm-m-frames.log"))
+        assert not window_state(starving)["starved"]
+        # Its socket has sent it frame callbacks, so the next shot does not wait for a frame that does not come.
+        again = mcp.call("screenshot", {"window": starving})
+        assert not again.is_error and "may_be_stale" not in again.data["shot"] and "hint" not in again.data, again
+
+        # A window that does not draw is captured after a second, and its shot says that it may show an older frame.
+        got = frames_got("hm-m-frozen")
+        stale = mcp.call("screenshot", {"window": frozen})
+        stale_shot = stale.data["shot"]
+        assert not stale.is_error and stale_shot["may_be_stale"] and stale.received - stale.sent >= 1.0, stale
+        assert stale.data["summary"] == f"shot {stale_shot['id']} 640×480 (may be stale: not redrawn within 1000 ms) · window {frozen} 640×480", stale
+        assert stale.data["hint"].startswith(f"Shot {stale_shot['id']} may show an older frame") and "act with no actions" in stale.data["hint"], stale
+        assert near(pixels(keep(stale, "frames-frozen"), (100, 100))[0], window_rgb), stale
+        assert frames_got("hm-m-frozen") > got + 1
+        again = mcp.call("screenshot", {"window": frozen})
+        assert not again.is_error and "may_be_stale" not in again.data["shot"] and "hint" not in again.data, again
+
+        # launch waits for its window with frame callbacks, so its shot shows the content too.
+        launched = mcp.call("launch", {"command": ["hyprmasq-focus-probe", "frames", "hm-m-frames-launched", "3"], "workspace": "hm-m-frames-launched"})
+        assert not launched.is_error and "may_be_stale" not in launched.data["shot"] and "hint" not in launched.data, launched
+        assert near(pixels(keep(launched, "frames-launched"), (100, 100))[0], content_rgb), launched
+        for window in [starving, frozen, launched.data["window"]["window"]]:
+            assert mcp.call("close", {"window": window}).data["closed"]
 
     with subtest("hyprmasq-mcp takes coordinates from shots taken while a window pops in"):
         # launch captures a window once it has gone quiet for 300 ms, well within the 10 seconds in which it pops in.

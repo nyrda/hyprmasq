@@ -144,7 +144,9 @@ namespace hyprmasq {
             if (!path.is_absolute())
                 return error(format, eErrorCode::INVALID_ARGUMENTS, "output path must be absolute");
 
-            auto capture = captureWindow(window, options);
+            // Rendering answers the frame callbacks that a hidden window waits for, so this is read before.
+            const bool hungry  = starved(window);
+            auto       capture = captureWindow(window, options);
             if (!capture)
                 return error(format, capture.error());
             // Read as the window was rendered, so that a wait from this value counts every commit the image lacks.
@@ -155,14 +157,14 @@ namespace hyprmasq {
             const bool behind = resizing(window);
 
             // Rendering needs the compositor, encoding does not.
-            return defer(format, [format, path, commits, socketId, behind, capture = std::move(*capture)] mutable -> std::string {
+            return defer(format, [format, path, commits, socketId, behind, hungry, capture = std::move(*capture)] mutable -> std::string {
                 if (auto written = writePNG(capture, path); !written)
                     return error(format, eErrorCode::INTERNAL, written.error());
                 if (format == FORMAT_JSON) {
                     const auto& r = capture.region;
                     return std::format(
-                        R"({{"ok":true,"path":{},"width":{},"height":{},"scale":{},"region":{{"x":{},"y":{},"width":{},"height":{}}},"commits":{},"socketId":{},"resizing":{}}})",
-                        jsonString(path.string()), capture.width, capture.height, capture.scale, r.x, r.y, r.width, r.height, jsonOrNull(commits), socketId, behind);
+                        R"({{"ok":true,"path":{},"width":{},"height":{},"scale":{},"region":{{"x":{},"y":{},"width":{},"height":{}}},"commits":{},"socketId":{},"resizing":{},"starved":{}}})",
+                        jsonString(path.string()), capture.width, capture.height, capture.scale, r.x, r.y, r.width, r.height, jsonOrNull(commits), socketId, behind, hungry);
                 }
                 return "ok";
             });
@@ -242,15 +244,16 @@ namespace hyprmasq {
             const auto             lease    = socket ? socket->lease : std::nullopt;
             const std::string_view keyboard = caps.x11Focus ? "x11-focus" : "yes";
             const bool             behind   = resizing(window);
+            const bool             hungry   = starved(window);
             if (format == FORMAT_JSON)
-                return std::format(R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"size":{{"width":{},"height":{}}},"resizing":{},"scale":{},"socket":{},)"
-                                   R"("socketId":{},"commits":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"keyboard":"{}"}}}})",
-                                   jsonString(windowAddress(window)), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, jsonOrNull(scale),
+                return std::format(R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"scale":{},)"
+                                   R"("socket":{},"socketId":{},"commits":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"keyboard":"{}"}}}})",
+                                   jsonString(windowAddress(window)), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
                                    socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits),
                                    lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, keyboard);
-            return std::format("address: {}\nstableId: {:x}\nxwayland: {}\nsize: {}x{}\nresizing: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\nlease: {}\n"
-                               "capabilities: lease={} hold={} dnd={} keyboard={}\n",
-                               windowAddress(window), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, jsonOrNull(scale),
+            return std::format("address: {}\nstableId: {:x}\nxwayland: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
+                               "lease: {}\ncapabilities: lease={} hold={} dnd={} keyboard={}\n",
+                               windowAddress(window), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
                                socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none", lease ? leaseText(*lease) : "none",
                                caps.lease, caps.hold, caps.dnd, keyboard);
         }

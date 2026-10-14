@@ -44,7 +44,7 @@ With `hyprctl -j`, every command answers in JSON:
 
 | Command | JSON reply |
 | --- | --- |
-| `screenshot` | `{"ok":true,"path":"/tmp/w.png","width":1280,"height":960,"scale":2,"region":{"x":0,"y":0,"width":640,"height":480},"commits":123,"socketId":"9f3a61c2-3","resizing":false}` |
+| `screenshot` | `{"ok":true,"path":"/tmp/w.png","width":1280,"height":960,"scale":2,"region":{"x":0,"y":0,"width":640,"height":480},"commits":123,"socketId":"9f3a61c2-3","resizing":false,"starved":false}` |
 | `wait` | `{"ok":true,"settled":true,"waited":230,"frames":0,"framesSinceInput":3}` |
 | `wait … since` | `{"ok":true,"ended":"quiet","commits":131,"socketId":"9f3a61c2-3","redrawObserved":true,"commitsSince":8,"quietMs":200,"elapsedMs":412,"resizing":false,"animated":[]}` |
 | `cancel` | `{"ok":true,"cancelled":true}` |
@@ -101,6 +101,11 @@ was rendered (see [Window state](#window-state)): the image then has the
 window's new size but shows a frame drawn at another size, cut off or with
 transparent or repeated pixels beside it. Wait with
 [`wait … since`](#waiting-for-a-change) and take the screenshot again.
+`starved` is true when the window was [starved](#window-state) right before it
+was rendered: the image may show an older frame than the window would draw, such
+as the empty window of an application that is still starting. Wait with
+`wait … since`, with `expect`, which sends it frame callbacks, and take the
+screenshot again.
 
 A pixel at PX,PY of the PNG is at `region.x + PX / scale`,
 `region.y + PY / scale` in the window-local logical pixels that
@@ -304,7 +309,7 @@ hyprctl -j hyprmasq state "$addr"
 
 ```json
 {"ok":true,"address":"0x55d1c0a3e4b0","stableId":"1a","xwayland":false,
- "size":{"width":640,"height":400},"resizing":false,"scale":2,
+ "size":{"width":640,"height":400},"resizing":false,"starved":false,"scale":2,
  "socket":"/run/user/1000/hyprmasq/<instance>/0x55d1c0a3e4b0.eis","socketId":"9f3a61c2-3",
  "commits":123,"lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
  "capabilities":{"lease":true,"hold":true,"dnd":false,"keyboard":"yes"}}
@@ -321,6 +326,18 @@ hyprctl -j hyprmasq state "$addr"
   show a stale frame, and pointer input may not land where they show things.
   An application on a hidden workspace may catch up only once it gets frame
   callbacks, which a [`wait … since`](#waiting-for-a-change) sends.
+- `starved` is true while the window is on a hidden workspace, has asked for a
+  frame callback that it has not got, and has got none from hyprmasq: its
+  socket has sent it none, or it has no socket. Many applications draw only
+  when they get a frame callback, so such a window may show an older frame
+  than it would draw on screen: Thunderbird started on a hidden workspace shows
+  an empty window. A screenshot answers the callbacks once, after the image,
+  which is not enough for applications that need several. Opening the socket
+  sends none; input and a `wait … since` do (see
+  [How input is delivered](#how-input-is-delivered)), and from then on the
+  window is not starved, also when it waits for a frame callback again. An
+  application with nothing new to draw is starved too, and a
+  `wait … since` with `expect` ends `no_redraw` for it.
 - `socket`, `socketId` and `commits` are `null` without an open socket.
   `socketId` names the socket that `commits` counts for; see
   [The commit counter](#the-commit-counter). `lease` is `null` when none is
@@ -795,7 +812,10 @@ stop redrawing. The plugin sends a hidden target frame callbacks every 16 ms
 for about a second after input, for as long as a sender is connected and has
 its devices, which `hyprmasq-input` keeps until it exits, also through a
 `sleep`, and during a `wait … since` for as long as the wait runs. So the next
-screenshot shows the result. The plain `wait` sends none of its own.
+screenshot shows the result. The plain `wait` sends none of its own. A window
+that has got none of these yet, such as an application that started on a
+hidden workspace, may not have drawn its content: `state` reports it as
+`starved`.
 
 ## Virtual cursor
 
@@ -951,7 +971,8 @@ loss close once the sender exits. Open them and pick the entry in one run.
 - Screenshot paths cannot contain whitespace.
 - Applications that ignore frame callbacks while hidden, or redraw slowly, may
   show stale content in screenshots. A wait cannot tell a redraw that has not
-  started yet from one that is done.
+  started yet from one that is done. `starved` covers only windows that have
+  got no frame callbacks from hyprmasq yet.
 - `resizing` misses an application that acknowledges a new size and commits a
   frame of the old size before it draws one of the new size.
 - libeis can close a sender's connection without reporting it. The plugin

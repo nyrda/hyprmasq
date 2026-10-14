@@ -33,6 +33,8 @@ type shot struct {
 	// The window had not caught up with its size when it was rendered, so the image shows an older frame of another
 	// size, which act takes no coordinates from.
 	Resizing bool
+	// Set when the window was starved and did not draw before the capture, so the image may show an older frame.
+	Starved *starvation
 	// The image, or "" for a changes shot, whose zooms show what it has.
 	Path string
 	// For a zoom, the shot of the whole window that it was read from, or from whose zoom.
@@ -43,6 +45,12 @@ type shot struct {
 	Deltas int
 	// What the next changes shot is compared with, for a shot of the whole window, or nil.
 	Detail *detail
+}
+
+// A starvation tells why the shot of a starved window may show an older frame: the window did not draw within WaitedMs
+// of the frame callbacks that the capture's wait sent it, or, when it is 0, the wait did not run.
+type starvation struct {
+	WaitedMs int
 }
 
 // A detail is an image of the window as a shot of it saw it, in enough detail to find what changed since: a few

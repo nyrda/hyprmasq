@@ -103,6 +103,11 @@ jq -e .resizing <<<"$shot" >/dev/null &&
   hyprctl -j hyprmasq wait "$addr" since "$(jq .commits <<<"$shot")" quiet 200 deadline 4500
 ```
 
+With `"starved":true`, the window is on a hidden workspace and waits for a
+frame callback that nothing has sent it, so the image may show an empty or
+unfinished window, as of an app that started there. A `wait ... since` with
+`expect` sends it frame callbacks; take the screenshot again after it.
+
 To read small text, take a region at full detail:
 
 ```sh

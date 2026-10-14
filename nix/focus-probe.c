@@ -23,6 +23,12 @@
 // size: with hold, it neither acks nor draws them, with ack, it acks them at once but
 // does not draw. The next SIGUSR1 answers the last one held back, acking it with hold,
 // and drawing it at its size. Its right edge is green, its rest like the other modes.
+// With `frames TITLE N`, it shows one toplevel that draws only in answer to frame
+// callbacks, as Firefox and Thunderbird do on a hidden workspace: its first frame is
+// blank, in the color of the other modes, and it draws its content, orange, at the
+// Nth frame callback, asking for each one before with a commit that draws nothing.
+// With N 0, it never draws again, and keeps asking. It waits for one frame callback
+// at a time, also when it draws, so each one counts once.
 #define _GNU_SOURCE
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
@@ -93,6 +99,37 @@ static bool resize_mode, ack_at_once, holding, held;
 static uint32_t held_serial;
 static int drawn_width, drawn_height;
 static void draw(struct window *w);
+// Frames mode: a window that draws its content only at the Nth frame callback.
+static bool frames_mode, content_drawn, frame_requested;
+static int frames_needed, frames_got;
+static void frame_done(void *data, struct wl_callback *callback, uint32_t time);
+static const struct wl_callback_listener frame_listener = {.done = frame_done};
+static void request_frame(struct window *w) {
+    if (frame_requested) return;
+    frame_requested = true;
+    struct wl_callback *callback = wl_surface_frame(w->surface);
+    wl_callback_add_listener(callback, &frame_listener, w);
+}
+static void frame_done(void *data, struct wl_callback *callback, uint32_t time) {
+    struct window *w = data;
+    wl_callback_destroy(callback);
+    frame_requested = false;
+    printf("frame %d\n", ++frames_got);
+    if (content_drawn) return;
+    if (frames_needed == 0 || frames_got < frames_needed) {
+        request_frame(w);
+        wl_surface_commit(w->surface);
+        return;
+    }
+    content_drawn = true;
+    w->color = 0xffdd7711;
+    draw(w);
+}
+// It draws a configure only when the size changed, so that it commits nothing else.
+static void frames_configure(struct window *w, uint32_t serial) {
+    xdg_surface_ack_configure(w->xdg, serial);
+    if (w->width != drawn_width || w->height != drawn_height) draw(w);
+}
 static void resize_configure(struct window *w, uint32_t serial) {
     if (w->width == drawn_width && w->height == drawn_height) {
         xdg_surface_ack_configure(w->xdg, serial);
@@ -129,6 +166,10 @@ static void configure(void *data, struct xdg_surface *surface, uint32_t serial) 
         resize_configure(w, serial);
         return;
     }
+    if (frames_mode) {
+        frames_configure(w, serial);
+        return;
+    }
     xdg_surface_ack_configure(surface, serial);
     draw(w);
 }
@@ -155,11 +196,16 @@ static void draw(struct window *w) {
     if (mx || my) xdg_surface_set_window_geometry(w->xdg, mx, my, w->width, w->height);
     wl_surface_attach(w->surface, buffer, 0, 0);
     wl_surface_damage(w->surface, 0, 0, width, height);
+    if (frames_mode) request_frame(w);
     wl_surface_commit(w->surface);
     if (resize_mode && w == &windows[0]) {
         drawn_width = w->width;
         drawn_height = w->height;
         printf("drew %d %d\n", w->width, w->height);
+    } else if (frames_mode) {
+        drawn_width = w->width;
+        drawn_height = w->height;
+        printf("drew %s %d %d\n", content_drawn ? "content" : "blank", w->width, w->height);
     } else
         printf("configured %s\n", w->name);
 }
@@ -530,6 +576,13 @@ int main(int argc, char **argv) {
         requested = true; // clicks request nothing
         ack_at_once = !strcmp(argv[3], "ack");
         return run_with_signal(argv[2], resize_on_signal);
+    }
+    if (argc == 4 && !strcmp(argv[1], "frames")) {
+        frames_mode = requested = true; // clicks request nothing
+        frames_needed = atoi(argv[3]);
+        create_toplevel(&windows[0], argv[2]);
+        while (wl_display_dispatch(display) >= 0) {}
+        return 1;
     }
     if (argc == 3 && !strcmp(argv[1], "close")) {
         stamped = close_mode = true;

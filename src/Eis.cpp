@@ -1205,6 +1205,15 @@ namespace hyprmasq {
                             .content          = session->content,
                             .lease            = session->leaseState()};
     }
+    bool starved(const PHLWINDOW& window) {
+        if (g_pHyprRenderer->shouldRenderWindow(window))
+            return false;
+        if (auto* session = sessionOf(window); session && session->content->fed())
+            return false;
+        bool waiting = false;
+        forEachSurface(window, [&](SP<CWLSurfaceResource> s) { waiting = waiting || !s->m_current.callbacks.empty(); });
+        return waiting;
+    }
     SCapabilities capabilities(const PHLWINDOW& window) {
         auto* session = sessionOf(window);
         // Input to a window on the connection of the real focus hands the focus back after every frame, which releases

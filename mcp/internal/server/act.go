@@ -510,7 +510,7 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	}
 
 	out.Summary = summaryLine(out, r.batch)
-	out.Hint = joinHints(waitHint(out.Wait, r.batch, r.shotID, out.Actions, out.Shot), noChangeHint(out, r.batch), out.captureNote, resizingHint(out.Shot))
+	out.Hint = joinHints(waitHint(out.Wait, r.batch, r.shotID, out.Actions, out.Shot), noChangeHint(out, r.batch), out.captureNote, frameHints(out.Shot))
 	if out.Actions != nil {
 		out.Hint = joinHints(out.Hint, out.Actions.composeNote)
 	}

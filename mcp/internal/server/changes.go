@@ -285,6 +285,10 @@ func (s *Server) changesBase(window string, sh *shot, st hypr.State) (*shot, str
 // rendered, which a full shot then waits for.
 var errNotSettled = errors.New("the window is resizing")
 
+// errStarved means that the window was starved while a detail image was rendered, which a full shot then lets it draw
+// for, or marks.
+var errStarved = errors.New("the window waits to draw")
+
 // captureDetail renders a detail image of the window with the max of an earlier one, and returns it with the window's
 // state after it.
 func (s *Server) captureDetail(ctx context.Context, window, stableID string, limit int) (*detail, hypr.State, hypr.Screenshot, error) {
@@ -294,6 +298,9 @@ func (s *Server) captureDetail(ctx context.Context, window, stableID string, lim
 	}
 	if pre.Resizing {
 		return nil, pre, hypr.Screenshot{}, errNotSettled
+	}
+	if pre.Starved {
+		return nil, pre, hypr.Screenshot{}, errStarved
 	}
 	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
 		return nil, pre, hypr.Screenshot{}, err
@@ -311,6 +318,8 @@ func (s *Server) captureDetail(ctx context.Context, window, stableID string, lim
 		err = &toolError{Code: "window_gone", Message: fmt.Sprintf("window %s closed during the capture", window), Hint: hintWindows}
 	case post.Size != pre.Size || reply.Resizing || reply.Scale <= 0 || reply.Width <= 0 || reply.Height <= 0:
 		err = errNotSettled
+	case reply.Starved:
+		err = errStarved
 	}
 	if err != nil {
 		os.Remove(path)
@@ -351,8 +360,8 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 		return full(fmt.Sprintf("%d changes shots in a row", base.Deltas))
 	}
 	after, st, reply, err := s.captureDetail(ctx, r.window, stableID, base.Detail.Max)
-	if errors.Is(err, errNotSettled) {
-		return full("the window is resizing")
+	if errors.Is(err, errNotSettled) || errors.Is(err, errStarved) {
+		return full(err.Error())
 	}
 	if err != nil {
 		return nil, nil, err

@@ -194,6 +194,9 @@ type fakeWindow struct {
 	PopupBox *hypr.Rect
 	// The window has not caught up with its size. A wait without onWait ends once it has.
 	Resizing bool
+	// The window waits for a frame callback and has got none from hyprmasq. Waits send it frame callbacks, which end
+	// that, also with onWait.
+	Starved bool
 	// The animations that a wait without onWait reports, in window-local logical pixels.
 	Animated []hypr.IntRect
 	// The gray level at a window-local logical point, which screenshots sample at their scale, or nil for black.
@@ -412,7 +415,7 @@ func (f *fakeHyprland) reply(request string) string {
 
 func (f *fakeHyprland) state(w *fakeWindow) map[string]any {
 	st := map[string]any{"ok": true, "address": w.Address, "stableId": w.StableID, "xwayland": w.XWayland,
-		"size": map[string]any{"width": w.Width, "height": w.Height}, "resizing": w.Resizing, "scale": f.scale, "socket": nil, "commits": nil,
+		"size": map[string]any{"width": w.Width, "height": w.Height}, "resizing": w.Resizing, "starved": w.Starved, "scale": f.scale, "socket": nil, "commits": nil,
 		"lease": nil, "capabilities": w.Caps}
 	if w.Socket {
 		st["socket"] = "/fake/" + w.Address + ".eis"
@@ -538,6 +541,7 @@ func (f *fakeHyprland) plugin(words []string) string {
 		}
 		onWait := f.onWait
 		commits, socketID := w.Commits, w.socketID()
+		w.Starved = false
 		f.mu.Unlock()
 		defer func() {
 			f.mu.Lock()
@@ -617,7 +621,7 @@ func (f *fakeHyprland) screenshot(w *fakeWindow, args []string) string {
 	}
 	png.Encode(file, img)
 	file.Close()
-	reply := map[string]any{"ok": true, "path": path, "width": width, "height": height, "scale": scale, "region": region, "resizing": w.Resizing}
+	reply := map[string]any{"ok": true, "path": path, "width": width, "height": height, "scale": scale, "region": region, "resizing": w.Resizing, "starved": w.Starved}
 	if w.Socket {
 		reply["commits"] = w.Commits
 		reply["socketId"] = w.socketID()

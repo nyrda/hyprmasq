@@ -305,6 +305,77 @@ func TestShotsOfAWindowThatHasNotCaughtUpWithAResize(t *testing.T) {
 	}
 }
 
+// A window on a hidden workspace that waits for a frame callback, as an application that started there does, may not
+// have drawn what it shows. A capture sends it frame callbacks and gives it a second to draw, and a shot of one that
+// did not draw says that it may show an older frame. A window that got frame callbacks is captured at once.
+func TestShotsOfAStarvedWindow(t *testing.T) {
+	e := newTestEnv(t)
+	w := e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Starved = true })
+	res := e.screenshot(`{"window":"0xa1"}`)
+	if res.IsError || get(t, res, "shot.may_be_stale") != nil || get(t, res, "hint") != nil {
+		t.Fatalf("after drawing: %s", text(res))
+	}
+	waits := e.fake.requestsMatching("j/hyprmasq wait")
+	if len(waits) != 1 {
+		t.Fatalf("waits %q", waits)
+	}
+	if args := waitArgsOf(t, waits[0]); args["expect"] != "1000" || args["quiet"] != "100" || args["deadline"] != "1500" {
+		t.Errorf("wait %q", waits[0])
+	}
+	if res := e.screenshot(`{"window":"0xa1"}`); res.IsError || get(t, res, "hint") != nil {
+		t.Errorf("fed: %s", text(res))
+	}
+	if waits := e.fake.requestsMatching("j/hyprmasq wait"); len(waits) != 1 {
+		t.Errorf("waits after it was fed %q", waits)
+	}
+
+	// The plugin's wait for a window that does not draw.
+	e.fake.with(func() {
+		w.Starved = true
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			expect, _ := strconv.Atoi(args["expect"])
+			return jsonReply(map[string]any{"ok": true, "ended": "no_redraw", "commits": w.Commits, "socketId": w.socketID(), "redrawObserved": false,
+				"commitsSince": 0, "quietMs": expect, "elapsedMs": expect, "resizing": false})
+		}
+	})
+	res = e.screenshot(`{"window":"0xa1"}`)
+	stale := shotID(t, res)
+	if get(t, res, "shot.may_be_stale") != true || get(t, res, "summary") != fmt.Sprintf("shot %s 1280×800 (may be stale: not redrawn within 1000 ms) · window 0xa1 640×400", stale) {
+		t.Errorf("shot: %s", text(res))
+	}
+	if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, "Shot "+stale+" may show an older frame") ||
+		!strings.Contains(hint, "did not redraw within 1000 ms") || !strings.Contains(hint, "act with no actions") {
+		t.Errorf("hint %q", hint)
+	}
+	// An application with nothing new to draw shows what it has, so act takes coordinates from the shot.
+	if res := e.act(fmt.Sprintf(`{"window":"0xa1","shot":%q,"actions":[{"action":"click","x":10,"y":10}]}`, stale)); res.IsError {
+		t.Errorf("act: %s", text(res))
+	}
+	if got := e.inputs(); len(got) != 1 {
+		t.Errorf("inputs %q", got)
+	}
+
+	// An act that sends nothing and has no time left to wait does not compare a starved window with its last shot: it
+	// takes a full shot, which says that it may be stale.
+	e.fake.with(func() {
+		w.Starved = true
+		e.fake.onWait = nil
+	})
+	waits = e.fake.requestsMatching("j/hyprmasq wait")
+	res = e.act(`{"window":"0xa1","deadline_ms":1000}`)
+	id := shotID(t, res)
+	if summary, _ := get(t, res, "summary").(string); res.IsError || get(t, res, "shot.may_be_stale") != true ||
+		!strings.Contains(summary, fmt.Sprintf("shot %s 1280×800 (full shot: the window waits to draw; may be stale: no time to redraw)", id)) {
+		t.Errorf("act without time: %s", text(res))
+	}
+	if hint, _ := get(t, res, "hint").(string); !strings.Contains(hint, "Shot "+id+" may show an older frame") || !strings.Contains(hint, "no time left") {
+		t.Errorf("hint %q", hint)
+	}
+	if got := e.fake.requestsMatching("j/hyprmasq wait"); len(got) != len(waits) {
+		t.Errorf("waits %q", got[len(waits):])
+	}
+}
+
 // The wait for a window to catch up comes out of the call's time: after its wait ran into the deadline, act captures
 // at once.
 func TestCatchingUpWithinTheDeadline(t *testing.T) {

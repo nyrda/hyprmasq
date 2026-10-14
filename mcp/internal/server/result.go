@@ -108,6 +108,10 @@ type shotOut struct {
 	Frame  rectOut `json:"frame"`
 	// Present only when true: the shot shows an older frame.
 	Resizing bool `json:"resizing,omitempty"`
+	// Present only when true: the window was starved and did not draw before the capture, so the shot may show an
+	// older frame.
+	MayBeStale bool `json:"may_be_stale,omitempty"`
+	starved    *starvation
 	// For a changes shot: what changed since the shot it was compared with, whose pixels it has. It has no image of its
 	// own.
 	Changes *changesOut `json:"changes,omitempty"`
@@ -140,7 +144,7 @@ func shotInfo(s *shot) *shotOut {
 	if s == nil {
 		return nil
 	}
-	return &shotOut{ID: s.ID, Width: s.Width, Height: s.Height, Frame: rectOut(s.Frame), Resizing: s.Resizing}
+	return &shotOut{ID: s.ID, Width: s.Width, Height: s.Height, Frame: rectOut(s.Frame), Resizing: s.Resizing, MayBeStale: s.Starved != nil, starved: s.Starved}
 }
 
 // shotText is the summary's part about a shot.
@@ -164,6 +168,13 @@ func shotText(s *shotOut) string {
 	}
 	if s.Resizing {
 		notes = append(notes, "stale: not yet redrawn at its new size")
+	}
+	switch {
+	case s.starved == nil:
+	case s.starved.WaitedMs > 0:
+		notes = append(notes, fmt.Sprintf("may be stale: not redrawn within %d ms", s.starved.WaitedMs))
+	default:
+		notes = append(notes, "may be stale: no time to redraw")
 	}
 	if len(notes) > 0 {
 		text += " (" + strings.Join(notes, "; ") + ")"
@@ -221,6 +232,23 @@ func resizingHint(s *shotOut) string {
 		return ""
 	}
 	return fmt.Sprintf("Shot %s shows an older frame, since the window had not yet redrawn at its new size, so act takes no coordinates from it. To wait for the redraw, act with no actions and wait.expect_change false, and read the coordinates from the shot it returns; if the window does not redraw, use the keyboard or tell the user.", s.ID)
+}
+
+// starvedHint explains a shot of a starved window that did not draw before the capture, or "".
+func starvedHint(s *shotOut) string {
+	if s == nil || s.starved == nil {
+		return ""
+	}
+	why := "this call had no time left to send it some"
+	if s.starved.WaitedMs > 0 {
+		why = fmt.Sprintf("it did not redraw within %d ms of those this call sent it", s.starved.WaitedMs)
+	}
+	return fmt.Sprintf("Shot %s may show an older frame: the window is on a hidden workspace, where it gets no frame callbacks, which many applications wait for before they draw, and %s. If the shot looks complete, go on; if it looks empty or unfinished, as an application that is still starting does, wait: act with no actions, a larger wait.expect_ms and a deadline_ms at least 1000 above it, and use the shot it returns.", s.ID, why)
+}
+
+// frameHints explains a shot that shows, or may show, an older frame, or "".
+func frameHints(s *shotOut) string {
+	return joinHints(resizingHint(s), starvedHint(s))
 }
 
 type progressOut struct {
@@ -603,7 +631,7 @@ func finalHint(te *toolError, out *actOut) string {
 			hint = joinHints(hint, add)
 		}
 	}
-	return joinHints(hint, resizingHint(out.Shot))
+	return joinHints(hint, frameHints(out.Shot))
 }
 
 // errorOnlyOut is the structured content of a failure of a tool other than act.

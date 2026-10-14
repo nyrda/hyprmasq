@@ -161,9 +161,12 @@ type State struct {
 	XWayland bool   `json:"xwayland"`
 	Size     Size   `json:"size"`
 	// The window has not caught up with its size: it shows a frame of another size.
-	Resizing bool    `json:"resizing"`
-	Scale    float64 `json:"scale"`
-	Socket   *string `json:"socket"`
+	Resizing bool `json:"resizing"`
+	// The window is hidden, waits for a frame callback and has got none from hyprmasq, so it may not have drawn what it
+	// would draw on screen. A wait sends it frame callbacks.
+	Starved bool    `json:"starved"`
+	Scale   float64 `json:"scale"`
+	Socket  *string `json:"socket"`
 	// Names the open socket, whose counter starts again at 0, or nil without one or from a plugin that names none.
 	SocketID     *string      `json:"socketId"`
 	Commits      *int64       `json:"commits"`
@@ -240,6 +243,8 @@ type Screenshot struct {
 	SocketID *string `json:"socketId"`
 	// The window had not caught up with its size when it was rendered, so the image shows a frame of another size.
 	Resizing bool `json:"resizing"`
+	// The window was starved when it was rendered (see State), so the image may show an older frame.
+	Starved bool `json:"starved"`
 }
 
 // Screenshot captures the window with its popups, or a region of that box, fitted within max pixels if max > 0.

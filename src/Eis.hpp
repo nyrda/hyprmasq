@@ -44,6 +44,11 @@ namespace hyprmasq {
     // For a window with a socket. Main thread only.
     std::optional<SSocketState> socketState(const PHLWINDOW& window);
 
+    // True while the window is not rendered, has asked for a frame callback that it has not got, and has got none from
+    // hyprmasq: its socket has sent it none since it opened, or it has no socket. It may not have drawn what it would
+    // draw on screen, such as an application that started on a hidden workspace. Main thread only.
+    bool starved(const PHLWINDOW& window);
+
     // Starts or renews the focus lease of a window with a socket for ms milliseconds, see `lease` in docs/mcp.md.
     std::expected<SLeaseState, SError> holdLease(const PHLWINDOW& window, int ms, const std::string& owner);
     // Ends the window's lease, only if owner holds it when one is given. False if no lease ended.

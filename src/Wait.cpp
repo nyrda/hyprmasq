@@ -417,7 +417,10 @@ namespace hyprmasq::wait {
         if (!window || !window->m_isMapped || g_pHyprRenderer->shouldRenderWindow(window) || now - m_lastFrames < milliseconds(16))
             return;
         m_lastFrames = now;
-        forEachSurface(window, [&](SP<CWLSurfaceResource> s) { s->frame(now); });
+        forEachSurface(window, [&](SP<CWLSurfaceResource> s) {
+            m_fed = m_fed || !s->m_current.callbacks.empty();
+            s->frame(now);
+        });
     }
 
     std::expected<std::future<SResult>, SError> start(const PHLWINDOW& window, int quietMs, int timeoutMs) {

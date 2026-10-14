@@ -225,7 +225,7 @@ func screenshotDescription(maxImage int) string {
 	if maxImage > 0 {
 		scale = fmt.Sprintf("at the monitor's full scale, shrunk only to fit within %d pixels on the long side", maxImage)
 	}
-	return fmt.Sprintf(`Take a screenshot of a window now and return it as a shot such as "s5"; it waits only for a window that has not yet redrawn at a new size, for up to %g s. Coordinates in later act calls are pixels of the returned image, with 0,0 at its top left; the window's open popups are included.
+	return fmt.Sprintf(`Take a screenshot of a window now and return it as a shot such as "s5"; it waits only for a window that has not yet redrawn at a new size, or not yet drawn on its hidden workspace, for up to %g s. Coordinates in later act calls are pixels of the returned image, with 0,0 at its top left; the window's open popups are included.
 region zooms in: {shot, x, y, width, height} in pixels of an earlier shot of the same window. The area is captured again %s, and becomes a new shot whose own pixels act accepts. Use it to read small text or to hit small targets.
 Example: {"window":"0x55d1c0a3e4b0","region":{"shot":"s4","x":380,"y":60,"width":200,"height":80}}`, catchUpMax.Seconds(), scale)
 }

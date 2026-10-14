@@ -39,7 +39,11 @@ namespace hyprmasq::wait {
 
         // Sends the window's surfaces frame callbacks, unless the window is rendered and gets them anyway, at most every
         // 16 ms however many callers ask.
-        void                sendFrames();
+        void sendFrames();
+        // True once sendFrames has answered a frame callback that the window waited for.
+        bool fed() const {
+            return m_fed;
+        }
 
         uint64_t            commits    = 0; // never reset
         Time::steady_tp     lastCommit = Time::steadyNow();
@@ -70,6 +74,7 @@ namespace hyprmasq::wait {
         std::deque<SDamage>                     m_damage; // the commits of the last few seconds that damaged a box
         wl_event_source*                        m_rescan     = nullptr;
         Time::steady_tp                         m_lastFrames = {};
+        bool                                    m_fed        = false;
     };
 
     struct SResult {

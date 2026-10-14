@@ -118,34 +118,49 @@ func (s *Server) resolveRegion(r regionArgs, window string, st hypr.State, field
 const captureAttempts = 3
 
 const (
-	// How long a capture waits at most for a window to catch up with a resize, within the time that its context leaves
-	// before the capture's reserve.
+	// How long a capture waits at most for a window to catch up with a resize, or for a starved window to draw, within
+	// the time that its context leaves before the capture's reserve.
 	catchUpMax = 1500 * time.Millisecond
 	// How long the window then has to stay quiet, so that the shot shows the frame it settled on.
 	catchUpQuietMs = 100
+	// How long a starved window has for its first frame after the frame callbacks start. Thunderbird on a hidden
+	// workspace drew within 40 ms of them in the benchmark of 2026-10-14, and so does an application that draws
+	// in answer to them; one with nothing new to draw never does, and costs the whole time, but only once: after the
+	// wait, the window has got frame callbacks from its socket, so it is no longer starved. A second leaves a busy
+	// application 60 frames.
+	starvedExpectMs = 1000
 )
 
-// catchUp waits for a window that has not caught up with a resize to draw a frame of its size, and for a short quiet.
-// The plugin's wait does not end quiet before, and sends a hidden window the frame callbacks it may need to draw. A
-// window that does not catch up in time is captured anyway, and its shot says so.
-func (s *Server) catchUp(ctx context.Context, window string, st hypr.State) error {
+// catchUp waits for a window that has not caught up with a resize to draw a frame of its size, and for a starved one
+// to draw a frame, within starvedExpectMs; then for a short quiet. The plugin's wait does not end quiet before the
+// window has caught up, and sends a hidden window the frame callbacks it may need to draw. A window that does not catch
+// up or draw in time is captured anyway, and its shot says so. For a starved window, it returns how long the window had
+// to draw, 0 when the wait did not run, and whether it drew.
+func (s *Server) catchUp(ctx context.Context, window string, commits *int64, starved bool) (expectMs int, drew bool, err error) {
 	limit := catchUpMax
 	if deadline, ok := ctx.Deadline(); ok {
 		limit = min(limit, time.Until(deadline)-captureReserve)
 	}
-	if limit < catchUpQuietMs*time.Millisecond || st.Commits == nil {
-		return nil
+	if limit < catchUpQuietMs*time.Millisecond || commits == nil {
+		return 0, false, nil
 	}
-	_, err := s.wait(ctx, window, hypr.WaitArgs{Since: *st.Commits, QuietMs: catchUpQuietMs, DeadlineMs: int(limit.Milliseconds()), ID: s.waitID()})
+	args := hypr.WaitArgs{Since: *commits, QuietMs: catchUpQuietMs, DeadlineMs: int(limit.Milliseconds()), ID: s.waitID()}
+	if starved {
+		args.ExpectMs = min(starvedExpectMs, args.DeadlineMs)
+	}
+	reply, err := s.wait(ctx, window, args)
 	if ctx.Err() != nil {
-		return ctx.Err()
+		return 0, false, ctx.Err()
 	}
 	var pe *hypr.Error
 	if errors.As(err, &pe) && pe.Code == "window_gone" {
-		return err
+		return 0, false, err
 	}
-	// Any other failure leaves the shot to say whether the window caught up.
-	return nil
+	// Any other failure leaves the shot to say whether the window caught up, and a starved window is still starved.
+	if err != nil {
+		return 0, false, nil
+	}
+	return args.ExpectMs, reply.RedrawObserved, nil
 }
 
 func (s *Server) waitID() string {
@@ -153,8 +168,9 @@ func (s *Server) waitID() string {
 }
 
 // capture takes a shot of the window with the stable_id, or a zoom into it, and remembers it. A window that has not
-// caught up with a resize gets a short time to do so first. A new window at the address is not captured, and a zoom
-// only while the window has the size of the shot it was read from.
+// caught up with a resize gets a short time to do so first, and a starved window frame callbacks and a short time to
+// draw. A new window at the address is not captured, and a zoom only while the window has the size of the shot it was
+// read from.
 func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) (*shot, []byte, error) {
 	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
 		return nil, nil, err
@@ -164,6 +180,16 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 		region = &z.rect
 	}
 	caughtUp, detailRetried := false, false
+	// For a starved window: how long the wait gave it to draw, 0 without one, and whether it drew.
+	starvedMs, starvedDrew := 0, false
+	catchUp := func(st hypr.State, starved bool) error {
+		caughtUp = true
+		ms, drew, err := s.catchUp(ctx, window, st.Commits, starved)
+		if starved {
+			starvedMs, starvedDrew = ms, drew
+		}
+		return err
+	}
 	// A resize between the state and the screenshot would record the wrong size, so the capture is repeated.
 	for attempt := 1; ; {
 		pre, err := s.openState(ctx, window, stableID)
@@ -173,9 +199,8 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 		if z != nil && pre.Size != z.from.Size {
 			return nil, nil, &zoomResized{from: z.from, size: pre.Size}
 		}
-		if pre.Resizing && !caughtUp {
-			caughtUp = true
-			if err := s.catchUp(ctx, window, pre); err != nil {
+		if (pre.Resizing || pre.Starved) && !caughtUp {
+			if err := catchUp(pre, pre.Starved); err != nil {
 				return nil, nil, err
 			}
 			continue
@@ -231,11 +256,10 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 			detailRetried = true
 			continue
 		}
-		// A resize that started after the state was read.
-		if reply.Resizing && !caughtUp {
+		// A resize, or a wait for a frame callback, that started after the state was read.
+		if (reply.Resizing || reply.Starved) && !caughtUp {
 			removeAll()
-			caughtUp = true
-			if err := s.catchUp(ctx, window, post); err != nil {
+			if err := catchUp(post, reply.Starved); err != nil {
 				return nil, nil, err
 			}
 			continue
@@ -247,6 +271,13 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 		}
 		sh := &shot{ID: id, Window: window, StableID: pre.StableID, Size: post.Size, Frame: reply.Region,
 			Width: reply.Width, Height: reply.Height, Scale: reply.Scale, Resizing: reply.Resizing, Path: path, Detail: det}
+		// A window still starved got no frame callbacks from the wait, which did not run.
+		switch {
+		case reply.Starved:
+			sh.Starved = &starvation{}
+		case starvedMs > 0 && !starvedDrew:
+			sh.Starved = &starvation{WaitedMs: starvedMs}
+		}
 		if z != nil {
 			sh.Parent = z.from.ID
 			if z.from.Parent != "" {
@@ -365,7 +396,7 @@ func (s *Server) screenshotTool(ctx context.Context, c *call) *mcp.CallToolResul
 		out.Summary += fmt.Sprintf(" · zoom of %s at %s,%s %s×%s", asked.Shot, formatNumber(asked.X), formatNumber(asked.Y), formatNumber(asked.Width), formatNumber(asked.Height))
 	}
 	out.Summary += fmt.Sprintf(" · window %s %s", args.Window, formatSize(sh.Size))
-	out.Hint = resizingHint(out.Shot)
+	out.Hint = frameHints(out.Shot)
 	return newResult(out, out.resultText, oneImage(png), "")
 }
 

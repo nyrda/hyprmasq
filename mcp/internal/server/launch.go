@@ -176,7 +176,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 		parts = append(parts, "also "+text)
 	}
 	out.Summary = strings.Join(parts, " · ")
-	out.Hint = joinHints(resizingHint(out.Shot), resizedHint(window, before, after))
+	out.Hint = joinHints(frameHints(out.Shot), resizedHint(window, before, after))
 	return newResult(out, out.resultText, oneImage(png), "")
 }
 
