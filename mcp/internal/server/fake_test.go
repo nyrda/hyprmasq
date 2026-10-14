@@ -199,6 +199,9 @@ type fakeWindow struct {
 	Starved bool
 	// The animations that a wait without onWait reports, in window-local logical pixels.
 	Animated []hypr.IntRect
+	// The window has answered a wait without onWait and draws nothing more until the next state request, which a call
+	// makes before it sends input.
+	idle bool
 	// The gray level at a window-local logical point, which screenshots sample at their scale, or nil for black.
 	Paint func(x, y float64) uint8
 	// Where the plugin found the window to come from, which state reports.
@@ -506,6 +509,7 @@ func (f *fakeHyprland) plugin(words []string) string {
 	switch words[0] {
 	case "state":
 		defer f.mu.Unlock()
+		w.idle = false
 		if f.onState != nil {
 			f.onState(w)
 		}
@@ -564,10 +568,21 @@ func (f *fakeHyprland) plugin(words []string) string {
 		if onWait != nil {
 			return onWait(w, args, cancel)
 		}
-		// The window draws three frames, the first one at its size, and goes quiet.
+		// The window draws three frames, the first one at its size, and goes quiet. A wait for a change after that, in
+		// the same call and from the counter it ended at, sees none.
+		since, _ := strconv.ParseInt(args["since"], 10, 64)
 		f.mu.Lock()
 		w.Resizing = false
+		idle := w.idle && args["expect"] != "" && since == commits
+		if !idle {
+			w.Commits, w.idle = commits+3, true
+		}
 		f.mu.Unlock()
+		if idle {
+			expect, _ := strconv.Atoi(args["expect"])
+			return jsonReply(map[string]any{"ok": true, "ended": "no_redraw", "commits": commits, "socketId": socketID, "redrawObserved": false, "commitsSince": 0, "quietMs": 0, "elapsedMs": expect, "resizing": false,
+				"animated": []hypr.IntRect{}})
+		}
 		quiet, _ := strconv.Atoi(args["quiet"])
 		animated := append([]hypr.IntRect{}, w.Animated...)
 		return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": commits + 3, "socketId": socketID, "redrawObserved": true, "commitsSince": 3, "quietMs": quiet, "elapsedMs": 412, "resizing": false,

@@ -281,10 +281,22 @@ type waitOut struct {
 	Animated []boxOut `json:"animated,omitempty"`
 	// The animations in window-local logical pixels.
 	animated []hypr.IntRect
+	// Present only when the window drew again during the grace period after input that can open a window, which act
+	// waited out before the capture.
+	Again *waitAgainOut `json:"again,omitempty"`
 	// The change phase's limit, for the summary line.
 	expectMs int
 	// The deadline left no time for the wait, so it did not run.
 	skipped bool
+	// The window's commit counter when the wait ended, and the socket it counts for, or "" when the plugin named none.
+	counter int64
+	socket  string
+}
+
+// waitAgainOut is the wait for a window that drew again after it had settled, until it settled again.
+type waitAgainOut struct {
+	QuietMs   int `json:"quiet_ms"`
+	ElapsedMs int `json:"elapsed_ms"`
 }
 
 // waitSummary sums up how a wait ended: settled, resizing when it timed out while the window had not caught up with a
@@ -309,7 +321,7 @@ func waitSummary(ended string, redrawObserved, resizing bool) string {
 func waitResult(r hypr.WaitReply) *waitOut {
 	resizing := r.Ended == "timeout" && r.Resizing
 	return &waitOut{Ended: r.Ended, Summary: waitSummary(r.Ended, r.RedrawObserved, resizing), RedrawObserved: r.RedrawObserved,
-		Commits: r.CommitsSince, QuietMs: r.QuietMs, ElapsedMs: r.ElapsedMs, Resizing: resizing, animated: r.Animated}
+		Commits: r.CommitsSince, QuietMs: r.QuietMs, ElapsedMs: r.ElapsedMs, Resizing: resizing, animated: r.Animated, counter: r.Commits, socket: deref(r.SocketID)}
 }
 
 type leaseOut struct {
@@ -479,7 +491,7 @@ func waitText(w *waitOut) string {
 		if !w.RedrawObserved {
 			observed = "no redraw"
 		}
-		return fmt.Sprintf("%s · quiet %d ms%s · %d ms", observed, w.QuietMs, animationText(w), w.ElapsedMs)
+		return fmt.Sprintf("%s · quiet %d ms%s · %d ms%s", observed, w.QuietMs, animationText(w), w.ElapsedMs, againText(w.Again))
 	case "no_redraw":
 		return fmt.Sprintf("no redraw within %d ms", w.expectMs)
 	case "timeout":
@@ -500,6 +512,14 @@ func waitText(w *waitOut) string {
 		return "cancelled"
 	}
 	return w.Ended
+}
+
+// againText tells that the window drew again after it had settled, and when it settled again.
+func againText(a *waitAgainOut) string {
+	if a == nil {
+		return ""
+	}
+	return fmt.Sprintf(" · drew again, settled %d ms later", a.ElapsedMs)
 }
 
 func newWindowsText(windows []newWindowOut) string {

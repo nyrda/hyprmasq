@@ -48,6 +48,11 @@
 // later, as a file chooser does once it has taken the path. It logs "opened"
 // when it creates a toplevel and "mapped" when it draws its first frame, and
 // destroys one that is asked to close.
+// With `answer TITLE MS`, it shows one toplevel that answers a left click at once by
+// drawing itself dark gray, as a button that is pressed, and MS milliseconds later
+// asks for a frame callback and draws its answer, blue, only when that comes, as a
+// browser draws the page that loaded, or a mail client a search's results, on a
+// hidden workspace. It logs "pressed" and "answered".
 #define _GNU_SOURCE
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
@@ -122,6 +127,9 @@ static const char *late_kind;
 static bool late_parented;
 static char *late_after; // the name of the toplevel to open, when a toplevel closed for an S
 static char *handles[2];
+
+static bool           answer_mode;
+static void           answer_click(void);
 
 static const char *surface_name(struct wl_surface *s) {
     for (size_t i = 0; i < 3; ++i)
@@ -367,6 +375,8 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial, ui
     if (pointer_surface == windows[0].surface && state == WL_POINTER_BUTTON_STATE_PRESSED && !requested) request_grabs(serial);
     if (pointer_surface == windows[0].surface && button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED)
         close_window();
+    if (answer_mode && pointer_surface == windows[0].surface && button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED)
+        answer_click();
     if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && (button == BTN_LEFT || button == BTN_RIGHT || button == BTN_MIDDLE))
         opener_input(pointer_surface, button == BTN_LEFT ? 'n' : button == BTN_RIGHT ? 'd' : 'm');
     if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && button == BTN_RIGHT) close_opened(pointer_surface, false);
@@ -525,6 +535,51 @@ static void opener_input(struct wl_surface *s, char action) {
         open_foreign(from);
     else
         open_toplevel(from, action == 'n' ? "new" : "dialog", action == 'd');
+}
+// Answer mode: the timer after a click, and the frame callback that the answer waits for.
+static int  answer_ms, answer_timer = -1;
+
+static void answer_frame(void* data, struct wl_callback* callback, uint32_t time) {
+    struct window* w = data;
+    wl_callback_destroy(callback);
+    w->color = 0xff2255cc;
+    draw(w);
+    say("answered");
+}
+static const struct wl_callback_listener answer_listener = {.done = answer_frame};
+
+static void                              answer_click(void) {
+    windows[0].color = 0xff333333;
+    draw(&windows[0]);
+    say("pressed");
+    struct itimerspec in = {.it_value = {.tv_sec = answer_ms / 1000, .tv_nsec = (long)(answer_ms % 1000) * 1000000}};
+    assert(timerfd_settime(answer_timer, 0, &in, NULL) == 0);
+}
+static int run_answer(void) {
+    answer_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    assert(answer_timer >= 0);
+    struct pollfd fds[2] = {{.fd = wl_display_get_fd(display), .events = POLLIN}, {.fd = answer_timer, .events = POLLIN}};
+    for (;;) {
+        while (wl_display_prepare_read(display) != 0)
+            wl_display_dispatch_pending(display);
+        if (wl_display_flush(display) < 0 || poll(fds, 2, -1) < 0) {
+            wl_display_cancel_read(display);
+            return 1;
+        }
+        if (fds[0].revents & POLLIN) {
+            if (wl_display_read_events(display) < 0)
+                return 1;
+        } else
+            wl_display_cancel_read(display);
+        if (wl_display_dispatch_pending(display) < 0)
+            return 1;
+        if (fds[1].revents & POLLIN) {
+            uint64_t expirations;
+            assert(read(answer_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
+            wl_callback_add_listener(wl_surface_frame(windows[0].surface), &answer_listener, &windows[0]);
+            wl_surface_commit(windows[0].surface);
+        }
+    }
 }
 static int run_opener(void) {
     late_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
@@ -787,6 +842,12 @@ int main(int argc, char **argv) {
         create_toplevel(&windows[0], argv[2]);
         while (wl_display_dispatch(display) >= 0) {}
         return 1;
+    }
+    if (argc == 4 && !strcmp(argv[1], "answer")) {
+        stamped = answer_mode = requested = true; // clicks request nothing
+        create_toplevel(&windows[0], argv[2]);
+        answer_ms = atoi(argv[3]);
+        return run_answer();
     }
     if (argc == 3 && !strcmp(argv[1], "close")) {
         stamped = close_mode = true;

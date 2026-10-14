@@ -281,8 +281,10 @@ namespace hyprmasq::wait {
         lastCommit            = now;
         const bool isAnimated = box && animated(*box, now);
         lastAnimated          = isAnimated ? box : std::nullopt;
-        if (!isAnimated)
-            lastChange = now;
+        if (!isAnimated) {
+            lastChange       = now;
+            lastChangeCommit = commits;
+        }
         if (box)
             m_damage.push_back({.at = now, .box = *box});
         while (!m_damage.empty() && (now - m_damage.front().at > kHistory || m_damage.size() > kMaxDamage))
@@ -451,8 +453,9 @@ namespace hyprmasq::wait {
         waiter->socketId  = socket->id;
         waiter->options   = options;
         waiter->lastInput = socket->lastInput;
-        waiter->changing  = options.expectMs && socket->content->commits <= options.since;
-        waiter->timer     = wl_event_loop_add_timer(
+        // Ignoring animations, the phase is over at once only when a commit after the baseline was not part of one.
+        waiter->changing = options.expectMs && (options.ignoreAnimations ? socket->content->lastChangeCommit : socket->content->commits) <= options.since;
+        waiter->timer    = wl_event_loop_add_timer(
             g_pCompositor->m_wlEventLoop,
             [](void* data) {
                 check(static_cast<SChangeWaiter*>(data));
@@ -461,10 +464,13 @@ namespace hyprmasq::wait {
             raw);
         if (!waiter->timer)
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot start a timer"});
-        // The change phase ends at the first commit after the baseline, unless expect ran out before it.
+        // The change phase ends at the first commit after the baseline, or the first that is not part of an animation,
+        // unless expect ran out before it.
         waiter->commit  = socket->content->committed.listen([raw] {
             if (raw->content->lastAnimated)
                 merge(raw->animated, *raw->content->lastAnimated);
+            if (raw->options.ignoreAnimations && raw->content->lastAnimated)
+                return;
             if (raw->changing && raw->content->commits > raw->options.since && Time::steadyNow() < raw->start + milliseconds(*raw->options.expectMs)) {
                 raw->changing = false;
                 raw->wake();

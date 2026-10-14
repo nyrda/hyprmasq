@@ -286,17 +286,26 @@ var actionSchema = json.RawMessage(`{
 	"required": ["action"]
 }`)
 
-var actSchema = objectSchema(map[string]json.RawMessage{
-	"window":  windowProperty,
-	"shot":    json.RawMessage(`{"type":"string","description":"The shot the coordinates were read from, such as s4. Required if any action has coordinates."}`),
-	"actions": json.RawMessage(`{"type":"array","items":` + string(actionSchema) + `,"default":[],"description":"Run in order. An empty list waits for a change since the shot, then captures."}`),
-	"wait": json.RawMessage(`{"type":"object","properties":{
+// actSchema is the act tool's input schema for a server that watches for new windows for grace after a wait.
+func actSchema(grace time.Duration) json.RawMessage {
+	watch := ""
+	if grace > 0 {
+		watch = fmt.Sprintf("after a click, drag, key or Enter, act also waits out a redraw that starts within %d ms after it settled, but ", grace.Milliseconds())
+	}
+	quiet, _ := json.Marshal("How long the window must stay quiet to count as settled. Quiet means nothing was redrawn for this long, not that loading finished: " +
+		watch + "if the shot still shows loading, act again with no actions.")
+	return objectSchema(map[string]json.RawMessage{
+		"window":  windowProperty,
+		"shot":    json.RawMessage(`{"type":"string","description":"The shot the coordinates were read from, such as s4. Required if any action has coordinates."}`),
+		"actions": json.RawMessage(`{"type":"array","items":` + string(actionSchema) + `,"default":[],"description":"Run in order. An empty list waits for a change since the shot, then captures."}`),
+		"wait": json.RawMessage(`{"type":"object","properties":{
 		"expect_change":{"type":"boolean","default":true,"description":"Wait for a redraw first. False for input that may change nothing on screen."},
 		"expect_ms":{"type":"integer","minimum":1,"maximum":29000,"default":1000,"description":"How long to wait for the first redraw, at most deadline_ms minus 1000."},
-		"quiet_ms":{"type":"integer","minimum":1,"maximum":10000,"default":200,"description":"How long the window must stay quiet to count as settled. Quiet means nothing was redrawn for this long, not that loading finished: if the shot still shows loading, act again with no actions."}},"additionalProperties":false}`),
-	"capture":     json.RawMessage(captureSchema),
-	"deadline_ms": deadlineSchema,
-}, "window")
+		"quiet_ms":{"type":"integer","minimum":1,"maximum":10000,"default":200,"description":` + string(quiet) + `}},"additionalProperties":false}`),
+		"capture":     json.RawMessage(captureSchema),
+		"deadline_ms": deadlineSchema,
+	}, "window")
+}
 
 // captureSchema names the limits of capture "changes", so that an agent knows when a full shot comes.
 var captureSchema = fmt.Sprintf(`{"description":"\"changes\": what changed since the shot, or your last shot, as a zoom shot into each changed region with a margin of %d px, nearby regions joined into at most %d; a full shot instead without an earlier shot, after a resize, for changes over %d%% of the window or too scattered to join, or after %d changes shots in a row, each compared with the one before. Tiny changes, such as a blinking caret, are left out and counted. \"window\" for a full overview shot, such as when you no longer have the earlier one, \"none\", or a region {shot,x,y,width,height} in pixels of an earlier shot.","anyOf":[{"type":"string","enum":["changes","window","none"]},%s],"default":"changes"}`,
@@ -316,7 +325,7 @@ func (s *Server) Register(srv *mcp.Server) {
 	// screenshot opens the window's socket, which stays open, so the plugin treats the window as driven from then on.
 	srv.AddTool(&mcp.Tool{Name: "screenshot", Description: screenshotDescription(s.cfg.MaxImageSize), Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		InputSchema: objectSchema(map[string]json.RawMessage{"window": windowProperty, "region": regionSchema}, "window")}, s.handle(s.screenshotTool))
-	srv.AddTool(&mcp.Tool{Name: "act", Description: actDescription, InputSchema: actSchema}, s.handle(s.actTool))
+	srv.AddTool(&mcp.Tool{Name: "act", Description: actDescription, InputSchema: actSchema(s.cfg.NewWindowGrace)}, s.handle(s.actTool))
 	srv.AddTool(&mcp.Tool{Name: "launch", Description: launchDescription, Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		InputSchema: objectSchema(map[string]json.RawMessage{
 			"command":   json.RawMessage(`{"type":"array","items":{"type":"string"},"minItems":1,"description":"Program and arguments, such as [\"foot\", \"-T\", \"scratch\"]."}`),

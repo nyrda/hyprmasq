@@ -604,6 +604,33 @@ After the last action has been applied, the server starts the plugin's
    Hyprland's, such as a window popping in, does not keep it from ending,
    since shots draw the window as it is once the animation has ended. Neither
    does an animation of the window's own (see below).
+3. **Watch**, only after input that can open a window (see
+   [New windows](#new-windows)), when the wait ended `quiet` or `no_redraw`.
+   An app may draw again a moment after it settled, once work that does not
+   draw ends: a browser draws the page that Enter loads about half a second
+   later, a mail client the results of a search it starts after a pause in
+   typing. So the server renews the lease and goes on with a `wait … since`
+   from the counter where the wait ended, with `ignore animations`, the
+   call's `quiet_ms`, and `expect` the rest of the grace period for new
+   windows, 500 ms after the wait by default, or less when the deadline
+   leaves less, keeping `quiet_ms` for a redraw at its end. The
+   `wait.quiet_ms` description names the grace the server runs with. The
+   window keeps getting frame callbacks meanwhile, without which an app on a
+   hidden workspace does not draw at all. A redraw that is not part of an
+   animation, such as a spinner or a blinking caret that was going on before
+   the input, ends its change phase, and its quiet phase waits it out; the
+   capture follows. Its commits and animations count also when it ends
+   `no_redraw`, so the capture leaves those animations out of the changes. After a `quiet` wait that saw a redraw, the summary adds
+   `drew again, settled N ms later`, and `wait.again` has its `quiet_ms` and
+   `elapsed_ms`; after `no_redraw`, or a `quiet` wait without one, the wait
+   ends `quiet` with a redraw, both waits' time in `elapsed_ms`. A redraw
+   that goes on until the deadline makes it a `timeout`. A window that closes
+   meanwhile keeps the wait as it ended and closed after it: the summary adds
+   `window closed` and the result sets `window_closed`, as for a close after
+   the wait. A reply for another socket, which replaced the one the wait
+   counted for, is not taken, and neither is an error, such as from a plugin
+   without `ignore animations`. Without a redraw, nothing changes but the
+   time of the capture, which the grace period spends anyway.
 
 ### Animations
 
@@ -692,9 +719,10 @@ has got none from hyprmasq, it lets the window draw: see
 ### What the wait does not tell
 
 - Work an application does without drawing, such as a network request, is
-  invisible. A `settled` window can still be loading. The description of
-  `wait.quiet_ms` says so, and to act again with no actions while the shot
-  still shows loading.
+  invisible. A `settled` window can still be loading, when the work takes
+  longer than the watch after input, or follows input that has none. The
+  description of `wait.quiet_ms` says so, and to act again with no actions
+  while the shot still shows loading.
 - An application that draws in bursts further apart than `quiet_ms` can settle
   between two bursts.
 - A commit is not proof that the pixels changed, and not proof that the input
@@ -781,7 +809,7 @@ A result has three parts:
    | Part | Forms |
    | --- | --- |
    | Actions, if any | `N/M delivered`, with `, nothing sent`, `, delivery partial: actions[i] (type) may be partly applied (K keys sent)` or `, delivery uncertain from actions[i] (click) on` |
-   | Wait | `redraw observed · quiet N ms · N ms`, `no redraw · quiet N ms · N ms`, either with `quiet N ms except animation at X,Y W×H` or `except animations at …, …`, `no redraw within N ms`, `timeout after N ms, still resizing`, `timeout after N ms, still drawing`, `timeout after N ms, no redraw`, `no time left to wait`, `window closed`, `cancelled` |
+   | Wait | `redraw observed · quiet N ms · N ms`, `no redraw · quiet N ms · N ms`, either with `quiet N ms except animation at X,Y W×H` or `except animations at …, …`, and after the first with ` · drew again, settled N ms later` when the window drew again during the [watch](#phases), `no redraw within N ms`, `timeout after N ms, still resizing`, `timeout after N ms, still drawing`, `timeout after N ms, no redraw`, `no time left to wait`, `window closed`, `cancelled` |
    | Window closed | `window closed` after the wait's part, when the window closed after its wait had ended |
    | Capture | `shot sN W×H`, `shot sN W×H (full shot: REASON)`, `shot sN W×H (stale: not yet redrawn at its new size)`, `shot sN W×H (may be stale: not redrawn within N ms)` or `(may be stale: no time to redraw)`, several of them as `(full shot: REASON; stale: …)`, `shot sN = sM + K changes` followed by the lines `zoom sZ W×H of sN at X,Y W×H`, `K tiny changes left out` and `K changes in animations left out`, `shot sN = sM, no change`, `shot sN = sM, no change outside animations`, or `capture failed: MESSAGE` |
    | Back to | When the window closed: `back to ADDR (CLASS "TITLE") on workspace NAME (hidden\|visible)`, the window it came from, followed by a line `shot sN W×H of ADDR, the window it came from` |
@@ -824,7 +852,8 @@ timed out while the window had not caught up with a resize. `actions` also
 has `failed_index` and `progress` (`{"keys": N}` for a `type` or `key`
 action) when an action failed.
 `wait.commits` counts the commits since the baseline, and `wait.quiet_ms` how
-long the window had been quiet when the wait ended. An error adds `error`
+long the window had been quiet when the wait ended. `wait.again` is there only
+when the window drew again during the [watch](#phases) after it settled. An error adds `error`
 (`code`, `message`), and a failed capture after applied input adds
 `capture_error`.
 
@@ -880,7 +909,8 @@ input has settled, as Thunderbird's compose window did 70 to 170 ms after the
 `act` that pressed Reply had returned, in a benchmark. So a call that
 delivered input that can open a window, a click, a drag, a key, or text with a
 line break, lists the windows `--new-window-grace-ms` after its wait, 500 ms by
-default, while it captures and renews the lease; the grace ends at the latest
+default, while it watches the window for another redraw (see
+[Phases](#phases)), captures it and renews the lease; the grace ends at the latest
 250 ms before the deadline, which leaves time for the listing. Text without a
 line break, scrolling, motion and pauses list them at once. A window that maps
 after that is a [late window](#late-windows), which the session's next `act`
@@ -1430,7 +1460,7 @@ same commits.
   draw.
 - A box larger than the GPU's texture limit is `internal`.
 
-**`wait <addr> since COMMITS [expect MS] [quiet MS] [deadline MS] [id WORD]`**
+**`wait <addr> since COMMITS [expect MS] [quiet MS] [deadline MS] [id WORD] [ignore animations]`**
 
 The new form. `wait <addr> [QUIET-MS [TIMEOUT-MS]]` keeps working as before.
 Needs an open socket (`no_socket` otherwise) and a request through Hyprland's
@@ -1452,6 +1482,10 @@ socket (`unsupported` otherwise). Each option may come once, in any order.
   every 16 ms, also one that stops being rendered during the wait. They stop
   when the wait ends.
 - `id WORD` names the wait for `cancel`. An id of a pending wait is
+  `invalid_arguments`.
+- With `ignore animations`, the change phase waits for a commit after
+  COMMITS that is not part of an animation: it ends at once when one came
+  before the wait, and animation does not end it. Another value is
   `invalid_arguments`.
 - COMMITS above the counter is `invalid_arguments`.
 - A socket that closes during the wait does not end it.

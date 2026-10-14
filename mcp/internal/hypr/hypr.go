@@ -284,6 +284,8 @@ type WaitArgs struct {
 	QuietMs    int
 	DeadlineMs int
 	ID         string
+	// IgnoreAnimations makes the change phase wait for a commit that is not part of an animation.
+	IgnoreAnimations bool
 }
 
 type WaitReply struct {
@@ -310,6 +312,9 @@ func (c *Client) Wait(ctx context.Context, addr string, a WaitArgs) (WaitReply, 
 	args += fmt.Sprintf(" quiet %d deadline %d", a.QuietMs, a.DeadlineMs)
 	if a.ID != "" {
 		args += " id " + a.ID
+	}
+	if a.IgnoreAnimations {
+		args += " ignore animations"
 	}
 	var r WaitReply
 	err := c.Plugin(ctx, args, &r)

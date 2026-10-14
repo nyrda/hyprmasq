@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"strconv"
 	"strings"
 	"time"
@@ -487,7 +488,9 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	capCtx, cancel := captureContext(ctx, end)
 	defer cancel()
 
-	closed := out.Wait != nil && out.Wait.Ended == "window_closed"
+	watched := applied && opensWindows(r.batch) && out.Wait != nil && (out.Wait.Ended == "quiet" || out.Wait.Ended == "no_redraw")
+	closed := watched && s.watchForRedraw(ctx, capCtx, r, out.Wait, st.Capabilities, waited.Add(s.cfg.NewWindowGrace), end)
+	closed = closed || out.Wait != nil && out.Wait.Ended == "window_closed"
 	cancelled := out.Wait != nil && out.Wait.Ended == "cancelled"
 	var images [][]byte
 	if !closed && r.captureMode != "none" && !s.stopping() {
@@ -666,6 +669,85 @@ func opensWindows(batch []action) bool {
 		}
 	}
 	return false
+}
+
+// watchForRedraw goes on waiting for the window through the grace period after input that can open a window, until
+// the time given. An app may draw again a moment after it settled, when work that does not draw ends: a browser the
+// page that Enter loads, a mail client the results of a search it starts after a pause in typing. The window gets frame
+// callbacks meanwhile, without which an app on a hidden workspace does not draw at all, and a redraw is waited out with
+// the call's quiet time, so the capture shows the window after it. After a wait that saw no redraw, a redraw now makes
+// it one that did; one that is still going on at the deadline makes it a timeout. It tells whether the window closed
+// meanwhile, which keeps the wait as it ended, as a close after the wait does. A reply for another socket, which
+// replaced the one the wait counted for, and other errors keep the wait as it ended too.
+func (s *Server) watchForRedraw(ctx, capCtx context.Context, r *actRequest, w *waitOut, caps hypr.Capabilities, until, end time.Time) (closed bool) {
+	// A deadline that leaves less than the grace period shortens the watch, keeping the quiet time for a redraw at its
+	// end.
+	budget := func() (deadline, expect int64) {
+		deadline = time.Until(end.Add(-captureReserve - newWindowListing)).Milliseconds()
+		return deadline, min(time.Until(until).Milliseconds(), deadline-int64(r.quietMs))
+	}
+	if _, expect := budget(); expect < 1 {
+		return false
+	}
+	// A lease shorter than the wait and the watch would run out meanwhile, which ends the emulated focus, and with it
+	// a menu that the input opened, before the capture. Its round trip, which a busy compositor stretches, comes out
+	// of the watch.
+	s.renewLease(capCtx, r.window, caps)
+	deadline, expect := budget()
+	if expect < 1 {
+		return false
+	}
+	// A spinner or a blinking caret that was animating before the input does not count as the window drawing again.
+	reply, err := s.wait(ctx, r.window, hypr.WaitArgs{Since: w.counter, ExpectMs: int(expect), QuietMs: r.quietMs, DeadlineMs: int(deadline), ID: s.waitID(),
+		IgnoreAnimations: true})
+	var pe *hypr.Error
+	switch {
+	case errors.As(err, &pe) && pe.Code == "window_gone", err == nil && reply.Ended == "window_closed":
+		return true
+	case ctx.Err() != nil:
+		w.Ended, w.Summary = "cancelled", ""
+		return false
+	case err != nil, w.socket != "" && deref(reply.SocketID) != w.socket:
+		return false
+	}
+	// Its commits count, also those of an animation, which end no change phase, and so do its animations, which the
+	// capture leaves out of the changes.
+	w.Commits += reply.CommitsSince
+	w.animated = mergeAnimated(w.animated, reply.Animated)
+	switch {
+	case reply.Ended == "no_redraw":
+		return false
+	case w.Ended == "quiet" && w.RedrawObserved && reply.Ended == "quiet":
+		w.Again = &waitAgainOut{QuietMs: reply.QuietMs, ElapsedMs: reply.ElapsedMs}
+		return false
+	}
+	resizing := reply.Ended == "timeout" && reply.Resizing
+	w.Ended, w.Summary, w.RedrawObserved, w.Resizing = reply.Ended, waitSummary(reply.Ended, true, resizing), true, resizing
+	w.QuietMs, w.ElapsedMs = reply.QuietMs, w.ElapsedMs+reply.ElapsedMs
+	return false
+}
+
+// mergeAnimated adds the animations of a second wait to those of the first, joining the boxes of one animation as the
+// plugin does within a wait: boxes that overlap or touch, when the box around both is at most 1.5 times the larger. An
+// animation that goes on through both waits is then counted once where its area weighs the changes.
+func mergeAnimated(boxes, more []hypr.IntRect) []hypr.IntRect {
+	size := func(r image.Rectangle) int { return r.Dx() * r.Dy() }
+	for _, m := range more {
+		box := rectOf(m)
+		for joined := true; joined; {
+			joined = false
+			for i, b := range boxes {
+				r := rectOf(b)
+				touch := r.Min.X <= box.Max.X && box.Min.X <= r.Max.X && r.Min.Y <= box.Max.Y && box.Min.Y <= r.Max.Y
+				if u := r.Union(box); touch && 2*size(u) <= 3*max(size(r), size(box)) {
+					box, boxes, joined = u, append(boxes[:i:i], boxes[i+1:]...), true
+					break
+				}
+			}
+		}
+		boxes = append(boxes, intRectOf(box))
+	}
+	return boxes
 }
 
 // newWindowGrace waits until the grace period for new windows ends, at latest at the time given, or until the call is

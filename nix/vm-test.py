@@ -1123,6 +1123,7 @@ os.rename(sys.argv[2] + ".part", sys.argv[2])
             (f"wait {stated} since 0 quiet", "invalid_arguments"),
             (f"wait {stated} since 0 since 0", "invalid_arguments"),
             (f"wait {stated} since 0 later 5", "invalid_arguments"),
+            (f"wait {stated} since 0 ignore spinners", "invalid_arguments"),
             # The counter never falls, so a baseline above it is from another counter.
             (f"wait {stated} since 1000000000", "invalid_arguments"),
             (f"wait {green} since 0", "no_socket"),
@@ -1204,6 +1205,9 @@ os.rename(sys.argv[2] + ".part", sys.argv[2])
         reply = wait_since(stated, f"since {base - 1} expect 4000 quiet 100")
         assert reply["ended"] == "quiet" and reply["redrawObserved"] and reply["commitsSince"] >= 1, reply
         assert reply["elapsedMs"] < 1000, reply
+        # So it does when the wait ignores animations, since the shell's redraw was none.
+        reply = wait_since(stated, f"since {base - 1} expect 4000 quiet 100 ignore animations")
+        assert reply["ended"] == "quiet" and reply["redrawObserved"] and reply["elapsedMs"] < 1000, reply
         # A hidden window that keeps drawing gets frame callbacks during the wait, and never goes quiet.
         focus_workspace(32)
         drawing = foot("hm-p-drawing", "sh -c 'while :; do date +%N; sleep 0.02; done'")
@@ -3244,6 +3248,12 @@ print(longest)
         assert box["x"] <= 2 and box["y"] <= 2 and box["height"] < 60, settled
         assert re.search(r"· quiet \d+ ms except animation at \d+,\d+ \d+×\d+ · ", settled.text), settled
         assert settled.data["shot"]["changes"]["regions"] == [], settled
+        # The plugin's wait with ignore animations, as act's watch after input runs it, waits for a commit that is not
+        # part of an animation, so the digit does not end its change phase, as it ends one without.
+        ignoring = json.loads(hypr(f"-j hyprmasq wait {ticking} since {window_state(ticking)['commits']} expect 1000 quiet 100 deadline 3000 ignore animations"))
+        assert ignoring["ok"] and ignoring["ended"] == "no_redraw" and ignoring["elapsedMs"] >= 1000 and ignoring["animated"], ignoring
+        counting = json.loads(hypr(f"-j hyprmasq wait {ticking} since {window_state(ticking)['commits']} expect 1000 quiet 100 deadline 3000"))
+        assert counting["ok"] and counting["ended"] == "quiet" and counting["redrawObserved"] and counting["elapsedMs"] < 1000, counting
         keep(mcp.call("screenshot", {"window": ticking}), "ticking")
         assert mcp.call("close", {"window": ticking}).data["closed"]
         assert snapshot() == before_focus
@@ -4175,6 +4185,40 @@ print(longest)
         assert not launched.is_error and "may_be_stale" not in launched.data["shot"] and "hint" not in launched.data, launched
         assert near(pixels(keep(launched, "frames-launched"), (100, 100))[0], content_rgb), launched
         for window in [starving, frozen, launched.data["window"]["window"]]:
+            assert mcp.call("close", {"window": window}).data["closed"]
+
+    with subtest("hyprmasq-mcp waits out a redraw that follows the input after the window settled"):
+        # focus-probe's answer mode on hidden workspaces: a click draws it dark gray at once, and its answer, blue,
+        # follows later, drawn only in a frame callback, as a page that loads or a search's results.
+        pressed_rgb, answer_rgb = (0x33, 0x33, 0x33), (0x22, 0x55, 0xCC)
+
+        def answer_probe(title, ms):
+            command = f"exec hyprmasq-focus-probe answer {title} {ms} > /tmp/hyprmasq-{title}.log 2>&1"
+            address = alice(f"{ipc} hyprmasq-launch --workspace {title} -- sh -c {shlex.quote(command)}").strip()
+            return address, mcp.call("screenshot", {"window": address}).data["shot"]["id"]
+
+        def click(address, shot):
+            return mcp.call("act", {"window": address, "shot": shot, "actions": [{"action": "click", "x": 100, "y": 100}], "capture": "window"})
+
+        # An answer 400 ms after the click comes after the wait has settled, within the 500 ms in which act watches for
+        # new windows. act goes on waiting then, the window gets frame callbacks, and the shot shows the answer.
+        soon, shot = answer_probe("hm-m-answer", 400)
+        clicked = click(soon, shot)
+        wait = clicked.data["wait"]
+        assert not clicked.is_error and wait["ended"] == "quiet" and wait["again"]["quiet_ms"] >= 200, clicked
+        assert f" · drew again, settled {wait['again']['elapsed_ms']} ms later · " in clicked.data["summary"], clicked
+        assert near(pixels(keep(clicked, "answer-soon"), (100, 100))[0], answer_rgb), (clicked, machine.succeed("cat /tmp/hyprmasq-hm-m-answer.log"))
+        machine.succeed("grep -q answered /tmp/hyprmasq-hm-m-answer.log")
+
+        # One 1500 ms after it is not waited for: the shot shows the pressed button, and a wait without actions the answer.
+        late, shot = answer_probe("hm-m-answer-late", 1500)
+        clicked = click(late, shot)
+        assert not clicked.is_error and "again" not in clicked.data["wait"] and "drew again" not in clicked.data["summary"], clicked
+        assert near(pixels(keep(clicked, "answer-late"), (100, 100))[0], pressed_rgb), clicked
+        time.sleep(1.5)
+        waited = mcp.call("act", {"window": late, "capture": "window"})
+        assert not waited.is_error and near(pixels(keep(waited, "answer-late-waited"), (100, 100))[0], answer_rgb), waited
+        for window in [soon, late]:
             assert mcp.call("close", {"window": window}).data["closed"]
 
     with subtest("hyprmasq-mcp takes coordinates from shots taken while a window pops in"):

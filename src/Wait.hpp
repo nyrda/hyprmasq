@@ -45,12 +45,13 @@ namespace hyprmasq::wait {
             return m_fed;
         }
 
-        uint64_t            commits    = 0; // never reset
-        Time::steady_tp     lastCommit = Time::steadyNow();
-        Time::steady_tp     lastChange = lastCommit; // of the last commit that is not part of an animation
-        std::optional<CBox> lastAnimated;            // the box of the last commit, when it is part of an animation
-        Time::steady_tp     lastInput = {};          // when emulated input last reached the window, set by its socket
-        CSignalT<>          committed;               // after commits has risen
+        uint64_t            commits          = 0; // never reset
+        Time::steady_tp     lastCommit       = Time::steadyNow();
+        Time::steady_tp     lastChange       = lastCommit; // of the last commit that is not part of an animation
+        uint64_t            lastChangeCommit = 0;          // the value of commits at that commit
+        std::optional<CBox> lastAnimated;                  // the box of the last commit, when it is part of an animation
+        Time::steady_tp     lastInput = {};                // when emulated input last reached the window, set by its socket
+        CSignalT<>          committed;                     // after commits has risen
 
       private:
         struct SWatched {
@@ -94,6 +95,8 @@ namespace hyprmasq::wait {
         std::optional<int> expectMs;
         int                quietMs = 200, deadlineMs = 5000;
         std::string        id;
+        // The change phase waits for a commit that is not part of an animation after the baseline.
+        bool ignoreAnimations = false;
     };
 
     struct SChangeResult {

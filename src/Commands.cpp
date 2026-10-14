@@ -25,7 +25,7 @@ namespace hyprmasq {
         constexpr std::string_view USAGE = "usage:\n"
                                            "  hyprctl hyprmasq screenshot <window-address> <absolute-path.png> [x y width height] [max pixels] [popups]\n"
                                            "  hyprctl hyprmasq wait <window-address> [quiet-ms [timeout-ms]]\n"
-                                           "  hyprctl hyprmasq wait <window-address> since <commits> [expect ms] [quiet ms] [deadline ms] [id word]\n"
+                                           "  hyprctl hyprmasq wait <window-address> since <commits> [expect ms] [quiet ms] [deadline ms] [id word] [ignore animations]\n"
                                            "  hyprctl hyprmasq cancel <word>\n"
                                            "  hyprctl hyprmasq state <window-address>\n"
                                            "  hyprctl hyprmasq launch <workspace-hex> <token> <shell-command-line-hex>\n"
@@ -324,7 +324,11 @@ namespace hyprmasq {
                     options.since = *since;
                 } else if (key == "id")
                     options.id = value;
-                else if (key == "expect" || key == "quiet" || key == "deadline") {
+                else if (key == "ignore") {
+                    if (value != "animations")
+                        return error(format, eErrorCode::INVALID_ARGUMENTS, "ignore takes animations");
+                    options.ignoreAnimations = true;
+                } else if (key == "expect" || key == "quiet" || key == "deadline") {
                     const auto ms = parseNumber<int>(value);
                     if (!ms || *ms < 1 || *ms > MAX_CHANGE_WAIT_MS)
                         return error(format, eErrorCode::INVALID_ARGUMENTS, std::format("{} needs 1 to {} milliseconds", key, MAX_CHANGE_WAIT_MS));

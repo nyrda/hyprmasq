@@ -35,6 +35,11 @@ descriptions and results explain the rest. What `act` returns:
   not wait for it, and `N changes in animations left out` counts what changed
   there. Look at that box in the shot if it matters, such as a spinner that
   says the page is still loading.
+- `drew again, settled 380 ms later`: after a click, a key or Enter, the
+  window drew once more within half a second of settling, such as a page that
+  Enter loaded or a search's results; the shot shows it after that. Work that
+  takes longer without drawing still ends the wait: if the shot shows loading,
+  act again with no actions.
 - A failure that comes with a shot is a normal result whose text starts with
   `error CODE:`, so you get its shot; go on from it.
 - `new window ADDR …` with a line `shot sN … of new window ADDR`: your input
