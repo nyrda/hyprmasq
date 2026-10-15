@@ -1,11 +1,13 @@
 package server
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os/exec"
 	"path/filepath"
@@ -81,10 +83,19 @@ func minSendTime(steps []inputStep) time.Duration {
 		return v
 	}
 	for i, step := range steps {
-		if i > 0 {
-			ms += actionGapMs
-		}
 		argv := step.Argv
+		// A sync takes the place of the gap after the action before it, and lasts at least its MIN.
+		if argv[0] == "sync" {
+			ms += int(value(argv[1]))
+			continue
+		}
+		if i > 0 {
+			gap := actionGapMs
+			if prev := steps[i-1].Argv; prev[0] == "sync" {
+				gap = max(0, gap-int(value(prev[1])))
+			}
+			ms += gap
+		}
 		switch argv[0] {
 		case "click":
 			count := int(value(argv[2]))
@@ -209,9 +220,10 @@ func composeNote(reply senderReply, locale targetLocale) string {
 
 // runSender runs hyprmasq-input with the steps and returns its JSON reply. The sender types characters without a key of
 // their own through the Compose table of locale, or of its own locale when that is "". It sends nothing when the steps
-// take longer than budget at their pace. When ctx ends, the sender gets SIGTERM, releases everything it pressed and
-// reports how far it got. An error means that there is no reply to read.
-func (s *Server) runSender(ctx context.Context, socket string, steps []inputStep, budget time.Duration, locale string) (senderReply, error) {
+// take longer than budget at their pace. At a sync step, once the plugin has processed the steps before it, answer gets
+// the step's index, and the sender goes on when answer returns. When ctx ends, the sender gets SIGTERM, releases
+// everything it pressed and reports how far it got. An error means that there is no reply to read.
+func (s *Server) runSender(ctx context.Context, socket string, steps []inputStep, budget time.Duration, locale string, answer func(step int)) (senderReply, error) {
 	args := []string{"--socket", socket, "--json", "--budget", strconv.FormatInt(max(0, budget.Milliseconds()), 10)}
 	if locale != "" {
 		args = append(args, "--locale", locale)
@@ -225,18 +237,47 @@ func (s *Server) runSender(ctx context.Context, socket string, steps []inputStep
 	cmd := exec.CommandContext(ctx, s.cfg.Input, args...)
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 	cmd.WaitDelay = senderKillDelay
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
+	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return senderReply{}, &startError{err: err}
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return senderReply{}, &startError{err: err}
+	}
 	if err := cmd.Start(); err != nil {
 		return senderReply{}, &startError{err: err}
 	}
+	// The reply is the last line. A sync line before it waits for its answer, which a sender that has exited meanwhile
+	// does not read.
+	var last []byte
+	printed := false
+	lines := bufio.NewScanner(stdout)
+	lines.Buffer(nil, 1<<20)
+	for lines.Scan() {
+		printed = true
+		var sync struct {
+			Sync *int `json:"sync"`
+		}
+		if json.Unmarshal(lines.Bytes(), &sync) == nil && sync.Sync != nil {
+			if answer != nil {
+				answer(*sync.Sync)
+			}
+			fmt.Fprintf(stdin, "%d\n", *sync.Sync)
+			continue
+		}
+		last = append(last[:0], lines.Bytes()...)
+	}
+	io.Copy(io.Discard, stdout)
+	stdin.Close()
 	runErr := cmd.Wait()
 
 	var reply senderReply
-	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &reply); err != nil || reply.Delivery == "" {
+	if err := json.Unmarshal(bytes.TrimSpace(last), &reply); err != nil || reply.Delivery == "" {
 		// hyprmasq-input handles SIGTERM from before it connects, so one that killed it came before it could send.
-		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok && status.Signaled() && status.Signal() == syscall.SIGTERM && stdout.Len() == 0 {
+		if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok && status.Signaled() && status.Signal() == syscall.SIGTERM && !printed {
 			return senderReply{}, &startError{err: errors.New("hyprmasq-input was stopped before it connected"), stopped: true}
 		}
 		message := strings.TrimSpace(stderr.String())

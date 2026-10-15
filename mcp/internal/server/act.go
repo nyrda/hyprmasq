@@ -182,34 +182,54 @@ func checkCapabilities(batch []action, caps hypr.Capabilities, address string) e
 // 200 ms after the click as play/pause, and inserted the same space when it came 350 ms after the click.
 const clickSettleMs = 300
 
-// translateBatch turns the batch into hyprmasq-input actions, with the points mapped from the shot's pixels. Keys that
-// follow a click or drag sooner than clickSettleMs get a sleep in front of them, which belongs to their action. The
-// time counts the sender's gap before every action and the sleeps, but not how long motion or scrolling take, which
-// can only make the wait longer.
+// A click or drag that more actions of the batch follow gets the window's answer before they go: the sender stops at a
+// sync after it, and act waits meanwhile with the plugin's wait for a change since the counter before the input, then
+// for quiet (see answerClick). In the benchmark VM at 1920×1080 and 2560×1440, Chromium drew its answer to a click,
+// such as a menu of the page or a caret, within 20 ms of the release, before such a wait starts, and nothing after it;
+// a click on empty space drew nothing.
+const (
+	// How long the window gets to start drawing, from the start of the wait, before the batch goes on without a redraw.
+	answerExpectMs = 150
+	// How long the window has to be quiet after drawing: a CSS transition drew every 16 ms, while a page that a link
+	// loaded paused for up to about 100 ms between its first frames and the new page, which a quiet time of 150 ms
+	// waited out every time.
+	answerQuietMs = 150
+	// The most that the wait takes: a page that a link loaded was quiet for 150 ms 580 to 690 ms after the click, and
+	// a 400 ms transition 530 to 570 ms after it.
+	answerMaxMs = 1000
+)
+
+// translateBatch turns the batch into hyprmasq-input actions, with the points mapped from the shot's pixels. A click or
+// drag that more actions follow gets a sync after it, which belongs to the next action and takes the place of the gap
+// between them: the sender waits there while act waits for the window. The sync lasts at least until keys or text
+// after the click come clickSettleMs after its end. That time counts the sender's gap before every action and the
+// sleeps, but not how long motion or scrolling take, which can only make the wait longer.
 func translateBatch(batch []action, sh *shot) []inputStep {
 	var steps []inputStep
-	sinceClick := -1 // ms from the end of the last click or drag to the next sender action, while no keys followed it
+	sync := -1      // the index of the sync after the last click or drag, while no keys followed it
+	sinceClick := 0 // ms from the end of that click or drag to the next sender action, without the sync
 	for i, a := range batch {
 		for _, step := range translate(i, a, func(x, y float64) (float64, float64) { return sh.inputPoint(x, y) }) {
-			if sinceClick >= 0 {
-				sinceClick += actionGapMs
-			}
 			verb := step.Argv[0]
-			if (verb == "text" || verb == "keys") && sinceClick >= 0 && sinceClick < clickSettleMs {
-				// The sleep is an action of its own, so a gap follows it too.
-				steps = append(steps, inputStep{Batch: i, Argv: []string{"sleep", strconv.Itoa(max(0, clickSettleMs-sinceClick-actionGapMs))}})
-			}
-			steps = append(steps, step)
-			switch verb {
-			case "click", "drag":
-				sinceClick = 0
-			case "text", "keys":
-				sinceClick = -1
-			case "sleep":
-				if ms, err := strconv.Atoi(step.Argv[1]); err == nil && sinceClick >= 0 {
-					sinceClick += ms
+			if sync >= 0 {
+				sinceClick += actionGapMs
+				switch verb {
+				case "text", "keys":
+					// The sync replaces the gap after the click, so it lasts as long as the gap and what follows it fall
+					// short of clickSettleMs.
+					steps[sync].Argv[1] = strconv.Itoa(max(0, clickSettleMs-sinceClick+actionGapMs))
+					sync = -1
+				case "sleep":
+					if ms, err := strconv.Atoi(step.Argv[1]); err == nil {
+						sinceClick += ms
+					}
 				}
 			}
+			steps = append(steps, step)
+		}
+		if (a.Kind == "click" || a.Kind == "drag") && i < len(batch)-1 {
+			steps = append(steps, inputStep{Batch: i + 1, Argv: []string{"sync", "0", strconv.Itoa(answerMaxMs)}})
+			sync, sinceClick = len(steps)-1, 0
 		}
 	}
 	return steps
@@ -1015,7 +1035,13 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 	}
 	inputBy, _ := sendCtx.Deadline()
 	left := time.Until(inputBy)
-	reply, err := s.runSender(runCtx, *st.Socket, steps, paceBudget(left), locale.name)
+	base := currentBaseline(st)
+	answer := func(step int) {
+		if step >= 0 && step < len(steps) && steps[step].Argv[0] == "sync" {
+			base = s.answerClick(runCtx, r.window, base, steps[step+1:], inputBy)
+		}
+	}
+	reply, err := s.runSender(runCtx, *st.Socket, steps, paceBudget(left), locale.name, answer)
 	stop(nil)
 	<-watched
 	if reply.Delivery != "none" {
@@ -1088,16 +1114,36 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 	return out, s.senderError(clientCtx, sendCtx, reply, r, out.Done, failed, failedStep, out.Delivery)
 }
 
-// pausesFrom is the first step after the pauses that the sender failed at, or -1 when it failed at no pause.
+// pausesFrom is the first step after the pauses that the sender failed at, or -1 when it failed at no pause. A sync,
+// where the sender waits for act, is a pause too.
 func pausesFrom(steps []inputStep, reply senderReply) int {
-	if reply.FailedIndex == nil || *reply.FailedIndex < 0 || *reply.FailedIndex >= len(steps) || steps[*reply.FailedIndex].Argv[0] != "sleep" {
+	pause := func(i int) bool { return steps[i].Argv[0] == "sleep" || steps[i].Argv[0] == "sync" }
+	if reply.FailedIndex == nil || *reply.FailedIndex < 0 || *reply.FailedIndex >= len(steps) || !pause(*reply.FailedIndex) {
 		return -1
 	}
 	next := *reply.FailedIndex
-	for next < len(steps) && steps[next].Argv[0] == "sleep" {
+	for next < len(steps) && pause(next) {
 		next++
 	}
 	return next
+}
+
+// answerClick waits for the window to answer a click while the sender waits at the sync after it: with the plugin's
+// wait for a change since base, at most answerExpectMs, then for answerQuietMs of quiet, within answerMaxMs, and early
+// enough that the rest of the batch still fits before inputBy. It returns the baseline for the next sync, the counter
+// when the wait ended. A wait that fails leaves the sender to go on after its sync's least time.
+func (s *Server) answerClick(ctx context.Context, window string, base baseline, rest []inputStep, inputBy time.Time) baseline {
+	limit := min(answerMaxMs*time.Millisecond, time.Until(inputBy)-sendTime(rest)).Milliseconds()
+	if limit < 1 || ctx.Err() != nil {
+		return base
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(limit)*time.Millisecond)
+	defer cancel()
+	reply, err := s.wait(ctx, window, hypr.WaitArgs{Since: base.commits, ExpectMs: int(min(answerExpectMs, limit)), QuietMs: answerQuietMs, DeadlineMs: int(limit), ID: s.waitID()})
+	if err != nil || (base.socket != "" && deref(reply.SocketID) != base.socket) {
+		return base
+	}
+	return baseline{reply.Commits, base.socket}
 }
 
 // windowGone tells whether the plugin reports the window as closed.

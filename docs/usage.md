@@ -363,8 +363,10 @@ Plain `hyprctl hyprmasq state` prints the same as `key: value` lines.
 
 Emulated focus normally ends soon after input: a menu, dropdown or popover
 that closes when its window loses focus is gone by the time the next input
-comes. A lease keeps the emulated pointer and keyboard focus on the window
-between inputs.
+comes. A menu that a page draws itself does not close then, and clicking what
+opened it closes it, so look at a screenshot before you open a menu again. A
+lease keeps the emulated pointer and keyboard focus on the window between
+inputs.
 
 ```sh
 hyprctl -j hyprmasq lease "$addr" 60000 my-script     # start or renew for 60 s
@@ -480,6 +482,7 @@ Options come before the first action, in any order.
 | `type TEXT` | Type text with Hyprland's keymap. Tags such as `<enter>` or `<shortcut:ctrl+l>` in the text press keys; see [Typing text](#typing-text). |
 | `text TEXT` | Type TEXT exactly as it is, without tags or escapes. A line break presses Enter and a tab presses Tab. |
 | `sleep MS` | Wait 0 to 3600000 milliseconds. |
+| `sync MIN MAX` | Once the plugin has processed every action before it, print `{"sync":N}` on stdout, where N is the number of those actions, and wait for a line with N on stdin, at least MIN and at most MAX milliseconds (MIN up to MAX up to 3600000). See [Waiting for the caller](#waiting-for-the-caller). |
 
 Buttons are `left`, `right`, `middle`, or an evdev code from `0x110`
 (`BTN_MOUSE`) on, such as `0x113`. Key and button codes are listed in
@@ -511,7 +514,7 @@ problem fails the whole run with exit status 2, and nothing is sent.
 
 With `--budget MS`, the sender then adds up the delays of [Pacing](#pacing)
 for the keys and buttons that the actions resolved to, with every `sleep`,
-`<wait:MS>` and `<settle>`. When that sum is more than what is left of MS since the sender
+`<wait:MS>` and `<settle>`, and the MIN of every `sync`. When that sum is more than what is left of MS since the sender
 started, it fails with code `too_long` and exit status 2, and sends nothing.
 The sum leaves out the waits for the plugin, so a caller that knows how long
 those take passes a budget with room for them. A character typed through
@@ -556,8 +559,35 @@ that arrives faster than any hand could send it:
 | `drag` | Motion to the start, modifiers and 10 ms, press, 50 ms, then motion in steps of at most 10 logical pixels, 10 ms apart, at least 21 steps and at most 2000, then 50 ms and release. |
 | `scroll` | The scroll and its stop at once. |
 
+A `sync` takes the place of the gap between the actions around it: the action
+after it starts once the sync has ended and 50 ms after the end of the action
+before it.
+
 `--no-pace` leaves out these delays; a `drag` then sends its steps at once.
-`sleep`, `<wait:MS>` and `<settle>` still wait.
+`sleep`, `<wait:MS>`, `<settle>` and `sync` still wait.
+
+### Waiting for the caller
+
+`sync MIN MAX` lets the program that runs the sender wait for something between
+two actions, as `hyprmasq-mcp` waits for a window to answer a click before the
+keys after it, without ending the run, so the window keeps the emulated focus
+that the sender's input gave it. Once the plugin has processed every action
+before the sync, the sender prints `{"sync":N}` on stdout, N the number of
+those actions, and waits for a line with N on stdin. It goes on at that line,
+but not before MIN milliseconds, and after MAX milliseconds without one. A line
+with another number, such as a late answer to an earlier sync, does not count,
+and with stdin closed, a sync waits only its MIN. Meanwhile it handles the
+plugin's events, and a signal, a pause of the devices or the end of the
+connection stop it as they stop a `sleep`.
+
+```sh
+# Click, let the caller wait for the window to settle, then press Down.
+coproc input { hyprmasq-input --json --socket "$socket" move 40 20 click sync 0 1000 keys down; }
+read -r line <&"${input[0]}"   # {"sync":2}
+hyprctl -j hyprmasq wait "$addr" since "$commits" expect 150 quiet 150 deadline 1000
+echo 2 >&"${input[1]}"
+cat <&"${input[0]}"            # the JSON result
+```
 
 In both modes, the sender waits for the plugin after every action and after
 every 16 frames, so that it knows what the plugin has processed and never
@@ -593,7 +623,8 @@ Messages go to stderr as `hyprmasq-input: <message>`.
 
 ### JSON output
 
-With `--json`, `hyprmasq-input` prints one object on stdout when it exits:
+With `--json`, `hyprmasq-input` prints one object on stdout when it exits, as
+its last line, after the lines of its syncs:
 
 ```json
 {"ok":false,"done":1,"total":2,"failedIndex":1,"delivery":"partial","progress":{"keys":39},"compose":null,"error":{"code":"input_paused","message":"the server paused input, so some events were dropped"}}

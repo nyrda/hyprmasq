@@ -644,6 +644,30 @@ try:
         assert events[-1][1] - events[1][1] >= 250, events
         assert snapshot() == before_focus
 
+    with subtest("hyprmasq-input waits at a sync for its caller's answer, at least MIN and at most MAX"):
+
+        def synced(feed, *sync):
+            """Sends a, a sync and b with feed piped into the sender, and returns its stdout lines and the ms from the press
+            of a to that of b."""
+            offset = log_size("hm-i-wev")
+            command = f"{feed} | hyprmasq-input --json --socket {shlex.quote(input_path)} keys a sync {' '.join(map(str, sync))} keys b"
+            lines = alice(command).splitlines()
+            presses = [e[1] for e in wait_wev(offset, {"key"}, lambda e: len(e) >= 4) if e[3] == 1]
+            return lines, presses[1] - presses[0]
+
+        # The sync prints the number of actions before it, which the plugin has processed, before the result. With its
+        # stdin closed, it waits for no answer, only its MIN.
+        lines, gap = synced("true", 300, 2000)
+        assert lines[0] == '{"sync":1}' and json.loads(lines[1]) == complete(3), lines
+        assert 300 <= gap < 600, gap
+        # Without an answer, it goes on after MAX.
+        lines, gap = synced("sleep 3", 0, 400)
+        assert json.loads(lines[-1])["delivery"] == "complete" and 400 <= gap < 800, (lines, gap)
+        # An answer with another number, as one to an earlier sync that came late, does not count.
+        lines, gap = synced("(sleep 0.3; echo 0; sleep 0.3; echo 1; sleep 3)", 0, 3000)
+        assert json.loads(lines[-1])["delivery"] == "complete" and 450 <= gap < 1500, (lines, gap)
+        assert snapshot() == before_focus
+
     with subtest("hyprmasq-input types 2000 characters of paced literal text exactly into a hidden shell"):
 
         def text_target(title, workspace, path):
@@ -3396,9 +3420,12 @@ print(longest)
         settled = mcp.call("act", {"window": probe, "shot": shot_id, "actions": [{"action": "click", "x": 60, "y": 70}, *keys], "wait": {"expect_change": False}})
         assert not settled.is_error and settled.data["actions"] == {"done": 3, "total": 3, "delivery": "complete"}, settled
         stamps = {e: t for t, e in probe_input(start)}
-        # The first key comes at least 300 ms after the click's release. The sender promises no upper bound, so that
-        # only the first key waits is left to the Go tests.
-        assert stamps["key hm-m-probe 30 1"] - stamps["button hm-m-probe 0"] >= 290, probe_input(start)
+        # The first key comes at least 300 ms after the click's release. The probe draws nothing in answer to the click,
+        # so the wait for its answer ends after its short change phase, long before its bound of a second. That only the
+        # first key waits is left to the Go tests.
+        gap = stamps["key hm-m-probe 30 1"] - stamps["button hm-m-probe 0"]
+        machine.log(f"a click that draws nothing: the first key {gap} ms after its release")
+        assert 290 <= gap < 700, probe_input(start)
         assert stamps["key hm-m-probe 48 1"] > stamps["key hm-m-probe 30 0"], probe_input(start)
         # The next subtest starts without the emulated focus that this input gave.
         assert not mcp.call("release", {"window": probe}).is_error
@@ -4441,6 +4468,45 @@ print(longest)
         waited = mcp.call("act", {"window": late, "capture": "window"})
         assert not waited.is_error and near(pixels(keep(waited, "answer-late-waited"), (100, 100))[0], answer_rgb), waited
         for window in [soon, late]:
+            assert mcp.call("close", {"window": window}).data["closed"]
+
+    with subtest("hyprmasq-mcp waits for the window to answer a click before the actions after it"):
+        # focus-probe's menu mode: a click draws the window dark gray at once, then the menu opens over 500 ms, drawn in
+        # frame callbacks, and takes Down and Enter only once it is open, as a menu that animates open. Keys come at least
+        # 300 ms after a click, too soon for it, so the batch picks the second entry only when it waits for the window
+        # to be quiet after the click: on a hidden workspace, where the menu draws only while hyprmasq sends frame
+        # callbacks, and on a visible one.
+        pick = [{"action": "click", "x": 100, "y": 100}, {"action": "key", "keys": ["down"]}, {"action": "key", "keys": ["down"]}, {"action": "key", "keys": ["enter"]}]
+
+        def pick_second(address, title):
+            shot = mcp.call("screenshot", {"window": address}).data["shot"]["id"]
+            start = len(probe_events(title))
+            picked = mcp.call("act", {"window": address, "shot": shot, "actions": pick})
+            assert not picked.is_error and picked.data["actions"] == {"done": 4, "total": 4, "delivery": "complete"}, picked
+            events = probe_events(title, start)
+            names = [e for _, e in events]
+            assert "picked 2" in names and not any(e.startswith("ignored") for e in names), events
+            stamps = {e: t for t, e in events}
+            assert stamps[f"key {title} 108 1"] >= stamps["open"], events
+            gap = stamps[f"key {title} 108 1"] - stamps[f"button {title} 0"]
+            machine.log(f"a menu that opens over 500 ms: the first key {gap} ms after the click's release")
+            # The bound of the wait, a second, and the round trips after it.
+            assert 500 <= gap < 1300, events
+
+        command = "exec hyprmasq-focus-probe menu hm-m-menu 500 > /tmp/hyprmasq-hm-m-menu.log 2>&1"
+        hidden = alice(f"{ipc} hyprmasq-launch --workspace hm-m-menu -- sh -c {shlex.quote(command)}").strip()
+        for _ in range(3):
+            pick_second(hidden, "hm-m-menu")
+        assert snapshot() == before_focus
+
+        focus_workspace(65)
+        spawn("hyprmasq-focus-probe menu hm-m-menu-shown 500", "hm-m-menu-shown")
+        wait_for("shown menu probe", lambda: client("hm-m-menu-shown") is not None)
+        shown = client("hm-m-menu-shown")["address"]
+        time.sleep(0.5)
+        pick_second(shown, "hm-m-menu-shown")
+        focus_workspace(4)
+        for window in [hidden, shown]:
             assert mcp.call("close", {"window": window}).data["closed"]
 
     with subtest("hyprmasq-mcp takes coordinates from shots taken while a window pops in"):

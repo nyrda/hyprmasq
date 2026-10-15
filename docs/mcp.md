@@ -496,9 +496,23 @@ current shot.** Clicking a visible field, typing and pressing Enter is one
 batch. A menu, dialog or page that opens needs a new shot before anything in
 it is clicked. Keys whose effect is known may still follow in the same batch,
 for example `alt+f`, then `down` and `enter` in an app whose menu you have
-seen. In a window without the `lease` capability, a menu opened in one call is
-gone by the next, so the description says to open it and pick the entry with
-the keyboard in one batch.
+seen.
+
+In a window without the `lease` capability, a menu that closes when the window
+loses the emulated focus is gone by the next call. A menu that the page draws
+itself stays open: in the benchmark's browser task, Forgejo's "Add file" menu
+was still open 12 s after the click that opened it, while the user typed in
+their own window of the same browser, and so was Chromium's own popup of a
+`<select>`. Clicking what opened such a menu closes it. Agents had followed the
+description's earlier claim that a menu is gone by the next call: after a call
+that opened the menu, they clicked its opener again and pressed Down, Down and
+Enter. The click closed the menu, the first Down opened it again, and the
+second highlighted the first entry, which Enter picked, in 11 of 25 runs. After
+Alt+Left, the browser restored the page with that entry still highlighted, so
+the same batch picked the third. So the description says that a menu may be
+gone by the next call or still open, and to click the entry of one that the
+shot shows open, and otherwise to open it and pick the entry by keyboard in one
+batch.
 
 ### Pacing
 
@@ -514,18 +528,58 @@ motion comes 50 ms before the press. A `scroll` is likewise `move`, then
 `wheel` or `scroll`. `type` becomes `text`, `key` becomes `keys`, and `pause`
 becomes `sleep`.
 
+A `click` or `drag` that more actions of the batch follow gets the window's
+answer before they go. The server puts a `sync` after it (see
+[hyprmasq-input](#hyprmasq-input)), which belongs to the next action and takes
+the place of the 50 ms between the two: the sender stops there once the plugin
+has processed the click, and goes on when the server answers. Meanwhile the
+server runs the plugin's `wait … since` the counter read before the input,
+with `expect 150 quiet 150`: it ends 150 ms after the window's last commit,
+or after 150 ms without one when the click draws nothing. Its deadline is
+1000 ms, and less when the rest of the batch would not fit before input has to
+end otherwise; with no time left, the server answers at once. The sync gives up
+after 1000 ms itself. A wait that fails, such as for a window that closed,
+answers too, and the sender then finds the connection gone. A click alone or
+at the end of the batch has only the wait after the batch.
+
+The times come from Chromium and Forgejo in the benchmark VM, measured from the
+release of the button, with waits started after it as the server starts them,
+at 1920×1080 and 2560×1440 alike:
+
+| Click | Drawing | Quiet for 150 ms |
+| --- | --- | --- |
+| "Add file", which opens a menu of the page | One commit, within 20 ms | 184–193 ms |
+| Into a text field, which shows its caret | One commit, within 20 ms | 185–191 ms |
+| Empty space | None | `no_redraw` at 185–204 ms |
+| One that starts a 400 ms CSS transition | A commit every 16 ms | 527–571 ms |
+| A link to another page | Commits with pauses of up to about 100 ms | 579–688 ms |
+
+A quiet time of 100 ms ended within a page load in 1 of 6 loads, and one of
+50 ms in all of them, so 150 ms waits for a page that a link opens, which the
+batching rule lets known keys follow. The bound of a second covers that and an
+opening animation of half a second. Before the change phase ends without a
+commit, a click has had about 200 ms to draw, ten times what Chromium took.
+Waiting the quiet time after the click's answer, not a fixed time, makes no
+assumption about how fast the display draws.
+
 The first `type` or `key` after a `click` or `drag` in a batch starts at least
-300 ms after the click or drag has ended. Applications move the keyboard focus
-a moment after a click, and keys that come sooner can reach the window's
-shortcuts instead of the field: Spotify, clicked into its empty search field
-on a playlist page, took a space typed 200 ms after the click as play/pause,
-and typed it when it came 350 ms after the click. When the sender actions in
-between, counting the 50 ms before each of them and any `pause` but not how
-long motion or scrolling take, add up to less, the server puts a `sleep` in
-front of the keys, which belongs to their action, so a deadline
-that stops it reports that action. It counts toward the batch's pace like any
-other `sleep`. The `ms` description of `pause` tells agents that they need no
+300 ms after the click or drag has ended, also when the window answered sooner.
+Applications move the keyboard focus a moment after a click, and keys that come
+sooner can reach the window's shortcuts instead of the field: Spotify, clicked
+into its empty search field on a playlist page, took a space typed 200 ms after
+the click as play/pause, and typed it when it came 350 ms after the click. When
+the sender actions in between, counting the 50 ms before each of them and any
+`pause` but not how long motion or scrolling take, add up to less, the sync
+after the click lasts at least the rest, which counts toward the batch's pace
+like a `sleep`. In Chromium, whose menu opened within 20 ms, the wait for the
+answer ends before those 300 ms, so a click, Down, Down and Enter takes as long
+as before. The `ms` description of `pause` tells agents that they need no
 pause of their own for it.
+
+Keys and text after other keys and text get no such wait: an application takes
+the keys of one window in order, each once it has handled the ones before, and
+a wait for quiet after every key would add its quiet time to each shortcut and
+line of a typed form.
 
 The sender waits for the plugin after every action and every 16 frames. These
 round trips confirm that Hyprland processed the events, not that the
@@ -783,9 +837,11 @@ and keyboard focus on the window between calls:
   user works elsewhere, and the virtual cursor stays on a visible leased
   window. The user's real input is not affected.
 
-Windows without the `lease` capability lose the focus when the batch ends. The
-`act` description tells agents to use the keyboard for menus in such windows,
-since a menu opened in one call is gone by the next. It never suggests
+Windows without the `lease` capability lose the focus when the batch ends, and
+a menu that closes on focus loss closes with it, while one that the page draws
+stays open (see [Batching](#batching)). The `act` description tells agents to
+click the entry of a menu that the shot shows open, and otherwise to open the
+menu and pick the entry with the keyboard in one batch. It never suggests
 clicking where a menu item probably is.
 
 ## Shortcuts beside the user's window
@@ -1315,11 +1371,11 @@ Act on a window, wait until it has redrawn, and return what changed. Drive only 
 Coordinates are pixels of the shot given in "shot" (required for click, move, drag, scroll).
 Actions: click {x,y,button,count,modifiers} · move {x,y} · drag {from,to,button,modifiers} · scroll {x,y,dx,dy,unit:notch|px} · type {text} · key {keys:["ctrl","l"], repeat} · pause {ms}.
 The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box in them. A full shot comes when it serves better, saying why; capture "window" asks for one.
-Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, such as arrows and enter in a menu, may follow. Without the lease capability (see windows), a menu opened in one call is gone by the next: open it and pick the entry by keyboard in one batch.
+Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, such as arrows and enter in a menu, may follow. Without the lease capability, a menu may be gone by the next call or still open: if the shot shows it, click the entry, as clicking its opener closes it; else open it and pick by keyboard in one batch.
 drag, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability.
-type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key action such as shift+enter. At one key per 15 ms, and two or more through Compose for a character without a key, a call types about 600 characters, or 1400 with deadline_ms 30000; split longer text.
-Delivered input reached the application but may not have taken effect: a busy one, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the result.
-Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before looking at a fresh screenshot.
+type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key such as shift+enter. At 15 ms a key, two or more for a character typed through Compose, a call types about 600 characters, or 1400 with deadline_ms 30000; split longer text.
+Delivered input reached the app but may not have taken effect: a busy one, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the result.
+Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before looking at a fresh shot.
 Example: {"window":"0x55d1c0a3e4b0","shot":"s4","actions":[{"action":"click","x":412,"y":88},{"action":"type","text":"hello"},{"action":"key","keys":["enter"]}]}
 ```
 
@@ -1715,7 +1771,8 @@ exit statuses and JSON output. What the server relies on:
   and differs from L after that fallback, otherwise `null`. `cannot_type` for a
   character that the table has no sequence for names the table.
 - Bounds: `wheel` up to 100 notches per axis, `keys` chords of up to 9 keys
-  with REPEAT 1 to 100, `sleep` 0 to 3600000 ms, drags of at most 2000 steps,
+  with REPEAT 1 to 100, `sleep` 0 to 3600000 ms, `sync` MIN up to MAX up to
+  3600000 ms, drags of at most 2000 steps,
   numeric buttons from `0x110` (`BTN_MOUSE`). The server validates within
   them.
 - It pings after every frame and waits for the plugin after every action and
@@ -1737,7 +1794,21 @@ exit statuses and JSON output. What the server relies on:
   flight on the old one. Otherwise it stops with `unconfirmed` and delivery
   `partial`. A removed keyboard means the connection is ending, which the
   sender confirms with a round trip before it reports anything.
-- **`--json`** prints one object on stdout when the sender exits:
+- **`sync MIN MAX`** stops the run once the round trip after the action before
+  it has confirmed everything sent: the sender prints `{"sync":N}` on stdout, N
+  the number of actions before the sync, and goes on when a line with N
+  arrives on stdin, at least MIN and at most MAX milliseconds later, at once
+  after MIN when stdin is closed. A line with another number, such as a late
+  answer to an earlier sync, does not count. It handles the plugin's events
+  meanwhile and keeps its devices, so the window keeps its emulated focus as
+  during a `sleep`, and a signal, a pause or the end of the connection stop it
+  as they stop a `sleep`. It takes the place of the 50 ms between the actions
+  around it: the next one starts once the sync has ended and 50 ms after the
+  end of the one before the sync. `--budget` counts its MIN, as the server's
+  estimate does, and not how long the caller takes to answer, which the server
+  keeps short enough for the rest of the batch.
+- **`--json`** prints one object on stdout when the sender exits, as its last
+  line, after the lines of its syncs:
 
 ```json
 {"ok":false,"done":2,"total":3,"failedIndex":2,"delivery":"partial",

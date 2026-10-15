@@ -53,6 +53,12 @@
 // asks for a frame callback and draws its answer, blue, only when that comes, as a
 // browser draws the page that loaded, or a mail client a search's results, on a
 // hidden workspace. It logs "pressed" and "answered".
+// With `menu TITLE MS`, it shows one toplevel that opens a menu on a left click, as a page's dropdown: it draws itself
+// dark gray at once, then draws a lighter gray for every frame callback, so on a hidden workspace only while hyprmasq
+// sends them, and is open, blue, at the first frame callback MS milliseconds after the click. Only then does it take
+// keys: Down highlights the next of three entries, from none, and Enter picks the highlighted one and closes the menu.
+// A left click while the menu opens or is open closes it. It logs "opening", "open", "highlight N", "picked N",
+// "closed", and "ignored down" or "ignored enter" for keys that come while the menu is not open.
 // With `shortcuts TITLE TITLE MS`, it logs like the focus mode for two toplevels that, as Chromium's, take the toplevel
 // with the keyboard focus for the active one, and run a shortcut, a key pressed while Ctrl or Alt is held, only after
 // the page has let it go by: MS milliseconds after the key, in the toplevel that got it, if that is still active. It
@@ -135,6 +141,15 @@ static char *handles[2];
 
 static bool           answer_mode;
 static void           answer_click(void);
+
+// Menu mode: the menu is closed (0), opening (1) or open (2), since when it opens, and its highlighted entry, or 0.
+static bool                              menu_mode;
+static int                               menu_ms, menu_state, menu_highlight;
+static uint64_t                          menu_started;
+static void                              menu_frame(void* data, struct wl_callback* callback, uint32_t time);
+static const struct wl_callback_listener menu_listener = {.done = menu_frame};
+static void                              menu_click(void);
+static void                              menu_key(uint32_t key);
 
 // Shortcuts mode: the modifiers last sent, and the shortcut that waits for its time.
 static bool               shortcut_mode;
@@ -258,6 +273,8 @@ static void draw(struct window *w) {
     wl_surface_damage(w->surface, 0, 0, width, height);
     if (frames_mode) request_frame(w);
     if (w->hungry) wl_callback_add_listener(wl_surface_frame(w->surface), &content_listener, w);
+    if (menu_mode && menu_state == 1)
+        wl_callback_add_listener(wl_surface_frame(w->surface), &menu_listener, w);
     wl_surface_commit(w->surface);
     if (resize_mode && w == &windows[0]) {
         drawn_width = w->width;
@@ -389,6 +406,8 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial, ui
         close_window();
     if (answer_mode && pointer_surface == windows[0].surface && button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED)
         answer_click();
+    if (menu_mode && pointer_surface == windows[0].surface && button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED)
+        menu_click();
     if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && (button == BTN_LEFT || button == BTN_RIGHT || button == BTN_MIDDLE))
         opener_input(pointer_surface, button == BTN_LEFT ? 'n' : button == BTN_RIGHT ? 'd' : 'm');
     if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && button == BTN_RIGHT) close_opened(pointer_surface, false);
@@ -409,6 +428,8 @@ static void keyboard_leave(void *data, struct wl_keyboard *kb, uint32_t serial, 
 static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
     say("key %s %u %u", surface_name(keyboard_surface), key, state);
     if (shortcut_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED) shortcut_key_pressed(key);
+    if (menu_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_DOWN || key == KEY_ENTER))
+        menu_key(key);
     if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_N || key == KEY_D || key == KEY_L || key == KEY_K || key == KEY_F))
         opener_input(keyboard_surface, key == KEY_N ? 'n' : key == KEY_D ? 'd' : key == KEY_L ? 'l' : key == KEY_K ? 'k' : 'f');
     if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && key == KEY_S) close_and_follow(keyboard_surface);
@@ -568,6 +589,54 @@ static void                              answer_click(void) {
     say("pressed");
     struct itimerspec in = {.it_value = {.tv_sec = answer_ms / 1000, .tv_nsec = (long)(answer_ms % 1000) * 1000000}};
     assert(timerfd_settime(answer_timer, 0, &in, NULL) == 0);
+}
+static void menu_draw(uint32_t color) {
+    windows[0].color = color;
+    draw(&windows[0]);
+}
+static void menu_frame(void* data, struct wl_callback* callback, uint32_t time) {
+    wl_callback_destroy(callback);
+    if (menu_state != 1)
+        return;
+    const uint64_t elapsed = now_ms() - menu_started;
+    if (elapsed >= (uint64_t)menu_ms) {
+        menu_state     = 2;
+        menu_highlight = 0;
+        menu_draw(0xff2255cc);
+        say("open");
+        return;
+    }
+    const uint32_t level = 0x33 + (uint32_t)(0x88 * elapsed / menu_ms);
+    menu_draw(0xff000000 | level << 16 | level << 8 | level);
+}
+static void menu_click(void) {
+    if (menu_state) {
+        menu_state = 0;
+        menu_draw(0xff224466);
+        say("closed");
+        return;
+    }
+    menu_state   = 1;
+    menu_started = now_ms();
+    menu_draw(0xff333333);
+    say("opening");
+}
+static void menu_key(uint32_t key) {
+    const char* name = key == KEY_DOWN ? "down" : "enter";
+    if (menu_state != 2 || (key == KEY_ENTER && !menu_highlight)) {
+        say("ignored %s", name);
+        return;
+    }
+    if (key == KEY_DOWN) {
+        if (menu_highlight < 3)
+            ++menu_highlight;
+        menu_draw(0xff2255cc + (uint32_t)menu_highlight * 0x2200);
+        say("highlight %d", menu_highlight);
+        return;
+    }
+    say("picked %d", menu_highlight);
+    menu_state = 0;
+    menu_draw(0xff224466);
 }
 static int run_answer(void) {
     answer_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
@@ -909,6 +978,13 @@ int main(int argc, char **argv) {
         create_toplevel(&windows[0], argv[2]);
         answer_ms = atoi(argv[3]);
         return run_answer();
+    }
+    if (argc == 4 && !strcmp(argv[1], "menu")) {
+        stamped = menu_mode = requested = true; // clicks request nothing
+        menu_ms = atoi(argv[3]);
+        create_toplevel(&windows[0], argv[2]);
+        while (wl_display_dispatch(display) >= 0) {}
+        return 1;
     }
     if (argc == 3 && !strcmp(argv[1], "close")) {
         stamped = close_mode = true;

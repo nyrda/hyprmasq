@@ -213,11 +213,11 @@ var actDescription = fmt.Sprintf(`Act on a window, wait until it has redrawn, an
 Coordinates are pixels of the shot given in "shot" (required for click, move, drag, scroll).
 Actions: click {x,y,button,count,modifiers} · move {x,y} · drag {from,to,button,modifiers} · scroll {x,y,dx,dy,unit:notch|px} · type {text} · key {keys:["ctrl","l"], repeat} · pause {ms}.
 The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box in them. A full shot comes when it serves better, saying why; capture "window" asks for one.
-Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, such as arrows and enter in a menu, may follow. Without the lease capability (see windows), a menu opened in one call is gone by the next: open it and pick the entry by keyboard in one batch.
+Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, such as arrows and enter in a menu, may follow. Without the lease capability, a menu may be gone by the next call or still open: if the shot shows it, click the entry, as clicking its opener closes it; else open it and pick by keyboard in one batch.
 drag, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability.
-type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key action such as shift+enter. At one key per 15 ms, and two or more through Compose for a character without a key, a call types about %d characters, or %d with deadline_ms 30000; split longer text.
-Delivered input reached the application but may not have taken effect: a busy one, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the result.
-Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before looking at a fresh screenshot.
+type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key such as shift+enter. At 15 ms a key, two or more for a character typed through Compose, a call types about %d characters, or %d with deadline_ms 30000; split longer text.
+Delivered input reached the app but may not have taken effect: a busy one, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the result.
+Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before looking at a fresh shot.
 Example: {"window":"0x55d1c0a3e4b0","shot":"s4","actions":[{"action":"click","x":412,"y":88},{"action":"type","text":"hello"},{"action":"key","keys":["enter"]}]}`,
 	typedWithin(defaultDeadline), typedWithin(maxDeadline))
 
@@ -282,7 +282,7 @@ var actionSchema = json.RawMessage(`{
 		"text": {"type": "string", "description": "type: the text, typed as given, with no tags or escapes. A line break presses Enter and a tab presses Tab."},
 		"keys": {"type": "array", "items": {"type": "string"}, "description": "key: pressed together in order and released in reverse, such as [\"ctrl\", \"shift\", \"t\"] or [\"ctrl+l\"], which is split at +. Names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus."},
 		"repeat": {"type": "integer", "minimum": 1, "maximum": 100, "default": 1, "description": "key: presses of the chord."},
-		"ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "pause: milliseconds. Keys and text after a click or drag already wait until 300 ms have passed since it, while the application moves the focus."}
+		"ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "pause: milliseconds. Actions after a click or drag already wait until the window has drawn its answer, and keys and text until 300 ms have passed since it, while the application moves the focus."}
 	},
 	"required": ["action"]
 }`)

@@ -607,7 +607,7 @@ func TestArgumentErrors(t *testing.T) {
 	if res.IsError {
 		t.Fatal(text(res))
 	}
-	if got, want := e.inputs(), [][]string{{"move", "5", "5", "click", "left", "1", "-", "move", "5", "5", "wheel", "0", "2"}}; !reflect.DeepEqual(got, want) {
+	if got, want := e.inputs(), [][]string{{"move", "5", "5", "click", "left", "1", "-", "sync", "0", "1000", "move", "5", "5", "wheel", "0", "2"}}; !reflect.DeepEqual(got, want) {
 		t.Errorf("inputs %q, want %q", got, want)
 	}
 	if res := call("screenshot", `{"window":"0xa1","region":null}`); res.IsError {
@@ -667,24 +667,28 @@ func TestTranslate(t *testing.T) {
 	}
 }
 
-// Keys and text that follow a click or drag sooner than 300 ms get a sleep in front of them, counted from the click's
-// end with the sender's 50 ms between actions, and only once after each click. The sleep belongs to the keys' action.
+// A click or drag that more actions follow gets a sync after it, which belongs to the next action. It lasts until keys
+// and text after the click come 300 ms after its end, counted with the sender's 50 ms between actions, whose first one
+// the sync replaces, and only for the first keys after each click.
 func TestClickSettle(t *testing.T) {
 	const click, typed, key = `{"action":"click","x":1,"y":1}`, `{"action":"type","text":"a b"}`, `{"action":"key","keys":["enter"]}`
 	for _, c := range []struct {
 		batch string
 		want  []string
 	}{
-		{click + "," + typed, []string{"0 move", "0 click", "1 sleep 200", "1 text"}},
-		{click + `,{"action":"pause","ms":100},` + typed, []string{"0 move", "0 click", "1 sleep 100", "2 sleep 50", "2 text"}},
-		{click + `,{"action":"pause","ms":200},` + typed, []string{"0 move", "0 click", "1 sleep 200", "2 text"}},
-		{click + `,{"action":"move","x":2,"y":2},` + key, []string{"0 move", "0 click", "1 move", "2 sleep 150", "2 keys"}},
+		{click + "," + typed, []string{"0 move", "0 click", "1 sync 300 1000", "1 text"}},
+		{click + `,{"action":"pause","ms":100},` + typed, []string{"0 move", "0 click", "1 sync 150 1000", "1 sleep 100", "2 text"}},
+		{click + `,{"action":"pause","ms":200},` + typed, []string{"0 move", "0 click", "1 sync 50 1000", "1 sleep 200", "2 text"}},
+		{click + `,{"action":"pause","ms":300},` + typed, []string{"0 move", "0 click", "1 sync 0 1000", "1 sleep 300", "2 text"}},
+		{click + `,{"action":"move","x":2,"y":2},` + key, []string{"0 move", "0 click", "1 sync 250 1000", "1 move", "2 keys"}},
 		// A scroll is two sender actions, each with its gap.
-		{click + `,{"action":"scroll","x":1,"y":1,"dy":1},{"action":"pause","ms":100},` + key, []string{"0 move", "0 click", "1 move", "1 wheel", "2 sleep 100", "3 keys"}},
-		{click + "," + typed + "," + key, []string{"0 move", "0 click", "1 sleep 200", "1 text", "2 keys"}},
-		{click + "," + click + "," + key, []string{"0 move", "0 click", "1 move", "1 click", "2 sleep 200", "2 keys"}},
-		{`{"action":"drag","from":[1,1],"to":[5,5]},` + key, []string{"0 drag", "1 sleep 200", "1 keys"}},
+		{click + `,{"action":"scroll","x":1,"y":1,"dy":1},{"action":"pause","ms":100},` + key, []string{"0 move", "0 click", "1 sync 50 1000", "1 move", "1 wheel", "2 sleep 100", "3 keys"}},
+		{click + "," + typed + "," + key, []string{"0 move", "0 click", "1 sync 300 1000", "1 text", "2 keys"}},
+		{click + "," + click + "," + key, []string{"0 move", "0 click", "1 sync 0 1000", "1 move", "1 click", "2 sync 300 1000", "2 keys"}},
+		{`{"action":"drag","from":[1,1],"to":[5,5]},` + key, []string{"0 drag", "1 sync 300 1000", "1 keys"}},
+		{`{"action":"click","x":1,"y":1,"count":2},{"action":"scroll","x":1,"y":1,"dy":1}`, []string{"0 move", "0 click", "1 sync 0 1000", "1 move", "1 wheel"}},
 		{`{"action":"scroll","x":1,"y":1,"dy":1},` + key, []string{"0 move", "0 wheel", "1 keys"}},
+		{key + "," + typed, []string{"0 keys", "1 text"}},
 		{typed + "," + click, []string{"0 text", "1 move", "1 click"}},
 	} {
 		var raw []json.RawMessage
@@ -698,8 +702,8 @@ func TestClickSettle(t *testing.T) {
 		var got []string
 		for _, step := range translateBatch(batch, &shot{Scale: 1}) {
 			got = append(got, strconv.Itoa(step.Batch)+" "+step.Argv[0])
-			if step.Argv[0] == "sleep" {
-				got[len(got)-1] += " " + step.Argv[1]
+			if step.Argv[0] == "sleep" || step.Argv[0] == "sync" {
+				got[len(got)-1] += " " + strings.Join(step.Argv[1:], " ")
 			}
 		}
 		if !reflect.DeepEqual(got, c.want) {
@@ -729,6 +733,11 @@ func TestMinSendTime(t *testing.T) {
 		{steps([]string{"keys", "ctrl+l", "3"}), 105},
 		{steps([]string{"text", "aé\r\nc"}), 50},
 		{steps([]string{"sleep", "250"}, []string{"keys", "enter", "1"}), 315},
+		// A sync takes the place of the gap after the action before it, and lasts at least its MIN.
+		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "300", "1000"}, []string{"keys", "enter", "1"}), 365},
+		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "100", "1000"}, []string{"keys", "enter", "1"}), 165},
+		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "20", "1000"}, []string{"keys", "enter", "1"}), 115},
+		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "0", "1000"}, []string{"keys", "enter", "1"}), 115},
 	} {
 		if got := minSendTime(c.steps).Milliseconds(); got != c.ms {
 			t.Errorf("%v: %d ms, want %d", c.steps, got, c.ms)
@@ -868,9 +877,9 @@ func TestBatchRunsInOneSender(t *testing.T) {
 		t.Fatal(text(res))
 	}
 	// One sender checks the whole batch, including whether the keymap can type it, before it sends anything. The text
-	// waits for the click to settle.
+	// waits for the window's answer to the click, and at least until the click has settled.
 	want := [][]string{{
-		"move", "10", "10", "click", "left", "1", "-", "sleep", "200", "text", "hi there", "keys", "enter", "1",
+		"move", "10", "10", "click", "left", "1", "-", "sync", "300", "1000", "text", "hi there", "keys", "enter", "1",
 		"move", "20", "20", "wheel", "0", "2", "sleep", "10", "drag", "0", "0", "50", "50", "left", "-",
 	}}
 	if got := e.inputs(); !reflect.DeepEqual(got, want) {
@@ -2268,7 +2277,7 @@ func TestSenderFailures(t *testing.T) {
 			if !strings.HasPrefix(text(res), "error "+c.code+": ") {
 				t.Errorf("text %q", text(res))
 			}
-			if got := e.fake.requestsMatching("j/hyprmasq wait"); got != nil {
+			if got := afterBatch(t, e.fake.requestsMatching("j/hyprmasq wait")); got != nil {
 				t.Errorf("waited after a failure: %q", got)
 			}
 		})
@@ -2643,6 +2652,7 @@ func TestProtocol(t *testing.T) {
 		"act": {"Drive only windows the user named or you launched", "ask the user before anything irreversible: sending, deleting, buying, submitting",
 			"Never repeat input whose delivery is partial or uncertain, or from a call that timed out", "Batch only targets visible in the shot",
 			"a line break presses Enter and a tab presses Tab", "a call types about 600 characters, or 1400 with deadline_ms 30000",
+			"a menu may be gone by the next call or still open", "as clicking its opener closes it",
 			"drag, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability",
 			`"shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5`, `capture "window" asks for one`},
 		"windows": {"needed for drag, for clicks with modifiers, and for key chords that hold a key other than a modifier"},
@@ -3397,7 +3407,7 @@ func TestWindowClosedBySentInput(t *testing.T) {
 			if !strings.Contains(hint, "maybe because of") || strings.Contains(hint, "Retry") || strings.Contains(hint, "so do not send") != (c.want["done"] != 0.0) {
 				t.Errorf("hint %q", hint)
 			}
-			if got := e.fake.requestsMatching("j/hyprmasq wait"); got != nil {
+			if got := afterBatch(t, e.fake.requestsMatching("j/hyprmasq wait")); got != nil {
 				t.Errorf("waited: %q", got)
 			}
 		})

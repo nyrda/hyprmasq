@@ -21,6 +21,10 @@
 //                                     tags press keys or wait, and \< types a literal <
 //   text TEXT                         type TEXT as it is, without tags or escapes
 //   sleep MS                          wait MS milliseconds
+//   sync MIN MAX                      print {"sync":N}, N the number of actions before it, on standard output once the
+//                                     server has processed them, and wait for a line with N on standard input, at
+//                                     least MIN and at most MAX milliseconds; it takes the place of the gap between the
+//                                     actions around it
 //
 // Exit status 0 means that the server confirmed every event, 1 that the server or a signal stopped the actions, and 2
 // that the actions are invalid or exceed the budget, in which case nothing was sent. When the server closes the
@@ -48,6 +52,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <time.h>
+#include <unistd.h>
 
 #define TIMEOUT_MS     5000
 #define REPLACE_MS     1000
@@ -153,6 +158,7 @@ enum actionType {
     ACTION_TYPE,
     ACTION_TEXT,
     ACTION_SLEEP,
+    ACTION_SYNC,
 };
 
 static const struct {
@@ -171,6 +177,7 @@ static const struct {
     [ACTION_TYPE]   = {"type", "type TEXT"},
     [ACTION_TEXT]   = {"text", "text TEXT"},
     [ACTION_SLEEP]  = {"sleep", "sleep MS, up to 3600000"},
+    [ACTION_SYNC]   = {"sync", "sync MIN MAX, MIN up to MAX up to 3600000"},
 };
 
 #define ACTION_TYPES (sizeof(actionSyntax) / sizeof(actionSyntax[0]))
@@ -186,7 +193,8 @@ struct action {
     enum actionType type;
     double          x, y, x2, y2;
     uint32_t        code;   // the button or the key code
-    long            count;  // clicks, repeats or milliseconds
+    long            count;  // clicks, repeats or milliseconds, the least of sync
+    long            limit;  // the most milliseconds of sync
     long            dx, dy; // wheel notches
     const char*     text;   // the text of type and text, the chord of keys
     const char*     mods;   // the modifiers of click and drag
@@ -1260,7 +1268,7 @@ static int parseAction(int argc, char** argv, struct action* a) {
     *a = (struct action){.type = type, .code = BTN_LEFT, .count = 1, .keysAt = -1};
     // The arguments each action requires, which are all checked below; optional ones are checked as they come.
     static const int required[ACTION_TYPES] = {[ACTION_MOVE] = 2, [ACTION_DOWN] = 1, [ACTION_UP] = 1,   [ACTION_DRAG] = 4, [ACTION_SCROLL] = 2, [ACTION_WHEEL] = 2,
-                                               [ACTION_KEY] = 1,  [ACTION_KEYS] = 1, [ACTION_TYPE] = 1, [ACTION_TEXT] = 1, [ACTION_SLEEP] = 1};
+                                               [ACTION_KEY] = 1,  [ACTION_KEYS] = 1, [ACTION_TYPE] = 1, [ACTION_TEXT] = 1, [ACTION_SLEEP] = 1,  [ACTION_SYNC] = 2};
     unsigned long    code;
     char*            end = NULL;
     int              i   = 1 + required[type];
@@ -1298,6 +1306,7 @@ static int parseAction(int argc, char** argv, struct action* a) {
                 fail("invalid_arguments", "the text is not valid UTF-8");
             break;
         case ACTION_SLEEP: ok = parseCount(argv[1], 0, MAX_SLEEP_MS, &a->count); break;
+        case ACTION_SYNC: ok = parseCount(argv[1], 0, MAX_SLEEP_MS, &a->count) && parseCount(argv[2], a->count, MAX_SLEEP_MS, &a->limit); break;
         default: break;
     }
     if (ok)
@@ -1397,6 +1406,71 @@ static bool wheel(struct state* s, const struct action* a) {
     return true;
 }
 
+// The answers to syncs on standard input: lines with the number that a sync printed.
+static struct {
+    long   last;   // the highest number answered, or -1
+    bool   closed; // standard input ended, so a sync waits for nothing but its MIN
+    char   line[32];
+    size_t length;
+} answers = {.last = -1};
+
+// Reads what standard input has, which poll found ready.
+static void readAnswers(void) {
+    char          buffer[256];
+    const ssize_t n = read(STDIN_FILENO, buffer, sizeof(buffer));
+    if (n < 0 && (errno == EINTR || errno == EAGAIN))
+        return;
+    if (n <= 0) {
+        answers.closed = true;
+        return;
+    }
+    for (ssize_t i = 0; i < n; ++i) {
+        if (buffer[i] != '\n') {
+            if (answers.length + 1 < sizeof(answers.line))
+                answers.line[answers.length++] = buffer[i];
+            continue;
+        }
+        answers.line[answers.length] = '\0';
+        char*      end;
+        const long number = strtol(answers.line, &end, 10);
+        if (end != answers.line && number > answers.last)
+            answers.last = number;
+        answers.length = 0;
+    }
+}
+
+// Tells the caller that the server has processed the actions before, as the round trip after each of them confirmed,
+// and waits for its answer, at least MIN and at most MAX milliseconds, while handling server events. hyprmasq-mcp waits
+// meanwhile for the window to answer a click. An answer to an earlier sync, which came after that one had ended, does
+// not count.
+static bool awaitAnswer(struct state* s, const struct action* a) {
+    const uint64_t start = nowNs(), earliest = start + MS(a->count), latest = start + MS(a->limit);
+    const long     number = s->sent.actions;
+    printf("{\"sync\":%ld}\n", number);
+    fflush(stdout);
+    struct pollfd fds[2] = {{.fd = ei_get_fd(s->ei), .events = POLLIN}, {.fd = STDIN_FILENO, .events = POLLIN}};
+    for (;;) {
+        ei_dispatch(s->ei);
+        for (struct ei_event* event; (event = ei_get_event(s->ei));) {
+            handleEvent(s, event);
+            ei_event_unref(event);
+        }
+        if (interrupted(s))
+            return false;
+        const bool     answered = answers.closed || answers.last >= number;
+        const uint64_t now = nowNs(), until = answered ? earliest : latest;
+        if (now >= until)
+            return true;
+        fds[1].fd               = answered ? -1 : STDIN_FILENO;
+        const uint64_t  left    = until - now;
+        struct timespec timeout = {.tv_sec = left / 1000000000u, .tv_nsec = left % 1000000000u};
+        if (ppoll(fds, 2, &timeout, &waitMask) < 0 && errno != EINTR)
+            return false;
+        if (fds[1].fd >= 0 && fds[1].revents)
+            readAnswers();
+    }
+}
+
 static bool typeSteps(struct state* s, const struct steps* steps) {
     // After the press of the last key, only its releases are left, until a wait after it.
     size_t lastKey = 0;
@@ -1429,7 +1503,15 @@ static long pacedTime(const struct state* s, const struct action* actions, int t
         const struct action* a    = &actions[i];
         const long           mods = a->chord.modCount ? CHORD_MOD_MS : 0;
         long                 keys = 0, notches;
-        ms += i ? pace * ACTION_GAP_MS : 0;
+        // A sync takes the place of the gap after the action before it, and lasts at least MIN.
+        if (a->type == ACTION_SYNC) {
+            ms += a->count;
+            continue;
+        }
+        long gap = i ? pace * ACTION_GAP_MS : 0;
+        if (i && actions[i - 1].type == ACTION_SYNC)
+            gap = gap > actions[i - 1].count ? gap - actions[i - 1].count : 0;
+        ms += gap;
         switch (a->type) {
             case ACTION_CLICK: ms += pace * (mods + a->count * CLICK_HOLD_MS + (a->count - 1) * CLICK_GAP_MS); break;
             // The modifiers go down while the press waits for the motion.
@@ -1475,6 +1557,7 @@ static bool runAction(struct state* s, const struct action* a) {
         case ACTION_TYPE:
         case ACTION_TEXT: return typeSteps(s, &a->steps);
         case ACTION_SLEEP: return waitUntil(s, nowNs() + MS(a->count));
+        case ACTION_SYNC: return awaitAnswer(s, a);
     }
     return false;
 }
@@ -1641,7 +1724,8 @@ int main(int argc, char** argv) {
 
     uint64_t lastEnd = 0;
     for (int i = 0; running && i < total; ++i) {
-        if (i && s.pace && !waitUntil(&s, lastEnd + MS(ACTION_GAP_MS)))
+        // The gap counts from the end of the action before, also across a sync, which takes its place.
+        if (i && s.pace && actions[i].type != ACTION_SYNC && !waitUntil(&s, lastEnd + MS(ACTION_GAP_MS)))
             break;
         actions[i].keysAt = s.sent.keys;
         if (!runAction(&s, &actions[i]))
@@ -1651,7 +1735,8 @@ int main(int argc, char** argv) {
             releaseAll(&s);
         s.sent.actions = i + 1;
         s.releasing    = false;
-        lastEnd        = nowNs();
+        if (actions[i].type != ACTION_SYNC)
+            lastEnd = nowNs();
         if (!roundTrip(&s) || interrupted(&s))
             break;
     }

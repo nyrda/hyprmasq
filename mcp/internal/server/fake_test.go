@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -34,7 +35,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-var inputArity = map[string]int{"move": 2, "click": 3, "drag": 6, "wheel": 2, "scroll": 2, "keys": 2, "text": 1, "sleep": 1}
+var inputArity = map[string]int{"move": 2, "click": 3, "drag": 6, "wheel": 2, "scroll": 2, "keys": 2, "text": 1, "sleep": 1, "sync": 2}
 
 // fakeInput logs its arguments and prints the reply that FAKE_INPUT_MODE asks for:
 //
@@ -48,6 +49,9 @@ var inputArity = map[string]int{"move": 2, "click": 3, "drag": 6, "wheel": 2, "s
 //
 // FAKE_INPUT_COMPOSE=LOCALE:REQUESTED adds that a character was typed through the Compose table of LOCALE when the
 // table of REQUESTED was asked for.
+//
+// Before it replies, it prints {"sync":N} for each sync action that it gets to, the actions before INDEX or DONE and
+// all of them otherwise, and reads the answer, a line on standard input, logging both.
 func fakeInput() int {
 	mode := os.Getenv("FAKE_INPUT_MODE")
 	// Tests signal the sender once it has logged its start, so it handles SIGTERM before that.
@@ -79,6 +83,21 @@ func fakeInput() int {
 	}
 	logLine("start")
 	defer logLine("exit")
+	answers := bufio.NewReader(os.Stdin)
+	syncsBefore := func(end int) {
+		for i := 0; i < end && i < total; i++ {
+			if actions[i] != "sync" {
+				continue
+			}
+			fmt.Printf("{\"sync\":%d}\n", i)
+			logLine(fmt.Sprintf("sync %d", i))
+			answer, err := answers.ReadString('\n')
+			if err != nil {
+				return
+			}
+			logLine("answered " + strings.TrimSpace(answer))
+		}
+	}
 
 	reply := func(v map[string]any) {
 		if compose, requested, ok := strings.Cut(os.Getenv("FAKE_INPUT_COMPOSE"), ":"); ok {
@@ -89,6 +108,7 @@ func fakeInput() int {
 	}
 	switch {
 	case mode == "" || mode == "ok":
+		syncsBefore(total)
 	case mode == "hang" || strings.HasPrefix(mode, "hang:"):
 		done, delay := 1, 0
 		if parts := strings.Split(mode, ":"); len(parts) > 1 {
@@ -97,6 +117,7 @@ func fakeInput() int {
 				delay, _ = strconv.Atoi(parts[2])
 			}
 		}
+		syncsBefore(done)
 		<-signals
 		logLine("sigterm")
 		time.Sleep(time.Duration(delay) * time.Millisecond)
@@ -106,6 +127,7 @@ func fakeInput() int {
 		time.Sleep(time.Minute)
 	case strings.HasPrefix(mode, "sleep:"):
 		ms, _ := strconv.Atoi(strings.TrimPrefix(mode, "sleep:"))
+		syncsBefore(total)
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 	case strings.HasPrefix(mode, "toolong:"):
 		ms, _ := strconv.Atoi(strings.TrimPrefix(mode, "toolong:"))
@@ -116,6 +138,8 @@ func fakeInput() int {
 		parts := strings.Split(mode, ":")
 		index, _ := strconv.Atoi(parts[2])
 		keys, _ := strconv.Atoi(parts[4])
+		// A sync that the sender fails at was announced, as the real one fails at it once the connection ends.
+		syncsBefore(index + 1)
 		v := map[string]any{"ok": false, "done": index, "total": total, "failedIndex": index, "delivery": parts[3],
 			"error": map[string]any{"code": parts[1], "message": "fake " + parts[1]}}
 		if keys > 0 {
