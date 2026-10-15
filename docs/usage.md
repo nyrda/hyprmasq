@@ -311,7 +311,7 @@ hyprctl -j hyprmasq state "$addr"
 {"ok":true,"address":"0x55d1c0a3e4b0","stableId":"1a","xwayland":false,
  "size":{"width":640,"height":400},"resizing":false,"starved":false,"scale":2,
  "socket":"/run/user/1000/hyprmasq/<instance>/0x55d1c0a3e4b0.eis","socketId":"9f3a61c2-3",
- "commits":123,"lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
+ "commits":123,"interrupted":0,"lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
  "capabilities":{"lease":true,"hold":true,"dnd":false,"keyboard":"yes"}}
 ```
 
@@ -338,10 +338,14 @@ hyprctl -j hyprmasq state "$addr"
   window is not starved, also when it waits for a frame callback again. An
   application with nothing new to draw is starved too, and a
   `wait … since` with `expect` ends `no_redraw` for it.
-- `socket`, `socketId` and `commits` are `null` without an open socket.
-  `socketId` names the socket that `commits` counts for; see
+- `socket`, `socketId`, `commits` and `interrupted` are `null` without an open
+  socket. `socketId` names the socket that `commits` counts for; see
   [The commit counter](#the-commit-counter). `lease` is `null` when none is
   held.
+- `interrupted` counts the times your own input to the window's Wayland
+  connection took the keyboard focus back from the window before a shortcut or
+  function key had settled, which may have kept it from taking effect. See
+  [How input is delivered](#how-input-is-delivered).
 - `source` is the window that this one came from, as the plugin found it when
   the window mapped, or `null`; see [New windows](#new-windows).
 - `capabilities` describe what input can do in the window at the moment:
@@ -349,7 +353,7 @@ hyprctl -j hyprmasq state "$addr"
 | Capability | True when |
 | --- | --- |
 | `lease` | The window is a Wayland window that does not share its Wayland connection with the window that has the real keyboard focus. See [Focus lease](#focus-lease). |
-| `hold` | The window shares its Wayland connection with neither the real keyboard focus nor the real pointer focus. Otherwise the plugin hands the connection's focus back to your window after every input frame, which releases held buttons and keys, so drags and held keys do not work, and a click with modifiers gets the modifiers of your keyboard. |
+| `hold` | The window shares its Wayland connection with neither the real keyboard focus nor the real pointer focus. Otherwise the plugin hands the connection's pointer focus back to your window after every input frame, which releases held buttons, so drags do not work, and its keyboard focus once the window's keys are up and a shortcut among them has settled, or at once when your own input to the connection comes, which releases held keys and gives a click with modifiers the modifiers of your keyboard. |
 | `dnd` | The window is the active window. Drags from other driven windows are cancelled. |
 | `keyboard` | `x11-focus` for windows of Hyprland's XWayland or of xwayland-satellite, unless their socket was opened with `force`: their keys depend on which window has the X focus. Otherwise `yes`. |
 
@@ -799,15 +803,28 @@ second, once a second, and handles a failed ping as the disconnect. What such a
 sender held is released 1 to 2 seconds after it exits.
 
 When the target belongs to the same program as the window you are using, for
-example two windows of one `foot --server`, both windows share one Wayland
-connection. The plugin then hands that connection's focus to the target for a
-single input frame and restores it to your window before any real input is
-handled. Held keys, key repeat and drags do not carry across these frames,
-and a click with modifiers arrives with the modifiers of your keyboard instead
-of its own. Only the modifier state of the sender's keys does: each keyboard
-frame enters the target again with it, so `keys ctrl+shift+t` works, while
-`keys a+b` arrives as `a` and then `b`. `state` reports this as a missing
-`hold` capability.
+example two windows of one `foot --server` or of one browser, both windows
+share one Wayland connection. The plugin then hands that connection's pointer
+focus to the target for a single input frame and restores it to your window
+before any real input is handled. The keyboard focus goes back to your window
+with your modifiers after every frame of plain typing too, but stays with the
+target while the sender holds keys, and after a key pressed with Ctrl, Alt or
+Super held, a function key, Escape or a media key until it has settled, a
+quarter of a second later: apps such as Chromium take the window with the
+keyboard focus for the active one, and run a shortcut such as Ctrl+L or
+Alt+Left only once the page has let its key go by, a moment after the key.
+Your own keys, modifiers and clicks to that connection take the keyboard
+focus back first, before Hyprland sends them, so they reach your window, never
+the target. A shortcut or function key of the target that had not settled then
+may do nothing, which `state` counts in `interrupted`. Drags do not carry
+across the frames, and neither do held keys and key repeat once your input has
+taken the keyboard back. Only the modifier state of the sender's keys does:
+each keyboard frame enters the target again with it, so `keys ctrl+shift+t`
+works, while `keys a+b` may arrive as `a` and then `b`, and a click with
+modifiers with the modifiers of your keyboard. `state` reports this as a
+missing `hold` capability. Each time the keyboard focus moves between the two
+windows, the app sees one of them lose focus: a browser fires `blur` and
+`focus` in your page.
 
 Hidden windows normally stop receiving frame callbacks, so many applications
 stop redrawing. The plugin sends a hidden target frame callbacks every 16 ms
@@ -1079,7 +1096,9 @@ loss close once the sender exits. Open them and pick the entry in one run.
 - Reconnect senders after changing the keyboard layout or keymap.
 - Held keys, key repeat, drags and clicks with modifiers are unreliable when
   the target shares a Wayland connection with the focused window or with the
-  window under the real pointer.
+  window under the real pointer. Shortcuts there may do nothing when you type
+  or click in the same app while they settle, or when the app takes longer
+  than a quarter of a second to run them.
 - Screenshot paths cannot contain whitespace.
 - Applications that ignore frame callbacks while hidden, or redraw slowly, may
   show stale content in screenshots. A wait cannot tell a redraw that has not

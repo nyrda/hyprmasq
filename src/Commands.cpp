@@ -260,21 +260,23 @@ namespace hyprmasq {
             const auto             scale    = monitor ? std::optional<double>{monitor->m_scale} : std::nullopt;
             const auto             commits  = socket ? std::optional{socket->content->commits} : std::nullopt;
             const auto             lease    = socket ? socket->lease : std::nullopt;
+            const auto             cut      = socket ? std::optional{socket->interrupted} : std::nullopt;
             const std::string_view keyboard = caps.x11Focus ? "x11-focus" : "yes";
             const bool             behind   = resizing(window);
             const bool             hungry   = starved(window);
             const auto             source   = placement::source(window);
             if (format == FORMAT_JSON)
-                return std::format(R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"scale":{},)"
-                                   R"("socket":{},"socketId":{},"commits":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"keyboard":"{}"}},"source":{}}})",
-                                   jsonString(windowAddress(window)), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
-                                   socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits),
-                                   lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, keyboard, sourceJson(source));
+                return std::format(
+                    R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"scale":{},)"
+                    R"("socket":{},"socketId":{},"commits":{},"interrupted":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"keyboard":"{}"}},"source":{}}})",
+                    jsonString(windowAddress(window)), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
+                    socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut),
+                    lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, keyboard, sourceJson(source));
             return std::format("address: {}\nstableId: {:x}\nxwayland: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
-                               "lease: {}\ncapabilities: lease={} hold={} dnd={} keyboard={}\nsource: {}\n",
+                               "interrupted: {}\nlease: {}\ncapabilities: lease={} hold={} dnd={} keyboard={}\nsource: {}\n",
                                windowAddress(window), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
-                               socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none", lease ? leaseText(*lease) : "none",
-                               caps.lease, caps.hold, caps.dnd, keyboard, sourceText(source));
+                               socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none", cut ? std::to_string(*cut) : "none",
+                               lease ? leaseText(*lease) : "none", caps.lease, caps.hold, caps.dnd, keyboard, sourceText(source));
         }
 
         constexpr int MAX_LEASE_MS = 600000;

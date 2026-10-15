@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -150,8 +151,10 @@ func validateBatch(batch []action, sh *shot, caps hypr.Capabilities, address str
 }
 
 // checkCapabilities checks the batch against what the window can do now. Without hold, the plugin gives the user's
-// focus back after every input frame, which releases a drag's button, gives a click the user's modifiers, and releases
-// the keys that a chord holds, except for modifiers, whose state the plugin sends again with every frame.
+// pointer focus back after every input frame, which releases a drag's button, and the keyboard focus once the keys are
+// up and a shortcut among them has settled, or at once when the user's own input to the app comes, which gives a click
+// the user's modifiers and releases the keys that a chord holds, except for modifiers, whose state the plugin sends
+// again with every frame.
 func checkCapabilities(batch []action, caps hypr.Capabilities, address string) error {
 	if caps.Hold {
 		return nil
@@ -610,9 +613,21 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	if reports && r.captureMode != "none" {
 		s.settle(newWindowKeys(out.NewWindows, late, false)...)
 	}
+	if applied && !closed && !cancelled {
+		out.Actions.Interrupted = s.interrupted(capCtx, r, st)
+	}
 
 	out.Summary = summaryLine(out, r.batch)
 	wait, unchanged := waitHint(out.Wait, r.batch, r.shotID, out.Actions, out.Shot), noChangeHint(out, r.batch)
+	// The user's input tells why a shortcut may have done nothing, which the hints about a missing redraw or change
+	// would only guess at.
+	interrupted := ""
+	if out.Actions != nil && out.Actions.Interrupted {
+		interrupted, unchanged = hintInterrupted, ""
+		if out.Wait != nil && out.Wait.Ended == "no_redraw" {
+			wait = ""
+		}
+	}
 	// That the window did not change says nothing about the input when it opened a window.
 	if opened := openedHint(out.NewWindows); opened != "" {
 		if out.Wait != nil && out.Wait.Ended == "no_redraw" {
@@ -628,7 +643,7 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		}
 		wait = joinHints(wait, closedHint(out.Source))
 	}
-	out.Hint = joinHints(wait, unchanged, out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows),
+	out.Hint = joinHints(interrupted, wait, unchanged, out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows),
 		lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
 	if out.Actions != nil {
 		out.Hint = joinHints(out.Hint, out.Actions.composeNote)
@@ -637,6 +652,18 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		out.Hint = joinHints(out.Hint, "The input was applied, but the screenshot failed. Take a screenshot before repeating anything.")
 	}
 	return newResult(out, out.resultText, images, "")
+}
+
+// interrupted tells whether the user's own input to the window's app took the keyboard back from the window before a
+// shortcut of the batch had settled, from the plugin's counter before the input, in st, and now. A window without hold
+// shares its app's connection with the user's focused window, and keeps the keyboard focus after a shortcut only until
+// it has settled, a quarter of a second, which the wait and the capture have taken by now.
+func (s *Server) interrupted(ctx context.Context, r *actRequest, st hypr.State) bool {
+	if st.Capabilities.Hold || st.Interrupted == nil || !slices.ContainsFunc(r.batch, func(a action) bool { return a.Kind == "key" }) {
+		return false
+	}
+	cur, err := s.hypr.State(ctx, r.window)
+	return err == nil && cur.StableID == st.StableID && deref(cur.SocketID) == deref(st.SocketID) && cur.Interrupted != nil && *cur.Interrupted > *st.Interrupted
 }
 
 // closedSource describes the window that the target came from, as the plugin found it when the target mapped, once the

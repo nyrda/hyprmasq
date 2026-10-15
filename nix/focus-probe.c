@@ -53,6 +53,11 @@
 // asks for a frame callback and draws its answer, blue, only when that comes, as a
 // browser draws the page that loaded, or a mail client a search's results, on a
 // hidden workspace. It logs "pressed" and "answered".
+// With `shortcuts TITLE TITLE MS`, it logs like the focus mode for two toplevels that, as Chromium's, take the toplevel
+// with the keyboard focus for the active one, and run a shortcut, a key pressed while Ctrl or Alt is held, only after
+// the page has let it go by: MS milliseconds after the key, in the toplevel that got it, if that is still active. It
+// then logs "shortcut TITLE MODS KEY" and redraws that toplevel in another color, and otherwise logs "shortcut TITLE
+// MODS KEY inactive" and does nothing.
 #define _GNU_SOURCE
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
@@ -130,6 +135,13 @@ static char *handles[2];
 
 static bool           answer_mode;
 static void           answer_click(void);
+
+// Shortcuts mode: the modifiers last sent, and the shortcut that waits for its time.
+static bool               shortcut_mode;
+static int                shortcut_timer = -1, shortcut_ms;
+static uint32_t           mods_depressed, shortcut_mods, shortcut_key;
+static struct wl_surface *shortcut_surface;
+static void               shortcut_key_pressed(uint32_t key);
 
 static const char *surface_name(struct wl_surface *s) {
     for (size_t i = 0; i < 3; ++i)
@@ -396,6 +408,7 @@ static void keyboard_leave(void *data, struct wl_keyboard *kb, uint32_t serial, 
 }
 static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
     say("key %s %u %u", surface_name(keyboard_surface), key, state);
+    if (shortcut_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED) shortcut_key_pressed(key);
     if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_N || key == KEY_D || key == KEY_L || key == KEY_K || key == KEY_F))
         opener_input(keyboard_surface, key == KEY_N ? 'n' : key == KEY_D ? 'd' : key == KEY_L ? 'l' : key == KEY_K ? 'k' : 'f');
     if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && key == KEY_S) close_and_follow(keyboard_surface);
@@ -404,6 +417,7 @@ static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial, ui
         close_window();
 }
 static void keyboard_modifiers(void *data, struct wl_keyboard *kb, uint32_t serial, uint32_t dep, uint32_t lat, uint32_t locked, uint32_t group) {
+    mods_depressed = dep;
     say("modifiers %s %u", surface_name(keyboard_surface), dep);
 }
 static const struct wl_keyboard_listener keyboard_listener = {
@@ -578,6 +592,53 @@ static int run_answer(void) {
             assert(read(answer_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
             wl_callback_add_listener(wl_surface_frame(windows[0].surface), &answer_listener, &windows[0]);
             wl_surface_commit(windows[0].surface);
+        }
+    }
+}
+// Ctrl is mask 4 and Alt mask 8 in the default keymap. The modifier keys themselves start no shortcut.
+static void shortcut_key_pressed(uint32_t key) {
+    const uint32_t mods = mods_depressed & (4 | 8);
+    if (!mods || !keyboard_surface || key == KEY_LEFTCTRL || key == KEY_RIGHTCTRL || key == KEY_LEFTALT || key == KEY_RIGHTALT ||
+        key == KEY_LEFTSHIFT || key == KEY_RIGHTSHIFT || key == KEY_LEFTMETA || key == KEY_RIGHTMETA)
+        return;
+    shortcut_surface = keyboard_surface;
+    shortcut_mods = mods;
+    shortcut_key = key;
+    struct itimerspec at = {.it_value = {.tv_sec = shortcut_ms / 1000, .tv_nsec = (long)(shortcut_ms % 1000) * 1000000 + 1}};
+    assert(timerfd_settime(shortcut_timer, 0, &at, NULL) == 0);
+}
+static void run_shortcut(void) {
+    struct window *w = NULL;
+    for (size_t i = 0; i < 2; ++i)
+        if (windows[i].surface == shortcut_surface) w = &windows[i];
+    if (!w) return;
+    const bool active = keyboard_surface == shortcut_surface;
+    say("shortcut %s %u %u%s", w->name, shortcut_mods, shortcut_key, active ? "" : " inactive");
+    if (active) {
+        w->color = w->color == 0xffaa22aa ? 0xff2244aa : 0xffaa22aa;
+        draw(w);
+    }
+    shortcut_surface = NULL;
+}
+static int run_shortcuts(void) {
+    shortcut_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    assert(shortcut_timer >= 0);
+    struct pollfd fds[2] = {{.fd = wl_display_get_fd(display), .events = POLLIN}, {.fd = shortcut_timer, .events = POLLIN}};
+    for (;;) {
+        while (wl_display_prepare_read(display) != 0) wl_display_dispatch_pending(display);
+        if (wl_display_flush(display) < 0 || poll(fds, 2, -1) < 0) {
+            wl_display_cancel_read(display);
+            return 1;
+        }
+        if (fds[0].revents & POLLIN) {
+            if (wl_display_read_events(display) < 0) return 1;
+        } else
+            wl_display_cancel_read(display);
+        if (wl_display_dispatch_pending(display) < 0) return 1;
+        if (fds[1].revents & POLLIN) {
+            uint64_t expirations;
+            assert(read(shortcut_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
+            run_shortcut();
         }
     }
 }
@@ -876,6 +937,14 @@ int main(int argc, char **argv) {
         zxdg_imported_v2_set_parent_of(zxdg_importer_v2_import_toplevel(importer, argv[2]), opened[0].surface);
         while (wl_display_dispatch(display) >= 0) {}
         return 1;
+    }
+    if (argc == 5 && !strcmp(argv[1], "shortcuts")) {
+        stamped = shortcut_mode = true;
+        requested = true; // clicks request nothing
+        shortcut_ms = atoi(argv[4]);
+        create_toplevel(&windows[0], argv[2]);
+        create_toplevel(&windows[1], argv[3]);
+        return run_shortcuts();
     }
     if ((argc == 3 || argc == 4) && !strcmp(argv[1], "focus")) {
         stamped = true;

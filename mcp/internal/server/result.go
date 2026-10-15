@@ -42,6 +42,7 @@ const (
 	hintOutsideRegions = "Pointer input reaches the window and the area right of and below it up to the edges of its monitor; the window may have moved since the shot."
 	hintClosedBySent   = "The window closed while the input was sent, maybe because of it, for example through a quit shortcut or a close button. Call windows to see what is open now."
 	hintNothingSent    = "Nothing was sent."
+	hintInterrupted    = "The user typed or clicked in another window of this app before a shortcut or function key of the batch had taken effect, which takes the keyboard back from this window, so the shortcut may have done nothing. Check the shot, and send the key action again if it did not take effect."
 
 	// The plugin sends the modifier state again with every frame, but no other held key.
 	hintChordHoldMissing = "This window has the user's keyboard or pointer focus, or shares its Wayland connection with the window that has it, so of the keys of a chord only modifiers such as ctrl, alt, shift and super stay pressed between input frames, and the others would arrive one after another. Hold only modifiers, or press the keys in separate key actions."
@@ -263,6 +264,9 @@ type actionsOut struct {
 	Delivery    string       `json:"delivery"`
 	FailedIndex *int         `json:"failed_index,omitempty"`
 	Progress    *progressOut `json:"progress,omitempty"`
+	// Present only when true: the user's own input to the window's app took the keyboard focus back from the window
+	// before a shortcut or function key of the batch had settled, so it may not have taken effect.
+	Interrupted bool `json:"interrupted,omitempty"`
 	// Why characters typed through Compose may have arrived as others, for the hint.
 	composeNote string
 }
@@ -457,6 +461,9 @@ func actionsText(a *actionsOut, batch []action) string {
 		if failed != "" {
 			text += " from " + failed + " on"
 		}
+	}
+	if a.Interrupted {
+		text += ", interrupted by the user's input"
 	}
 	return text
 }

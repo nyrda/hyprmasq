@@ -49,7 +49,14 @@ namespace hyprmasq {
         void*                                           originalUpdateDecos   = nullptr;
         void*                                           originalKeyboardFocus = nullptr;
         void*                                           originalPointerFocus  = nullptr;
+        void*                                           originalKeyboardKey   = nullptr;
+        void*                                           originalKeyboardMods  = nullptr;
+        void*                                           originalPointerButton = nullptr;
         CHyprSignalListener                             monitorLayout;
+
+        // How long a window of the connection with the real keyboard focus keeps the emulated focus after a command key,
+        // see Session::keepKeyboard. Chromium answers a shortcut 10 to 90 ms after the key on a hidden workspace.
+        constexpr auto KEYS_SETTLE = std::chrono::milliseconds(250);
 
         // Socket ids: random for each load of the plugin, then counting.
         uint64_t socketNonce = 0, socketCount = 0;
@@ -141,6 +148,16 @@ namespace hyprmasq {
             return found;
         }
 
+        // Keys whose effect an app may apply only after a round trip, as Chromium runs a shortcut once the page has let its
+        // key go by: keys pressed with Ctrl, Alt or Super held, function keys, Escape and media keys. The state is the
+        // one before the key.
+        bool commandKey(xkb_state* state, uint32_t code) {
+            if (xkb_state_mod_names_are_active(state, XKB_STATE_MODS_EFFECTIVE, XKB_STATE_MATCH_ANY, XKB_MOD_NAME_CTRL, XKB_MOD_NAME_ALT, XKB_MOD_NAME_LOGO, nullptr) > 0)
+                return true;
+            const auto sym = xkb_state_key_get_one_sym(state, code + 8);
+            return (sym >= XKB_KEY_F1 && sym <= XKB_KEY_F35) || sym == XKB_KEY_Escape || (sym >= 0x1008FF00 && sym <= 0x1008FFFF);
+        }
+
         // Input events, which a frame then delivers, and frames.
         bool carriesInput(eis_event* e) {
             switch (eis_event_get_type(e)) {
@@ -186,10 +203,18 @@ namespace hyprmasq {
             std::optional<SLease>                lease;
             // Set while Hyprland changes the real focus and a lease keeps this window's emulated focus, see CKeptFocus.
             bool keepingKeyboard = false, keepingPointer = false;
+            // While the window keeps the emulated keyboard focus on the connection of the real focus, see keepKeyboard:
+            // that connection's seat, and when it gives it back without further keys.
+            bool                keyboardKept = false;
+            WP<CWLSeatResource> keptSeat;
+            Time::steady_tp     keysSettled;
+            Time::steady_tp     lastCommand;     // the last press of a commandKey
+            uint64_t            interrupted = 0; // times the user's own input took the keyboard back before that one settled
 
             Session(const PHLWINDOW& w, std::string p, bool f) : window(w), path(std::move(p)), content(std::make_shared<wait::CContentWatch>(w)), force(f) {}
             ~Session() {
                 lease.reset(); // the emulated focus ends with the socket
+                returnKeyboard(false);
                 clearClient();
                 releaseX();
                 if (fdSource)
@@ -271,6 +296,11 @@ namespace hyprmasq {
                     x11::release(w);
             }
             void leaveKeyboard() {
+                // The connection's keyboard focus goes back to the user's window, not nowhere.
+                if (keyboardKept) {
+                    returnKeyboard(false);
+                    return;
+                }
                 auto s = wlSeat();
                 if (s && enteredKeyboard)
                     for (auto& k : s->m_keyboards)
@@ -297,9 +327,10 @@ namespace hyprmasq {
                 leavePointer();
             }
             // Lets go of the keys the sender holds. Without a lease the keyboard leaves the window, which releases them
-            // for the application. With one the focus stays, so each key goes up.
+            // for the application. With one, or while the window keeps the focus for a shortcut to settle, the focus
+            // stays, so each key goes up.
             void releaseKeyboard() {
-                if (!leased())
+                if (!leased() && !keyboardKept)
                     leaveKeyboard();
                 auto       s   = enteredKeyboard ? wlSeat() : nullptr;
                 const auto now = Time::millis(Time::steadyNow());
@@ -520,6 +551,32 @@ namespace hyprmasq {
                 enteredKeyboard = target;
                 mods(s);
             }
+            // Apps such as Chromium take the window with the keyboard focus for the active one, and run a shortcut only
+            // once the page has let its key go by, after the focus would have gone back to the user's window. A window of
+            // the connection with the real focus keeps the emulated focus while its sender holds keys and until a command
+            // key has settled; after typing, it goes back with every frame. The user's own input to the connection takes
+            // it back first, see returnKeyboard, so that it reaches the user's window.
+            void keepKeyboard(const SP<CWLSeatResource>& s) {
+                keyboardKept = true;
+                keptSeat     = s;
+                keysSettled  = Time::steadyNow() + KEYS_SETTLE;
+            }
+            // Gives the connection's keyboard focus back to the surface of the real focus, also when the window's surface
+            // is gone. byUser: the user's own input to the connection is about to be sent, which interrupts a command key
+            // that has not settled.
+            void returnKeyboard(bool byUser) {
+                if (!std::exchange(keyboardKept, false))
+                    return;
+                const auto s    = keptSeat.lock();
+                const auto real = g_pSeatManager->m_state.keyboardFocus.lock();
+                keptSeat.reset();
+                if (byUser && Time::steadyNow() < lastCommand + KEYS_SETTLE)
+                    ++interrupted;
+                if (s && real && real->client() == s->client())
+                    restoreKeyboard(s, real);
+                else
+                    enteredKeyboard.reset();
+            }
             void restoreKeyboard(const SP<CWLSeatResource>& s, const SP<CWLSurfaceResource>& real) {
                 auto     pressed = g_pInputManager->getKeysFromAllKBs();
                 wl_array arr;
@@ -624,6 +681,8 @@ namespace hyprmasq {
                         bool     down = eis_event_keyboard_get_key_is_press(e);
                         if (down ? !keys.insert(code).second : !keys.erase(code))
                             continue;
+                        if (down && commandKey(state, code))
+                            lastCommand = Time::steadyNow();
                         for (auto& k : s->m_keyboards)
                             if (k)
                                 k->sendKey(now, code, down ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
@@ -723,9 +782,13 @@ namespace hyprmasq {
                     // Queued frames go to the target first, and the focus goes back once they run out.
                     if (isKeyboard && satellite)
                         restoreDue = true;
-                    else if (isKeyboard)
+                    else if (isKeyboard && !w->m_isX11 && real != w->resource() && (!keys.empty() || Time::steadyNow() < lastCommand + KEYS_SETTLE))
+                        keepKeyboard(s);
+                    else if (isKeyboard) {
+                        keyboardKept = false;
+                        keptSeat.reset();
                         restoreKeyboard(s, real);
-                    else {
+                    } else {
                         auto       surf    = Desktop::View::CWLSurface::fromResource(real);
                         auto       box     = surf ? surf->getSurfaceBoxGlobal() : std::nullopt;
                         auto       realWin = surf ? Desktop::View::CWindow::fromView(surf->view()) : nullptr;
@@ -760,7 +823,10 @@ namespace hyprmasq {
                     return 0;
                 maybeResume();
                 resumeHeld();
-                const auto now  = Time::steadyNow();
+                const auto now = Time::steadyNow();
+                // While the sender holds keys, only the user's input or the sender's going away ends it.
+                if (keyboardKept && keys.empty() && now >= keysSettled)
+                    returnKeyboard(false);
                 const auto held = leaseState();
                 if (!held)
                     lease.reset();
@@ -1076,6 +1142,34 @@ namespace hyprmasq {
             reinterpret_cast<Fn>(originalPointerFocus)(self, surface, local);
         }
 
+        // The user's own keys, modifiers and buttons take the keyboard focus of their connection back from a window that
+        // keeps it while its keys settle, before Hyprland sends them, so that they reach the user's window.
+        void returnKeyboards(const WP<CWLSeatResource>& to) {
+            const auto seat = to.lock();
+            if (!seat)
+                return;
+            for (auto& [_, session] : sessions) {
+                const auto kept = session->keptSeat.lock();
+                if (session->keyboardKept && kept && kept->client() == seat->client())
+                    session->returnKeyboard(true);
+            }
+        }
+        void sendKeyboardKey(CSeatManager* self, uint32_t timeMs, uint32_t key, wl_keyboard_key_state state) {
+            returnKeyboards(self->m_state.keyboardFocusResource);
+            using Fn = void (*)(CSeatManager*, uint32_t, uint32_t, wl_keyboard_key_state);
+            reinterpret_cast<Fn>(originalKeyboardKey)(self, timeMs, key, state);
+        }
+        void sendKeyboardMods(CSeatManager* self, uint32_t depressed, uint32_t latched, uint32_t locked, uint32_t group) {
+            returnKeyboards(self->m_state.keyboardFocusResource);
+            using Fn = void (*)(CSeatManager*, uint32_t, uint32_t, uint32_t, uint32_t);
+            reinterpret_cast<Fn>(originalKeyboardMods)(self, depressed, latched, locked, group);
+        }
+        void sendPointerButton(CSeatManager* self, uint32_t timeMs, uint32_t button, wl_pointer_button_state state) {
+            returnKeyboards(self->m_state.pointerFocusResource);
+            using Fn = void (*)(CSeatManager*, uint32_t, uint32_t, wl_pointer_button_state);
+            reinterpret_cast<Fn>(originalPointerButton)(self, timeMs, button, state);
+        }
+
         // Refuse symlinks and pre-existing directories accessible to another user.
         int privateDir(int parent, const char* name) {
             if (mkdirat(parent, name, 0700) < 0 && errno != EEXIST)
@@ -1109,6 +1203,9 @@ namespace hyprmasq {
         originalUpdateDecos   = hook(handle, "Desktop::View::CWindow::updateWindowDecos", reinterpret_cast<void*>(&updateDecos));
         originalKeyboardFocus = hook(handle, "CSeatManager::setKeyboardFocus", reinterpret_cast<void*>(&setKeyboardFocus));
         originalPointerFocus  = hook(handle, "CSeatManager::setPointerFocus", reinterpret_cast<void*>(&setPointerFocus));
+        originalKeyboardKey   = hook(handle, "CSeatManager::sendKeyboardKey", reinterpret_cast<void*>(&sendKeyboardKey));
+        originalKeyboardMods  = hook(handle, "CSeatManager::sendKeyboardMods", reinterpret_cast<void*>(&sendKeyboardMods));
+        originalPointerButton = hook(handle, "CSeatManager::sendPointerButton", reinterpret_cast<void*>(&sendPointerButton));
         monitorLayout         = Event::bus()->m_events.monitor.layoutChanged.listen([] {
             for (auto& [_, session] : sessions)
                 session->checkRegionsLater();
@@ -1167,8 +1264,12 @@ namespace hyprmasq {
         s->resize  = w->m_events.resize.listen([s] { s->checkRegionsLater(); });
         // Hyprland sends every keyboard and pointer a leave on a change of the real focus, unless a lease kept it.
         s->keyboardFocus = g_pSeatManager->m_events.keyboardFocusChange.listen([s] {
-            if (!s->keepingKeyboard)
+            // Hyprland sent the connection's keyboards a leave, and the new focus an enter.
+            if (!s->keepingKeyboard) {
                 s->enteredKeyboard.reset();
+                s->keyboardKept = false;
+                s->keptSeat.reset();
+            }
             // The user's keys now go to the window's connection.
             if (s->lease && s->sharesKeyboardFocus())
                 s->endLease();
@@ -1195,7 +1296,8 @@ namespace hyprmasq {
                             .lastInput        = session->lastInput,
                             .framesSinceInput = sc<int>(session->content->commits - session->commitsAtInput),
                             .content          = session->content,
-                            .lease            = session->leaseState()};
+                            .lease            = session->leaseState(),
+                            .interrupted      = session->interrupted};
     }
     bool starved(const PHLWINDOW& window) {
         if (g_pHyprRenderer->shouldRenderWindow(window))
@@ -1208,8 +1310,9 @@ namespace hyprmasq {
     }
     SCapabilities capabilities(const PHLWINDOW& window) {
         auto* session = sessionOf(window);
-        // Input to a window on the connection of the real focus hands the focus back after every frame, which releases
-        // whatever it held. For buttons, that is the connection of the real pointer focus.
+        // Input to a window on the connection of the real focus hands the pointer focus back after every frame, which
+        // releases the buttons it held, and the keyboard focus once its keys are up and settled or the user's input comes,
+        // which releases its keys. For buttons, that is the connection of the real pointer focus.
         const bool keyboardShared = sharesConnection(window, g_pSeatManager->m_state.keyboardFocus);
         const bool pointerShared  = sharesConnection(window, g_pSeatManager->m_state.pointerFocus);
         const bool isX11          = x11Window(window, session);

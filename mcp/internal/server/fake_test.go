@@ -206,6 +206,8 @@ type fakeWindow struct {
 	Paint func(x, y float64) uint8
 	// Where the plugin found the window to come from, which state reports.
 	Source *hypr.Source
+	// The plugin's count of the user's input that took the keyboard back before a shortcut had settled.
+	Interrupted int64
 }
 
 // fakeHyprland serves Hyprland's request socket with the plugin commands of the contract.
@@ -435,6 +437,7 @@ func (f *fakeHyprland) state(w *fakeWindow) map[string]any {
 		st["socket"] = "/fake/" + w.Address + ".eis"
 		st["socketId"] = w.socketID()
 		st["commits"] = w.Commits
+		st["interrupted"] = w.Interrupted
 	}
 	if w.Lease != nil {
 		st["lease"] = w.Lease

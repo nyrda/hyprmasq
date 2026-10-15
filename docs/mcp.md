@@ -774,6 +774,39 @@ Windows without the `lease` capability lose the focus when the batch ends. The
 since a menu opened in one call is gone by the next. It never suggests
 clicking where a menu item probably is.
 
+## Shortcuts beside the user's window
+
+A browser with the user's window on their workspace and the agent's on a
+hidden one is one process with one Wayland connection, and the user's window
+has the real keyboard focus. Keys reach the agent's window only while the
+plugin gives it the connection's keyboard focus, and Chromium takes the window
+with the keyboard focus for the active one. It runs a shortcut that a page may
+use itself, such as Ctrl+L, Alt+Left or F6, only once the page has let the key
+go by, 10 to 90 ms after the key on a hidden workspace, and does nothing with
+it in a window that is no longer active by then. So the plugin keeps the
+keyboard focus on the agent's window while the sender holds keys, and after a
+key pressed with Ctrl, Alt or Super held, a function key, Escape or a media
+key for a quarter of a second, and then gives it back to the user's window
+with the user's modifiers. After plain typing, it gives it back with every
+frame, as before. Typing after the shortcut, such as the address after Ctrl+L,
+reaches what the shortcut focused.
+
+The user's own key, modifier or button to the connection takes the keyboard
+focus back first, before Hyprland sends it: it reaches the user's window,
+never the agent's. A shortcut that has not run by then may do nothing, and the
+URL typed after it go into the page. The plugin counts such an interruption
+within a quarter of a second of a key pressed with Ctrl, Alt or Super held, a
+function key, Escape or a media key, in `state`'s `interrupted`. An `act` with
+a `key` action on a window without `hold` reads the counter before the input
+and once more after the wait and the capture; when it rose, the result has
+`actions.interrupted`, the summary says `, interrupted by the user's input`,
+and the hint tells to check the shot and send the key again if it did not take
+effect. Typing alone needs no round trip in the app and is not counted.
+
+Each move of the keyboard focus between the two windows makes the browser
+deactivate one of them: the user's page gets `blur` and `focus` around each
+key that the agent types, and around a shortcut while it settles.
+
 ## Results
 
 A result has three parts:
@@ -808,7 +841,7 @@ A result has three parts:
 
    | Part | Forms |
    | --- | --- |
-   | Actions, if any | `N/M delivered`, with `, nothing sent`, `, delivery partial: actions[i] (type) may be partly applied (K keys sent)` or `, delivery uncertain from actions[i] (click) on` |
+   | Actions, if any | `N/M delivered`, with `, nothing sent`, `, delivery partial: actions[i] (type) may be partly applied (K keys sent)` or `, delivery uncertain from actions[i] (click) on`, and with `, interrupted by the user's input` when the user's input took the keyboard back before a shortcut had settled (see [Shortcuts beside the user's window](#shortcuts-beside-the-users-window)) |
    | Wait | `redraw observed · quiet N ms · N ms`, `no redraw · quiet N ms · N ms`, either with `quiet N ms except animation at X,Y W×H` or `except animations at …, …`, and after the first with ` · drew again, settled N ms later` when the window drew again during the [watch](#phases), `no redraw within N ms`, `timeout after N ms, still resizing`, `timeout after N ms, still drawing`, `timeout after N ms, no redraw`, `no time left to wait`, `window closed`, `cancelled` |
    | Window closed | `window closed` after the wait's part, when the window closed after its wait had ended |
    | Capture | `shot sN W×H`, `shot sN W×H (full shot: REASON)`, `shot sN W×H (stale: not yet redrawn at its new size)`, `shot sN W×H (may be stale: not redrawn within N ms)` or `(may be stale: no time to redraw)`, several of them as `(full shot: REASON; stale: …)`, `shot sN = sM + K changes` followed by the lines `zoom sZ W×H of sN at X,Y W×H`, `K tiny changes left out` and `K changes in animations left out`, `shot sN = sM, no change`, `shot sN = sM, no change outside animations`, or `capture failed: MESSAGE` |
@@ -850,7 +883,7 @@ reason.
 `shot.may_be_stale` and `wait.resizing` unless they are true. `wait.resizing` is true when the wait
 timed out while the window had not caught up with a resize. `actions` also
 has `failed_index` and `progress` (`{"keys": N}` for a `type` or `key`
-action) when an action failed.
+action) when an action failed, and `interrupted` when it is true.
 `wait.commits` counts the commits since the baseline, and `wait.quiet_ms` how
 long the window had been quiet when the wait ended. `wait.again` is there only
 when the window drew again during the [watch](#phases) after it settled. An error adds `error`
@@ -1255,10 +1288,12 @@ and plain-text errors still start with `error:`.
 ```
 
 `interface` increases with every incompatible change to these commands. New
-fields in replies are compatible: `socketId`, `resizing`, `starved` and the
-`stableId` of `source` came without a new interface. The server reads replies without `socketId` as from a
-plugin that names no sockets, without `resizing` as of a window that has caught
-up, and without `starved` as of a window that is not starved, and a `source` without
+fields in replies are compatible: `socketId`, `resizing`, `starved`,
+`interrupted` and the `stableId` of `source` came without a new interface. The
+server reads replies without `socketId` as from a plugin that names no sockets,
+without `resizing` as of a window that has caught up, without `starved` as of a
+window that is not starved, without `interrupted` as from a plugin that counts
+no interruptions, and a `source` without
 `stableId` as one that is gone: it cannot tell such a source from a later window
 at its address, so with that plugin it reports no
 [late windows](#late-windows) and no window to go back to.
@@ -1270,7 +1305,7 @@ The server refuses to run against another interface (`plugin_version`).
 {"ok":true,"address":"0x55d1c0a3e4b0","stableId":"1a","xwayland":false,
  "size":{"width":640,"height":400},"resizing":false,"starved":false,"scale":2,
  "socket":"/run/user/1000/hyprmasq/<instance>/0x55d1c0a3e4b0.eis","socketId":"9f3a61c2-3",
- "commits":123,"lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
+ "commits":123,"interrupted":0,"lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
  "capabilities":{"lease":true,"hold":true,"dnd":false,"keyboard":"yes"}}
 ```
 
@@ -1299,8 +1334,13 @@ The server refuses to run against another interface (`plugin_version`).
   starved, also once it waits for a frame callback again. A screenshot answers
   the callbacks once, after the image, which leaves a window starved that asks
   for the next one.
-- `socket`, `socketId` and `commits` are `null` without an open socket.
-  `lease` is `null` when none is held.
+- `socket`, `socketId`, `commits` and `interrupted` are `null` without an open
+  socket. `lease` is `null` when none is held.
+- `interrupted` counts the times the user's own key, modifier or button to the
+  window's Wayland connection took the keyboard focus back from the window
+  within a quarter of a second of a key it pressed with Ctrl, Alt or Super
+  held, a function key, Escape or a media key, see
+  [Shortcuts beside the user's window](#shortcuts-beside-the-users-window).
 - `socketId` names the socket: it differs for every socket the plugin opens,
   also for one opened again for the same window, and in every load of the
   plugin. Plain text prints it as a `socketId:` line.
@@ -1310,11 +1350,14 @@ The server refuses to run against another interface (`plugin_version`).
     XWayland and of xwayland-satellite count as X11.
   - `hold`: sharing its Wayland connection with neither the real keyboard
     focus nor the real pointer focus. Same-connection input restores the
-    user's focus after every input frame, which releases held buttons and
-    gives a click the user's modifiers instead of its own. A keyboard frame
-    enters the window again with no keys held, only with the modifier state
-    of the keys the sender holds, so of the keys of a chord only modifiers
-    stay pressed.
+    user's pointer focus after every input frame, which releases held
+    buttons, and the user's keyboard focus once the window's keys are up and
+    a shortcut among them has settled, or at once when the user's own input
+    to the connection comes,
+    which gives a click the user's modifiers instead of its own. A keyboard
+    frame after that enters the window again with no keys held, only with the
+    modifier state of the keys the sender holds, so of the keys of a chord
+    only modifiers stay pressed.
   - `dnd`: the window is the active window. Drags from other driven windows
     are cancelled. `hyprmasq-mcp` does not report it.
   - `keyboard`: `x11-focus` for X11 windows of Hyprland's XWayland or
@@ -1723,7 +1766,10 @@ locale, also without a table for it; input paused on X11 with the keys
 that got through; input that closes its own window, also with only releases
 and sleeps left, and input that it drops;
 a connection taken over during a burst; SIGTERM while the plugin does not
-answer.
+answer; a shortcut that runs, as Chromium's, a moment after its key in a
+hidden window of the connection with the real focus, and the user's typing
+beside it, which reaches the user's window alone and is counted when it
+interrupts the shortcut.
 
 **MCP subtests** drive `hyprmasq-mcp` over stdio from the test script:
 launch, results without structured content for a client that introduces
@@ -1736,7 +1782,8 @@ Compose as more keys than the deadline fits, `cannot_type`, typing through the
 Compose table of the window's locale and the hint without a table for it,
 `unsupported` for
 a drag, a click with modifiers and a chord that holds a letter on a shared
-connection, where a chord of Shift and a letter still types a capital, partial
+connection, where a chord of Shift and a letter still types a capital, a
+shortcut there that the user's typing interrupted, partial
 delivery when X11 input is paused, the wait outcomes, the lease across calls and on exit, new
 windows that the input opens, placed beside the target with a shot each, also
 one that maps after the wait, and with placement off one that has the user's
@@ -1851,6 +1898,9 @@ timeouts.
 - Windows without a lease, X11 windows and windows sharing a connection with
   the user's focus, lose the emulated focus when the batch ends, and a menu
   that closes on focus loss may already be closed in the act's own shot.
+- A shortcut in a window that shares its connection with the user's focused
+  window does nothing when the app takes more than a quarter of a second to
+  run it, as a page busy with a script may, and the result does not say so.
 - Leased windows keep their emulated focus while the session is locked. The
   user's real keys never reach them.
 - Plugin arguments are split at whitespace, so an `XDG_RUNTIME_DIR` with
@@ -1864,8 +1914,9 @@ timeouts.
   `windows` when the app is known to open windows slowly.
 - The hooks on `Desktop::View::CWindow::updateWindowDecos`,
   `Desktop::Rule::CWindowRuleApplicator::readStaticRules`,
-  `CSeatManager::setKeyboardFocus` and
-  `CSeatManager::setPointerFocus`, and
+  `CSeatManager::setKeyboardFocus`, `CSeatManager::setPointerFocus`,
+  `CSeatManager::sendKeyboardKey`, `CSeatManager::sendKeyboardMods` and
+  `CSeatManager::sendPointerButton`, and
   the access to the private `m_currentSurface` of `CWLKeyboardResource` and
   `CWLPointerResource` and to the private `m_window` of
   `CWindowRuleApplicator`, have to be checked again whenever the Hyprland pin

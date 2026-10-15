@@ -168,8 +168,12 @@ type State struct {
 	Scale   float64 `json:"scale"`
 	Socket  *string `json:"socket"`
 	// Names the open socket, whose counter starts again at 0, or nil without one or from a plugin that names none.
-	SocketID     *string      `json:"socketId"`
-	Commits      *int64       `json:"commits"`
+	SocketID *string `json:"socketId"`
+	Commits  *int64  `json:"commits"`
+	// Times the user's own input to the window's app took the keyboard focus back from the window while a shortcut or
+	// function key had not settled, which may have kept it from taking effect. Nil without a socket, and from a plugin
+	// that does not count them.
+	Interrupted  *int64       `json:"interrupted"`
 	Lease        *Lease       `json:"lease"`
 	Capabilities Capabilities `json:"capabilities"`
 	// The window a new window came from, as the plugin found it when the window mapped, or nil when it found none.

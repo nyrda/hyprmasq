@@ -269,8 +269,8 @@ var modifierKeysyms = map[string]bool{
 }
 
 // heldKey returns the first key of a chord that stays pressed while a later key goes down and is not a modifier, or
-// "". Without the hold capability, the plugin releases such a key between input frames: it keeps only the modifier
-// state, which it sends again with every frame.
+// "". Without the hold capability, the plugin may release such a key between input frames, when the user's own input
+// takes the keyboard back: it keeps only the modifier state, which it sends again with every frame.
 func heldKey(chord []string) string {
 	for _, key := range chord[:max(0, len(chord)-1)] {
 		if !slices.Contains(modifierNames, key) && !modifierKeysyms[strings.ToLower(key)] {

@@ -52,6 +52,11 @@ descriptions and results explain the rest. What `act` returns:
   …` with a line `shot sN … of ADDR, the window it came from` names the window
   that opened it, such as the page behind a file chooser or a popup, and sN
   shows it now: go on there with that shot.
+- `N/M delivered, interrupted by the user's input`: the window shares its
+  app with the window the user is typing in, such as a second window of their
+  browser, and the user typed or clicked there before your shortcut, such as
+  `ctrl+l`, had taken effect. It may have done nothing: check the shot, and
+  send the key again if it did not take effect.
 - A full shot, which says why it came instead: without an earlier shot, after
   a resize or a change of popups past the window's edge, for a change of more
   than 35% of the window or too scattered to join into 5 regions, and after 10
@@ -283,6 +288,7 @@ open.
 | `the server paused input, so some events were dropped` | The target is an X11 window and the user is working in another X11 window of the same X server. The input before the pause arrived, `progress.keys` keys of a text: take a screenshot before going on, later. Use `hyprctl hyprmasq eis open "$addr" force` only if the user allows it: it can move input focus they are using. |
 | `... is outside the pointer regions ...` | The point lies left of or above the window, or beyond its monitor. Nothing was sent. Click inside the window, or use the keyboard. |
 | A menu or dropdown is gone in the next screenshot | The emulated focus ends when `hyprmasq-input` exits, and the menu closed with it. Open it and pick the entry in one run, with `keys`, or take a lease first: `hyprctl -j hyprmasq lease "$addr" 60000 agent` keeps the focus for 60 s (Wayland windows only), and `hyprctl -j hyprmasq lease "$addr" release agent` ends it. |
+| A shortcut such as `keys ctrl+l` did nothing in a window of the app the user types in | The window shares its app's Wayland connection with the user's window, which their keys take back first: a shortcut that the app had not run by then does nothing. `hyprctl -j hyprmasq state "$addr"` counts these in `interrupted`. Look at a screenshot and send it again. |
 | Screenshot unchanged after input and `wait` | The app may ignore input until it is focused or may not redraw while hidden. Wait longer, or check that the click hit the element in a region screenshot. |
 | `no mapped window 0x...` | The window closed or the address is wrong. List `hyprctl -j clients` again. |
 | `the keymap cannot type U+...` | The user's layout has no key for the character. Nothing was sent. Use another spelling, or enter it another way in the app. |

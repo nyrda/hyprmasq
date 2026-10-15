@@ -2731,8 +2731,9 @@ func TestHoldIsCheckedAgainAfterTheLock(t *testing.T) {
 	}
 }
 
-// Without hold, the plugin gives the user's focus back after every input frame and enters the window again with no
-// keys held, but with the modifier state. So chords that hold only modifiers before their last key need no hold.
+// Without hold, the user's own input to the app may take the keyboard back between the frames of a chord, after which
+// the plugin enters the window again with no keys held, but with the modifier state. So chords that hold only modifiers
+// before their last key need no hold.
 func TestChordsOfModifiersNeedNoHold(t *testing.T) {
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Caps.Hold = false })
@@ -2749,6 +2750,85 @@ func TestChordsOfModifiersNeedNoHold(t *testing.T) {
 	if code := errorCode(t, res); code != "unsupported" || !strings.HasPrefix(get(t, res, "hint").(string), "This window has the user's keyboard or pointer focus") ||
 		!strings.Contains(get(t, res, "hint").(string), "Hold only modifiers, or press the keys in separate key actions. Nothing was sent.") {
 		t.Errorf("code %q: %s", code, text(res))
+	}
+}
+
+// A window without hold shares its app's connection with the user's focused window, and keeps the keyboard focus after
+// a shortcut only until it has settled. The plugin counts the user's input to the app that took it back before a
+// shortcut had settled, and act says so, from the counter read once more after the wait. Batches without a key action,
+// windows with hold and counters of another socket get no second look or no flag.
+func TestShortcutInterruptedByTheUser(t *testing.T) {
+	e := newTestEnv(t)
+	shared := e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Caps.Hold = false })
+	e.window("0xb2", "2b", 320, 200)
+	// The user's typing interrupts the shortcut while the sender runs: the counter rises once input has started.
+	interrupt := func(socketID string) {
+		e.fake.with(func() {
+			bumped := false
+			e.fake.onState = func(w *fakeWindow) {
+				if !bumped && e.senderLogged("start") {
+					bumped = true
+					w.Interrupted++
+					if socketID != "" {
+						w.SocketID = socketID
+					}
+				}
+			}
+		})
+		os.Remove(e.inputLog)
+	}
+	states := func() int { return len(e.fake.requestsMatching("j/hyprmasq state")) }
+
+	interrupt("")
+	res := e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl","l"]},{"action":"type","text":"example.org\n"}],"capture":"none"}`)
+	summary, hint := get(t, res, "summary").(string), get(t, res, "hint")
+	if res.IsError || get(t, res, "actions.interrupted") != true || !strings.HasPrefix(summary, "2/2 delivered, interrupted by the user's input · ") || hint != hintInterrupted {
+		t.Fatalf("%s", text(res))
+	}
+	if shared.Interrupted != 1 {
+		t.Fatalf("counter %d", shared.Interrupted)
+	}
+	// A shortcut that did nothing draws nothing, which the interruption explains better than a guess.
+	interrupt("")
+	e.fake.with(func() {
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			expect, _ := strconv.Atoi(args["expect"])
+			return jsonReply(map[string]any{"ok": true, "ended": "no_redraw", "commits": w.Commits, "socketId": w.socketID(), "redrawObserved": false,
+				"commitsSince": 0, "quietMs": expect, "elapsedMs": expect, "resizing": false})
+		}
+	})
+	res = e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl","l"]}],"capture":"none","wait":{"expect_ms":300}}`)
+	if res.IsError || get(t, res, "actions.interrupted") != true || get(t, res, "hint") != hintInterrupted || !strings.Contains(text(res), "no redraw within 300 ms") {
+		t.Fatalf("%s", text(res))
+	}
+	e.fake.with(func() { e.fake.onWait = nil })
+	// The counter stays: the next shortcut was not interrupted.
+	e.fake.with(func() { e.fake.onState = nil })
+	res = e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["alt","left"]}],"capture":"none"}`)
+	if res.IsError || get(t, res, "actions.interrupted") != nil || strings.Contains(text(res), "interrupted") {
+		t.Errorf("%s", text(res))
+	}
+	// Typing alone takes effect without a round trip, so nothing is read again for it.
+	interrupt("")
+	before := states()
+	res = e.act(`{"window":"0xa1","actions":[{"action":"type","text":"hello"}],"capture":"none"}`)
+	if res.IsError || get(t, res, "actions.interrupted") != nil || states()-before != 2 {
+		t.Errorf("%d state reads: %s", states()-before, text(res))
+	}
+	// A counter of a socket that replaced the one the input went to says nothing about that input.
+	interrupt("another")
+	res = e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["f6"]}],"capture":"none"}`)
+	if res.IsError || get(t, res, "actions.interrupted") != nil {
+		t.Errorf("%s", text(res))
+	}
+	// A window with hold has the keyboard to itself between its frames. Its first act opens its socket.
+	e.fake.with(func() { e.fake.onState = nil })
+	e.act(`{"window":"0xb2","actions":[{"action":"key","keys":["ctrl","l"]}],"capture":"none"}`)
+	interrupt("")
+	before = states()
+	res = e.act(`{"window":"0xb2","actions":[{"action":"key","keys":["ctrl","l"]}],"capture":"none"}`)
+	if res.IsError || get(t, res, "actions.interrupted") != nil || states()-before != 2 {
+		t.Errorf("%d state reads: %s", states()-before, text(res))
 	}
 }
 

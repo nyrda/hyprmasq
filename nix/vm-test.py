@@ -2261,10 +2261,10 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
         wait_for("shared visible focus", lambda: snapshot() == (8, shared_visible))
         machine.succeed("test ! -s /tmp/hyprmasq-visible-input")
 
-    with subtest("a click keeps its modifiers only where the window has hold"):
-        # Input to a window of the connection that has the real keyboard focus hands that focus back, with the user's
-        # modifiers, after every keyboard frame. A click then arrives without the modifiers held around it, which the
-        # window's missing hold capability tells.
+    with subtest("a click keeps its modifiers, and a window of the connection with the real focus gives them back after"):
+        # Input to a window of the connection that has the real keyboard focus keeps that focus while the sender holds
+        # keys, and then hands it back with the user's modifiers. The user's own input to the connection takes it back at
+        # once, which would leave a click with the user's modifiers: the window's missing hold capability tells that.
         focus_workspace(23)
         spawn("hyprmasq-focus-probe focus hm-p-mods-focused hm-p-mods", "p-mods")
         wait_for("modifier probe", lambda: client("hm-p-mods-focused") and client("hm-p-mods"))
@@ -2286,7 +2286,12 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
         offset = log_size("p-mods")
         send(mods_path, "move", 30, 30, "click", "left", 1, "ctrl")
         events, modifiers = modifiers_at_press(offset)
-        assert modifiers == 0 and "modifiers hm-p-mods 4" in events, events
+        assert modifiers == 4, events
+        # The focused window gets the keyboard back, with the user's modifiers.
+        machine.wait_until_succeeds(f"tail -c +{offset + 1} /tmp/hyprmasq-p-mods.log | grep -q 'keyboard enter hm-p-mods-focused'", timeout=10)
+        events = [line.split(" ", 1)[1] for line in log_since("p-mods", offset).splitlines() if line[:1].isdigit()]
+        back = events.index("keyboard enter hm-p-mods-focused")
+        assert events[back + 1] == "modifiers hm-p-mods-focused 0", events
         assert snapshot() == (23, mods_focused)
         # With the real focus in another app, the window has hold, and the click keeps Ctrl (mask 4).
         focus_workspace(4)
@@ -2298,6 +2303,84 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
         for title in ["hm-p-mods", "hm-p-mods-focused"]:
             dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
         wait_for("modifier probe closed", lambda: client("hm-p-mods") is None and client("hm-p-mods-focused") is None)
+
+    letter_codes = dict(zip("qwertyuiopasdfghjklzxcvbnm", [*range(16, 26), *range(30, 39), *range(44, 51)]))
+
+    def keys_of(events, title):
+        """The keys that a focus probe's toplevel got pressed, in order."""
+        return [int(e.split()[2]) for _, e in events if e.startswith(f"key {title} ") and e.endswith(" 1")]
+
+    def shortcut_probe(log, user_title, agent_title, user_workspace, agent_workspace):
+        """A shortcuts probe as a browser of the user's: their window focused on user_workspace, and the agent's on
+        agent_workspace, hidden, with a socket. Its shortcuts run 150 ms after their key, as Chromium's do once the page has
+        let the key go by."""
+        focus_workspace(user_workspace)
+        spawn(f"hyprmasq-focus-probe shortcuts {user_title} {agent_title} 150", log)
+        wait_for("shortcut probe", lambda: client(user_title) and client(agent_title))
+        dispatch(f'hl.dsp.window.move({{ window = "title:^{agent_title}$", workspace = "{agent_workspace}", follow = false }})')
+        user, agent = client(user_title)["address"], client(agent_title)["address"]
+        dispatch(f'hl.dsp.focus({{ window = "address:{user}" }})')
+        wait_for("user window focus", lambda: snapshot() == (user_workspace, user))
+        return user, agent
+
+    with subtest("a shortcut takes effect in a hidden window of the connection with the real focus, and not in the user's"):
+        # As Chromium, the probe takes its toplevel with the keyboard focus for the active one, and runs a shortcut only if
+        # that is still active when its time comes. The hidden window keeps the connection's keyboard focus until the
+        # shortcut has settled, and then gives it back to the user's window, whose keys before and after reach it alone.
+        sc_user, sc_agent = shortcut_probe("sc", "hm-sc-user", "hm-sc-agent", 65, 66)
+        sc_path = open_socket(sc_agent)
+        state = window_state(sc_agent)
+        assert not state["capabilities"]["hold"] and state["interrupted"] == 0, state
+        start = len(probe_events("sc"))
+        machine.send_chars("ab", delay=0.05)
+        wait_for("the user's keys", lambda: keys_of(probe_events("sc", start), "hm-sc-user") == [30, 48], timeout=10)
+        send(sc_path, "keys", "ctrl+l")
+        wait_for("the shortcut", lambda: any(e.startswith("shortcut ") for _, e in probe_events("sc", start)), timeout=10)
+
+        def returned():
+            events = probe_events("sc", start)
+            last = max(t for t, e in events if e.startswith("key hm-sc-agent "))
+            return next((t - last for t, e in events if e == "keyboard enter hm-sc-user" and t > last), None)
+
+        wait_for("the keyboard back in the user's window", lambda: returned() is not None, timeout=10)
+        # It stays a quarter of a second after the last key.
+        assert returned() >= 200, probe_events("sc", start)
+        machine.send_chars("cd", delay=0.05)
+        wait_for("the user's keys after", lambda: len(keys_of(probe_events("sc", start), "hm-sc-user")) == 4, timeout=10)
+        events = probe_events("sc", start)
+        assert [e for _, e in events if e.startswith("shortcut ")] == ["shortcut hm-sc-agent 4 38"], events
+        assert keys_of(events, "hm-sc-agent") == [29, 38] and keys_of(events, "hm-sc-user") == [30, 48, 46, 32], events
+        assert window_state(sc_agent)["interrupted"] == 0
+        assert snapshot() == (65, sc_user)
+
+    with subtest("the user's typing beside a shortcut takes the keyboard back first, and the plugin counts it"):
+        # The user types into their window while the hidden window's shortcut is underway. Each of their keys takes the
+        # connection's keyboard focus back before Hyprland sends it, so it reaches their window. A shortcut whose toplevel
+        # is no longer active when its time comes does nothing, and the plugin counts the interruption. Whether a key of
+        # the user's comes within the shortcut's 150 ms depends on timing, so the chord is sent until one does.
+        # The user's text has an l, which must not reach their window with the hidden window's Ctrl.
+        user_text = "qwertyuioplzxcvbnm"
+        codes = [letter_codes[c] for c in user_text]
+        for attempt in range(5):
+            before = window_state(sc_agent)["interrupted"]
+            start = len(probe_events("sc"))
+            spawn("sh -c " + shlex.quote(f"sleep 0.3; hyprmasq-input --socket {sc_path} keys ctrl+l"), "sc-sender")
+            machine.send_chars(user_text, delay=0.03)
+            wait_for("the shortcut", lambda: any(e.startswith("shortcut ") for _, e in probe_events("sc", start)), timeout=10)
+            wait_for("the user's keys", lambda: len(keys_of(probe_events("sc", start), "hm-sc-user")) == len(codes), timeout=10)
+            events = probe_events("sc", start)
+            assert keys_of(events, "hm-sc-user") == codes and keys_of(events, "hm-sc-agent") == [29, 38], events
+            shortcuts = [e for _, e in events if e.startswith("shortcut ")]
+            assert shortcuts in (["shortcut hm-sc-agent 4 38"], ["shortcut hm-sc-agent 4 38 inactive"]), events
+            if shortcuts[0].endswith(" inactive"):
+                wait_for("the count", lambda: window_state(sc_agent)["interrupted"] > before, timeout=5)
+                break
+        else:
+            raise AssertionError("the user's typing never came within a shortcut")
+        assert snapshot() == (65, sc_user)
+        for title in ["hm-sc-agent", "hm-sc-user"]:
+            dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
+        wait_for("shortcut probe closed", lambda: client("hm-sc-agent") is None and client("hm-sc-user") is None)
 
     with subtest("same-client popup, move, resize and drag protections"):
         focus_workspace(10)
@@ -3121,6 +3204,44 @@ print(longest)
         for address in (shared_hidden, shared_focused):
             dispatch(f'hl.dsp.window.close({{ window = "address:{address}" }})')
         wait_for("footclients closed", lambda: all(c["address"] not in (shared_hidden, shared_focused) for c in clients()))
+        assert snapshot() == before_focus
+
+    with subtest("hyprmasq-mcp says when the user's typing beside a shortcut may have kept it from taking effect"):
+        # The shortcuts probe as a browser of the user's, with their window focused and the agent's hidden. A shortcut in
+        # the hidden window takes effect while the user does not type into the app. Keys of theirs that come before it has
+        # taken effect take the keyboard back first, and act says that it may have done nothing.
+        m_user, m_agent = shortcut_probe("m-sc", "hm-m-sc-user", "hm-m-sc-agent", 67, 68)
+        entry, _ = listed(mcp, m_agent)
+        assert entry["capabilities"] == {"lease": False, "hold": False, "keyboard": "yes"}, entry
+        start = len(probe_events("m-sc"))
+        alone = mcp.call("act", {"window": m_agent, "actions": [{"action": "key", "keys": ["ctrl", "l"]}]})
+        assert not alone.is_error and "interrupted" not in alone.data["actions"] and alone.text.startswith("1/1 delivered · redraw observed"), alone
+        assert [e for _, e in probe_events("m-sc", start) if e.startswith("shortcut ")] == ["shortcut hm-m-sc-agent 4 38"]
+        user_text = "asdfghjklasdfghjkl"
+        for attempt in range(5):
+            start = len(probe_events("m-sc"))
+            call = mcp.start("act", {"window": m_agent, "actions": [{"action": "pause", "ms": 300}, {"action": "key", "keys": ["ctrl", "l"]}]})
+            machine.send_chars(user_text, delay=0.03)
+            result = mcp.result(call)
+            assert not result.is_error and result.data["actions"]["delivery"] == "complete", result
+            wait_for("the user's keys", lambda: len(keys_of(probe_events("m-sc", start), "hm-m-sc-user")) == len(user_text), timeout=10)
+            events = probe_events("m-sc", start)
+            assert keys_of(events, "hm-m-sc-user") == [letter_codes[c] for c in user_text] and keys_of(events, "hm-m-sc-agent") == [29, 38], events
+            shortcuts = [e for _, e in events if e.startswith("shortcut ")]
+            assert shortcuts in (["shortcut hm-m-sc-agent 4 38"], ["shortcut hm-m-sc-agent 4 38 inactive"]), events
+            if shortcuts[0].endswith(" inactive"):
+                assert result.data["actions"]["interrupted"] is True and result.text.startswith("2/2 delivered, interrupted by the user's input · "), result
+                assert result.data["hint"].startswith(
+                    "The user typed or clicked in another window of this app before a shortcut or function key of the batch had taken effect"
+                ), result
+                break
+        else:
+            raise AssertionError("the user's typing never came within a shortcut")
+        assert snapshot() == (67, m_user)
+        for address in (m_agent, m_user):
+            dispatch(f'hl.dsp.window.close({{ window = "address:{address}" }})')
+        wait_for("shortcut probe closed", lambda: all(c["address"] not in (m_agent, m_user) for c in clients()))
+        focus_workspace(4)
         assert snapshot() == before_focus
 
     with subtest("hyprmasq-mcp reports partial delivery when X11 input is paused"):

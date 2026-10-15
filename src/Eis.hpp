@@ -40,6 +40,9 @@ namespace hyprmasq {
         int                                  framesSinceInput = 0; // commits since then
         std::shared_ptr<wait::CContentWatch> content;              // the window's commit counter, kept while the socket is open
         std::optional<SLeaseState>           lease;                // while one is held
+        // Times the user's own input to the window's Wayland connection took the keyboard focus back from the window
+        // before a shortcut or function key had settled, which may have kept it from taking effect.
+        uint64_t interrupted = 0;
     };
     // For a window with a socket. Main thread only.
     std::optional<SSocketState> socketState(const PHLWINDOW& window);
