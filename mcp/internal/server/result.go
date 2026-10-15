@@ -704,12 +704,10 @@ func summaryLine(out *actOut, batch []action) string {
 		add("capture failed: " + out.CaptureError.Message)
 	}
 	add(sourceText(out.Source))
-	if out.Lease != nil {
-		if out.Lease.Held {
-			add(fmt.Sprintf("lease %d s", out.Lease.RemainingS))
-		} else {
-			add("no lease")
-		}
+	// A held lease tells the agent that the window keeps the emulated focus until its next call. A window without one
+	// gets no word: windows names the capability it lacks, and the lease field still says so.
+	if out.Lease != nil && out.Lease.Held {
+		add(fmt.Sprintf("lease %d s", out.Lease.RemainingS))
 	}
 	add(newWindowsText(out.NewWindows))
 	add(lateWindowsText(out.LateWindows))

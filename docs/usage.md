@@ -361,12 +361,13 @@ Plain `hyprctl hyprmasq state` prints the same as `key: value` lines.
 
 ## Focus lease
 
-Emulated focus normally ends soon after input: a menu, dropdown or popover
-that closes when its window loses focus is gone by the time the next input
-comes. A menu that a page draws itself does not close then, and clicking what
-opened it closes it, so look at a screenshot before you open a menu again. A
-lease keeps the emulated pointer and keyboard focus on the window between
-inputs.
+Emulated focus normally ends soon after input, and what the app closes when
+its window loses focus, such as some toolkits' dropdowns and popovers, may be
+gone by the time the next input comes. Other menus, such as one that a page
+draws itself, can stay open, and clicking what opened one closes it, so look
+at a screenshot before you open a menu again, and click the entry of a menu
+that it shows open. A lease keeps the emulated pointer and keyboard focus on
+the window between inputs.
 
 ```sh
 hyprctl -j hyprmasq lease "$addr" 60000 my-script     # start or renew for 60 s

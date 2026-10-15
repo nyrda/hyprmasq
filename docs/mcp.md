@@ -70,8 +70,9 @@ Hyprland and the plugin compare addresses as strings, so the server first
 writes the address as they do, in lower case and without leading zeros:
 `0x00A1` names the window `0xa1`, and results name it so.
 
-`capabilities` describe what works on a window at the moment: `lease` (focus
-can be held between calls), `hold` (buttons and keys can stay pressed across
+`capabilities` describe what works on a window at the moment: `lease` (the
+emulated focus can stay on the window between calls, see
+[Focus lease](#focus-lease)), `hold` (buttons and keys can stay pressed across
 input frames, needed for `drag`, for a `click` with modifiers and for a `key`
 chord that holds a key other than a modifier) and
 `keyboard` (`yes`, or `x11-focus` when X11 input depends on which window has
@@ -498,21 +499,27 @@ it is clicked. Keys whose effect is known may still follow in the same batch,
 for example `alt+f`, then `down` and `enter` in an app whose menu you have
 seen.
 
-In a window without the `lease` capability, a menu that closes when the window
-loses the emulated focus is gone by the next call. A menu that the page draws
-itself stays open: in the benchmark's browser task, Forgejo's "Add file" menu
-was still open 12 s after the click that opened it, while the user typed in
-their own window of the same browser, and so was Chromium's own popup of a
-`<select>`. Clicking what opened such a menu closes it. Agents had followed the
-description's earlier claim that a menu is gone by the next call: after a call
-that opened the menu, they clicked its opener again and pressed Down, Down and
-Enter. The click closed the menu, the first Down opened it again, and the
-second highlighted the first entry, which Enter picked, in 11 of 25 runs. After
-Alt+Left, the browser restored the page with that entry still highlighted, so
-the same batch picked the third. So the description says that a menu may be
-gone by the next call or still open, and to click the entry of one that the
-shot shows open, and otherwise to open it and pick the entry by keyboard in one
-batch.
+Whether a menu is still open at the next call depends on the app. The
+[lease](#focus-lease) keeps the window's emulated focus, which matters only for
+what the app closes on focus loss. In the benchmark's browser task, whose
+Chromium window lacks the `lease` capability, Forgejo's "Add file" menu, which
+the page draws, was still open 12 s after the click that opened it, while the
+user typed in their own window of the same browser, and so was Chromium's own
+popup of a `<select>`. Clicking what opened such a menu closes it. Agents had
+followed the description's earlier claim that without the lease a menu is gone
+by the next call: after a call that opened the menu, they clicked its opener
+again and pressed Down, Down and Enter. The click closed the menu, the first
+Down opened it again, and the second highlighted the first entry, which Enter
+picked, in 11 of 25 runs. After Alt+Left, the browser restored the page with
+that entry still highlighted, so the same batch picked the third. Once the
+description said that a menu may be gone or still open, 3 of 10 runs still did
+so, and their debriefs blamed the guidance for windows without a lease: every
+result ended in `· no lease`, and the capability was described as what keeps
+menus open. So the descriptions tie the lease only to the focus, the summary
+names it only while one is held (see [Results](#results)), and the `act`
+description makes the shot the test: if it shows the menu still open, click its
+entry, as clicking its opener closes it; if the menu closed, open it and pick
+the entry by keyboard in one batch.
 
 ### Pacing
 
@@ -803,8 +810,9 @@ has got none from hyprmasq, it lets the window draw: see
 
 Without a lease, a driven window loses its emulated pointer and keyboard focus
 as soon as `hyprmasq-input` exits. An agent's next call usually comes several
-seconds later, by which time dropdowns, hover menus and popovers that close on
-focus loss are gone.
+seconds later, by which time what the app closes on focus loss, such as some
+toolkits' popovers and dropdowns, may be gone. Other popups, such as a menu
+that a web page draws, can stay open.
 
 With a lease, the plugin keeps the emulated pointer (at its last position)
 and keyboard focus on the window between calls:
@@ -837,12 +845,14 @@ and keyboard focus on the window between calls:
   user works elsewhere, and the virtual cursor stays on a visible leased
   window. The user's real input is not affected.
 
-Windows without the `lease` capability lose the focus when the batch ends, and
-a menu that closes on focus loss closes with it, while one that the page draws
-stays open (see [Batching](#batching)). The `act` description tells agents to
-click the entry of a menu that the shot shows open, and otherwise to open the
-menu and pick the entry with the keyboard in one batch. It never suggests
-clicking where a menu item probably is.
+Windows without the `lease` capability lose the focus when the batch ends.
+The `windows` description says so in the capability's terms: without it, the
+window loses the focus after each call, and what its app closes on focus loss
+may be gone by the next call. It does not say which menus those are, since
+that depends on the app (see [Batching](#batching)): the `act` description
+tells agents to click the entry of a menu that the shot shows open, and if the
+menu closed, to open it and pick the entry with the keyboard in one batch. It
+never suggests clicking where a menu item probably is.
 
 ## Shortcuts beside the user's window
 
@@ -916,7 +926,7 @@ A result has three parts:
    | Window closed | `window closed` after the wait's part, when the window closed after its wait had ended |
    | Capture | `shot sN W×H`, `shot sN W×H (full shot: REASON)`, `shot sN W×H (stale: not yet redrawn at its new size)`, `shot sN W×H (may be stale: not redrawn within N ms)` or `(may be stale: no time to redraw)`, several of them as `(full shot: REASON; stale: …)`, `shot sN = sM + K changes` followed by the lines `zoom sZ W×H of sN at X,Y W×H`, `K tiny changes left out` and `K changes in animations left out`, `shot sN = sM, no change`, `shot sN = sM, no change outside animations`, or `capture failed: MESSAGE` |
    | Back to | When the window closed: `back to ADDR (CLASS "TITLE") on workspace NAME (hidden\|visible)`, the window it came from, followed by a line `shot sN W×H of ADDR, the window it came from` |
-   | Lease | `lease N s` or `no lease` |
+   | Lease | `lease N s` while the window holds a lease, otherwise nothing: `windows` names the capability a window lacks, and `lease` in the structured content has `held` |
    | New windows | `new window ADDR (CLASS "TITLE"[, launched][, same pid]) on workspace NAME (hidden\|visible[, focused])`, or `new windows` with a list, followed by a line `shot sN W×H of new window ADDR` for each shot of one |
    | Late windows | `late window ADDR (…) on workspace NAME (…)`, or `late windows` with a list, as for new windows, followed by a line `shot sN W×H of late window ADDR` for each shot of one |
 
@@ -959,6 +969,9 @@ long the window had been quiet when the wait ended. `wait.again` is there only
 when the window drew again during the [watch](#phases) after it settled. An error adds `error`
 (`code`, `message`), and a failed capture after applied input adds
 `capture_error`.
+
+`lease` is `{"held": false, "remaining_s": 0}` when the window holds no lease
+after the call, which the summary then leaves out.
 
 `new_windows` lists the [new windows](#new-windows) of the call, and
 `late_windows`, left out when there are none, the [late windows](#late-windows)
@@ -1371,7 +1384,7 @@ Act on a window, wait until it has redrawn, and return what changed. Drive only 
 Coordinates are pixels of the shot given in "shot" (required for click, move, drag, scroll).
 Actions: click {x,y,button,count,modifiers} · move {x,y} · drag {from,to,button,modifiers} · scroll {x,y,dx,dy,unit:notch|px} · type {text} · key {keys:["ctrl","l"], repeat} · pause {ms}.
 The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box in them. A full shot comes when it serves better, saying why; capture "window" asks for one.
-Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, such as arrows and enter in a menu, may follow. Without the lease capability, a menu may be gone by the next call or still open: if the shot shows it, click the entry, as clicking its opener closes it; else open it and pick by keyboard in one batch.
+Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, such as arrows and enter in a menu, may follow. Whether a menu is still open shows in the shot: if it is, click its entry, as clicking its opener closes it; if it closed, open it and pick by keyboard in one batch.
 drag, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability.
 type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key such as shift+enter. At 15 ms a key, two or more for a character typed through Compose, a call types about 600 characters, or 1400 with deadline_ms 30000; split longer text.
 Delivered input reached the app but may not have taken effect: a busy one, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the result.
@@ -2050,8 +2063,8 @@ timeouts.
   delivery `partial`; points inside them land at the same window-local
   position.
 - Windows without a lease, X11 windows and windows sharing a connection with
-  the user's focus, lose the emulated focus when the batch ends, and a menu
-  that closes on focus loss may already be closed in the act's own shot.
+  the user's focus, lose the emulated focus when the batch ends, and what the
+  app closes on focus loss may already be gone in the act's own shot.
 - A shortcut in a window that shares its connection with the user's focused
   window does nothing when the app takes more than a quarter of a second to
   run it, as a page busy with a script may, and the result does not say so.

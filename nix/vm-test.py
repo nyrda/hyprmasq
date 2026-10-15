@@ -3305,7 +3305,7 @@ print(longest)
         hint = paused.data["hint"]
         assert "retry" not in hint.lower() and hint.endswith("Look at the shot before repeating anything."), paused
         assert re.fullmatch(
-            rf"0/1 delivered, delivery partial: actions\[0\] \(type\) may be partly applied \({keys} keys sent\) · shot s\d+ \d+×\d+ · no lease",
+            rf"0/1 delivered, delivery partial: actions\[0\] \(type\) may be partly applied \({keys} keys sent\) · shot s\d+ \d+×\d+",
             paused.text.splitlines()[1],
         ), paused
         keep(paused, "x-paused")
@@ -3348,14 +3348,16 @@ print(longest)
         wait = changed.data["wait"]
         assert not changed.is_error and wait["ended"] == "quiet" and wait["redraw_observed"] and wait["commits"] >= 2, changed
         assert wait["elapsed_ms"] < 1000 and changed.data["actions"] == {"done": 0, "total": 0, "delivery": "none"}, changed
-        assert re.fullmatch(r"redraw observed · quiet \d+ ms · \d+ ms · shot s\d+ 640×480 · no lease", changed.text), changed
+        # The summary names no lease, and the field says that none is held.
+        assert re.fullmatch(r"redraw observed · quiet \d+ ms · \d+ ms · shot s\d+ 640×480", changed.text), changed
+        assert changed.data["lease"] == {"held": False, "remaining_s": 0}, changed
         assert near(pixels(keep(changed, "popup-opened"), (50, 40))[0], popup_rgb) and near(pixels(unopened.images[0], (50, 40))[0], window_rgb)
         # Since the shot that shows it, nothing changes.
         changed_id = changed.data["shot"]["id"]
         unchanged = mcp.call("act", {"window": popchange, "shot": changed_id, "wait": {"expect_ms": 500}, **full})
         assert unchanged.data["wait"]["ended"] == "no_redraw" and unchanged.data["wait"]["summary"] == "no_change", unchanged
         assert re.fullmatch(
-            rf"no redraw within 500 ms · shot s\d+ 640×480 · no lease\nNothing was drawn since shot {changed_id}\. "
+            rf"no redraw within 500 ms · shot s\d+ 640×480\nNothing was drawn since shot {changed_id}\. "
             r"If the window is still loading, wait again: act with no actions, a larger wait\.expect_ms, and a deadline_ms at least 1000 above it\.",
             unchanged.text,
         ), unchanged
@@ -3364,7 +3366,7 @@ print(longest)
         wait = late.data["wait"]
         assert not late.is_error and wait["ended"] == "timeout" and wait["summary"] == "no_change" and not wait["redraw_observed"], late
         assert re.fullmatch(
-            r"timeout after \d+ ms, no redraw · shot s\d+ 640×480 · no lease\n"
+            r"timeout after \d+ ms, no redraw · shot s\d+ 640×480\n"
             r"Nothing was drawn before the deadline\. Look at the shot; to wait longer for a first redraw, act with no actions and a larger deadline_ms \(at most 30000\)\.",
             late.text,
         ), late
@@ -3379,7 +3381,7 @@ print(longest)
         assert not timed.is_error and wait["ended"] == "timeout" and wait["summary"] == "busy" and wait["redraw_observed"], timed
         assert 1000 <= wait["elapsed_ms"] <= 2050 and wait["quiet_ms"] < 200 and 2 <= timed.received - timed.sent < 3, timed
         assert re.fullmatch(
-            r"timeout after \d+ ms, still drawing · shot s\d+ 640×480 · no lease\n"
+            r"timeout after \d+ ms, still drawing · shot s\d+ 640×480\n"
             r"The window kept drawing until the deadline, so it may be animating or still loading\. "
             r"Look at the shot; to wait longer, act with no actions and a larger deadline_ms \(at most 30000\)\.",
             timed.text,
@@ -3996,7 +3998,7 @@ print(longest)
         cancelled_at = mcp.notify("notifications/cancelled", {"requestId": waiting, "reason": "hm-m test"})
         cancelled = mcp.result(waiting, timeout=10)
         assert not cancelled.is_error and cancelled.data["wait"]["ended"] == "cancelled" and cancelled.received - cancelled_at < 2, cancelled
-        assert re.fullmatch(r"cancelled · shot s\d+ 640×480 · no lease", cancelled.text), cancelled
+        assert re.fullmatch(r"cancelled · shot s\d+ 640×480", cancelled.text), cancelled
         # The plugin's wait ended too: the window gets no more frame callbacks.
         time.sleep(1)
         drawn = window_state(busy_shell)["commits"]
@@ -4106,7 +4108,7 @@ print(longest)
         same_shot = same.data["shot"]
         assert not same.is_error and not same.images and same_shot["changes"] == {"base": base, "regions": []} and "hint" not in same.data, same
         assert (same_shot["width"], same_shot["height"], same_shot["frame"]) == (640, 480, region(0, 0, 640, 480)), same
-        assert re.fullmatch(rf"(no redraw|redraw observed) · quiet \d+ ms · \d+ ms · shot {same_shot['id']} = {base}, no change · no lease", same.text), same
+        assert re.fullmatch(rf"(no redraw|redraw observed) · quiet \d+ ms · \d+ ms · shot {same_shot['id']} = {base}, no change", same.text), same
         # A key that changes nothing says so, and points at the shot the window still shows.
         pressed = mcp.call("act", {"window": canvas, "actions": [{"action": "key", "keys": ["a"]}]})
         pressed_id = pressed.data["shot"]["id"]
@@ -4224,7 +4226,8 @@ print(longest)
             """Checks that the result has a full shot for the reason, and returns its id."""
             shot = result.data["shot"]
             assert not result.is_error and len(result.images) == 1 and "changes" not in shot and re.fullmatch(reason, shot["full_shot"]), result
-            assert f" · shot {shot['id']} {shot['width']}×{shot['height']} (full shot: {shot['full_shot']}) · " in result.text.splitlines()[0], result
+            part = re.escape(f" · shot {shot['id']} {shot['width']}×{shot['height']} (full shot: {shot['full_shot']})")
+            assert re.search(part + "( · |$)", result.text.splitlines()[0]), result
             assert pixels(result.images[0])[-1] == (shot["width"], shot["height"]), result
             return shot["id"]
 
@@ -4260,7 +4263,7 @@ print(longest)
         # capture "window" and "none" are as they were.
         window = mcp.call("act", {"window": canvas, "wait": {"expect_change": False}, "capture": "window"})
         assert set(window.data["shot"]) == {"id", "width", "height", "frame"} and len(window.images) == 1, window
-        assert re.fullmatch(rf"(no redraw|redraw observed) · quiet \d+ ms · \d+ ms · shot {window.data['shot']['id']} 600×440 · (no lease|lease \d+ s)", window.text), window
+        assert re.fullmatch(rf"(no redraw|redraw observed) · quiet \d+ ms · \d+ ms · shot {window.data['shot']['id']} 600×440( · lease \d+ s)?", window.text), window
         none = mcp.call("act", {"window": canvas, "wait": {"expect_change": False}, "capture": "none"})
         assert not none.images and "shot" not in none.data and " shot " not in none.text, none
         assert mcp.call("close", {"window": canvas}).data["closed"]
@@ -4377,7 +4380,7 @@ print(longest)
         wait, timed_shot = timed.data["wait"], timed.data["shot"]
         assert not timed.is_error and wait["ended"] == "timeout" and wait["summary"] == "resizing" and wait["resizing"], timed
         assert timed_shot["resizing"] and re.fullmatch(
-            rf"timeout after \d+ ms, still resizing · shot {timed_shot['id']} 640×480 \(stale: not yet redrawn at its new size\) · no lease", timed.data["summary"]
+            rf"timeout after \d+ ms, still resizing · shot {timed_shot['id']} 640×480 \(stale: not yet redrawn at its new size\)", timed.data["summary"]
         ), timed
         assert timed.data["hint"].startswith(f"Shot {timed_shot['id']} shows an older frame") and "drawing" not in timed.data["hint"], timed
 

@@ -402,7 +402,7 @@ func TestCatchingUpWithinTheDeadline(t *testing.T) {
 	// The summary and the hint point at the resize, not at drawing.
 	id := shotID(t, res)
 	if get(t, res, "wait.summary") != "resizing" || get(t, res, "wait.resizing") != true ||
-		!regexp.MustCompile(`^timeout after \d+ ms, still resizing · shot `+id+` 1280×800 \(full shot: no earlier shot to compare with; stale: not yet redrawn at its new size\) · no lease$`).MatchString(get(t, res, "summary").(string)) {
+		!regexp.MustCompile(`^timeout after \d+ ms, still resizing · shot `+id+` 1280×800 \(full shot: no earlier shot to compare with; stale: not yet redrawn at its new size\)$`).MatchString(get(t, res, "summary").(string)) {
 		t.Errorf("summary %q, wait %v", get(t, res, "summary"), get(t, res, "wait"))
 	}
 	if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, "Shot "+id+" shows an older frame") || strings.Contains(hint, "Nothing was drawn") || strings.Contains(hint, "kept drawing") {
@@ -1047,24 +1047,24 @@ func TestSummaryLines(t *testing.T) {
 			"1/1 delivered · no redraw within 1000 ms · shot s6 1280×800 · lease 60 s\nThe input may have had no visible effect. Look at the shot before repeating it."},
 		{"quiet without change", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"},
 			Wait: &waitOut{Ended: "quiet", QuietMs: 200, ElapsedMs: 200}, Shot: shot5, Lease: &leaseOut{}}, []action{{Kind: "move"}},
-			"1/1 delivered · no redraw · quiet 200 ms · 200 ms · shot s5 1280×800 · no lease"},
+			"1/1 delivered · no redraw · quiet 200 ms · 200 ms · shot s5 1280×800"},
 		{"timeout", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"},
 			Wait: &waitOut{Ended: "timeout", RedrawObserved: true, ElapsedMs: 13990}, Shot: shot5, Lease: &leaseOut{Held: true, RemainingS: 59}}, click,
 			"1/1 delivered · timeout after 13990 ms, still drawing · shot s5 1280×800 · lease 59 s\nThe window kept drawing until the deadline, so it may be animating or still loading. Look at the shot; to wait longer, act with no actions and a larger deadline_ms (at most 30000)."},
 		{"timeout without a redraw", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "timeout", ElapsedMs: 13990}, Shot: shot5, Lease: &leaseOut{}}, nil,
-			"timeout after 13990 ms, no redraw · shot s5 1280×800 · no lease\nNothing was drawn before the deadline. Look at the shot; to wait longer for a first redraw, act with no actions and a larger deadline_ms (at most 30000)."},
+			"timeout after 13990 ms, no redraw · shot s5 1280×800\nNothing was drawn before the deadline. Look at the shot; to wait longer for a first redraw, act with no actions and a larger deadline_ms (at most 30000)."},
 		{"timeout without a redraw after a click", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "timeout", ElapsedMs: 13990}, Shot: shot5,
 			Lease: &leaseOut{}}, click,
-			"1/1 delivered · timeout after 13990 ms, no redraw · shot s5 1280×800 · no lease\nNothing was drawn before the deadline" + laterClause +
+			"1/1 delivered · timeout after 13990 ms, no redraw · shot s5 1280×800\nNothing was drawn before the deadline" + laterClause +
 				". Look at the shot; to wait longer for a first redraw, act with no actions and a larger deadline_ms (at most 30000)."},
 		{"timeout while resizing, caught up by the capture", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "timeout", Resizing: true, ElapsedMs: 13990}, Shot: shot5, Lease: &leaseOut{}}, nil,
-			"timeout after 13990 ms, still resizing · shot s5 1280×800 · no lease\nThe window had not yet redrawn at its new size when the wait's deadline arrived, but had by the capture. Look at the shot before repeating anything."},
+			"timeout after 13990 ms, still resizing · shot s5 1280×800\nThe window had not yet redrawn at its new size when the wait's deadline arrived, but had by the capture. Look at the shot before repeating anything."},
 		{"timeout while resizing without a shot", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "timeout", Resizing: true, ElapsedMs: 13990}, Lease: &leaseOut{}}, nil,
-			"timeout after 13990 ms, still resizing · no lease\nThe window had not yet redrawn at its new size when the deadline arrived. Take a screenshot and look at it before repeating anything."},
+			"timeout after 13990 ms, still resizing\nThe window had not yet redrawn at its new size when the deadline arrived. Take a screenshot and look at it before repeating anything."},
 		{"no time to wait", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "timeout", skipped: true}, Shot: shot5, Lease: &leaseOut{}}, click,
-			"1/1 delivered · no time left to wait · shot s5 1280×800 · no lease\nThe deadline left no time to wait for a redraw. Look at the shot before repeating anything; to wait, act with no actions."},
+			"1/1 delivered · no time left to wait · shot s5 1280×800\nThe deadline left no time to wait for a redraw. Look at the shot before repeating anything; to wait, act with no actions."},
 		{"no redraw without a shot", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "no_redraw", expectMs: 1000}, Lease: &leaseOut{}}, click,
-			"1/1 delivered · no redraw within 1000 ms · no lease\nThe click may have missed or had no visible effect" + laterClause + ". Take a screenshot and look at it before repeating it."},
+			"1/1 delivered · no redraw within 1000 ms\nThe click may have missed or had no visible effect" + laterClause + ". Take a screenshot and look at it before repeating it."},
 		{"window closed", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "window_closed"}, WindowClosed: true},
 			[]action{{Kind: "key"}}, "1/1 delivered · window closed\nThe window closed. Any new windows are listed; call windows for the rest."},
 		{"window closed after the wait, back to the window it came from", actOut{Actions: &actionsOut{Done: 3, Total: 3, Delivery: "complete"},
@@ -1089,7 +1089,7 @@ func TestSummaryLines(t *testing.T) {
 		{"late window", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "quiet", RedrawObserved: true, QuietMs: 200, ElapsedMs: 300},
 			Shot: shot5, Lease: &leaseOut{}, LateWindows: []newWindowOut{{Window: "0xc3", Class: "xdg-desktop-portal-gtk", Title: "Open Files", Workspace: "web", Source: "0xa1",
 				Shot: &shotOut{ID: "s6", Width: 960, Height: 540}}}},
-			click, "1/1 delivered · redraw observed · quiet 200 ms · 300 ms · shot s5 1280×800 · no lease · late window 0xc3 (xdg-desktop-portal-gtk \"Open Files\") on workspace web (hidden)\n" +
+			click, "1/1 delivered · redraw observed · quiet 200 ms · 300 ms · shot s5 1280×800 · late window 0xc3 (xdg-desktop-portal-gtk \"Open Files\") on workspace web (hidden)\n" +
 				"shot s6 960×540 of late window 0xc3\n" +
 				"Your input to 0xa1 in an earlier act opened window 0xc3 \"Open Files\" after that act had returned; it is in shot s6."},
 	}
@@ -2313,7 +2313,7 @@ func TestSessionEndReleasesOwnLeases(t *testing.T) {
 	other := e.newServer()
 	e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["a"]}]}`)
 	res := e.act(`{"window":"0xc3","actions":[{"action":"key","keys":["a"]}]}`)
-	if got := get(t, res, "lease"); !reflect.DeepEqual(got, map[string]any{"held": false, "remaining_s": 0.0}) || !strings.Contains(text(res), "no lease") {
+	if got := get(t, res, "lease"); !reflect.DeepEqual(got, map[string]any{"held": false, "remaining_s": 0.0}) {
 		t.Errorf("X11 lease %v: %s", got, text(res))
 	}
 	callTool(other, context.Background(), actOn, `{"window":"0xb2","actions":[{"action":"key","keys":["a"]}]}`)
@@ -2569,6 +2569,42 @@ func TestDescriptionsFitClaudeCode(t *testing.T) {
 	}
 }
 
+// Without the lease capability, a menu that a page draws stayed open between calls, and agents that took the lease for
+// what keeps menus open, or its absence for what closes them, clicked the opener of a menu that their shot showed open,
+// which closed it. So the lease is described by the focus it keeps, no text ties it or the focus to menus or says that
+// they stay open or are gone by the next call, and a summary names the lease only while one is held.
+func TestLeaseNotTiedToMenus(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.window("0xc3", "3c", 320, 200, func(w *fakeWindow) { w.XWayland, w.Caps = true, hypr.Capabilities{Keyboard: "x11-focus"} })
+	session := connect(t, e.server, nil)
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	texts := map[string]string{"the instructions": session.InitializeResult().Instructions}
+	for _, tool := range tools.Tools {
+		schema, _ := json.Marshal(tool.InputSchema)
+		texts[tool.Name] = tool.Description + "\n" + string(schema)
+	}
+	key := `{"action":"key","keys":["a"]}`
+	leased := e.act(`{"window":"0xa1","actions":[` + key + `]}`)
+	unleased := e.act(`{"window":"0xc3","actions":[` + key + `]}`)
+	texts["a leased result"], texts["an unleased result"] = text(leased), text(unleased)
+	if !strings.Contains(text(leased), " · lease 60 s") || strings.Contains(text(unleased), "lease") {
+		t.Errorf("leased %q, unleased %q", text(leased), text(unleased))
+	}
+	menu := regexp.MustCompile(`(?i)\b(menu|popup|popover|dropdown)s?\b`)
+	claim := regexp.MustCompile(`(?i)\blease\b|\bfocus\b|\bstays? open\b|\b(is|are|be) gone\b|\bmay close\b|\bnext call\b`)
+	for name, s := range texts {
+		for _, clause := range regexp.MustCompile(`[.;:]\s|\\n|\n`).Split(s, -1) {
+			if menu.MatchString(clause) && claim.MatchString(clause) {
+				t.Errorf("%s: %q", name, clause)
+			}
+		}
+	}
+}
+
 // Claude Code passes the model a result's structured content in place of its text, so by default it gets none and
 // passes the text, as other clients do. --structured-content always and never decide it for every client.
 func TestStructuredContentPerClient(t *testing.T) {
@@ -2652,10 +2688,11 @@ func TestProtocol(t *testing.T) {
 		"act": {"Drive only windows the user named or you launched", "ask the user before anything irreversible: sending, deleting, buying, submitting",
 			"Never repeat input whose delivery is partial or uncertain, or from a call that timed out", "Batch only targets visible in the shot",
 			"a line break presses Enter and a tab presses Tab", "a call types about 600 characters, or 1400 with deadline_ms 30000",
-			"a menu may be gone by the next call or still open", "as clicking its opener closes it",
+			"Whether a menu is still open shows in the shot", "as clicking its opener closes it",
 			"drag, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability",
 			`"shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5`, `capture "window" asks for one`},
-		"windows": {"needed for drag, for clicks with modifiers, and for key chords that hold a key other than a modifier"},
+		"windows": {"needed for drag, for clicks with modifiers, and for key chords that hold a key other than a modifier",
+			"without it, the window loses the focus after each call, and what its app closes on focus loss may be gone by the next call"},
 		"launch":  {"Close the windows you launch when you are done"},
 		"close":   {"Close only windows you launched or the user asked you to close"},
 		"release": {"an act without input only renews one that is held"},
@@ -3310,7 +3347,7 @@ func TestLeaseFollowsInput(t *testing.T) {
 
 	// A lease keeps only the focus that input gives, so a call without input starts none.
 	res := e.act(`{"window":"0xa1","shot":"s1"}`)
-	if res.IsError || leases() != 0 || held() || !strings.Contains(text(res), "no lease") {
+	if res.IsError || leases() != 0 || held() || get(t, res, "lease.held") != false {
 		t.Fatalf("leases %d: %s", leases(), text(res))
 	}
 	// Input takes it before it is sent and renews it after the capture.

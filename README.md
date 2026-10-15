@@ -54,8 +54,9 @@ together.
   is connected, and during `wait … since`, hidden windows get frame callbacks,
   so the next screenshot shows the result. `wait` answers once the window has
   finished drawing, or once it has drawn a change since a screenshot.
-- **Focus that stays.** A focus lease keeps a window's emulated focus between
-  inputs, so menus and dropdowns stay open while an agent looks at them.
+- **Focus that stays.** A focus lease keeps a window's emulated pointer and
+  keyboard focus between inputs, while an agent looks at a screenshot and
+  decides what to do next.
 - **Popups outside the window.** Screenshots can include menus and popups that
   reach past the window's edges.
 - **Hidden launches.** `hyprmasq-launch` starts an application on a hidden
