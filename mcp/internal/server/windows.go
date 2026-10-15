@@ -3,9 +3,12 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -163,9 +166,13 @@ type windowOut struct {
 	Launched     bool             `json:"launched"`
 	Lease        *windowLeaseOut  `json:"lease"`
 	Capabilities *capabilitiesOut `json:"capabilities"`
-	// The window whose input in an earlier act opened this one after that act had returned, while no result has reported
-	// it: the next act or screenshot does, with a shot.
+	// The window whose input in an earlier act opened this one after that act had returned, while no earlier result has
+	// reported it: this one does, with a shot, unless it is past the limit of shots.
 	OpenedByInput string `json:"opened_by_input,omitempty"`
+	// Its shot in this result: of the one window listed, or of a late window.
+	Shot *shotOut `json:"shot,omitempty"`
+	// This result reports it as a late window, with its shot.
+	reported bool
 }
 
 // describeWindow describes a window of the list, whose windowKeys open holds.
@@ -190,7 +197,8 @@ func (s *Server) describeWindow(ctx context.Context, w hypr.Window, visible map[
 }
 
 type windowsArgs struct {
-	Match string `json:"match"`
+	Match  string `json:"match"`
+	WaitMs *int   `json:"wait_ms"`
 }
 
 // matches tells whether the window's class or title contains match, ignoring case.
@@ -211,48 +219,266 @@ func foldCase(s string) string {
 	}, s)
 }
 
+// windowsOut is the structured content of windows. Its summary has the lines of the text after those of the windows.
+type windowsOut struct {
+	resultText
+	Windows []windowOut `json:"windows"`
+	// Windows that the input of earlier acts opened after those acts had returned, which no result had reported.
+	LateWindows []newWindowOut  `json:"late_windows,omitempty"`
+	Wait        *windowsWaitOut `json:"wait,omitempty"`
+}
+
+// windowsWaitOut is how the wait of wait_ms ended: found when a window that it waits for was there, at once or once it
+// had mapped, timeout when none came within wait_ms, and nothing when no window can come: without match, when no act
+// of the session within lateWatch sent input that can open a window.
+type windowsWaitOut struct {
+	Ended     string `json:"ended"`
+	ElapsedMs int    `json:"elapsed_ms"`
+}
+
+const (
+	// The longest wait_ms of windows. The portal's file chooser mapped 1.5 to 1.8 s after its click in a benchmark, and a
+	// dialog whose app or portal has to start first takes a few seconds more. A wait in vain costs the agent no more than
+	// this, which stays far within the tool timeouts of clients, such as Codex's 60 s.
+	maxWindowsWait = 10 * time.Second
+	// How often windows lists the windows while it waits, when Hyprland's event socket cannot be read.
+	windowsPoll = 100 * time.Millisecond
+)
+
+// A mapWatch tells when a window may have mapped, and with titles when one may have changed its title: on Hyprland's
+// events, or every windowsPoll when its event socket cannot be read or has dropped the connection.
+type mapWatch struct {
+	// The subscription's events, and while it lasts the same channel in live, which is nil once it has ended.
+	events, live <-chan hypr.Event
+	stop         context.CancelFunc
+	titles       bool
+}
+
+// watchMaps subscribes to Hyprland's events. A caller subscribes before it lists the windows, so that no window maps
+// unseen between the two.
+func (s *Server) watchMaps(ctx context.Context, titles bool) *mapWatch {
+	ctx, stop := context.WithCancel(ctx)
+	events, err := s.hypr.Events(ctx)
+	if err != nil {
+		events = nil
+	}
+	return &mapWatch{events: events, live: events, stop: stop, titles: titles}
+}
+
+// next waits for an event that may have changed the windows, or for the next poll, and tells whether one came before
+// until and before ctx ended.
+func (m *mapWatch) next(ctx context.Context, until time.Time) bool {
+	limit := time.NewTimer(time.Until(until))
+	defer limit.Stop()
+	for {
+		var poll <-chan time.Time
+		if m.live == nil {
+			poll = time.After(windowsPoll)
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-limit.C:
+			return false
+		case <-poll:
+			return true
+		case e, ok := <-m.live:
+			switch {
+			case !ok:
+				// Events may have been lost, so the windows are listed again, and from now on every windowsPoll.
+				m.live = nil
+				return true
+			case e.Name == "openwindow", m.titles && e.Name == "windowtitlev2":
+				return true
+			}
+		}
+	}
+}
+
+// close ends the subscription, and returns once its reader has stopped.
+func (m *mapWatch) close() {
+	m.stop()
+	if m.events != nil {
+		for range m.events {
+		}
+	}
+}
+
 func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	var args windowsArgs
 	if err := c.decode(&args); err != nil {
 		return simpleError(err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	waitMs, err := intArg(args.WaitMs, 0, 0, int(maxWindowsWait/time.Millisecond), "wait_ms")
+	if err != nil {
+		return simpleError(err)
+	}
+	start := time.Now()
+	wait := time.Duration(waitMs) * time.Millisecond
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout+wait)
 	defer cancel()
 	if err := s.checkPlugin(ctx); err != nil {
 		return simpleError(err)
+	}
+	var maps *mapWatch
+	if wait > 0 {
+		maps = s.watchMaps(ctx, args.Match != "")
+		defer maps.close()
 	}
 	clients, err := s.listWindows(ctx)
 	if err != nil {
 		return simpleError(err)
 	}
+	listed := func() []hypr.Window {
+		return slices.DeleteFunc(slices.Clone(clients), func(w hypr.Window) bool { return !matches(w, args.Match) })
+	}
+	before := openKeys(clients)
+	// The windows that the input of earlier acts opened after they had returned come with this result, as with the next
+	// act or screenshot, so that the agent sees them before it acts again.
+	late := s.claimLate(ctx, clients)
+	var waited *windowsWaitOut
+	if wait > 0 {
+		found := func() bool {
+			if args.Match != "" {
+				return len(listed()) > 0
+			}
+			return len(late) > 0
+		}
+		waited = &windowsWaitOut{Ended: "found"}
+		switch {
+		case found():
+		case args.Match == "" && !s.watching():
+			waited.Ended = "nothing"
+		default:
+			// Hyprland accepts the event socket's connection on its main thread, possibly in the same pass in which it
+			// answered the first listing, after it, so a window that mapped between the two sent its event to no one. The
+			// next listing is answered in a later pass, after the accept, so the windows are listed once more at once:
+			// every window that maps after that listing sends its event.
+			for until, again := start.Add(wait), true; !found(); again = false {
+				if !again && !maps.next(ctx, until) {
+					if ctx.Err() != nil {
+						s.keepLate(late)
+						return simpleError(ctx.Err())
+					}
+					waited.Ended = "timeout"
+					break
+				}
+				if clients, err = s.listWindows(ctx); err != nil {
+					s.keepLate(late)
+					return simpleError(err)
+				}
+				late = append(late, s.claimLate(ctx, clients)...)
+			}
+			waited.ElapsedMs = int(time.Since(start).Milliseconds())
+		}
+	}
+	end, _ := ctx.Deadline()
+	var images [][]byte
+	out := &windowsOut{Windows: []windowOut{}, Wait: waited}
+	out.LateWindows, images = s.lateShots(ctx, end, late)
+	shown := listed()
 	visible := s.visibleWorkspaces(ctx)
 	launched := s.launchedWindows(ctx)
 	open := openKeys(clients)
-	windows := []windowOut{}
-	var lines []string
-	for _, w := range clients {
-		if !matches(w, args.Match) {
-			continue
+	for _, w := range shown {
+		o := s.describeWindow(ctx, w, visible, launched, open)
+		if i := slices.IndexFunc(out.LateWindows, func(l newWindowOut) bool { return l.Window == w.Address && l.StableID == w.StableID }); i >= 0 {
+			o.OpenedByInput, o.Shot, o.reported = out.LateWindows[i].Source, out.LateWindows[i].Shot, true
 		}
-		out := s.describeWindow(ctx, w, visible, launched, open)
-		windows = append(windows, out)
-		lines = append(lines, windowLine(out))
+		out.Windows = append(out.Windows, o)
 	}
+	var lines, hints []string
+	// The one window listed comes with its shot, as from screenshot, since that is what an agent takes next.
+	if len(out.Windows) == 1 && out.Windows[0].Shot == nil {
+		o, w := &out.Windows[0], shown[0]
+		// A late window past the limit of shots, whose claim keepLate released, is claimed again for this shot, which
+		// reports it as a late window, unless another call has claimed or reported it meanwhile.
+		var reclaimed *newWindowOut
+		if i := slices.IndexFunc(late, func(l newWindowOut) bool { return l.Window == w.Address && l.StableID == w.StableID }); i >= 0 {
+			reclaimed = s.reclaimLate(late[i])
+		}
+		var sh *shot
+		var png []byte
+		if before[windowKey(w)] {
+			sh, png, err = s.capture(ctx, w.Address, w.StableID, nil)
+		} else {
+			// It mapped while the call waited, so it gets the time to draw what it opened with, as a new window does.
+			sh, png, err = s.newWindowShot(ctx, w.Address, w.StableID, end)
+		}
+		if err == nil {
+			s.shots.returned(sh)
+			o.Shot, o.reported = shotInfo(sh), o.OpenedByInput != ""
+			images = append([][]byte{png}, images...)
+			if reclaimed != nil {
+				// The late window's line and hints name it, with this shot.
+				reclaimed.Shot = o.Shot
+				out.LateWindows = append([]newWindowOut{*reclaimed}, out.LateWindows...)
+			} else {
+				lines = append(lines, fmt.Sprintf("%s of window %s", shotText(o.Shot), w.Address))
+				hints = append(hints, frameHints(o.Shot))
+			}
+		} else {
+			if reclaimed != nil {
+				s.releaseLate([]newWindowOut{*reclaimed})
+			}
+			te := asToolError(err)
+			hints = append(hints, joinHints(fmt.Sprintf("The shot of window %s failed: %s.", w.Address, te.Message), te.Hint))
+		}
+	}
+	// A client that cancelled the call gets no result, so the late windows are left to a later one.
+	if errors.Is(ctx.Err(), context.Canceled) {
+		s.releaseLate(out.LateWindows)
+		return simpleError(ctx.Err())
+	}
+	if len(out.Windows) == 1 && out.Windows[0].Shot != nil {
+		// Its shot reports it, also when it is a late window whose claim keepLate released.
+		s.settle(windowKey(shown[0]))
+	}
+	var leadLines []string
+	for _, o := range out.Windows {
+		leadLines = append(leadLines, windowLine(o))
+	}
+	var notes []string
 	switch {
 	case len(clients) == 0:
-		lines = append(lines, "no windows")
-	case len(lines) == 0:
-		lines = append(lines, fmt.Sprintf("no window has %q in its class or title, of %d windows", args.Match, len(clients)))
+		notes = append(notes, "no windows")
+	case len(out.Windows) == 0:
+		notes = append(notes, fmt.Sprintf("no window has %q in its class or title, of %d windows", args.Match, len(clients)))
 	}
-	structured := map[string]any{"windows": windows}
-	if len(windows) == 0 {
-		// The structured content carries everything the text says, also why the list is empty.
-		structured["summary"] = lines[0]
+	if note := windowsWaitText(waited, args.Match, waitMs); note != "" {
+		notes = append(notes, note)
 	}
-	return &mcp.CallToolResult{
-		Content:           []mcp.Content{&mcp.TextContent{Text: strings.Join(lines, "\n")}},
-		StructuredContent: structured,
+	// A late window that the match leaves out of the list is named as in the other results.
+	unlisted := slices.DeleteFunc(slices.Clone(out.LateWindows), func(l newWindowOut) bool {
+		return slices.ContainsFunc(shown, func(w hypr.Window) bool { return w.Address == l.Window && w.StableID == l.StableID })
+	})
+	if text := lateWindowsText(unlisted); text != "" {
+		notes = append(notes, text)
 	}
+	lines = append(notes, append(lines, newWindowLines(out.LateWindows, "late window")...)...)
+	out.Summary = strings.Join(lines, "\n")
+	if waited != nil && waited.Ended == "timeout" && args.Match == "" {
+		hints = append(hints, "Without match, only a window that hyprmasq found your input to open ends the wait; give match to wait for a window by its class or title.")
+	}
+	out.Hint = joinHints(append(hints, lateHint(out.LateWindows), newWindowsHint(out.LateWindows))...)
+	return newResult(out, out.resultText, images, strings.Join(leadLines, "\n"))
+}
+
+// windowsWaitText is the summary's line about the wait of wait_ms, or "" when it found a window at once or did not wait.
+func windowsWaitText(w *windowsWaitOut, match string, waitMs int) string {
+	switch {
+	case w == nil:
+		return ""
+	case w.Ended == "nothing":
+		return "did not wait: no act of yours in the last 2 minutes sent input that can open a window; give match to wait for another window"
+	case w.Ended == "timeout" && match != "":
+		return fmt.Sprintf("waited %d ms: no window with %q in its class or title mapped", waitMs, match)
+	case w.Ended == "timeout":
+		return fmt.Sprintf("waited %d ms: no window that your input opened mapped", waitMs)
+	case w.ElapsedMs > 0:
+		return fmt.Sprintf("found after waiting %d ms", w.ElapsedMs)
+	}
+	return ""
 }
 
 // windowLine describes a window in one line. It leaves out what an agent rarely needs: the pid, and the capabilities of a
@@ -278,7 +504,10 @@ func windowLine(w windowOut) string {
 	if w.Launched {
 		parts = append(parts, "launched")
 	}
-	if w.OpenedByInput != "" {
+	switch {
+	case w.OpenedByInput != "" && w.reported:
+		parts = append(parts, "opened by your input to "+w.OpenedByInput)
+	case w.OpenedByInput != "":
 		parts = append(parts, fmt.Sprintf("opened by your input to %s, not yet reported", w.OpenedByInput))
 	}
 	if w.Lease != nil {

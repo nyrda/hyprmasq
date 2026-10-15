@@ -2,6 +2,7 @@
 package hypr
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -442,6 +444,49 @@ func (c *Client) Monitors(ctx context.Context) ([]Monitor, error) {
 		return nil, fmt.Errorf("unexpected reply to monitors: %v", err)
 	}
 	return monitors, nil
+}
+
+// Event is a line of Hyprland's event socket: its name, such as openwindow, and its data.
+type Event struct {
+	Name string
+	Data string
+}
+
+// EventSocket is the path of Hyprland's event socket, which lies next to its request socket.
+func (c *Client) EventSocket() string {
+	return filepath.Join(filepath.Dir(c.Socket), ".socket2.sock")
+}
+
+// Events connects to Hyprland's event socket and sends each event that Hyprland writes to it on the channel, until ctx
+// ends or the connection does, and then closes the channel. Hyprland writes an event as it happens, on its main thread,
+// so a request sent after an event is answered after what the event announced. It drops a client that falls 64 events
+// behind, which ends the connection.
+func (c *Client) Events(ctx context.Context) (<-chan Event, error) {
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(ctx, "unix", c.EventSocket())
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, &ConnectError{Socket: c.EventSocket(), Err: err}
+	}
+	events := make(chan Event)
+	go func() {
+		defer close(events)
+		defer conn.Close()
+		stop := context.AfterFunc(ctx, func() { conn.SetDeadline(time.Unix(1, 0)) })
+		defer stop()
+		lines := bufio.NewScanner(conn)
+		for lines.Scan() {
+			name, data, _ := strings.Cut(lines.Text(), ">>")
+			select {
+			case events <- Event{Name: name, Data: data}:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return events, nil
 }
 
 // Dispatch runs a Lua dispatcher expression such as hl.dsp.window.close({ window = "stableid:1a" }).

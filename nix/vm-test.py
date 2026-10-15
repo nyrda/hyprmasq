@@ -2946,7 +2946,11 @@ print(longest)
         assert sorted(tools) == ["act", "close", "launch", "release", "screenshot", "windows"], tools
         for name, tool in tools.items():
             assert tool["description"] and tool["inputSchema"]["type"] == "object", tool
-            assert tool.get("annotations", {}).get("readOnlyHint", False) == (name == "windows"), tool
+            # windows takes a shot of the one window it lists, which opens the window's socket, as screenshot does.
+            assert not tool.get("annotations", {}).get("readOnlyHint", False), tool
+            assert tool.get("annotations", {}).get("destructiveHint", True) == (name not in ("windows", "screenshot", "launch", "release")), tool
+        windows_schema = tools["windows"]["inputSchema"]
+        assert set(windows_schema["properties"]) == {"match", "wait_ms"} and windows_schema["properties"]["wait_ms"]["maximum"] == 10000, windows_schema
         act_schema = tools["act"]["inputSchema"]
         assert act_schema["required"] == ["window"], act_schema
         assert set(act_schema["properties"]) == {"window", "shot", "actions", "wait", "capture", "deadline_ms"}, act_schema
@@ -2988,8 +2992,10 @@ print(longest)
         claude = Mcp("claude")
         claude.initialize(client="claude-code")
         # The shell was launched by the other server, so this one does not list it as launched.
+        # It lists one window, which comes with its shot.
         matched = claude.call("windows", {"match": "HM-M-SHELL"})
-        assert matched.data is None and matched.text == f'{shell} · foot "hm-m-shell" · workspace hm-m (hidden) · 640×480', matched
+        assert matched.data is None and len(matched.images) == 1, matched
+        assert re.fullmatch(rf'{shell} · foot "hm-m-shell" · workspace hm-m \(hidden\) · 640×480\nshot s\d+ 640×480 of window {shell}', matched.text), matched
         none = claude.call("windows", {"match": "hm-m-nothing"})
         assert none.data is None and re.fullmatch(r'no window has "hm-m-nothing" in its class or title, of \d+ windows', none.text), none
         shot = claude.call("screenshot", {"window": shell})
@@ -2999,7 +3005,9 @@ print(longest)
         assert claude.stop() == 0
         # Other clients get it, and match there too. An empty list says why in it as well.
         matched = mcp.call("windows", {"match": "hm-m-shell"})
-        assert [w["window"] for w in matched.data["windows"]] == [shell] and matched.text == line, matched
+        matched_shot = matched.data["windows"][0]["shot"]
+        assert [w["window"] for w in matched.data["windows"]] == [shell] and (matched_shot["width"], matched_shot["height"]) == (640, 480), matched
+        assert matched.text == f'{line}\nshot {matched_shot["id"]} 640×480 of window {shell}' and matched.data["summary"] == matched.text.splitlines()[1], matched
         none = mcp.call("windows", {"match": "hm-m-nothing"})
         assert none.data == {"windows": [], "summary": none.text}, none
 
@@ -3012,13 +3020,13 @@ print(longest)
         wait = typed_result.data["wait"]
         assert wait["ended"] == "quiet" and wait["summary"] == "settled" and wait["redraw_observed"] and wait["commits"] > 0, typed_result
         assert wait["quiet_ms"] >= 200 and typed_result.data["lease"]["held"] and typed_result.data["lease"]["remaining_s"] in (59, 60), typed_result
-        # It shows what changed since the launch's shot, the session's last of the window: a zoom into the lines of the
-        # command and its output.
+        # It shows what changed since the shot that windows returned with the match, the session's last of the window, as
+        # a screenshot's would be: a zoom into the lines of the command and its output.
         changed = typed_result.data["shot"]
-        assert changed["changes"]["base"] == launch_shot["id"] and len(changed["changes"]["regions"]) == 1, typed_result
+        assert changed["changes"]["base"] == matched_shot["id"] and len(changed["changes"]["regions"]) == 1, typed_result
         zoom = changed["changes"]["regions"][0]
         assert re.fullmatch(
-            rf"2/2 delivered · redraw observed · quiet \d+ ms · \d+ ms · shot {changed['id']} = {launch_shot['id']} \+ 1 change · lease (59|60) s\n"
+            rf"2/2 delivered · redraw observed · quiet \d+ ms · \d+ ms · shot {changed['id']} = {matched_shot['id']} \+ 1 change · lease (59|60) s\n"
             rf"zoom {zoom['shot']} {zoom['image_width']}×{zoom['image_height']} of {changed['id']} at {zoom['x']},{zoom['y']} {zoom['width']}×{zoom['height']}",
             typed_result.text,
         ), typed_result
@@ -3044,10 +3052,12 @@ print(longest)
         start = len(probe_events("m-probe"))
         clicked = mcp.call("act", {"window": probe, "shot": overview_id, "actions": [{"action": "click", "x": 123, "y": 77}]})
         assert not clicked.is_error and clicked.data["wait"]["ended"] == "no_redraw" and clicked.data["wait"]["summary"] == "no_change", clicked
-        # Nothing changed since the shot, so there is no image, and the hint points at the shot the window still shows.
+        # Nothing changed since the shot, so there is no image, and the hint points at the shot the window still shows. A
+        # click may also have opened a window of another process that maps later, which the hint says too.
+        later = "; it may also have opened a window that maps later, as a file chooser of another process can a second or two after the input: windows with wait_ms waits for it, and your next act or screenshot returns it"
         assert re.fullmatch(
             rf"1/1 delivered · no redraw within 1000 ms · shot s\d+ = {overview_id}, no change · lease (59|60) s\n"
-            rf"The click may have missed or had no visible effect\. Look at {overview_id} before repeating it\.",
+            rf"The click may have missed or had no visible effect{re.escape(later)}\. Look at {overview_id} before repeating it\.",
             clicked.text,
         ) and not clicked.images, clicked
         assert probe_motions(start) == [(123, 77)], probe_events("m-probe", start)
@@ -3580,19 +3590,24 @@ print(longest)
 
     agent_colors = [(0x22, 0x44, 0x66), (0x66, 0x44, 0x22)]
 
-    with subtest("a window that input opens after its act has returned comes with the next screenshot or act"):
+    with subtest("a window that input opens after its act has returned comes with the next windows, screenshot or act"):
         # A middle click opens a dialog of the clicked window 1.5 s later, after the act has returned, as the portal's
-        # file chooser mapped 0.7 s after the click's act in a benchmark. windows marks it until a result reports it.
+        # file chooser mapped 0.7 s after the click's act in a benchmark. The session's next result reports it, once.
         late_titles = []
         agent_shot = opener.call("screenshot", {"window": agent}).data["shot"]["id"]
+
+        def middle_click():
+            """Clicks so that the probe opens a dialog 1.5 s later, and returns the act's result."""
+            clicked = opener.call("act", {"window": agent, "shot": agent_shot, "actions": [{"action": "click", "x": 320, "y": 240, "button": "middle"}],
+                                          "wait": {"quiet_ms": 100}})
+            assert not clicked.is_error, clicked
+            return clicked
 
         def click_late():
             """Clicks so that the probe opens a dialog 1.5 s later, until the act has returned before it mapped."""
             for attempt in range(3):
                 start = len(probe_events("o-agent"))
-                clicked = opener.call("act", {"window": agent, "shot": agent_shot, "actions": [{"action": "click", "x": 320, "y": 240, "button": "middle"}],
-                                              "wait": {"quiet_ms": 100}})
-                assert not clicked.is_error, clicked
+                clicked = middle_click()
                 late = opened_since("o-agent", start, r"hm-o-agent-late-dialog\d+")
                 late_titles.append(late["title"])
                 mapped = next(t for t, e in probe_events("o-agent", start) if e == f"mapped {late['title']}")
@@ -3604,23 +3619,38 @@ print(longest)
             assert late["workspace"]["id"] == 61 and late["floating"] and snapshot() == before_focus, late
             return late
 
+        def check_late(result, late, image):
+            """Checks the entry of the late window in a result, and the image of its shot, and returns its shot."""
+            entry = result.data["late_windows"][0]
+            assert (entry["workspace"], entry["visible"], entry["focused"], entry["placed"], entry["source"], entry["same_pid"]) == ("61", False, False, True, agent, True), entry
+            assert [entry["shot"]["width"], entry["shot"]["height"]] == late["size"] and near(pixels(image, (5, 5))[0], green_window), (entry, late)
+            shot = entry["shot"]
+            assert f'shot {shot["id"]} {shot["width"]}×{shot["height"]} of late window {late["address"]}' in result.text.splitlines(), result
+            assert result.data["hint"] == f'Your input to {agent} in an earlier act opened window {late["address"]} "{late["title"]}" after that act had returned; it is in shot {shot["id"]}.', result
+            return shot
+
+        # windows lists it among the others, which come without shots, and returns its shot.
         late = click_late()
-        entry, line = listed(opener, late["address"])
-        assert entry["opened_by_input"] == agent and f" · opened by your input to {agent}, not yet reported" in line, (entry, line)
-        shown = opener.call("screenshot", {"window": agent})
-        assert not shown.is_error and [w["window"] for w in shown.data.get("late_windows", [])] == [late["address"]] and len(shown.images) == 2, shown
-        entry = shown.data["late_windows"][0]
-        assert (entry["workspace"], entry["visible"], entry["focused"], entry["placed"], entry["source"], entry["same_pid"]) == ("61", False, False, True, agent, True), entry
-        late_shot = entry["shot"]
-        assert [late_shot["width"], late_shot["height"]] == late["size"] and near(pixels(shown.images[1], (5, 5))[0], green_window), (entry, late)
-        lines = shown.text.splitlines()
-        assert lines[0].endswith(f' · late window {late["address"]} ({late["class"]} "{late["title"]}", same pid) on workspace 61 (hidden)'), shown
-        assert lines[1] == f'shot {late_shot["id"]} {late_shot["width"]}×{late_shot["height"]} of late window {late["address"]}', shown
-        assert shown.data["hint"] == f'Your input to {agent} in an earlier act opened window {late["address"]} "{late["title"]}" after that act had returned; it is in shot {late_shot["id"]}.', shown
-        keep(shown, "late-screenshot")
+        listing = opener.call("windows")
+        assert not listing.is_error and [w["window"] for w in listing.data.get("late_windows", [])] == [late["address"]] and len(listing.images) == 1, listing
+        late_shot = check_late(listing, late, listing.images[0])
+        entry, line = next((w, l) for w, l in zip(listing.data["windows"], listing.text.splitlines()) if w["window"] == late["address"])
+        assert entry["opened_by_input"] == agent and entry["shot"] == late_shot and line.endswith(f" · opened by your input to {agent}"), (entry, line)
+        assert [w["window"] for w in listing.data["windows"] if "shot" in w] == [late["address"]], listing
+        keep(listing, "late-windows")
         # It is reported once.
         assert "late_windows" not in opener.call("screenshot", {"window": agent}).data
         assert "opened_by_input" not in listed(opener, late["address"])[0]
+
+        # The next screenshot reports one too.
+        late = click_late()
+        shown = opener.call("screenshot", {"window": agent})
+        assert not shown.is_error and [w["window"] for w in shown.data.get("late_windows", [])] == [late["address"]] and len(shown.images) == 2, shown
+        check_late(shown, late, shown.images[1])
+        assert shown.text.splitlines()[0].endswith(f' · late window {late["address"]} ({late["class"]} "{late["title"]}", same pid) on workspace 61 (hidden)'), shown
+        keep(shown, "late-screenshot")
+        assert "late_windows" not in opener.call("screenshot", {"window": agent}).data
+        assert "late_windows" not in opener.call("windows").data
 
         # The next act reports one too, here an act that only waits.
         late = click_late()
@@ -3629,6 +3659,77 @@ print(longest)
         assert f' · late window {late["address"]} ({late["class"]} "{late["title"]}", same pid) on workspace 61 (hidden)' in waited.text.splitlines()[0], waited
         assert snapshot() == before_focus
         close_titled(*late_titles)
+
+    with subtest("windows waits for a window that input opens after its act, and returns the shot of the one window it lists"):
+        late_pattern = r"hm-o-agent-late-dialog\d+"
+
+        def late_dialogs(result):
+            return [w for w in result.data["windows"] if re.fullmatch(late_pattern, w["title"])]
+
+        # Right after the click, the dialog has not mapped yet, so windows does not list it; or once it has mapped, windows
+        # lists it with its shot. Then windows with wait_ms returns it, at once or once it maps.
+        start = len(probe_events("o-agent"))
+        middle_click()
+        quick = opener.call("windows")
+        if early := late_dialogs(quick):
+            machine.log(f"hyprmasq-mcp: the late dialog mapped before windows listed the windows: {quick}")
+            assert [w["window"] for w in quick.data["late_windows"]] == [early[0]["window"]] and early[0]["shot"] and len(quick.images) == 1, quick
+        else:
+            assert "late_windows" not in quick.data and not quick.images, quick
+            waited = opener.call("windows", {"wait_ms": 5000})
+            late = opened_since("o-agent", start, late_pattern)
+            assert waited.data["wait"]["ended"] == "found" and [w["window"] for w in waited.data["late_windows"]] == [late["address"]], waited
+            check_late(waited, late, waited.images[0])
+        late_titles = [opened_since("o-agent", start, late_pattern)["title"]]
+        close_titled(*late_titles)
+
+        # windows with wait_ms right after the click waits until the dialog maps, about 1.5 s after the click, and returns
+        # it with its shot then, long before its limit.
+        for attempt in range(3):
+            start = len(probe_events("o-agent"))
+            clicked = middle_click()
+            waited = opener.call("windows", {"wait_ms": 5000})
+            late = opened_since("o-agent", start, late_pattern)
+            late_titles.append(late["title"])
+            mapped = next(t for t, e in probe_events("o-agent", start) if e == f"mapped {late['title']}")
+            machine.log(f"hyprmasq-mcp: late dialog mapped {mapped - clicked.sent * 1000:.0f} ms after the click's act started, "
+                        f"windows with wait_ms returned {waited.received * 1000 - mapped:.0f} ms after that: {waited}")
+            if waited.data["wait"]["elapsed_ms"] > 0:
+                break
+            # It had mapped before windows started to wait.
+            close_titled(late["title"])
+        wait = waited.data["wait"]
+        assert not waited.is_error and wait["ended"] == "found" and 0 < wait["elapsed_ms"] < 4000, waited
+        assert [w["window"] for w in waited.data["late_windows"]] == [late["address"]] and len(waited.images) == 1, waited
+        check_late(waited, late, waited.images[0])
+        assert f"found after waiting {wait['elapsed_ms']} ms" in waited.text.splitlines(), waited
+        assert 1400 <= mapped - clicked.sent * 1000 and mapped <= waited.received * 1000 < mapped + 2500, (clicked, mapped, waited)
+        keep(waited, "late-waited")
+        close_titled(*late_titles)
+
+        # With match, it waits for a window that matches, here the next dialog, which comes with its shot as the one
+        # window listed and as a late window.
+        start = len(probe_events("o-agent"))
+        middle_click()
+        matched = opener.call("windows", {"match": "late-dialog", "wait_ms": 5000})
+        late = opened_since("o-agent", start, late_pattern)
+        assert matched.data["wait"]["ended"] == "found" and [w["window"] for w in matched.data["windows"]] == [late["address"]] and len(matched.images) == 1, matched
+        assert matched.data["windows"][0]["shot"] == matched.data["late_windows"][0]["shot"], matched
+        check_late(matched, late, matched.images[0])
+
+        # match with one result returns the shot that screenshot would: act takes its coordinates, and the next changes
+        # are compared with it.
+        one = opener.call("windows", {"match": late["title"]})
+        shot = one.data["windows"][0]["shot"]
+        assert len(one.images) == 1 and "late_windows" not in one.data and [shot["width"], shot["height"]] == late["size"], one
+        assert one.text.splitlines()[1:] == [f'shot {shot["id"]} {shot["width"]}×{shot["height"]} of window {late["address"]}'], one
+        assert near(pixels(one.images[0], (5, 5))[0], green_window), one
+        start = len(probe_events("o-agent"))
+        clicked = opener.call("act", {"window": late["address"], "shot": shot["id"], "actions": [{"action": "click", "x": 20, "y": 30}], "wait": {"expect_change": False}})
+        assert not clicked.is_error and clicked.data["new_windows"] == [] and shot["id"] in clicked.text.splitlines()[0], clicked
+        assert f"motion {late['title']} 20 30" in [e for _, e in probe_events("o-agent", start)], probe_events("o-agent", start)
+        assert snapshot() == before_focus
+        close_titled(late["title"])
 
     with subtest("input that closes its window after the wait has ended is delivered, and returns the window it came from"):
         # Enter in a dialog of the probe redraws it and closes it 300 ms later, after the wait has ended quiet, as the

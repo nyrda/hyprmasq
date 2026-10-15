@@ -50,19 +50,20 @@ plugin's deferred reply is ready, so waits are not limited by `hyprctl`'s
 
 | Tool | Arguments | Result |
 | --- | --- | --- |
-| `windows` | optional `match` | All windows, or with `match` those whose class or title contains it, ignoring case as Unicode simple case folding does (`Σ` finds `ς`): `window` (address), `stable_id`, `class`, `title`, `pid`, `workspace` (name), `visible` (on a monitor's active or special workspace), `size` (logical), `resizing` (not yet redrawn at its size, see [Shots](#shots-and-coordinates)), `xwayland`, `launched` (by this server), `lease` (`held`, `remaining_s`, `mine`, or `null`), `capabilities`, and for a [late window](#late-windows) that no result has reported yet `opened_by_input`, the window whose input opened it. |
+| `windows` | optional `match`, `wait_ms` (0 to 10000, default 0) | All windows, or with `match` those whose class or title contains it, ignoring case as Unicode simple case folding does (`Σ` finds `ς`): `window` (address), `stable_id`, `class`, `title`, `pid`, `workspace` (name), `visible` (on a monitor's active or special workspace), `size` (logical), `resizing` (not yet redrawn at its size, see [Shots](#shots-and-coordinates)), `xwayland`, `launched` (by this server), `lease` (`held`, `remaining_s`, `mine`, or `null`), `capabilities`, and for a [late window](#late-windows) `opened_by_input`, the window whose input opened it. The one window it lists comes with a `shot`, as from `screenshot`, with the image, and the [late windows](#late-windows) of the session come with a shot each. With `wait_ms`, it first waits for a window that is not there yet; see [Waiting for a window](#waiting-for-a-window). |
 | `launch` | `command` (array, required), `workspace` (default `hyprmasq`), `timeout_s` (1 to 300, default 30) | Starts the command on a hidden workspace like `hyprmasq-launch`, waits for its first window and for that window to settle, and returns `window`, `wait`, `shot` and `new_windows`, the other windows that appeared, with the image. The hint names the windows on its workspace whose size changed meanwhile, such as tiled windows that made room for it, so that their earlier shots are stale. |
 | `screenshot` | `window`, optional `region` | A shot, with the image. No lock, and no waiting except for a window that has not caught up with a resize, or a hidden one that has not drawn since it got no frame callbacks. See [Shots](#shots-and-coordinates). Also the [late windows](#late-windows) of the session, with a shot each. |
 | `act` | `window`, `shot`, `actions`, `wait`, `capture`, `deadline_ms` | Runs the actions, waits, and captures what changed, and the windows that the input opened, with a shot of each, and the [late windows](#late-windows) of earlier acts. When the window closed, the window it came from, with a shot. See [act](#act), [Changes](#changes), [New windows](#new-windows) and [A window that closes](#a-window-that-closes). |
 | `release` | `window` | Ends the window's focus lease, whichever session holds it. The window stays open. Returns `released`. |
 | `close` | `window` | Asks the window to close, as Hyprland's close dispatcher does, ends its lease, and reports whether it closed within 2 s (`closed`, `elapsed_ms`) and which windows appeared (`new_windows`), such as a confirmation dialog. A window that stays open is not an error. When a tiled window closed, the hint names the tiled windows on its workspace, which take up its space, so that their earlier shots are stale. |
 
-`windows` is annotated `readOnlyHint`, `screenshot`, `launch` and `release` as
-not destructive, and `release` as idempotent. `act` and `close` keep the
-defaults. `screenshot` is not read-only: it opens the window's socket for the
+`windows`, `screenshot`, `launch` and `release` are annotated as not
+destructive, and `release` as idempotent. `act` and `close` keep the
+defaults. No tool is read-only: `screenshot` opens the window's socket for the
 commit counter that the shot records, and the socket stays open, so from then
 on the plugin treats the window as driven (see the
-[security model](usage.md#security-model)).
+[security model](usage.md#security-model)), and so does `windows` for the
+window it takes a shot of.
 
 `window` takes an address as `windows` lists it: `0x` and up to 16 hex digits.
 Hyprland and the plugin compare addresses as strings, so the server first
@@ -338,14 +339,27 @@ zoom s9 456×124 of s7 at 0,670 228×62
 Without a change there is no image: `shot s7 = s5, no change`. The window
 then looks as s5 does, apart from the tiny changes that a line counts and
 changes below the thresholds, so the hints that say to look before repeating
-input name s5: after a click that drew nothing, `The click may have missed or
-had no visible effect. Look at s5 before repeating it.`, after input that the
-window redrew for but that changed nothing, `Nothing changed since s5, so the
-input may have missed or had no visible effect. Look at s5 before repeating
-it.`, and when tiny changes were left out, `Only tiny changes since s5, such as
-a caret that moved or blinked, so the input may have missed or had little
-visible effect. Look at s5 before repeating it.` After a hover, which may
-change nothing, there is no such hint, nor after an empty batch.
+input name s5: after a scroll that drew nothing, `The input may have had no
+visible effect. Look at s5 before repeating it.`, after typing that the window
+redrew for but that changed nothing, `Nothing changed since s5, so the input
+may have missed or had no visible effect. Look at s5 before repeating it.`, and
+when tiny changes were left out, `Only tiny changes since s5, such as a caret
+that moved or blinked, so the input may have missed or had little visible
+effect. Look at s5 before repeating it.` After motion alone, as for a hover,
+which may change nothing, there is no such hint, nor after an empty batch.
+
+After input that can open a window, a click, a drag, a key or text with a line
+break, the window that got it may not change because the input opened a
+window of another process, which maps after the call has returned, as the
+portal's file chooser did up to 1.8 s after its click in a benchmark. The hint
+says so in place of suggesting only a miss, as after a click that drew
+nothing: `The click may have missed or had no visible effect; it may also have
+opened a window that maps later, as a file chooser of another process can a
+second or two after the input: windows with wait_ms waits for it, and your
+next act or screenshot returns it. Look at s5 before repeating it.` The hints
+for a window that redrew without a change, for tiny changes and for a wait
+that timed out without a redraw add the same clause. See
+[Late windows](#late-windows).
 
 **Full shots.** A full shot, as `capture: "window"` returns it, comes in
 place of the changes when there is nothing to compare with or a full shot
@@ -820,7 +834,7 @@ A result has three parts:
 
    ```
    1/1 delivered · no redraw within 1000 ms · shot s6 = s5, no change · lease 60 s
-   The click may have missed or had no visible effect. Look at s5 before repeating it.
+   The click may have missed or had no visible effect; it may also have opened a window that maps later, as a file chooser of another process can a second or two after the input: windows with wait_ms waits for it, and your next act or screenshot returns it. Look at s5 before repeating it.
    ```
 
    ```
@@ -919,7 +933,7 @@ The other tools answer in the same way:
 
 | Tool | Text | Structured content |
 | --- | --- | --- |
-| `windows` | One line per window: `ADDR · CLASS "TITLE" · workspace NAME (hidden\|visible) · W×H [· resizing (not yet redrawn at its new size)] [· xwayland] [· launched] [· opened by your input to ADDR, not yet reported] [· lease N s (this session\|another session)] [· lacks lease, hold] [· keyboard x11-focus]`, naming only what the window lacks of `lease`, `hold` and `keyboard yes`, so a line without them has them all, and `capabilities unknown` when the plugin did not answer for it. With `match` and no window matching: `no window has "TEXT" in its class or title, of N windows`. | `{"windows": [...]}`, with `stable_id`, `pid`, `capabilities` `{"lease", "hold", "keyboard"}` and every other fact of the lines, and when it lists none, `summary` with the line that says why |
+| `windows` | One line per window: `ADDR · CLASS "TITLE" · workspace NAME (hidden\|visible) · W×H [· resizing (not yet redrawn at its new size)] [· xwayland] [· launched] [· opened by your input to ADDR[, not yet reported]] [· lease N s (this session\|another session)] [· lacks lease, hold] [· keyboard x11-focus]`, naming only what the window lacks of `lease`, `hold` and `keyboard yes`, so a line without them has them all, and `capabilities unknown` when the plugin did not answer for it. With `match` and no window matching: `no window has "TEXT" in its class or title, of N windows`. Then a line on how a wait ended, if it did not find a window at once, `late window ADDR (…) on workspace NAME (…)` for a late window that `match` leaves out, `shot sN W×H of window ADDR` for the shot of the one window listed and `shot sN W×H of late window ADDR` for that of each late window, in the order of the images, and the hint: the one about a shot's older frame, as for `screenshot`, and those about late windows, as for `act`. | `{"windows": [...]}`, with `stable_id`, `pid`, `capabilities` `{"lease", "hold", "keyboard"}`, `shot` for a window with one and every other fact of the lines; `late_windows` when there are any, as for `act`; `wait` `{"ended", "elapsed_ms"}` with `wait_ms`; `summary` with the lines after those of the windows, when there are any, such as the one that says why it lists none; and `hint` |
 | `screenshot` | `shot sN W×H · window ADDR W×H`, with ` · zoom of sM at X,Y W×H` after the shot for a zoom, and ` (stale: not yet redrawn at its new size)` after the shot when it shows an older frame, or ` (may be stale: not redrawn within N ms)` or ` (may be stale: no time to redraw)` when the window was starved and did not draw. Then the [late windows](#late-windows), as for `act`. | `{"summary": "...", "shot": {...}}`, and `late_windows` when there are any |
 | `launch` | `launched ADDR CLASS "TITLE" · pid N · workspace NAME · settled after N ms · shot sN W×H`, or `still resizing after N ms` when the window had not caught up with a resize, `still drawing after N ms`, or `not settled after N ms, no redraw` when input from elsewhere kept the window from counting as quiet, with ` (stale: not yet redrawn at its new size)` or ` (may be stale: …)` after the shot as for `screenshot`, then other new windows. The hint names the windows on its workspace whose size changed. | `{"summary": "...", "window": {...}, "wait": {...}, "shot": {...}, "new_windows": [...]}` |
 | `release` | `lease released; ADDR stays open`, `lease of another session released; ADDR stays open`, or `no lease was held on ADDR`. | `{"summary": "...", "released": true}` |
@@ -946,8 +960,8 @@ default, while it watches the window for another redraw (see
 [Phases](#phases)), captures it and renews the lease; the grace ends at the latest
 250 ms before the deadline, which leaves time for the listing. Text without a
 line break, scrolling, motion and pauses list them at once. A window that maps
-after that is a [late window](#late-windows), which the session's next `act`
-or `screenshot` reports.
+after that is a [late window](#late-windows), which the session's next `act`,
+`screenshot` or `windows` reports.
 
 Each entry has the window's `workspace` (name), whether it is `visible` on a
 monitor and whether it has the user's keyboard focus (`focused`). `source` is
@@ -997,12 +1011,13 @@ click. The session reports such a window in its next result instead. A late
 window is one that the plugin found to come from the target of an `act` of
 the session that delivered input that can open a window, by its `source`, and
 that maps after that act ended, within 2 minutes, unless the user's own input
-opened it. The next `act` or `screenshot` of the session, on any window,
-lists it in `late_windows`, with the fields of a new window and a shot, and
-names it in the summary and the hint. It comes only with a shot: a result
-that has none for it, with capture `"none"`, past the 3 shots that a result
-takes of new and late windows together, or without the time for one, leaves
-it to a later result, and so does a call that is cancelled.
+opened it. The next `act`, `screenshot` or `windows` of the session, on any
+window and with any `match`, lists it in `late_windows`, with the fields of a
+new window and a shot, and names it in the summary and the hint. It comes
+only with a shot: a result that has none for it, with capture `"none"`, past
+the 3 shots that a result takes of new and late windows together, or without
+the time for one, leaves it to a later result, and so does a call that is
+cancelled.
 
 ```
 shot s16 1280×720 · window 0x5d963cd598b0 1920×1080 · late window 0x5d963c7794f0 (xdg-desktop-portal-gtk "Open Files") on workspace web (hidden)
@@ -1012,14 +1027,67 @@ Your input to 0x5d963cd598b0 in an earlier act opened window 0x5d963c7794f0 "Ope
 
 A failure of an `act` before any input, which comes with a shot, lists them
 too. One result reports each late window, once; a `screenshot` or `act` of the late
-window itself reports it with its own shot. Until then, `windows` marks it
-with `opened by your input to ADDR, not yet reported` and `opened_by_input`.
+window itself reports it with its own shot, and so does `windows` when it is
+the one window listed. `windows` marks a late window in its line with `opened
+by your input to ADDR`, and one that it leaves to a later result, past the
+limit of shots, with `opened by your input to ADDR, not yet reported`; both
+have `opened_by_input`. A late window past the limit that is the one window
+listed is reported with the shot of that window, in `late_windows` too. In a benchmark, every agent whose click opened the
+portal's file chooser after its `act` called `windows` next, and then
+`screenshot` on the chooser, so `windows` returns its shot.
 Another session does not report it, since the input was not its own. A late
 window that maps while another `act` runs is that act's late window, not one
 of its new windows. A window that comes from a target that has closed since,
 such as a progress window after a dialog's Send, is late too. The plugin names
 the source's `stable_id` while it lives, so a window from a later window at a
 reused address is not taken for one.
+
+### Waiting for a window
+
+An agent that clicked Upload or Browse expects a window that may come from
+another process a second or two later, after the `act` and its grace. With
+`wait_ms`, `windows` waits for it instead of the agent calling again:
+
+- With `match`, it waits until a window whose class or title contains it is
+  there: one that maps, or one whose title changes to match.
+- Without `match`, it waits until a [late window](#late-windows) of the
+  session is there, a window that the plugin found the input of an `act` to
+  have opened after that act had returned. Other windows that map meanwhile,
+  such as one of another app, do not end the wait. When no `act` of the
+  session in the last 2 minutes sent input that can open a window, none can
+  come, so it does not wait, and says `did not wait: …`.
+
+It returns at once when such a window is there when it is called, and as soon
+as one comes, with the shots it would give at once: of the late windows, and
+of the one window it lists. A window that mapped during the wait gets up to
+1 s to draw what it opened with first, as a new window of `act` does. When
+`wait_ms` passes without one, it lists the windows as without a wait, which
+is no error, and says `waited N ms: no window with "TEXT" in its class or
+title mapped` or `waited N ms: no window that your input opened mapped`. One
+found after a wait says `found after waiting N ms`. `wait` in the structured
+content has `ended`, `found`, `timeout` or `nothing`, and `elapsed_ms`.
+
+`wait_ms` is at most 10000. The file chooser mapped 1.5 to 1.8 s after its
+click in a benchmark, and a dialog whose app or portal has to start first
+takes a few seconds more; a wait in vain costs no more than that, which stays
+far within the tool timeouts of clients, such as Codex's 60 s. The whole call
+has 10 s more for listing and shots.
+
+The wait ends on Hyprland's events, not by polling: before it lists the
+windows, `windows` connects to Hyprland's event socket, `.socket2.sock` next
+to the request socket. Hyprland accepts that connection on its main thread,
+possibly in the pass in which it answers the listing, after it, so a window
+that maps in between sends its event to no one. `windows` therefore lists the
+windows once more before it waits: Hyprland answers that in a later pass,
+after the accept, so every window that maps after it sends its event. Then it
+lists the windows again on each `openwindow`, and with `match` on each
+`windowtitlev2`. Hyprland writes an event as it happens, on its main thread,
+so the list that follows has the window, and the plugin has found its source
+by then. Without the event socket, or once Hyprland dropped the connection,
+which it does to a client 64 events behind, it lists the windows every
+100 ms. A call that is cancelled, or the session's end, ends the wait at once,
+and the connection with it; the late windows it found are left to a later
+result.
 
 ### A window that closes
 
@@ -1722,6 +1790,9 @@ exit statuses and JSON output. What the server relies on:
   pieces of 1023 bytes and blocks its main thread on a request that fills its
   last piece exactly, so such requests get a trailing space. Requests over 32
   KiB are refused, so an overlong `launch` command is `invalid_arguments`.
+- Reads Hyprland's event socket, `.socket2.sock` in the same directory, only
+  while `windows` waits with `wait_ms`, on a connection of its own for that
+  call (see [Waiting for a window](#waiting-for-a-window)).
 - `launch` has the plugin start `exec` and the command, each argument quoted
   for the shell, as `hyprmasq-launch` does, with the plugin's `launch` under a
   random token. It finds the window among those the plugin's `launched` lists
@@ -1773,7 +1844,8 @@ interrupts the shortcut.
 
 **MCP subtests** drive `hyprmasq-mcp` over stdio from the test script:
 launch, results without structured content for a client that introduces
-itself as `claude-code`, `windows` with `match`, typing with a redraw and a
+itself as `claude-code`, `windows` with `match` and the shot of the one window
+it lists, typing with a redraw and a
 lease, the wait between a click and the keys after it, coordinates at scale 1 and 2 and in
 zoom shots, `stale_shot` after a resize, before and during a batch and while
 a call waits for the send lock, `out_of_bounds` (also for a popup above the
@@ -1787,8 +1859,11 @@ shortcut there that the user's typing interrupted, partial
 delivery when X11 input is paused, the wait outcomes, the lease across calls and on exit, new
 windows that the input opens, placed beside the target with a shot each, also
 one that maps after the wait, and with placement off one that has the user's
-focus, a dialog that maps after its act has returned, which `windows` marks
-and the next `screenshot` and `act` return with a shot, Enter that closes its
+focus, a dialog that maps after its act has returned, which the next
+`windows`, `screenshot` and `act` return with a shot, which `windows` right
+after the click lists only once it has mapped, which `windows` with `wait_ms`
+returns as soon as it maps, and which a `match` with one result returns with
+the shot that `act` takes and compares with, Enter that closes its
 dialog after the wait has ended quiet, delivered without a failed capture,
 and the shot of the window that a dialog came from when Enter or a click
 closes it, and none for a dialog whose parent is gone or the user's, two
@@ -1817,17 +1892,25 @@ waiting, lock contention, the checks after the locks, also of an `act`
 without actions whose window another one replaced while it waited, capture regions of a window resized during the call,
 socket ids, lost lease answers, session ends and exit
 statuses, new windows with their workspace, focus, source and shots, also
-one that maps after the wait, late windows in the next screenshot, act and
-failure with a shot, once, and marked by `windows` until then, left to a later
+one that maps after the wait, late windows in the next screenshot, act,
+`windows` and failure with a shot, once, also when `match` leaves them out,
+and marked by `windows` past its limit of shots unless it is the one window
+listed, which no other call reports while `windows` takes its shot, left to a later
 result with capture `"none"`, past the limit of shots and when the call is
-cancelled, also of a target that closed, and none from another window at a reused address, of the
+cancelled, the shot of the one window that `windows` lists, as from
+`screenshot`, also of a starved window, and none of several, `wait_ms` that
+returns at once, waits until a window maps or its title matches, also one
+that maps before Hyprland has accepted the event connection, waits
+without `match` for a late window and not for another window, ends at its
+limit without error, ends with its subscription when cancelled, does not wait
+when nothing can come, and polls without the event socket, also of a target that closed, and none from another window at a reused address, of the
 user's input, of another session or after the watch, windows that close after
 the wait, before or after the capture, the shot of the window that a closed
 window came from, once also when it is a late window, and none for one that is
 gone, replaced or the user's, no note about a capture region's shot of a window
 that closed during the grace,
 argument errors of every tool through an SDK client, `null` among
-them, the hints, the length of every tool description, structured content by
+them, the hints, also the one after input that can open a window, the length of every tool description, structured content by
 client and `--structured-content`, `windows` with `match`, the sleep in
 front of keys that follow a click or drag too soon, and changes shots: one
 region and several, merged regions, regions joined until 5 are left and
@@ -1909,9 +1992,11 @@ timeouts.
   the sender would stop with `no_devices`. Reconnecting picks up the new
   keymap.
 - A window that maps more than `--new-window-grace-ms` after an `act`'s wait
-  comes with the session's next `act` or `screenshot`, not with that act, and
-  one that maps more than 2 minutes after it as no late window. Call
-  `windows` when the app is known to open windows slowly.
+  comes with the session's next `act`, `screenshot` or `windows`, not with
+  that act, and one that maps more than 2 minutes after it as no late window.
+  `windows` with `wait_ms` waits for it. One that the plugin cannot relate to
+  the input, such as a window of another app without a parent, ends such a
+  wait only with `match`.
 - The hooks on `Desktop::View::CWindow::updateWindowDecos`,
   `Desktop::Rule::CWindowRuleApplicator::readStaticRules`,
   `CSeatManager::setKeyboardFocus`, `CSeatManager::setPointerFocus`,

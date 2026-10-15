@@ -107,6 +107,10 @@ func TestChangesShotOfOneRegion(t *testing.T) {
 	}
 }
 
+// laterClause is what the hint after a click, a drag, a key or Enter that changed nothing adds: the input may have opened
+// a window that maps after the call, as a portal's file chooser does.
+const laterClause = "; it may also have opened a window that maps later, as a file chooser of another process can a second or two after the input: windows with wait_ms waits for it, and your next act or screenshot returns it"
+
 // Without a change there is no image, and delivered input that changed nothing says so.
 func TestChangesShotWithoutChange(t *testing.T) {
 	e := newTestEnv(t)
@@ -119,7 +123,8 @@ func TestChangesShotWithoutChange(t *testing.T) {
 	if !strings.Contains(summaryOf(t, res), " · shot s2 = s1, no change · ") || !reflect.DeepEqual(get(t, res, "shot.changes"), map[string]any{"base": "s1", "regions": []any{}}) {
 		t.Errorf("summary %q, changes %v", summaryOf(t, res), get(t, res, "shot.changes"))
 	}
-	if hint := get(t, res, "hint"); hint != "Nothing changed since s1, so the input may have missed or had no visible effect. Look at s1 before repeating it." {
+	// A click may also have opened a window of another process that maps after the call, which the hint says.
+	if hint := get(t, res, "hint"); hint != "Nothing changed since s1, so the input may have missed or had no visible effect"+laterClause+". Look at s1 before repeating it." {
 		t.Errorf("hint %v", hint)
 	}
 	// A window that drew nothing gets the wait's hint, which points at the shot it still shows.
@@ -129,12 +134,22 @@ func TestChangesShotWithoutChange(t *testing.T) {
 		}
 	})
 	res = e.act(`{"window":"0xa1","shot":"s2","actions":[{"action":"click","x":10,"y":10}]}`)
-	if hint := get(t, res, "hint"); hint != "The click may have missed or had no visible effect. Look at s2 before repeating it." {
+	if hint := get(t, res, "hint"); hint != "The click may have missed or had no visible effect"+laterClause+". Look at s2 before repeating it." {
 		t.Errorf("hint %v", hint)
 	}
-	// Waiting needs no input, and an empty batch that found nothing gets no hint.
+	// Typing without a line break opens no window.
 	e.fake.with(func() { e.fake.onWait = nil })
-	if res := e.act(`{"window":"0xa1","shot":"s3"}`); get(t, res, "hint") != nil || !strings.HasSuffix(summaryOf(t, res), "shot s4 = s3, no change · lease 60 s") {
+	res = e.act(`{"window":"0xa1","shot":"s3","actions":[{"action":"type","text":"a"}]}`)
+	if hint := get(t, res, "hint"); hint != "Nothing changed since s3, so the input may have missed or had no visible effect. Look at s3 before repeating it." {
+		t.Errorf("typing: hint %v", hint)
+	}
+	// Motion after a click keeps what the hint says about the click.
+	if res := e.act(`{"window":"0xa1","shot":"s4","actions":[{"action":"click","x":10,"y":10},{"action":"move","x":20,"y":20}]}`); get(t, res, "hint") !=
+		"Nothing changed since s4, so the input may have missed or had no visible effect"+laterClause+". Look at s4 before repeating it." {
+		t.Errorf("click and move: hint %v", get(t, res, "hint"))
+	}
+	// Waiting needs no input, and an empty batch that found nothing gets no hint.
+	if res := e.act(`{"window":"0xa1","shot":"s5"}`); get(t, res, "hint") != nil || !strings.HasSuffix(summaryOf(t, res), "shot s6 = s5, no change · lease 60 s") {
 		t.Errorf("empty batch: %s", text(res))
 	}
 }
@@ -199,7 +214,7 @@ func TestChangesOfAnimationsOnly(t *testing.T) {
 	if got := summaryOf(t, res); !strings.Contains(got, "shot s2 = s1, no change outside animations · lease 60 s\n4 changes in animations left out") {
 		t.Errorf("summary %q", got)
 	}
-	if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, "Nothing changed since s1 outside the animations, so the input may have missed, or its effect lies inside them.") {
+	if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, "Nothing changed since s1 outside the animations, so the input may have missed, or its effect lies inside them"+laterClause+".") {
 		t.Errorf("hint %q", hint)
 	}
 	if got := get(t, res, "shot.changes.left_out"); got != nil {
@@ -358,7 +373,7 @@ func TestTinyChangesAreLeftOut(t *testing.T) {
 	if get(t, res, "shot.changes.left_out") != 1.0 {
 		t.Errorf("changes %v", get(t, res, "shot.changes"))
 	}
-	if hint := get(t, res, "hint"); hint != "Only tiny changes since s1, such as a caret that moved or blinked, so the input may have missed or had little visible effect. Look at s1 before repeating it." {
+	if hint := get(t, res, "hint"); hint != "Only tiny changes since s1, such as a caret that moved or blinked, so the input may have missed or had little visible effect"+laterClause+". Look at s1 before repeating it." {
 		t.Errorf("hint %v", hint)
 	}
 	// A tiny change that a zoom shows is not left out: the block is farther from the caret than the changes that group,

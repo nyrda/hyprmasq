@@ -85,3 +85,55 @@ func TestRequestWithAnEndedContext(t *testing.T) {
 		t.Errorf("missing socket: %v", err)
 	}
 }
+
+// Events reads the lines of the event socket next to the request socket, and ends the connection and the channel when
+// its context ends, also while Hyprland writes nothing.
+func TestEvents(t *testing.T) {
+	dir := t.TempDir()
+	c := &Client{Socket: filepath.Join(dir, ".socket.sock")}
+	var connectErr *ConnectError
+	if _, err := c.Events(context.Background()); !errors.As(err, &connectErr) {
+		t.Errorf("without a socket: %v", err)
+	}
+	l, err := net.Listen("unix", filepath.Join(dir, ".socket2.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	hungUp := make(chan struct{})
+	go func() {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		conn.Write([]byte("openwindow>>55d1c0b11230,web,xdg-desktop-portal-gtk,Open Files\nwindowtitlev2>>55d1c0b11230,Open >> Files\n"))
+		// The client sends nothing, so the read ends when it hangs up.
+		conn.Read(make([]byte, 1))
+		close(hungUp)
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	events, err := c.Events(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []Event{{"openwindow", "55d1c0b11230,web,xdg-desktop-portal-gtk,Open Files"}, {"windowtitlev2", "55d1c0b11230,Open >> Files"}} {
+		if got := <-events; got != want {
+			t.Errorf("event %q, want %q", got, want)
+		}
+	}
+	cancel()
+	select {
+	case _, open := <-events:
+		if open {
+			t.Error("an event after the end")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the channel stayed open")
+	}
+	select {
+	case <-hungUp:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the connection stayed open")
+	}
+}

@@ -221,10 +221,11 @@ Never repeat input whose delivery is partial or uncertain, or from a call that t
 Example: {"window":"0x55d1c0a3e4b0","shot":"s4","actions":[{"action":"click","x":412,"y":88},{"action":"type","text":"hello"},{"action":"key","keys":["enter"]}]}`,
 	typedWithin(defaultDeadline), typedWithin(maxDeadline))
 
-const windowsDescription = `List the windows, or with match only those whose class or title contains it, ignoring case. Each has its address (pass it as window to the other tools), class, title, workspace, whether it is visible (on a shown workspace) or hidden, and its size in logical pixels. Where they apply, it is also resizing (not yet redrawn at its new size, so a screenshot shows an older frame), xwayland, launched (by this server), opened by your input to another window after that act returned (your next act or screenshot returns it with a shot) or leased, and names the capabilities it lacks, such as "lacks lease, hold" or "keyboard x11-focus"; without them, it has them all.
+var windowsDescription = fmt.Sprintf(`List the windows, or with match only those whose class or title contains it, ignoring case. Each has its address (pass it as window to the other tools), class, title, workspace, whether it is visible (on a shown workspace) or hidden, and its size in logical pixels. Where they apply, it is also resizing (not yet redrawn at its new size, so a screenshot shows an older frame), xwayland, launched (by this server), opened by your input to another window after that act had returned, or leased, and names the capabilities it lacks, such as "lacks lease, hold" or "keyboard x11-focus"; without them, it has them all.
 capabilities: lease (focus can be held between act calls, so menus stay open), hold (buttons and keys can stay pressed across input frames, needed for drag, for clicks with modifiers, and for key chords that hold a key other than a modifier), keyboard ("yes", or "x11-focus" when X11 keyboard input depends on which window has the focus).
-The size is not a coordinate system: take a screenshot, and act with the pixels of that shot.
-Example: {"match":"firefox"}`
+When it lists one window, it returns a shot of it, as screenshot does. A window that your input opened after its act had returned comes with a shot too, once. The size is not a coordinate system: act with the pixels of a shot.
+wait_ms (up to %d): when you expect a window that an act's result did not show, such as a file chooser after clicking Upload or Browse, which another process can open a second or two later, wait for it here. With match it waits until a window matches; without match, until a window that your input opened maps. It returns as soon as one is there, at once if one already is, and otherwise once wait_ms has passed, with the list as usual.
+Example: {"match":"firefox"}, or {"wait_ms":5000} after a click that opens a file chooser`, maxWindowsWait.Milliseconds())
 
 // screenshotDescription describes the screenshot tool of a server whose images fit within maxImage pixels, or 0.
 func screenshotDescription(maxImage int) string {
@@ -316,11 +317,13 @@ var deadlineSchema = json.RawMessage(fmt.Sprintf(`{"type":"integer","minimum":10
 
 // Register adds the tools to srv.
 func (s *Server) Register(srv *mcp.Server) {
-	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	notDestructive := false
-	srv.AddTool(&mcp.Tool{Name: "windows", Description: windowsDescription, Annotations: readOnly,
+	// windows takes a shot of the one window that it lists, which opens the window's socket, as screenshot does.
+	srv.AddTool(&mcp.Tool{Name: "windows", Description: windowsDescription, Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		InputSchema: objectSchema(map[string]json.RawMessage{
 			"match": json.RawMessage(`{"type":"string","description":"Only windows whose class or title contains this, ignoring case, such as \"firefox\"."}`),
+			"wait_ms": json.RawMessage(fmt.Sprintf(`{"type":"integer","minimum":0,"maximum":%d,"default":0,"description":"Wait up to this long for a window that is not there yet: with match one that matches, without match one that your input opened. It returns as soon as one is there."}`,
+				maxWindowsWait.Milliseconds())),
 		})}, s.handle(s.windowsTool))
 	// screenshot opens the window's socket, which stays open, so the plugin treats the window as driven from then on.
 	srv.AddTool(&mcp.Tool{Name: "screenshot", Description: screenshotDescription(s.cfg.MaxImageSize), Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},

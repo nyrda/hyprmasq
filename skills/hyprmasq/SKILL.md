@@ -28,7 +28,9 @@ descriptions and results explain the rest. What `act` returns:
 - `shot s7 = s5, no change`, without an image: the window looks as in s5,
   apart from tiny changes, which a line counts, and changes too faint to
   count, such as a hover highlight. After input, the hint says that it may
-  have missed; look at s5 before repeating it.
+  have missed; look at s5 before repeating it. After a click, a key or Enter,
+  it may also have opened a window of another process that maps a moment
+  later, such as a file chooser: `windows` with `wait_ms` waits for it.
 - `N tiny changes left out`: a blinking caret or a few pixels changed.
 - `quiet 200 ms except animation at 12,40 300×20`: a small part of the window
   kept redrawing, such as a progress bar, a video or a spinner. The wait did
@@ -45,8 +47,13 @@ descriptions and results explain the rest. What `act` returns:
 - `new window ADDR …` with a line `shot sN … of new window ADDR`: your input
   opened a window, such as a dialog, and sN is its shot, which `act` takes.
   A window that opens after the call returned, as a file chooser can a second
-  later, comes as `late window ADDR …` with a shot in your next `act` or
-  `screenshot`, and until then `windows` marks it `opened by your input to …`.
+  later, comes as `late window ADDR …` with a shot in your next `act`,
+  `screenshot` or `windows`, once. When you expect one, such as after
+  clicking Upload or Browse, `windows` with `wait_ms` returns it as soon as it
+  maps, without `match` the window your input opened and with `match` one
+  whose class or title contains it.
+- `windows` returns a shot of the one window it lists, such as with a `match`
+  that only one window has: act with its pixels, without a screenshot first.
 - `window closed`: your input closed the window, also when it closed just
   after the wait. That is no failure; do not repeat the input. `back to ADDR
   …` with a line `shot sN … of ADDR, the window it came from` names the window
@@ -214,8 +221,9 @@ window has drawn nothing new for QUIET-MS (default 200), or after TIMEOUT-MS
 - `"settled":false` means it was still drawing: a loading page, an animation.
   Wait again or take the screenshot anyway.
 - `framesSinceInput` counts what the window drew since your last input. `0`
-  means your input has not changed anything yet: the click may have missed, or
-  the app needs longer to react. Before concluding, wait for a change with
+  means your input has not changed anything yet: the click may have missed,
+  the app needs longer to react, or it opened a window of another process, such
+  as a file chooser, which `hyprctl -j clients` lists a second or two later. Before concluding, wait for a change with
   `wait ... since` and `expect` (below): this plain `wait` sends a hidden window
   no frame callbacks, which it gets only for a second after input, so a
   longer QUIET-MS does not help an app that reacts later. `frames` only counts

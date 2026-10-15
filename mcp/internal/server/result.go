@@ -747,13 +747,17 @@ func waitHint(w *waitOut, batch []action, shotID string, actions *actionsOut, sh
 			}
 			return fmt.Sprintf("Nothing was drawn %s. If the window is still loading, wait again: act with no actions, a larger wait.expect_ms, and a deadline_ms at least 1000 above it.", since)
 		case "click":
-			return "The click may have missed or had no visible effect. " + look + " before repeating it."
+			return "The click may have missed or had no visible effect" + laterWindow(batch) + ". " + look + " before repeating it."
 		case "key", "type":
-			return "The keys may have gone to another widget or had no visible effect. " + look + " before repeating them."
+			return "The keys may have gone to another widget or had no visible effect" + laterWindow(batch) + ". " + look + " before repeating them."
 		case "move":
-			return "The pointer motion had no visible effect. Use wait.expect_change false for hover that may change nothing."
+			if !opensWindows(batch) {
+				return "The pointer motion had no visible effect. Use wait.expect_change false for hover that may change nothing."
+			}
+			// The batch has other input before the motion, such as a click.
+			fallthrough
 		default:
-			return "The input may have had no visible effect. " + look + " before repeating it."
+			return "The input may have had no visible effect" + laterWindow(batch) + ". " + look + " before repeating it."
 		}
 	case "timeout":
 		switch {
@@ -769,7 +773,7 @@ func waitHint(w *waitOut, batch []action, shotID string, actions *actionsOut, sh
 		case w.RedrawObserved:
 			return "The window kept drawing until the deadline, so it may be animating or still loading. " + look + "; to wait longer, act with no actions and a larger deadline_ms (at most 30000)."
 		}
-		return "Nothing was drawn before the deadline. " + look + "; to wait longer for a first redraw, act with no actions and a larger deadline_ms (at most 30000)."
+		return "Nothing was drawn before the deadline" + laterWindow(batch) + ". " + look + "; to wait longer for a first redraw, act with no actions and a larger deadline_ms (at most 30000)."
 	}
 	return ""
 }
@@ -859,17 +863,29 @@ func noChangeHint(out *actOut, batch []action) string {
 			kind = a.Kind
 		}
 	}
-	if kind == "" || kind == "move" {
+	// Motion, as for hover, may change nothing, but not other input before it that can open a window.
+	if kind == "" || kind == "move" && !opensWindows(batch) {
 		return ""
 	}
 	base := out.Shot.Changes.Base
+	later := laterWindow(batch)
 	if out.Shot.Changes.Animated > 0 {
-		return fmt.Sprintf("Nothing changed since %s outside the animations, so the input may have missed, or its effect lies inside them. Look at %s, or take a screenshot to see the animations as they are now, before repeating it.",
-			base, base)
+		return fmt.Sprintf("Nothing changed since %s outside the animations, so the input may have missed, or its effect lies inside them%s. Look at %s, or take a screenshot to see the animations as they are now, before repeating it.",
+			base, later, base)
 	}
 	if out.Shot.Changes.LeftOut > 0 {
-		return fmt.Sprintf("Only tiny changes since %s, such as a caret that moved or blinked, so the input may have missed or had little visible effect. Look at %s before repeating it.",
-			base, base)
+		return fmt.Sprintf("Only tiny changes since %s, such as a caret that moved or blinked, so the input may have missed or had little visible effect%s. Look at %s before repeating it.",
+			base, later, base)
 	}
-	return fmt.Sprintf("Nothing changed since %s, so the input may have missed or had no visible effect. Look at %s before repeating it.", base, base)
+	return fmt.Sprintf("Nothing changed since %s, so the input may have missed or had no visible effect%s. Look at %s before repeating it.", base, later, base)
+}
+
+// laterWindow adds to a hint about input that can open a window and changed nothing that it may have opened a window
+// that maps after the call, which the wait for the input's own window cannot see, or "" for other input. An app gives
+// no sign that a window is coming: the portal's file chooser mapped up to 1.8 s after its click in a benchmark.
+func laterWindow(batch []action) string {
+	if !opensWindows(batch) {
+		return ""
+	}
+	return "; it may also have opened a window that maps later, as a file chooser of another process can a second or two after the input: windows with wait_ms waits for it, and your next act or screenshot returns it"
 }

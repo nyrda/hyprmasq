@@ -193,17 +193,42 @@ func (s *Server) claimLate(ctx context.Context, windows []hypr.Window) []newWind
 // keepLate keeps the late windows that the result has a shot of, which it reports, and releases the claims of the
 // others, such as those past the limit of shots or without time for one, so that a later result reports them.
 func (s *Server) keepLate(late []newWindowOut) []newWindowOut {
-	var kept []newWindowOut
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	var kept, released []newWindowOut
 	for _, w := range late {
 		if w.Shot != nil {
 			kept = append(kept, w)
-		} else if key := w.Window + "/" + w.StableID; s.settled[key].Equal(w.claimed) {
+		} else {
+			released = append(released, w)
+		}
+	}
+	s.releaseLate(released)
+	return kept
+}
+
+// reclaimLate claims a late window again whose claim keepLate released, and returns it, or nil when another call has
+// claimed or reported it meanwhile.
+func (s *Server) reclaimLate(w newWindowOut) *newWindowOut {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := w.Window + "/" + w.StableID
+	if _, ok := s.settled[key]; ok || s.closing {
+		return nil
+	}
+	w.claimed = time.Now()
+	s.settled[key] = w.claimed
+	return &w
+}
+
+// releaseLate releases the claims of late windows that no result reports, also those with a shot of a call that was
+// cancelled, so that a later result reports them.
+func (s *Server) releaseLate(late []newWindowOut) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, w := range late {
+		if key := w.Window + "/" + w.StableID; s.settled[key].Equal(w.claimed) {
 			delete(s.settled, key)
 		}
 	}
-	return kept
 }
 
 // withoutLate leaves out of the new windows of an act those that it reports as late windows, which came from the

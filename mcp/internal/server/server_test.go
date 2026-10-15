@@ -1028,7 +1028,14 @@ func TestSummaryLines(t *testing.T) {
 			"3/3 delivered · redraw observed · quiet 200 ms · 412 ms · shot s5 1280×800 · lease 60 s"},
 		{"no redraw", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"},
 			Wait: &waitOut{Ended: "no_redraw", expectMs: 1000}, Shot: &shotOut{ID: "s6", Width: 1280, Height: 800}, Lease: &leaseOut{Held: true, RemainingS: 60}}, click,
-			"1/1 delivered · no redraw within 1000 ms · shot s6 1280×800 · lease 60 s\nThe click may have missed or had no visible effect. Look at the shot before repeating it."},
+			"1/1 delivered · no redraw within 1000 ms · shot s6 1280×800 · lease 60 s\nThe click may have missed or had no visible effect" + laterClause + ". Look at the shot before repeating it."},
+		{"no redraw after a click and a move", actOut{Actions: &actionsOut{Done: 2, Total: 2, Delivery: "complete"},
+			Wait: &waitOut{Ended: "no_redraw", expectMs: 1000}, Shot: &shotOut{ID: "s6", Width: 1280, Height: 800}, Lease: &leaseOut{Held: true, RemainingS: 60}},
+			[]action{{Kind: "click"}, {Kind: "move"}},
+			"2/2 delivered · no redraw within 1000 ms · shot s6 1280×800 · lease 60 s\nThe input may have had no visible effect" + laterClause + ". Look at the shot before repeating it."},
+		{"no redraw after scrolling", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"},
+			Wait: &waitOut{Ended: "no_redraw", expectMs: 1000}, Shot: &shotOut{ID: "s6", Width: 1280, Height: 800}, Lease: &leaseOut{Held: true, RemainingS: 60}}, []action{{Kind: "scroll"}},
+			"1/1 delivered · no redraw within 1000 ms · shot s6 1280×800 · lease 60 s\nThe input may have had no visible effect. Look at the shot before repeating it."},
 		{"quiet without change", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"},
 			Wait: &waitOut{Ended: "quiet", QuietMs: 200, ElapsedMs: 200}, Shot: shot5, Lease: &leaseOut{}}, []action{{Kind: "move"}},
 			"1/1 delivered · no redraw · quiet 200 ms · 200 ms · shot s5 1280×800 · no lease"},
@@ -1037,6 +1044,10 @@ func TestSummaryLines(t *testing.T) {
 			"1/1 delivered · timeout after 13990 ms, still drawing · shot s5 1280×800 · lease 59 s\nThe window kept drawing until the deadline, so it may be animating or still loading. Look at the shot; to wait longer, act with no actions and a larger deadline_ms (at most 30000)."},
 		{"timeout without a redraw", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "timeout", ElapsedMs: 13990}, Shot: shot5, Lease: &leaseOut{}}, nil,
 			"timeout after 13990 ms, no redraw · shot s5 1280×800 · no lease\nNothing was drawn before the deadline. Look at the shot; to wait longer for a first redraw, act with no actions and a larger deadline_ms (at most 30000)."},
+		{"timeout without a redraw after a click", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "timeout", ElapsedMs: 13990}, Shot: shot5,
+			Lease: &leaseOut{}}, click,
+			"1/1 delivered · timeout after 13990 ms, no redraw · shot s5 1280×800 · no lease\nNothing was drawn before the deadline" + laterClause +
+				". Look at the shot; to wait longer for a first redraw, act with no actions and a larger deadline_ms (at most 30000)."},
 		{"timeout while resizing, caught up by the capture", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "timeout", Resizing: true, ElapsedMs: 13990}, Shot: shot5, Lease: &leaseOut{}}, nil,
 			"timeout after 13990 ms, still resizing · shot s5 1280×800 · no lease\nThe window had not yet redrawn at its new size when the wait's deadline arrived, but had by the capture. Look at the shot before repeating anything."},
 		{"timeout while resizing without a shot", actOut{Actions: &actionsOut{}, Wait: &waitOut{Ended: "timeout", Resizing: true, ElapsedMs: 13990}, Lease: &leaseOut{}}, nil,
@@ -1044,7 +1055,7 @@ func TestSummaryLines(t *testing.T) {
 		{"no time to wait", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "timeout", skipped: true}, Shot: shot5, Lease: &leaseOut{}}, click,
 			"1/1 delivered · no time left to wait · shot s5 1280×800 · no lease\nThe deadline left no time to wait for a redraw. Look at the shot before repeating anything; to wait, act with no actions."},
 		{"no redraw without a shot", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "no_redraw", expectMs: 1000}, Lease: &leaseOut{}}, click,
-			"1/1 delivered · no redraw within 1000 ms · no lease\nThe click may have missed or had no visible effect. Take a screenshot and look at it before repeating it."},
+			"1/1 delivered · no redraw within 1000 ms · no lease\nThe click may have missed or had no visible effect" + laterClause + ". Take a screenshot and look at it before repeating it."},
 		{"window closed", actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "window_closed"}, WindowClosed: true},
 			[]action{{Kind: "key"}}, "1/1 delivered · window closed\nThe window closed. Any new windows are listed; call windows for the rest."},
 		{"window closed after the wait, back to the window it came from", actOut{Actions: &actionsOut{Done: 3, Total: 3, Delivery: "complete"},
@@ -2446,14 +2457,17 @@ func TestWindowsMatch(t *testing.T) {
 		}
 		return res, addresses
 	}
-	if _, got := windows(`{"match":"SPOT"}`); !reflect.DeepEqual(got, []string{"0xa1", "0xc3"}) {
-		t.Errorf("class or title with SPOT: %v", got)
+	// Several windows come without shots.
+	if res, got := windows(`{"match":"SPOT"}`); !reflect.DeepEqual(got, []string{"0xa1", "0xc3"}) || hasImage(res) || get(t, res, "windows.0.shot") != nil {
+		t.Errorf("class or title with SPOT: %v %s", got, text(res))
 	}
+	// One window comes with its shot.
 	res, got := windows(`{"match":"inbox"}`)
-	if !reflect.DeepEqual(got, []string{"0xb2"}) || text(res) != `0xb2 · org.gnome.Evolution "Inbox (3 unread)" · workspace 1 (visible) · 640×480` {
+	if !reflect.DeepEqual(got, []string{"0xb2"}) || text(res) != "0xb2 · org.gnome.Evolution \"Inbox (3 unread)\" · workspace 1 (visible) · 640×480\nshot s1 1280×960 of window 0xb2" ||
+		get(t, res, "windows.0.shot.id") != "s1" || get(t, res, "summary") != "shot s1 1280×960 of window 0xb2" || len(res.Content) != 2 {
 		t.Errorf("title with inbox: %v %q", got, text(res))
 	}
-	if res, _ := windows(`{"match":"monolith"}`); text(res) != `0xa1 · Spotify "Monolith - Crossfaith" · workspace 1 (visible) · 1264×687 · xwayland · lacks lease · keyboard x11-focus` {
+	if res, _ := windows(`{"match":"monolith"}`); text(res) != "0xa1 · Spotify \"Monolith - Crossfaith\" · workspace 1 (visible) · 1264×687 · xwayland · lacks lease · keyboard x11-focus\nshot s2 2528×1374 of window 0xa1" {
 		t.Errorf("an X11 window: %q", text(res))
 	}
 	if res, _ := windows(`{"match":"SPOT"}`); get(t, res, "summary") != nil {
@@ -2610,11 +2624,11 @@ func TestProtocol(t *testing.T) {
 			t.Errorf("%s has no example", tool.Name)
 		}
 	}
-	// screenshot opens a socket that stays open, so it is not read-only.
-	if !reflect.DeepEqual(readOnly, map[string]bool{"windows": true, "screenshot": false, "act": false, "launch": false, "release": false, "close": false}) {
+	// screenshot opens a socket that stays open, and so does windows when it takes a shot, so they are not read-only.
+	if !reflect.DeepEqual(readOnly, map[string]bool{"windows": false, "screenshot": false, "act": false, "launch": false, "release": false, "close": false}) {
 		t.Errorf("read-only tools %v", readOnly)
 	}
-	if !reflect.DeepEqual(notDestructive, map[string]bool{"windows": false, "screenshot": true, "act": false, "launch": true, "release": true, "close": false}) {
+	if !reflect.DeepEqual(notDestructive, map[string]bool{"windows": true, "screenshot": true, "act": false, "launch": true, "release": true, "close": false}) {
 		t.Errorf("tools that are not destructive %v", notDestructive)
 	}
 	// pi shows only the tool descriptions, so they carry the rules for acting. Codex adds the instructions to every

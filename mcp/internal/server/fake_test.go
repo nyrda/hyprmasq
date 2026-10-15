@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"math"
 	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -210,11 +212,20 @@ type fakeWindow struct {
 	Interrupted int64
 }
 
-// fakeHyprland serves Hyprland's request socket with the plugin commands of the contract.
+// fakeHyprland serves Hyprland's request socket with the plugin commands of the contract, and its event socket with
+// the events that tell a window mapped or changed its title.
 type fakeHyprland struct {
 	t      *testing.T
 	socket string
-	mu     sync.Mutex
+	// The event socket, and the connections of its clients.
+	events      net.Listener
+	subscribers []net.Conn
+	// While not nil, a client of the event socket gets no events until it is closed, as one that Hyprland's main thread
+	// has not accepted yet.
+	acceptEvents chan struct{}
+	// Called after a window list has been made, before it is sent, without the lock.
+	onClients func()
+	mu        sync.Mutex
 	// Every request, in order, and when it arrived.
 	requests []string
 	times    []time.Time
@@ -262,7 +273,14 @@ func (w *fakeWindow) socketID() string {
 }
 
 func newFakeHyprland(t *testing.T) *fakeHyprland {
-	f := &fakeHyprland{t: t, socket: filepath.Join(t.TempDir(), ".socket.sock"), scale: 2, iface: 3, waits: map[string]chan struct{}{},
+	// The sockets get a short directory of their own: t.TempDir names it after the test, which can make the path of the
+	// event socket longer than a socket address holds.
+	dir, err := os.MkdirTemp("", "hm-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	f := &fakeHyprland{t: t, socket: filepath.Join(dir, ".socket.sock"), scale: 2, iface: 3, waits: map[string]chan struct{}{},
 		environ: map[int]string{}, exe: map[int]string{}, parents: map[int]int{}, launches: map[int]string{}}
 	l, err := net.Listen("unix", f.socket)
 	if err != nil {
@@ -278,7 +296,55 @@ func newFakeHyprland(t *testing.T) *fakeHyprland {
 			go f.serve(conn)
 		}
 	}()
+	if f.events, err = net.Listen("unix", filepath.Join(filepath.Dir(f.socket), ".socket2.sock")); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { f.events.Close() })
+	go func() {
+		for {
+			conn, err := f.events.Accept()
+			if err != nil {
+				return
+			}
+			var accept chan struct{}
+			f.with(func() { accept = f.acceptEvents })
+			if accept != nil {
+				<-accept
+			}
+			f.with(func() { f.subscribers = append(f.subscribers, conn) })
+			// A client sends nothing, so the read ends when it hangs up.
+			go func() {
+				io.Copy(io.Discard, conn)
+				f.with(func() { f.subscribers = slices.DeleteFunc(f.subscribers, func(c net.Conn) bool { return c == conn }) })
+				conn.Close()
+			}()
+		}
+	}()
 	return f
+}
+
+// postLocked writes an event to the clients of the event socket, as Hyprland does as it happens. Under f.mu.
+func (f *fakeHyprland) postLocked(name, data string) {
+	for _, conn := range f.subscribers {
+		conn.SetWriteDeadline(time.Now().Add(time.Second))
+		conn.Write([]byte(name + ">>" + data + "\n"))
+	}
+}
+
+// subscribed counts the clients of the event socket.
+func (f *fakeHyprland) subscribed() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.subscribers)
+}
+
+// setTitle changes a window's title, and posts the event.
+func (f *fakeHyprland) setTitle(address, title string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	w := f.find(address)
+	w.Title = title
+	f.postLocked("windowtitlev2", strings.TrimPrefix(address, "0x")+","+title)
 }
 
 func (f *fakeHyprland) addWindow(w *fakeWindow) *fakeWindow {
@@ -292,6 +358,7 @@ func (f *fakeHyprland) addWindow(w *fakeWindow) *fakeWindow {
 	}
 	w.Mapped = true
 	f.windows = append(f.windows, w)
+	f.postLocked("openwindow", fmt.Sprintf("%s,%s,%s,%s", strings.TrimPrefix(w.Address, "0x"), w.Workspace.Name, w.Class, w.Title))
 	return w
 }
 
@@ -395,12 +462,16 @@ func (f *fakeHyprland) reply(request string) string {
 	switch {
 	case request == "j/clients":
 		f.mu.Lock()
-		defer f.mu.Unlock()
 		windows := []hypr.Window{}
 		for _, w := range f.windows {
 			win := w.Window
 			win.Size = []int{int(w.Width), int(w.Height)}
 			windows = append(windows, win)
+		}
+		onClients := f.onClients
+		f.mu.Unlock()
+		if onClients != nil {
+			onClients()
 		}
 		return jsonReply(windows)
 	case request == "j/activewindow":

@@ -956,8 +956,9 @@ for the active workspace.
 `stableId` is the `stableId` of the window it came from while that window
 lives, and `null` once it is gone, so it tells that window from a later one at
 its address. `hyprmasq-mcp` uses `source` to find the windows that an agent's
-input opened after its call had returned, and the window to go on in once a
-window it drove has closed (see [MCP server](mcp.md#late-windows)).
+input opened after its call had returned, which its next `act`, `screenshot`
+or `windows` returns and `windows` can wait for, and the window to go on in
+once a window it drove has closed (see [MCP server](mcp.md#late-windows)).
 
 Plain `state` prints it as `source: 0x… placed`, `source: 0x… not placed:
 user_input` or `source: none`.

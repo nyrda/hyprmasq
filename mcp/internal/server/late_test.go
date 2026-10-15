@@ -3,7 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,8 +39,7 @@ func windowEntry(t *testing.T, res *mcp.CallToolResult, address string) (map[str
 }
 
 // A window that the input of an act opens after the act has returned is reported by the session's next screenshot,
-// with a shot, and windows marks it until then. Windows that the user's input opened, or that came from other
-// windows, are not.
+// with a shot. Windows that the user's input opened, or that came from other windows, are not.
 func TestLateWindowInTheNextScreenshot(t *testing.T) {
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
@@ -50,21 +52,6 @@ func TestLateWindowInTheNextScreenshot(t *testing.T) {
 	e.lateWindow("0xd2", "d2", "Theirs", &hypr.Source{Window: "0xa1", StableID: "1a", Reason: "user_input"})
 	e.lateWindow("0xd3", "d3", "Other", &hypr.Source{Window: "0xb2", StableID: "2b", Placed: true})
 	e.lateWindow("0xd4", "d4", "Unrelated", nil)
-
-	listing := e.windows()
-	entry, line := windowEntry(t, listing, "0xd1")
-	if entry["opened_by_input"] != "0xa1" || !strings.Contains(line, " · opened by your input to 0xa1, not yet reported") {
-		t.Errorf("windows: %v %q", entry, line)
-	}
-	for _, address := range []string{"0xa1", "0xd2", "0xd3", "0xd4"} {
-		if entry, line := windowEntry(t, listing, address); entry["opened_by_input"] != nil || strings.Contains(line, "opened by") {
-			t.Errorf("windows marks %s: %q", address, line)
-		}
-	}
-	// windows opens no socket on it, and reports it to nobody.
-	if e.fake.find("0xd1").Socket {
-		t.Error("windows opened the late window's socket")
-	}
 
 	res := e.screenshot(`{"window":"0xa1"}`)
 	lines := strings.Split(text(res), "\n")
@@ -93,6 +80,188 @@ func TestLateWindowInTheNextScreenshot(t *testing.T) {
 	}
 	if entry, _ := windowEntry(t, e.windows(), "0xd1"); entry["opened_by_input"] != nil {
 		t.Errorf("still marked: %v", entry)
+	}
+}
+
+// windows reports a late window too, with its shot, in late_windows, and marks it in its line; the next screenshot or
+// act does not report it again. One that windows lists without a shot, past the limit of shots, it marks as not yet
+// reported. Windows that the user's input opened, or that came from other windows, get neither, nor a socket.
+func TestLateWindowInWindows(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.window("0xb2", "2b", 320, 200, func(w *fakeWindow) { w.Title = "Other app" })
+	e.screenshot(`{"window":"0xa1"}`)
+	if res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":5,"y":5}]}`); res.IsError {
+		t.Fatal(text(res))
+	}
+	e.lateWindow("0xd1", "d1", "Open Files", &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true})
+	e.lateWindow("0xd2", "d2", "Theirs", &hypr.Source{Window: "0xa1", StableID: "1a", Reason: "user_input"})
+	e.lateWindow("0xd3", "d3", "Other", &hypr.Source{Window: "0xb2", StableID: "2b", Placed: true})
+	e.lateWindow("0xd4", "d4", "Unrelated", nil)
+
+	listing := e.windows()
+	id, _ := get(t, listing, "late_windows.0.shot.id").(string)
+	if late, _ := get(t, listing, "late_windows").([]any); len(late) != 1 || get(t, listing, "late_windows.0.window") != "0xd1" || !shotIDPattern.MatchString(id) ||
+		get(t, listing, "late_windows.0.source") != "0xa1" || get(t, listing, "late_windows.0.placed") != true || get(t, listing, "late_windows.0.workspace") != "mail" {
+		t.Fatalf("late windows: %s", text(listing))
+	}
+	entry, line := windowEntry(t, listing, "0xd1")
+	if entry["opened_by_input"] != "0xa1" || !strings.HasSuffix(line, " · opened by your input to 0xa1") || get(t, listing, "windows.2.shot.id") != id {
+		t.Errorf("windows: %v %q", entry, line)
+	}
+	lines := strings.Split(text(listing), "\n")
+	if len(lines) != 8 || lines[6] != "shot "+id+" 200×200 of late window 0xd1" ||
+		lines[7] != `Your input to 0xa1 in an earlier act opened window 0xd1 "Open Files" after that act had returned; it is in shot `+id+"." ||
+		get(t, listing, "summary") != lines[6] || get(t, listing, "hint") != lines[7] || len(listing.Content) != 2 {
+		t.Errorf("windows %q", text(listing))
+	}
+	for _, address := range []string{"0xa1", "0xb2", "0xd2", "0xd3", "0xd4"} {
+		if entry, line := windowEntry(t, listing, address); entry["opened_by_input"] != nil || entry["shot"] != nil || strings.Contains(line, "opened by") {
+			t.Errorf("windows marks %s: %q", address, line)
+		}
+	}
+	if e.fake.find("0xd2").Socket || e.fake.find("0xd3").Socket || e.fake.find("0xd4").Socket {
+		t.Error("a window that the agent's input did not open was driven")
+	}
+	// Its shot takes coordinates at once, and is the base of the next changes.
+	if res := e.act(`{"window":"0xd1","shot":"` + id + `","actions":[{"action":"click","x":5,"y":5}],"wait":{"expect_change":false}}`); res.IsError ||
+		!strings.Contains(text(res), " = "+id+", no change") {
+		t.Errorf("click in the late window's shot: %s", text(res))
+	}
+	// It is reported once.
+	if res := e.screenshot(`{"window":"0xa1"}`); get(t, res, "late_windows") != nil {
+		t.Errorf("screenshot reported it again: %s", text(res))
+	}
+	if res := e.act(`{"window":"0xb2","actions":[{"action":"key","keys":["shift"]}],"wait":{"expect_change":false}}`); get(t, res, "late_windows") != nil {
+		t.Errorf("act reported it again: %s", text(res))
+	}
+	listing = e.windows()
+	if entry, _ := windowEntry(t, listing, "0xd1"); entry["opened_by_input"] != nil || entry["shot"] != nil || get(t, listing, "late_windows") != nil || hasImage(listing) {
+		t.Errorf("windows reported it again: %s", text(listing))
+	}
+
+	// A late window that match leaves out of the list is reported too, and named as in the other results. The one
+	// window listed comes with its shot first.
+	if res := e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl","p"]}]}`); res.IsError {
+		t.Fatal(text(res))
+	}
+	e.lateWindow("0xd5", "d5", "Print", &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true})
+	matched := mirrored(t, e.server.windowsTool(context.Background(), &call{args: json.RawMessage(`{"match":"other app"}`)}))
+	lines = strings.Split(text(matched), "\n")
+	other, late := get(t, matched, "windows.0.shot.id"), get(t, matched, "late_windows.0.shot.id")
+	if len(lines) != 5 || lines[1] != `late window 0xd5 (test.app "Print", same pid) on workspace mail (hidden)` || lines[2] != fmt.Sprintf("shot %s 640×400 of window 0xb2", other) ||
+		lines[3] != fmt.Sprintf("shot %s 200×200 of late window 0xd5", late) || len(matched.Content) != 3 {
+		t.Errorf("match: %q", text(matched))
+	}
+
+	// Past the limit of shots, a late window stays marked for a later result.
+	if res := e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl","p"]}]}`); res.IsError {
+		t.Fatal(text(res))
+	}
+	for _, id := range []string{"e1", "e2", "e3", "e4"} {
+		e.lateWindow("0x"+id, id, "Dialog "+id, &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true})
+	}
+	listing = e.windows()
+	if late, _ := get(t, listing, "late_windows").([]any); len(late) != 3 || len(listing.Content) != 4 {
+		t.Errorf("late windows: %s", text(listing))
+	}
+	if entry, line := windowEntry(t, listing, "0xe4"); entry["opened_by_input"] != "0xa1" || entry["shot"] != nil || !strings.HasSuffix(line, " · opened by your input to 0xa1, not yet reported") {
+		t.Errorf("the fourth: %v %q", entry, line)
+	}
+	if res := e.screenshot(`{"window":"0xa1"}`); get(t, res, "late_windows.0.window") != "0xe4" {
+		t.Errorf("the fourth later: %s", text(res))
+	}
+
+	// A late window past the limit of shots that is the one window listed comes with the shot of the one window, as a
+	// late window.
+	if res := e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl","p"]}]}`); res.IsError {
+		t.Fatal(text(res))
+	}
+	for _, id := range []string{"f1", "f2", "f3", "f4"} {
+		e.lateWindow("0x"+id, id, "Report "+id, &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true})
+	}
+	listing = e.windowsWith(`{"match":"report f4"}`)
+	var reported []string
+	for _, w := range get(t, listing, "late_windows").([]any) {
+		reported = append(reported, w.(map[string]any)["window"].(string))
+	}
+	id, _ = get(t, listing, "windows.0.shot.id").(string)
+	if !slices.Equal(reported, []string{"0xf4", "0xf1", "0xf2", "0xf3"}) || get(t, listing, "late_windows.0.shot.id") != id || len(listing.Content) != 5 {
+		t.Fatalf("over the limit: %s", text(listing))
+	}
+	lines = strings.Split(text(listing), "\n")
+	if !strings.HasSuffix(lines[0], " · opened by your input to 0xa1") || lines[2] != "shot "+id+" 200×200 of late window 0xf4" ||
+		!strings.HasPrefix(get(t, listing, "hint").(string), `Your input to 0xa1 in an earlier act opened window 0xf4 "Report f4" after that act had returned; it is in shot `+id+".") {
+		t.Errorf("over the limit: %q", text(listing))
+	}
+	if res := e.screenshot(`{"window":"0xa1"}`); get(t, res, "late_windows") != nil {
+		t.Errorf("reported again: %s", text(res))
+	}
+}
+
+// A late window past the limit of shots that windows lists alone stays claimed while windows takes its shot, so another
+// call of the session meanwhile does not report it too.
+func TestLateWindowPastTheLimitStaysClaimedDuringItsShot(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	if res := e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl","p"]}]}`); res.IsError {
+		t.Fatal(text(res))
+	}
+	for _, id := range []string{"f1", "f2", "f3", "f4"} {
+		e.lateWindow("0x"+id, id, "Report "+id, &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true})
+	}
+	// The fourth has not drawn, so its capture waits, and a screenshot comes meanwhile.
+	concurrent := make(chan *mcp.CallToolResult, 1)
+	var started atomic.Bool
+	e.fake.with(func() {
+		e.fake.find("0xf4").Starved = true
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			if w.Address == "0xf4" && started.CompareAndSwap(false, true) {
+				concurrent <- e.screenshot(`{"window":"0xa1"}`)
+			}
+			return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": w.Commits, "socketId": w.socketID(), "redrawObserved": true, "commitsSince": 1,
+				"quietMs": 100, "elapsedMs": 100})
+		}
+	})
+	listing := e.windowsWith(`{"match":"report f4"}`)
+	if get(t, listing, "late_windows.0.window") != "0xf4" || get(t, listing, "late_windows.0.shot") == nil {
+		t.Errorf("windows: %s", text(listing))
+	}
+	select {
+	case res := <-concurrent:
+		if late, _ := get(t, res, "late_windows").([]any); slices.ContainsFunc(late, func(w any) bool { return w.(map[string]any)["window"] == "0xf4" }) {
+			t.Errorf("the screenshot meanwhile reported it too: %s", text(res))
+		}
+	default:
+		t.Error("no screenshot meanwhile")
+	}
+}
+
+// A windows call that the client cancels after it took a late window's shot gives the agent no result, so the late
+// window comes with the next one.
+func TestLateWindowOfACancelledWindowsCall(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	if res := e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl","o"]}]}`); res.IsError {
+		t.Fatal(text(res))
+	}
+	e.lateWindow("0xd1", "d1", "Open Files", &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// It is cancelled when it describes the windows, after the late window's shot.
+	e.fake.with(func() {
+		e.fake.onState = func(w *fakeWindow) {
+			if w.Address == "0xa1" && slices.ContainsFunc(e.fake.requests, func(r string) bool { return strings.HasPrefix(r, "j/hyprmasq screenshot 0xd1 ") }) {
+				cancel()
+			}
+		}
+	})
+	if res := e.server.windowsTool(ctx, &call{args: json.RawMessage(`{}`)}); errorCode(t, res) != "cancelled" {
+		t.Fatalf("cancelled: %s", text(res))
+	}
+	e.fake.with(func() { e.fake.onState = nil })
+	if res := e.screenshot(`{"window":"0xa1"}`); get(t, res, "late_windows.0.window") != "0xd1" || get(t, res, "late_windows.0.shot") == nil {
+		t.Errorf("after the cancelled call: %s", text(res))
 	}
 }
 
@@ -218,7 +387,7 @@ func TestLateWindowInAFailedAct(t *testing.T) {
 }
 
 // A late window comes with a shot: a result without one for it, with capture "none", past the limit of shots, or of a
-// call that was cancelled, leaves it to a later result, and windows marks it until then.
+// call that was cancelled, leaves it to a later result.
 func TestLateWindowsWaitForAShot(t *testing.T) {
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
@@ -232,11 +401,17 @@ func TestLateWindowsWaitForAShot(t *testing.T) {
 	if none.IsError || get(t, none, "late_windows") != nil || strings.Contains(text(none), "late") {
 		t.Errorf("capture none: %s", text(none))
 	}
+	// The windows that windows would mark as not yet reported, without reporting them as it would.
 	marked := func() []string {
+		ctx := context.Background()
+		windows, err := e.server.hypr.Clients(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
 		var addresses []string
-		for _, w := range get(t, e.windows(), "windows").([]any) {
-			if entry := w.(map[string]any); entry["opened_by_input"] != nil {
-				addresses = append(addresses, entry["window"].(string))
+		for _, w := range windows {
+			if st, err := e.server.hypr.State(ctx, w.Address); err == nil && e.server.lateFrom(w, st.Source, openKeys(windows)) != "" {
+				addresses = append(addresses, w.Address)
 			}
 		}
 		return addresses
