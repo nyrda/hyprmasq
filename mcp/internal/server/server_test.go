@@ -2814,11 +2814,12 @@ func TestChordsOfModifiersNeedNoHold(t *testing.T) {
 	}
 }
 
-// A window without hold shares its app's connection with the user's focused window, and keeps the keyboard focus after
-// a shortcut only until it has settled. The plugin counts the user's input to the app that took it back before a
-// shortcut had settled, and act says so, from the counter read once more after the wait. Batches without a key action,
-// windows with hold and counters of another socket get no second look or no flag.
-func TestShortcutInterruptedByTheUser(t *testing.T) {
+// A window without hold shares its app's connection with the user's focused window, and keeps the keyboard focus for a
+// quarter of a second after a shortcut. The plugin counts the user's input to the app that took it back within that
+// time, and act reports the event, from the counter read once more after the wait, without claiming that the shortcut
+// failed or worked. Batches without a key action, windows with hold and counters of another socket get no second look
+// or no flag.
+func TestSharedFocusReturnedForUserInput(t *testing.T) {
 	e := newTestEnv(t)
 	shared := e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Caps.Hold = false })
 	e.window("0xb2", "2b", 320, 200)
@@ -2840,16 +2841,31 @@ func TestShortcutInterruptedByTheUser(t *testing.T) {
 	}
 	states := func() int { return len(e.fake.requestsMatching("j/hyprmasq state")) }
 
+	// The event, with delivery as it was, and the old field for clients that read it.
+	flagged := func(res *mcp.CallToolResult) bool {
+		return get(t, res, "actions.delivery") == "complete" && get(t, res, "actions.shared_focus_returned.effect") == "unknown" &&
+			get(t, res, "actions.interrupted") == true
+	}
 	interrupt("")
 	res := e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl","l"]},{"action":"type","text":"example.org\n"}],"capture":"none"}`)
 	summary, hint := get(t, res, "summary").(string), get(t, res, "hint")
-	if res.IsError || get(t, res, "actions.interrupted") != true || !strings.HasPrefix(summary, "2/2 delivered, interrupted by the user's input · ") || hint != hintInterrupted {
+	if res.IsError || !flagged(res) || !strings.HasPrefix(summary, "2/2 delivered · shared keyboard focus returned for user input · ") || hint != focusReturnedHint(nil) {
 		t.Fatalf("%s", text(res))
+	}
+	if !strings.HasPrefix(hint.(string), "The user's input took this app's shared keyboard focus back from this window shortly after a shortcut or function key of the batch, so it may or may not have taken effect. Take a screenshot and look at it: if it shows the result, go on; if it is unclear, verify") {
+		t.Errorf("hint %q", hint)
 	}
 	if shared.Interrupted != 1 {
 		t.Fatalf("counter %d", shared.Interrupted)
 	}
-	// A shortcut that did nothing draws nothing, which the interruption explains better than a guess.
+	// With a shot, the hint points at it.
+	interrupt("")
+	res = e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl","l"]}],"capture":"window"}`)
+	if res.IsError || !flagged(res) || get(t, res, "hint") != focusReturnedHint(&shotOut{}) || !strings.Contains(get(t, res, "hint").(string), " Look at the shot: if it shows the result") {
+		t.Fatalf("%s", text(res))
+	}
+	// A shortcut that did nothing draws nothing, which the hint about the focus already says to check, without the
+	// guesses of the hint about a missing redraw.
 	interrupt("")
 	e.fake.with(func() {
 		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
@@ -2859,14 +2875,14 @@ func TestShortcutInterruptedByTheUser(t *testing.T) {
 		}
 	})
 	res = e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["ctrl","l"]}],"capture":"none","wait":{"expect_ms":300}}`)
-	if res.IsError || get(t, res, "actions.interrupted") != true || get(t, res, "hint") != hintInterrupted || !strings.Contains(text(res), "no redraw within 300 ms") {
+	if res.IsError || !flagged(res) || get(t, res, "hint") != focusReturnedHint(nil) || !strings.Contains(text(res), "no redraw within 300 ms") {
 		t.Fatalf("%s", text(res))
 	}
 	e.fake.with(func() { e.fake.onWait = nil })
-	// The counter stays: the next shortcut was not interrupted.
+	// The counter stays: the focus did not return within the next shortcut.
 	e.fake.with(func() { e.fake.onState = nil })
 	res = e.act(`{"window":"0xa1","actions":[{"action":"key","keys":["alt","left"]}],"capture":"none"}`)
-	if res.IsError || get(t, res, "actions.interrupted") != nil || strings.Contains(text(res), "interrupted") {
+	if res.IsError || get(t, res, "actions.interrupted") != nil || get(t, res, "actions.shared_focus_returned") != nil || strings.Contains(text(res), "keyboard focus") {
 		t.Errorf("%s", text(res))
 	}
 	// Typing alone takes effect without a round trip, so nothing is read again for it.

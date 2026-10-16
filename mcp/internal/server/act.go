@@ -636,17 +636,17 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	if reports && r.captureMode != "none" {
 		s.settle(newWindowKeys(out.NewWindows, late, false)...)
 	}
-	if applied && !closed && !cancelled {
-		out.Actions.Interrupted = s.interrupted(capCtx, r, st)
+	if applied && !closed && !cancelled && s.focusReturned(capCtx, r, st) {
+		out.Actions.SharedFocusReturned, out.Actions.Interrupted = &focusReturnedOut{Effect: "unknown"}, true
 	}
 
 	out.Summary = summaryLine(out, r.batch)
 	wait, unchanged := waitHint(out.Wait, r.batch, r.shotID, out.Actions, out.Shot), noChangeHint(out, r.batch)
-	// The user's input tells why a shortcut may have done nothing, which the hints about a missing redraw or change
-	// would only guess at.
-	interrupted := ""
-	if out.Actions != nil && out.Actions.Interrupted {
-		interrupted, unchanged = hintInterrupted, ""
+	// The returned focus already tells to check the shot before repeating anything, which the hints about a missing
+	// redraw or change would repeat with a guess at the cause.
+	focus := ""
+	if out.Actions != nil && out.Actions.SharedFocusReturned != nil {
+		focus, unchanged = focusReturnedHint(out.Shot), ""
 		if out.Wait != nil && out.Wait.Ended == "no_redraw" {
 			wait = ""
 		}
@@ -666,7 +666,7 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		}
 		wait = joinHints(wait, closedHint(out.Source))
 	}
-	out.Hint = joinHints(interrupted, wait, unchanged, out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows),
+	out.Hint = joinHints(focus, wait, unchanged, out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows),
 		lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
 	if out.Actions != nil {
 		out.Hint = joinHints(out.Hint, out.Actions.composeNote)
@@ -677,11 +677,12 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	return newResult(out, out.resultText, images, "")
 }
 
-// interrupted tells whether the user's own input to the window's app took the keyboard back from the window before a
-// shortcut of the batch had settled, from the plugin's counter before the input, in st, and now. A window without hold
-// shares its app's connection with the user's focused window, and keeps the keyboard focus after a shortcut only until
-// it has settled, a quarter of a second, which the wait and the capture have taken by now.
-func (s *Server) interrupted(ctx context.Context, r *actRequest, st hypr.State) bool {
+// focusReturned tells whether the user's own input to the window's app took the keyboard back from the window within a
+// quarter of a second of a shortcut of the batch, from the plugin's interrupted counter before the input, in st, and
+// now. A window without hold shares its app's connection with the user's focused window, and keeps the keyboard focus
+// after a shortcut for that quarter of a second, which the wait and the capture have taken by now. Whether the shortcut
+// ran before the focus returned is not known.
+func (s *Server) focusReturned(ctx context.Context, r *actRequest, st hypr.State) bool {
 	if st.Capabilities.Hold || st.Interrupted == nil || !slices.ContainsFunc(r.batch, func(a action) bool { return a.Kind == "key" }) {
 		return false
 	}

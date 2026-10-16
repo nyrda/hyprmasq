@@ -3315,16 +3315,17 @@ print(longest)
         wait_for("footclients closed", lambda: all(c["address"] not in (shared_hidden, shared_focused) for c in clients()))
         assert snapshot() == before_focus
 
-    with subtest("hyprmasq-mcp says when the user's typing beside a shortcut may have kept it from taking effect"):
+    with subtest("hyprmasq-mcp says when the user's typing took the shared keyboard focus back shortly after a shortcut"):
         # The shortcuts probe as a browser of the user's, with their window focused and the agent's hidden. A shortcut in
-        # the hidden window takes effect while the user does not type into the app. Keys of theirs that come before it has
-        # taken effect take the keyboard back first, and act says that it may have done nothing.
+        # the hidden window takes effect while the user does not type into the app. Keys of theirs within a quarter of a
+        # second of it take the keyboard back first, and act reports that event without saying whether the shortcut ran.
         m_user, m_agent = shortcut_probe("m-sc", "hm-m-sc-user", "hm-m-sc-agent", 67, 68)
         entry, _ = listed(mcp, m_agent)
         assert entry["capabilities"] == {"lease": False, "hold": False, "keyboard": "yes"}, entry
         start = len(probe_events("m-sc"))
         alone = mcp.call("act", {"window": m_agent, "actions": [{"action": "key", "keys": ["ctrl", "l"]}]})
-        assert not alone.is_error and "interrupted" not in alone.data["actions"] and alone.text.startswith("1/1 delivered · redraw observed"), alone
+        assert not alone.is_error and "interrupted" not in alone.data["actions"] and "shared_focus_returned" not in alone.data["actions"], alone
+        assert alone.text.startswith("1/1 delivered · redraw observed"), alone
         assert [e for _, e in probe_events("m-sc", start) if e.startswith("shortcut ")] == ["shortcut hm-m-sc-agent 4 38"]
         user_text = "asdfghjklasdfghjkl"
         for attempt in range(5):
@@ -3339,9 +3340,12 @@ print(longest)
             shortcuts = [e for _, e in events if e.startswith("shortcut ")]
             assert shortcuts in (["shortcut hm-m-sc-agent 4 38"], ["shortcut hm-m-sc-agent 4 38 inactive"]), events
             if shortcuts[0].endswith(" inactive"):
-                assert result.data["actions"]["interrupted"] is True and result.text.startswith("2/2 delivered, interrupted by the user's input · "), result
+                actions = result.data["actions"]
+                assert actions["interrupted"] is True and actions["shared_focus_returned"] == {"effect": "unknown"}, result
+                assert result.text.startswith("2/2 delivered · shared keyboard focus returned for user input · "), result
                 assert result.data["hint"].startswith(
-                    "The user typed or clicked in another window of this app before a shortcut or function key of the batch had taken effect"
+                    "The user's input took this app's shared keyboard focus back from this window shortly after a shortcut"
+                    " or function key of the batch, so it may or may not have taken effect. Look at "
                 ), result
                 break
         else:

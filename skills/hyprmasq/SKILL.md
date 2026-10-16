@@ -67,11 +67,12 @@ descriptions and results explain the rest. What `act` returns:
   moved down after an upload finished. Nothing was sent; read the coordinates
   from the new shot in the result and act again. Changes elsewhere, a blinking
   caret or an animation do not stop a click.
-- `N/M delivered, interrupted by the user's input`: the window shares its
-  app with the window the user is typing in, such as a second window of their
-  browser, and the user typed or clicked there before your shortcut, such as
-  `ctrl+l`, had taken effect. It may have done nothing: check the shot, and
-  send the key again if it did not take effect.
+- `N/M delivered · shared keyboard focus returned for user input`: the window
+  shares its app's keyboard focus with the window the user is typing in, such
+  as a second window of their browser, and the user typed or clicked there
+  shortly after your shortcut, such as `ctrl+l`. The shortcut may or may not
+  have taken effect. Look at the shot: go on if it shows the result, and if it
+  is unclear, verify the state before repeating the action.
 - A full shot, which says why it came instead: without an earlier shot, after
   a resize or a change of popups past the window's edge, for a change of more
   than 35% of the window or too scattered to join into 5 regions, and after 10
@@ -305,7 +306,7 @@ open.
 | `... is outside the pointer regions ...` | The point lies left of or above the window, or beyond its monitor. Nothing was sent. Click inside the window, or use the keyboard. |
 | A menu or dropdown is gone in the next screenshot | The emulated focus ends when `hyprmasq-input` exits, and the app may close a menu when its window loses the focus. Open it and pick the entry in one run, with `keys`, or take a lease first: `hyprctl -j hyprmasq lease "$addr" 60000 agent` keeps the focus for 60 s (Wayland windows only), and `hyprctl -j hyprmasq lease "$addr" release agent` ends it. |
 | `keys down keys enter` picked the wrong menu entry | A menu that a page draws itself can stay open after the run, and the click that was to open it again closed it, so the first Down only opened it. A page that the browser restored, as after going back, can also still highlight an entry, from which Down goes on. Look at a screenshot first, and click the entry of a menu that it shows open. |
-| A shortcut such as `keys ctrl+l` did nothing in a window of the app the user types in | The window shares its app's Wayland connection with the user's window, which their keys take back first: a shortcut that the app had not run by then does nothing. `hyprctl -j hyprmasq state "$addr"` counts these in `interrupted`. Look at a screenshot and send it again. |
+| A shortcut such as `keys ctrl+l` did nothing in a window of the app the user types in | The window shares its app's Wayland connection with the user's window, which their keys take back first: a shortcut that the app had not run by then does nothing. `hyprctl -j hyprmasq state "$addr"` counts in `interrupted` each time their input took the focus back within a quarter of a second of a shortcut, whether or not it had run. Look at a screenshot and send it again. |
 | Screenshot unchanged after input and `wait` | The app may ignore input until it is focused or may not redraw while hidden. Wait longer, or check that the click hit the element in a region screenshot. |
 | `no mapped window 0x...` | The window closed or the address is wrong. List `hyprctl -j clients` again. |
 | `the keymap cannot type U+...` | The user's layout has no key for the character. Nothing was sent. Use another spelling, or enter it another way in the app. |

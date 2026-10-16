@@ -343,8 +343,10 @@ hyprctl -j hyprmasq state "$addr"
   [The commit counter](#the-commit-counter). `lease` is `null` when none is
   held.
 - `interrupted` counts the times your own input to the window's Wayland
-  connection took the keyboard focus back from the window before a shortcut or
-  function key had settled, which may have kept it from taking effect. See
+  connection took the keyboard focus back from the window within a quarter of
+  a second of a shortcut or function key. It counts that event, not shortcuts
+  that failed: the app may have run the shortcut before, or may run one so late
+  that it misses the focus without being counted. See
   [How input is delivered](#how-input-is-delivered).
 - `source` is the window that this one came from, as the plugin found it when
   the window mapped, or `null`; see [New windows](#new-windows).
@@ -860,8 +862,10 @@ brought it would take it from your window. The target gets it with its first
 key instead.
 Your own keys, modifiers and clicks to that connection take the keyboard
 focus back first, before Hyprland sends them, so they reach your window, never
-the target. A shortcut or function key of the target that had not settled then
-may do nothing, which `state` counts in `interrupted`. Drags do not carry
+the target. A shortcut or function key of the target that the app had not run
+by then may do nothing. `state` counts in `interrupted` each return of the
+focus within a quarter of a second of such a key, whether or not the app had
+run it. Drags do not carry
 across the frames, and neither do held keys and key repeat once your input has
 taken the keyboard back. Only the modifier state of the sender's keys does:
 each keyboard frame enters the target again with it, so `keys ctrl+shift+t`

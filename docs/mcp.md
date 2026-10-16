@@ -1059,14 +1059,24 @@ does, can still handle that key first.
 The user's own key, modifier or button to the connection takes the keyboard
 focus back first, before Hyprland sends it: it reaches the user's window,
 never the agent's. A shortcut that has not run by then may do nothing, and the
-URL typed after it go into the page. The plugin counts such an interruption
-within a quarter of a second of a key pressed with Ctrl, Alt or Super held, a
-function key, Escape or a media key, in `state`'s `interrupted`. An `act` with
-a `key` action on a window without `hold` reads the counter before the input
-and once more after the wait and the capture; when it rose, the result has
-`actions.interrupted`, the summary says `, interrupted by the user's input`,
-and the hint tells to check the shot and send the key again if it did not take
-effect. Typing alone needs no round trip in the app and is not counted.
+URL typed after it go into the page. The plugin counts each such return of the
+focus within a quarter of a second of a key pressed with Ctrl, Alt or Super
+held, a function key, Escape or a media key, in `state`'s `interrupted`. The
+count records that event, not what became of the shortcut: an app may have
+run it before the focus returned, as foot and Chromium mostly have, and one
+that runs it later than a quarter of a second after the key misses the focus
+without being counted. Nothing the compositor sees, such as commits, title
+changes or released keys, tells these apart for every app.
+
+An `act` with a `key` action on a window without `hold` reads the counter
+before the input and once more after the wait and the capture. When it rose,
+the summary says `· shared keyboard focus returned for user input` after
+`N/M delivered`, delivery stays as it was, `actions` has
+`"shared_focus_returned": {"effect": "unknown"}` and, under its older name,
+`"interrupted": true`, and the hint says that the shortcut may or may not have
+taken effect: look at the shot, go on if it shows the result, and verify the
+window's state before repeating the action if it is unclear. Typing alone
+needs no round trip in the app and is not counted.
 
 Each move of the keyboard focus between the two windows makes the browser
 deactivate one of them: the user's page gets `blur` and `focus` around each
@@ -1106,7 +1116,7 @@ A result has three parts:
 
    | Part | Forms |
    | --- | --- |
-   | Actions, if any | `N/M delivered`, with `, nothing sent`, `, delivery partial: actions[i] (type) may be partly applied (K keys sent)` or `, delivery uncertain from actions[i] (click) on`, and with `, interrupted by the user's input` when the user's input took the keyboard back before a shortcut had settled (see [Shortcuts beside the user's window](#shortcuts-beside-the-users-window)) |
+   | Actions, if any | `N/M delivered`, with `, nothing sent`, `, delivery partial: actions[i] (type) may be partly applied (K keys sent)` or `, delivery uncertain from actions[i] (click) on`, then ` · shared keyboard focus returned for user input` when the user's input took back the keyboard focus that the window shares with theirs within a quarter of a second of a shortcut, which may or may not have taken effect (see [Shortcuts beside the user's window](#shortcuts-beside-the-users-window)) |
    | Wait | `redraw observed · quiet N ms · N ms`, `no redraw · quiet N ms · N ms`, either with `quiet N ms except animation at X,Y W×H` or `except animations at …, …`, and after the first with ` · drew again, settled N ms later` when the window drew again during the [watch](#phases), `no redraw within N ms`, `timeout after N ms, still resizing`, `timeout after N ms, still drawing`, `timeout after N ms, no redraw`, `no time left to wait`, `window closed`, `cancelled` |
    | Window closed | `window closed` after the wait's part, when the window closed after its wait had ended |
    | Capture | `shot sN W×H`, `shot sN W×H (full shot: REASON)`, `shot sN W×H (stale: not yet redrawn at its new size)`, `shot sN W×H (may be stale: not redrawn within N ms)` or `(may be stale: no time to redraw)`, several of them as `(full shot: REASON; stale: …)`, `shot sN = sM + K changes` followed by the lines `zoom sZ W×H of sN at X,Y W×H`, `K tiny changes left out` and `K changes in animations left out`, `shot sN = sM, no change`, `shot sN = sM, no change outside animations`, or `capture failed: MESSAGE` |
@@ -1148,7 +1158,11 @@ reason.
 `shot.may_be_stale` and `wait.resizing` unless they are true. `wait.resizing` is true when the wait
 timed out while the window had not caught up with a resize. `actions` also
 has `failed_index` and `progress` (`{"keys": N}` for a `type` or `key`
-action) when an action failed, and `interrupted` when it is true.
+action) when an action failed, and `shared_focus_returned` (`{"effect":
+"unknown"}`) and `interrupted` (`true`), the same event under its older name,
+only when the user's input took the shared keyboard focus back shortly after a
+shortcut (see [Shortcuts beside the user's window](#shortcuts-beside-the-users-window)).
+Neither says whether the shortcut took effect.
 `wait.commits` counts the commits since the baseline, and `wait.quiet_ms` how
 long the window had been quiet when the wait ended. `wait.again` is there only
 when the window drew again during the [watch](#phases) after it settled. An error adds `error`
@@ -1677,7 +1691,8 @@ The server refuses to run against another interface (`plugin_version`).
 - `interrupted` counts the times the user's own key, modifier or button to the
   window's Wayland connection took the keyboard focus back from the window
   within a quarter of a second of a key it pressed with Ctrl, Alt or Super
-  held, a function key, Escape or a media key, see
+  held, a function key, Escape or a media key. It counts that event, not
+  shortcuts that failed: the shortcut may have run before, see
   [Shortcuts beside the user's window](#shortcuts-beside-the-users-window).
 - `socketId` names the socket: it differs for every socket the plugin opens,
   also for one opened again for the same window, and in every load of the
@@ -2152,7 +2167,7 @@ a connection taken over during a burst; SIGTERM while the plugin does not
 answer; a shortcut that runs, as Chromium's, a moment after its key in a
 hidden window of the connection with the real focus, and the user's typing
 beside it, which reaches the user's window alone and is counted when it
-interrupts the shortcut.
+takes the keyboard focus back before the shortcut has run.
 
 **MCP subtests** drive `hyprmasq-mcp` over stdio from the test script:
 launch, results without structured content for a client that introduces
@@ -2167,7 +2182,8 @@ Compose table of the window's locale and the hint without a table for it,
 `unsupported` for
 a drag, a click with modifiers and a chord that holds a letter on a shared
 connection, where a chord of Shift and a letter still types a capital, a
-shortcut there that the user's typing interrupted, partial
+shortcut there after which the user's typing took the shared keyboard focus
+back, partial
 delivery when X11 input is paused, the wait outcomes, the lease across calls and on exit, new
 windows that the input opens, placed beside the target with a shot each, also
 one that maps after the wait, and with placement off one that has the user's
