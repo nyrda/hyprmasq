@@ -672,6 +672,43 @@ runs per size.
   putting Mara's tabs back on their first page; with "leave Mara's tabs open on their reports", one run of ten went
   back to the first tab, the others stopped after saving.
 
+## 2026-10-17: a click gives keyboard focus (#28)
+
+The Calc task's Name Box, [above](#2026-10-16-the-calc-task), came from hyprmasq. In the task's VM, with
+`WAYLAND_DEBUG=1` for LibreOffice and real clicks through QEMU's tablet and libinput:
+
+| Click on the Name Box | Keyboard focus before the button | Activated window | The box after typing |
+| --- | --- | --- | --- |
+| real, Calc focused | yes | yes | replaced |
+| real, the terminal focused | comes with the press | becomes so | replaced |
+| hyprmasq, visible Calc focused | yes | yes | replaced |
+| hyprmasq, visible Calc, the terminal focused | no | no | `A1x` |
+| hyprmasq, hidden Calc, as in the benchmark | no | no | `A1x` |
+| hyprmasq, hidden Calc after a Shift press | yes, from the Shift | no | replaced |
+
+LibreOffice selects the box's text when it gets the keyboard focus, a moment later. A real click brings the focus
+with the press, as Hyprland's click to focus does; hyprmasq's emulated keyboard entered the window only with the
+first key, so the key went in before the selection. The window's activated state played no part (last row). #28
+enters the emulated keyboard right before the first press of a click, except on the Wayland connection of the user's
+own keyboard focus, whose window would lose it to every click; there keys take it as before. Checked with one run of
+gpt-6.1-sol per task at 1920×1080, on 3027b12; the final head 8605778, merged as d7865c3, differs only for senders
+that put motion and a press into one frame or have a keyboard that is not emulating, which `hyprmasq-input` does not.
+
+| Build | Task | Passed | Wall s | In tools s | Calls | hyprmasq s | User undisturbed |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `main` 649f320, 5 runs | Calc | 5/5 | 112 (98–114) | 30 (26–33) | 21 (18–22) | 14.4 | 5/5 |
+| #28 3027b12 | | 1/1 | 102 | 24 | 17 | 12.1 | 1/1 |
+| #25 c552fb6, 5 runs | Forgejo | 5/5 | 72 (68–77) | 20 (19–22) | 15 (15–17) | 10.2 | 5/5 |
+| #28 3027b12 | | 1/1 | 72 | 21 | 15 | 10.6 | 1/1 |
+| #25 4902aec, 5 runs | Thunderbird | 5/5 | 94 (76–104) | 25 (23–31) | 17 (15–19) | 14.6 | 5/5 |
+| #28 3027b12 | | 1/1 | 75 | 25 | 16 | 14.9 | 1/1 |
+
+- **The Name Box worked**: the agent clicked it and typed `B5` without Ctrl+A, the figures went in from B5, and
+  there was no undo. It asked for a full shot in 2 of its 12 `act` calls, against 51 of 77 in the five runs before.
+- **The user's browser**, where the agent's and the user's windows share a connection: all 308 characters the user
+  typed reached their notes, and their window kept the focus.
+- One run per task checks that nothing broke; it measures no speed.
+
 ## Open
 
 - **Typing that lands in another field**: in 1 of about 140 browser runs, the text after a click on Forgejo's
@@ -684,8 +721,6 @@ runs per size.
   actions to wait it out, 30 of the 49 new looks after zooms. After the password, the completion page draws about
   0.5 or 1 s after the wait, and the 0.5 s watch for a second wave misses the later one.
 - **hyprmasq's own time per call**, 19 to 29 s a run.
-- **Calc's Name Box** keeps its text when clicked, so typing into it appends: 8 of 10 Calc runs, two calls each.
-  Not known yet whether a real click selects it.
 - **The shot of the window a dialog came from** can be taken before that window has drawn itself active again,
   such as Calc's toolbar greyed out after Manage Names, which gets the next click refused.
 - More apps, to settle floating and placement: a Qt app, an Electron app.
