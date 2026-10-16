@@ -194,6 +194,21 @@ output, installs the plugin through the NixOS module, and runs
 The test copies the screenshots and logs into the build result, for example
 `result/hyprmasq-green.png` after `nix-build nix/hyprmasq-vm-test.nix`.
 
+## Benchmarks
+
+`bench/` runs agents on tasks in an offline NixOS VM through `hyprmasq-mcp`
+alone, grades them from the VM's state, times them from both sides of the MCP
+connection and asks them afterwards where hyprmasq slowed them down. It needs
+KVM and logged-in `claude` and `codex`, and runs outside the Nix sandbox:
+
+```sh
+python3 bench/run.py --agent claude:claude-sonnet-5-5 --reps 1
+```
+
+[bench/README.md](../bench/README.md) describes the setup and the measures,
+and [benchmarks.md](benchmarks.md) the results so far. The benchmark is no
+gate for PRs.
+
 ## Source layout
 
 | Path | Contents |
@@ -219,6 +234,7 @@ The test copies the screenshots and logs into the build result, for example
 | `mcp/internal/server` | The tools: descriptions, schemas and argument checks (`server.go`), `act` and its waiting and lease (`act.go`), action checks and their translation to `hyprmasq-input` (`actions.go`, `input.go`), shots and zoom (`shots.go`, `capture.go`), changes shots, their limits and their full shots (`changes.go`), the check of the targets of a batch against its shot (`moved.go`), `windows`, its shots and its wait for a window, `launch`, `close` and `release` (`windows.go`, `launch.go`), the file locks (`locks.go`) and results and hints (`result.go`). |
 | `mcp/internal/delta` | The comparison of two screenshots for changes shots: the 3×3 averages of luminance and color channels, grouping changed pixels into changes, and tiny changes. |
 | `skills/hyprmasq/SKILL.md` | The agent skill. |
+| `bench/` | The benchmark: the VM, the runner, the MCP log and the tasks. |
 | `nix/package.nix` | Plugin and tool derivation, for the flake and downstream `callPackage`. It installs `hyprmasq-mcp` as a wrapper that puts the package's own `hyprmasq-input` first on `PATH`. |
 | `nix/mcp-package.nix` | The `hyprmasq-mcp` Go build, with its tests in the check phase. |
 | `nix/module.nix` | NixOS module: matching Hyprland, the package with its tools, Lua loader. |

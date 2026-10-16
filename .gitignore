@@ -3,3 +3,4 @@ build/
 *.so
 hyprmasq-input
 __pycache__/
+/bench/results/

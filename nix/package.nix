@@ -49,6 +49,9 @@
         "nix"
         "docs"
         "mcp"
+        "bench"
+        # Left by make in the work tree; a copy would keep make from building it.
+        "hyprmasq-input"
       ])
       && !(lib.hasSuffix ".so" base);
   },
