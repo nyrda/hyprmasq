@@ -994,10 +994,12 @@ and keyboard focus on the window between calls:
 
 - An `act` that sends input to a window with the `lease` capability starts or
   renews a lease of `--lease-ms` (60 seconds), owned by this server session.
-  The lease keeps the focus that input gives and gives none by itself, so the
-  server takes it before sending: once it holds both locks and has checked the
-  window again, right before it starts the sender. It renews it once more
-  after the capture, and the result reports that renewal.
+  The lease keeps the focus that input gives, also the keyboard focus that a
+  click gives, and gives none by itself, so the server takes it before
+  sending: once it holds both locks and has checked the window again, right
+  before it starts the sender. It renews it once more after the capture, and
+  the result reports that renewal. So a field that a click focused still has
+  the keyboard focus when a later call types into it.
 - A batch that ends up sending nothing undoes its renewal: it releases a lease
   that was not held before, and gives a lease of another session back to that
   session for the time it had left. A lease of this session keeps the renewal.
@@ -1045,6 +1047,14 @@ key for a quarter of a second, and then gives it back to the user's window
 with the user's modifiers. After plain typing, it gives it back with every
 frame, as before. Typing after the shortcut, such as the address after Ctrl+L,
 reaches what the shortcut focused.
+
+A click into the agent's window brings it no keyboard focus, unlike a click
+into a window of another app: the connection's keyboard focus would leave the
+user's window at every click, which their page sees as `blur`, and their
+browser may close what it closes when its window loses the focus. The agent's
+window gets the keyboard focus with its first key instead, so in this case an
+app that acts late on the focus that a click gives, as LibreOffice's Name Box
+does, can still handle that key first.
 
 The user's own key, modifier or button to the connection takes the keyboard
 focus back first, before Hyprland sends it: it reaches the user's window,
@@ -1936,6 +1946,13 @@ a leave on every change of the real focus.
 Without a lease, the emulated focus ends as soon as the sender stops
 emulating or disconnects, and after a second without input while it stays
 connected.
+
+A button press gives the window the keyboard focus before the button, as
+Hyprland's click to focus does for a real click, unless the window shares its
+Wayland connection with the window that has the real keyboard focus. The
+order on the wire is `wl_keyboard.enter`, `wl_keyboard.modifiers`, then
+`wl_pointer.button`. The focus goes to the window's own surface, also for a
+click into a popup.
 
 **Pointer regions.** libei region offsets are unsigned, so a region cannot
 start at negative coordinates. The pointer device has up to three regions in

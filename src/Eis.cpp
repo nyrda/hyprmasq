@@ -194,6 +194,7 @@ namespace hyprmasq {
             std::shared_ptr<wait::CContentWatch> content;
             uint64_t                             commitsAtInput = 0;
             bool                                 force = false, paused = false, deferredKeys = false, restoreDue = false;
+            bool                                 keyboardEmulating = false; // between the keyboard's start and stop of emulation
             Time::steady_tp                      pausedAt, holdUntil = Time::steadyNow(), lastKeys = Time::steadyNow(), lastPing;
             eis_event*                           stashed     = nullptr; // taken from libeis, waiting for a hold to end
             wl_client*                           server      = nullptr; // the window's X server, looked up once
@@ -233,6 +234,7 @@ namespace hyprmasq {
                 if (d == pointer)
                     releasePointer();
                 if (d == keyboard) {
+                    keyboardEmulating = false;
                     releaseKeyboard();
                     if (state)
                         xkb_state_unref(state);
@@ -606,6 +608,13 @@ namespace hyprmasq {
                 enteredKeyboard.reset();
             }
             void mods(const SP<CWLSeatResource>& s, bool toSender = true) {
+                // A sender without a keyboard holds no keys.
+                if (!state) {
+                    for (auto& k : s->m_keyboards)
+                        if (k)
+                            k->sendMods(0, 0, 0, 0);
+                    return;
+                }
                 const auto dep   = xkb_state_serialize_mods(state, XKB_STATE_MODS_DEPRESSED);
                 const auto lat   = xkb_state_serialize_mods(state, XKB_STATE_MODS_LATCHED);
                 const auto lock  = xkb_state_serialize_mods(state, XKB_STATE_MODS_LOCKED);
@@ -639,16 +648,16 @@ namespace hyprmasq {
                     }
                 }
                 const bool isKeyboard = device == keyboard;
+                const auto has     = [&](auto predicate) { return std::ranges::any_of(pending, [&](eis_event* e) { return eis_event_get_device(e) == device && predicate(e); }); };
+                const bool presses = !isKeyboard && has([](eis_event* e) { return eis_event_get_type(e) == EIS_EVENT_BUTTON_BUTTON && eis_event_button_get_is_press(e); });
+                const bool scrolls =
+                    !isKeyboard && has([](eis_event* e) { return eis_event_get_type(e) == EIS_EVENT_SCROLL_DELTA || eis_event_get_type(e) == EIS_EVENT_SCROLL_DISCRETE; });
                 // XWayland sends keys to the X focus and pointer events to the topmost X window under the pointer.
                 // Clicks and scrolling take X focus too, as a real click does: Wine only takes input once X focus has
                 // made it the foreground window. If the X server does not respond, the sender learns that input was
                 // dropped.
-                const bool takesFocus =
-                    isKeyboard || std::ranges::any_of(pending, [&](eis_event* e) {
-                        const auto type = eis_event_get_type(e);
-                        return eis_event_get_device(e) == device &&
-                            ((type == EIS_EVENT_BUTTON_BUTTON && eis_event_button_get_is_press(e)) || type == EIS_EVENT_SCROLL_DELTA || type == EIS_EVENT_SCROLL_DISCRETE);
-                    });
+                const bool                 takesFocus = isKeyboard || presses || scrolls;
+
                 std::optional<x11::SStack> stack;
                 if (w->m_isX11 && ((takesFocus && !x11::focus(w)) || (!isKeyboard && !(stack = x11::raise(w))))) {
                     drop(device);
@@ -668,8 +677,9 @@ namespace hyprmasq {
                     return;
                 }
                 // Resource focus is client-local. Restore it before the event loop can dispatch real input.
-                const auto now     = Time::millis(Time::steadyNow());
-                bool       trigger = false; // the frame has input that can open a window, see placement::triggers
+                const auto now             = Time::millis(Time::steadyNow());
+                bool       trigger         = false; // the frame has input that can open a window, see placement::triggers
+                bool       focusedKeyboard = false; // a press gave the window the keyboard focus
                 for (auto* e : pending) {
                     if (eis_event_get_device(e) != device)
                         continue;
@@ -714,6 +724,15 @@ namespace hyprmasq {
                         auto     target = surfaceAt(w, position, local);
                         if (!target)
                             continue;
+                        // A press brings the keyboard focus with it, right before the button, as Hyprland's click to
+                        // focus does: apps such as LibreOffice act on the focus a click gives, and would otherwise get it
+                        // only with the first key, after the click. It goes to the window's own surface, where keys go,
+                        // also for a click into a popup. Not on the connection of the real keyboard focus, whose window
+                        // would lose it to every click; keys take it there, see keepKeyboard.
+                        if (type == EIS_EVENT_BUTTON_BUTTON && eis_event_button_get_is_press(e) && !enteredKeyboard && w->resource() && !sharesKeyboardFocus()) {
+                            enterKeyboard(s, w->resource(), false);
+                            focusedKeyboard = true;
+                        }
                         if (enteredPointer != target) {
                             if (enteredPointer)
                                 leavePointer();
@@ -806,6 +825,10 @@ namespace hyprmasq {
                 }
                 if (stack)
                     x11::lower(*stack);
+                // xwayland-satellite moves X focus once it has handled the batch that entered the window, so keys after
+                // the click wait for a later batch, as after an enter for keys.
+                if (focusedKeyboard && !w->m_isX11 && xServer())
+                    hold();
                 // X focus goes back at once when the user's keyboard is on the same Wayland client, otherwise once input
                 // pauses.
                 auto realKeyboard = g_pSeatManager->m_state.keyboardFocus.lock();
@@ -959,12 +982,21 @@ namespace hyprmasq {
                             if (d == pointer || d == keyboard)
                                 deliver(d);
                             break;
+                        case EIS_EVENT_DEVICE_START_EMULATING:
+                            if (d == keyboard)
+                                keyboardEmulating = true;
+                            break;
                         case EIS_EVENT_DEVICE_STOP_EMULATING:
                             if (d == pointer || d == keyboard) {
                                 if (d == keyboard)
                                     releaseKeyboard();
                                 if (d == pointer)
                                     releasePointer();
+                                if (d == keyboard)
+                                    keyboardEmulating = false;
+                                // The keyboard focus that a click gave ends with a sender whose keyboard is not emulating.
+                                if (d == pointer && !keyboardEmulating)
+                                    releaseKeyboard();
                                 drop(d);
                                 scheduleIdle();
                             }

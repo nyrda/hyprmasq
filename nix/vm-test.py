@@ -1470,6 +1470,8 @@ print(json.dumps([im.getpixel(p) for p in {list(points)!r}] + [im.size]))
         events = log_since("p-popout", offset)
         for line in ["pointer enter popup", "motion popup 80 70", "button popup 1", "button popup 0"]:
             assert line in events.splitlines(), events
+        # The press gives the keyboard focus to the window's own surface, where keys go, before the button.
+        assert events.splitlines().index("keyboard enter hm-p-popout") < events.splitlines().index("button popup 1"), events
         assert "button hm-p-popout" not in events, events
         # A point outside the window and its popups is clamped to the window.
         offset = log_size("p-popout")
@@ -2405,6 +2407,79 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
         for title in ["hm-sc-agent", "hm-sc-user"]:
             dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
         wait_for("shortcut probe closed", lambda: client("hm-sc-agent") is None and client("hm-sc-user") is None)
+
+    with subtest("an emulated click gives a hidden window the keyboard focus before its button, and a lease keeps it"):
+        # As Hyprland's click to focus does for a real click: apps such as LibreOffice act on the keyboard focus that a
+        # click brings, and would otherwise get it only with the first key, after the click.
+        focus_workspace(69)
+        spawn("hyprmasq-focus-probe focus hm-cf-hidden", "cf-hidden")
+        wait_for("click focus probe", lambda: client("hm-cf-hidden") is not None)
+        focus_workspace(4)
+        before_focus = snapshot()
+        cf = client("hm-cf-hidden")["address"]
+        cf_path = open_socket(cf)
+
+        def cf_events(start, until):
+            wait_for(until, lambda: until in [e for _, e in probe_events("cf-hidden", start)], timeout=10)
+            return [e for _, e in probe_events("cf-hidden", start)]
+
+        start = len(probe_events("cf-hidden"))
+        send(cf_path, "move", 30, 30, "click")
+        events = cf_events(start, "keyboard leave hm-cf-hidden")
+        # The motion before the press brings none, and without a lease the focus ends with the sender.
+        motion, enter = events.index("motion hm-cf-hidden 30 30"), events.index("keyboard enter hm-cf-hidden")
+        assert motion < enter and events[enter + 1] == "modifiers hm-cf-hidden 0" and events[enter + 2] == "button hm-cf-hidden 1", events
+        assert events.count("keyboard enter hm-cf-hidden") == 1 and events.index("button hm-cf-hidden 0") < events.index("keyboard leave hm-cf-hidden"), events
+        # A lease keeps it until the keys of a later sender, which need no enter of their own.
+        assert lease(cf, 10000, "hm-cf-owner")["held"]
+        start = len(probe_events("cf-hidden"))
+        send(cf_path, "move", 40, 40, "click")
+        time.sleep(1.5)
+        send(cf_path, "key", 48)
+        events = cf_events(start, "key hm-cf-hidden 48 0")
+        assert events.index("keyboard enter hm-cf-hidden") < events.index("button hm-cf-hidden 1") < events.index("key hm-cf-hidden 48 1"), events
+        assert events.count("keyboard enter hm-cf-hidden") == 1 and not any("leave" in e for e in events), events
+        assert lease(cf, "release", "hm-cf-owner")["released"]
+        cf_events(start, "keyboard leave hm-cf-hidden")
+        assert snapshot() == before_focus
+        dispatch('hl.dsp.window.close({ window = "title:^hm-cf-hidden$" })')
+        wait_for("click focus probe closed", lambda: client("hm-cf-hidden") is None)
+
+    with subtest("an emulated click leaves the keyboard focus of the connection with the user's focused window alone"):
+        # The agent's window and the user's focused one share a connection, which has its keyboard focus on one surface
+        # at a time, so a click that brought it would take it from the user's window. Only the agent's keys take it, and
+        # the user's typing during the agent's clicks reaches the user's window alone.
+        focus_workspace(70)
+        spawn("hyprmasq-focus-probe focus hm-cfs-user hm-cfs-agent", "cfs")
+        wait_for("shared click focus probe", lambda: client("hm-cfs-user") and client("hm-cfs-agent"))
+        dispatch('hl.dsp.window.move({ window = "title:^hm-cfs-agent$", workspace = "71", follow = false })')
+        cfs_user, cfs_agent = client("hm-cfs-user")["address"], client("hm-cfs-agent")["address"]
+        dispatch(f'hl.dsp.focus({{ window = "address:{cfs_user}" }})')
+        wait_for("user window focus", lambda: snapshot() == (70, cfs_user))
+        cfs_path = open_socket(cfs_agent)
+        user_text = "qwertyuiopasdfghjkl"
+        codes = [letter_codes[c] for c in user_text]
+        start = len(probe_events("cfs"))
+        clicks = " ".join(["click sleep 60"] * 8)
+        spawn("sh -c " + shlex.quote(f"sleep 0.2; hyprmasq-input --socket {cfs_path} move 30 30 {clicks}"), "cfs-sender")
+        machine.send_chars(user_text, delay=0.04)
+        wait_for("the agent's clicks", lambda: [e for _, e in probe_events("cfs", start)].count("button hm-cfs-agent 0") == 8, timeout=10)
+        wait_for("the user's keys", lambda: len(keys_of(probe_events("cfs", start), "hm-cfs-user")) == len(codes), timeout=10)
+        events = probe_events("cfs", start)
+        assert keys_of(events, "hm-cfs-user") == codes and keys_of(events, "hm-cfs-agent") == [], events
+        assert not any(e.startswith("keyboard ") for _, e in events), events
+        # The agent's typing after its click still reaches its window, and the user's after it theirs.
+        start = len(probe_events("cfs"))
+        send(cfs_path, "click", "text", "z")
+        machine.send_chars("x")
+        wait_for("the user's key after", lambda: keys_of(probe_events("cfs", start), "hm-cfs-user") == [letter_codes["x"]], timeout=10)
+        events = probe_events("cfs", start)
+        assert keys_of(events, "hm-cfs-agent") == [letter_codes["z"]], events
+        assert next(i for i, (_, e) in enumerate(events) if e == "button hm-cfs-agent 0") < next(i for i, (_, e) in enumerate(events) if e == "keyboard enter hm-cfs-agent"), events
+        assert snapshot() == (70, cfs_user)
+        for title in ["hm-cfs-agent", "hm-cfs-user"]:
+            dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
+        wait_for("shared click focus probe closed", lambda: client("hm-cfs-agent") is None and client("hm-cfs-user") is None)
 
     with subtest("same-client popup, move, resize and drag protections"):
         focus_workspace(10)

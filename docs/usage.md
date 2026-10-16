@@ -819,6 +819,15 @@ The plugin sends events directly to the target window's Wayland objects. It does
 not move the real cursor or change which window Hyprland considers focused. The
 application sees pointer and keyboard focus arrive and receives the events.
 
+A button press brings the keyboard focus with it, before the button, as
+Hyprland's click to focus does for a real click: apps such as LibreOffice act
+on the keyboard focus that a click gives, such as selecting the text of the
+field that was clicked, and would otherwise get it only with the first key,
+after the click. Keys bring it too, and motion and scrolling do not. It goes to
+the window's own surface, where the keys go, also when the click is into one of
+its popups. A window that shares its Wayland connection with the window you are
+using does not get it from a click, see below.
+
 Without a [lease](#focus-lease), the emulated focus ends as soon as the sender
 stops emulating or disconnects, which `hyprmasq-input` does when it exits.
 While a sender stays connected, it ends after about a second without input.
@@ -845,6 +854,10 @@ Super held, a function key, Escape or a media key until it has settled, a
 quarter of a second later: apps such as Chromium take the window with the
 keyboard focus for the active one, and run a shortcut such as Ctrl+L or
 Alt+Left only once the page has let its key go by, a moment after the key.
+Clicks to the target leave the keyboard focus with your window: the
+connection's keyboard focus is on one surface at a time, so a click that
+brought it would take it from your window. The target gets it with its first
+key instead.
 Your own keys, modifiers and clicks to that connection take the keyboard
 focus back first, before Hyprland sends them, so they reach your window, never
 the target. A shortcut or function key of the target that had not settled then
@@ -1038,7 +1051,8 @@ X11 does not route input by Wayland surface:
 - XWayland sends keys to the window with X input focus. For an XWayland target,
   the plugin moves X input focus to it before the first key, click or scroll, as
   a real click would, and moves it back about a second after the last input, or
-  as soon as Hyprland changes focus.
+  as soon as Hyprland changes focus. A click also gives the X server's Wayland
+  connection the keyboard focus, as for a Wayland window.
 - XWayland sends a click to the topmost X window at that point, and windows on
   hidden workspaces overlap the visible ones. For each pointer frame, the plugin
   raises the target and its menus to the top of the X stack, then puts them
@@ -1047,7 +1061,9 @@ X11 does not route input by Wayland surface:
   focus, but only after it has handled the whole batch of Wayland events that
   carried it. So when the plugin gives a satellite window keyboard focus, it
   waits 50 ms before sending the keys, and it takes the focus away no sooner
-  than 50 ms after the last key.
+  than 50 ms after the last key. A click gives it in the same batch as its
+  button, as Hyprland does for a real click, and input after the click waits
+  50 ms.
 
 Before each of those X changes, the plugin waits until XWayland has read all
 pending Wayland input, so X changes and input arrive in order.
