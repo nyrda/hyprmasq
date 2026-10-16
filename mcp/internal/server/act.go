@@ -706,7 +706,7 @@ func (s *Server) closedSource(ctx context.Context, src *hypr.Source, target stri
 
 // opensWindows tells whether a batch has input that can open a window, after which act watches for new windows: a
 // click, a drag, a key, or text with a line break, which presses Enter. Text that only types characters, scrolling,
-// motion and pauses do not, as the plugin counts the user's input.
+// motion and pauses do not, as the plugin counts emulated input.
 func opensWindows(batch []action) bool {
 	for _, a := range batch {
 		switch a.Kind {

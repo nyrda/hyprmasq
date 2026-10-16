@@ -920,8 +920,9 @@ and again when it maps; for an X11 window when it maps. A new window comes from
   placed it, also as a window of a launch, and your own input to it is older
   than that. A window whose parent is one you work in, such as a dialog of your
   own window of a driven app, opens as usual.
-- otherwise the window of its app that emulated input reached last, in the last
-  5 seconds, when your own input to that app is older. That window may have
+- otherwise the window of its app that emulated input reached last, in the 5
+  seconds before the app created the new window, when your own input to that
+  app is older. That window may have
   closed since, as a dialog whose Send button made the app open a progress
   window: the new window then opens on the workspace the closed window was on,
   or if that is gone, on that of its parent. An app is a Wayland
@@ -932,8 +933,16 @@ and again when it maps; for an X11 window when it maps. A new window comes from
 
 Your input is a key, pressed or released, or a mouse button, to the window and
 app with the real keyboard or pointer focus, and a touch or a tablet tip, to the
-window that Hyprland focuses for it. When it is newer, the window is yours, and
-Hyprland places and focuses it as usual:
+window that Hyprland focuses for it. When it is newer, and came before the app
+created the window, the window is yours, and Hyprland places and focuses it as
+usual. An app creates a Wayland window when it asks for it, at its first commit,
+before it has drawn anything: in a benchmark, Chromium created a popup 60 ms
+after the click that opened it and drew it 240 to 290 ms later. Input after
+that, yours or the agent's, cannot have opened the window and does not count.
+For an X11 window, which Hyprland learns of when it maps, input counts up to
+then, and so it does for a window that nothing before its first commit can have
+opened, as one that an app creates ahead and draws on later input.
+Which of your input counts:
 
 - for a window with a parent, any of your input to the parent;
 - for one without, any of your input to the window of the app that emulated
@@ -942,18 +951,25 @@ Hyprland places and focuses it as usual:
   window is a click, a touch, a tablet tip, and a key held with Ctrl, Alt or
   Super or one that does not type, edit or move in text, such as Enter or a
   function key. Characters, Space, Tab, Backspace, Delete, Escape, the arrows,
-  Home, End and the page keys do not count, nor do modifiers alone, and neither
-  does Enter while the app's focused text field takes text through
-  text-input, since Enter types a line break there. Emulated input counts the
-  same way, without the text field: when the agent's input to the app had none
-  that can open a window, any of it counts.
+  Home, End and the page keys do not count, nor do modifiers alone. Neither
+  does Enter that types a line break: while the app's focused text field takes
+  text through text-input, or less than 2 seconds after you let go of a key
+  that typed or deleted a character in the same window, with no other key,
+  shortcut or click between them. The keypad's digits type only with Num Lock
+  on, and a key that a keybind of Hyprland takes types nothing. Apps without
+  text-input, such as Chromium unless it runs with
+  `--enable-wayland-ime`, tell no text field, so the Enter that ends a line you
+  type there counts as a line break by the typing before it. Emulated input
+  counts the same way, without the text field and the typing: when the agent's
+  input to the app had none that can open a window, any of it counts.
 
 So with your browser window on your workspace and an agent's window of the
 same browser on a hidden one, a popup that the agent's click opens stays on the
-hidden workspace while you type in your window, and one you open from your
-window opens on your screen. An app does not tell which input made it open a
-window, so when your click or Enter in one window of the app races the agent's
-click in another, the newer one decides.
+hidden workspace while you type in your window, also when you end a line as it
+opens, and one you open from your window opens on your screen. An app does not
+tell which input made it open a window, so when your click or shortcut in one
+window of the app races the agent's click in another, before the app creates
+the window, the newer one decides.
 
 The plugin places a window as it places the windows of a
 [launch](#launching-applications): it tags the window and registers a rule
@@ -981,7 +997,7 @@ for the active workspace.
 | --- | --- |
 | `null` | The window came from no window that emulated input reached. |
 | `{"window":"0x…","stableId":"1a","placed":true}` | It opened on the workspace of that window, without the focus. |
-| `{"window":"0x…","stableId":"1a","placed":false,"reason":"user_input"}` | Your own input to that window or app was newer, so Hyprland placed it. |
+| `{"window":"0x…","stableId":"1a","placed":false,"reason":"user_input"}` | Your own input to that window or app was newer and came before the app created the window, so Hyprland placed it. |
 | `{"window":"0x…","stableId":"1a","placed":false,"reason":"disabled"}` | `place_new_windows` is off. |
 | `{"window":"0x…","stableId":"1a","placed":false,"reason":"workspace"}` | A window rule cannot name the workspace of that window: a named or special workspace whose name has characters other than letters, digits, `_`, `.` and `-`. |
 
@@ -1151,14 +1167,19 @@ loss close once the sender exits. Open them and pick the entry in one run.
   opens.
 - Placing [new windows](#new-windows) does not count scrolling or pointer
   motion as your input, so that hovering over your own window of a driven app
-  does not take the agent's windows. A window that an app opens without a
+  does not take the agent's windows. A window that an app creates without a
   parent more than 5 seconds after emulated input opens as usual. A window that
   another app makes a driven app open, such as a link you open from a terminal
   or your mail in a driven browser, lands next to the driven window when input
   reached the browser in the last 5 seconds and your own input to it is older:
-  the plugin cannot tell it from a popup. Your Enter in a text field of an app
-  that does not use text-input, or a shortcut, counts as input that can open a
-  window, so it takes a parentless window that the agent's click before it
-  opens in the same app.
+  the plugin cannot tell it from a popup. Your shortcut, or Enter that follows
+  no typing, such as after a pause of 2 seconds or after Tab, counts as input
+  that can open a window, so it takes a parentless window that the agent's
+  click before it opens in the same app, when it comes before the app creates
+  the window. Enter right after typing counts as a line break also where it
+  runs what you typed, so a window that it opens in a driven app, such as
+  Shift+Enter in Chromium's address bar or a command in a terminal server's
+  window, opens next to the agent's window when the agent's click or shortcut
+  in that app came after your last click or shortcut there.
 - The plugin uses Hyprland internals. Other Hyprland versions need a port and a
   passing VM test.

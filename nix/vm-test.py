@@ -3917,7 +3917,8 @@ print(longest)
 
     with subtest("the user's typing into one window of an app does not take a window that input to another opens"):
         # K in the hidden window opens a toplevel without a parent 1.5 s later, while the user types into a window of the
-        # same app on their workspace. Typing into another window opens no window, unlike a click, Enter or a shortcut.
+        # same app on their workspace. Typing into another window opens no window, unlike a click, a shortcut, or Enter
+        # that does not end a line the user typed.
         start = len(probe_events("o-browser"))
         send(hidden_path, "key", 37)
         machine.send_chars("abc", delay=0.05)
@@ -3951,6 +3952,180 @@ print(longest)
         assert closer.stop() == 0
         machine.execute("pkill -f 'hyprmasq-focus-probe [o]pener hm-o-user'")
         wait_for("browser probe closed", lambda: client("hm-o-user") is None)
+        focus_workspace(4)
+        wait_for("focus back", lambda: snapshot() == (4, visible))
+
+    def browser_probe(create_ms, map_ms, log):
+        """focus-probe's browser mode as a browser that the user types in on workspace 66, with the agent's window on hidden
+        workspace 67: a left click opens a toplevel without a parent create_ms after the press, and draws it map_ms after
+        creating it. Returns the user's window, the agent's and the agent's socket."""
+        machine.execute("pkill -f 'hyprmasq-focus-probe [b]rowser'")
+        wait_for("earlier browser probe closed", lambda: client("hm-p-user") is None)
+        focus_workspace(66)
+        spawn(f"hyprmasq-focus-probe browser {create_ms} {map_ms} hm-p-user hm-p-agent", log)
+        user, agent = opened_window("hm-p-user")["address"], opened_window("hm-p-agent")["address"]
+        dispatch(f'hl.dsp.window.move({{ window = "address:{agent}", workspace = "67", follow = false }})')
+        dispatch(f'hl.dsp.focus({{ window = "address:{user}" }})')
+        wait_for("user window focus", lambda: snapshot() == (66, user))
+        return user, agent, open_socket(agent)
+
+    def popup_events(log, start, popup):
+        """When the agent's click went down, and when the popup it opened was created and drew its first frame."""
+        events = probe_events(log, start)
+        clicked = next(t for t, e in events if e == "button hm-p-agent 1")
+        created = next(t for t, e in events if e == f"opened {popup}")
+        mapped = next(t for t, e in events if e == f"mapped {popup}")
+        return events, clicked, created, mapped
+
+    def popup_created(log, start):
+        """The title of the first popup created since entry start of the log, once there is one."""
+        def title():
+            return next((e.split(" ", 1)[1] for _, e in probe_events(log, start) if re.fullmatch(r"opened hm-p-agent-popup\d+", e)), None)
+        wait_for("popup created", lambda: title() is not None, timeout=20)
+        return title()
+
+    with subtest("a line break that the user types does not take a popup that the agent's click opens"):
+        # As Chromium in the benchmark: the agent's click opens a popup that the app creates 60 ms later and draws 300 ms
+        # after that, while the user ends a line of notes in their window of the same app, which has no text-input. The
+        # probe's keys open nothing in the user's window but those of the opener mode, which "quote" avoids.
+        user, agent, agent_path = browser_probe(60, 300, "p-browser")
+        machine.send_chars("quote", delay=0.05)
+        start = len(probe_events("p-browser"))
+        send(agent_path, "move", 20, 20, "click")
+        machine.send_key("ret")
+        popup = opened_since("p-browser", start, r"hm-p-agent-popup\d+")
+        events, clicked, created, mapped = popup_events("p-browser", start, popup["title"])
+        enter = next(t for t, e in events if e == "key hm-p-user 28 1")
+        machine.log(f"popup mode 60 300: click {clicked}, Enter {enter}, created {created}, mapped {mapped}")
+        assert clicked < enter < mapped, events
+        assert popup["workspace"]["id"] == 67 and popup["floating"], popup
+        assert window_state(popup["address"])["source"] == {"window": agent, "stableId": window_state(agent)["stableId"], "placed": True}, window_state(popup["address"])
+        assert snapshot() == (66, user)
+        close_titled(popup["title"])
+
+    with subtest("neither a line break before the app creates a window nor other input after it takes the window"):
+        # The app creates the popup 2.5 s after the click and draws it 1.5 s after that. The user ends a line before the app
+        # creates it: a line break opens no window. Their shortcut after the app created it cannot have opened it.
+        user, agent, agent_path = browser_probe(2500, 1500, "p-slow")
+        start = len(probe_events("p-slow"))
+        send(agent_path, "move", 20, 20, "click")
+        machine.send_chars("quote\n", delay=0.05)
+        popup = opened_since("p-slow", start, r"hm-p-agent-popup\d+")
+        events, clicked, created, mapped = popup_events("p-slow", start, popup["title"])
+        enter = next(t for t, e in events if e == "key hm-p-user 28 1")
+        assert clicked < enter < created < mapped, events
+        assert popup["workspace"]["id"] == 67 and snapshot() == (66, user), popup
+        assert window_state(popup["address"])["source"]["placed"], window_state(popup["address"])
+        close_titled(popup["title"])
+
+        start = len(probe_events("p-slow"))
+        send(agent_path, "move", 20, 20, "click")
+        title = popup_created("p-slow", start)
+        machine.send_key("ctrl-x")
+        popup = opened_window(title)
+        events, clicked, created, mapped = popup_events("p-slow", start, title)
+        shortcut = next(t for t, e in events if e == "key hm-p-user 45 1")
+        assert clicked < created < shortcut < mapped, events
+        assert popup["workspace"]["id"] == 67 and snapshot() == (66, user), popup
+        assert window_state(popup["address"])["source"]["placed"], window_state(popup["address"])
+        close_titled(title)
+
+        # A key that the user holds types on in the app until they let it go, so Enter less than 2 s after that is a line
+        # break too, also more than 2 s after the press. QEMU presses Q, lets it go 1.5 s later, and holds back the Enter
+        # another 1.5 s.
+        start = len(probe_events("p-slow"))
+        machine.send_monitor_command("sendkey q 1500")
+        machine.send_key("ret")
+        time.sleep(1)
+        send(agent_path, "move", 20, 20, "click")
+        popup = opened_since("p-slow", start, r"hm-p-agent-popup\d+")
+        events, clicked, created, mapped = popup_events("p-slow", start, popup["title"])
+        held = next(t for t, e in events if e == "key hm-p-user 16 1")
+        let_go = next(t for t, e in events if e == "key hm-p-user 16 0")
+        enter = next(t for t, e in events if e == "key hm-p-user 28 1")
+        assert held < clicked < enter < created and enter - held > 2000 and enter - let_go < 2000, events
+        assert popup["workspace"]["id"] == 67 and snapshot() == (66, user), popup
+        assert window_state(popup["address"])["source"]["placed"], window_state(popup["address"])
+        close_titled(popup["title"])
+
+    with subtest("the user's shortcut or click in their window of the app after the agent's click takes the window that it opens"):
+        # Before the app creates the window, either could have opened it, and the newer one decides: the user's.
+        def taken_by_user(start, user_input):
+            title = popup_created("p-slow", start)
+            popup = opened_window(title)
+            assert popup["workspace"]["id"] == 66, popup
+            assert window_state(popup["address"])["source"] == {
+                "window": agent, "stableId": window_state(agent)["stableId"], "placed": False, "reason": "user_input",
+            }, window_state(popup["address"])
+            events, clicked, created, _ = popup_events("p-slow", start, title)
+            at = next(t for t, e in events if e == user_input)
+            assert clicked < at < created, events
+            return popup
+
+        start = len(probe_events("p-slow"))
+        send(agent_path, "move", 20, 20, "click")
+        machine.send_key("ctrl-x")
+        popup = taken_by_user(start, "key hm-p-user 45 1")
+        wait_for("popup focus", lambda: snapshot() == (66, popup["address"]))
+        close_titled(popup["title"])
+        dispatch(f'hl.dsp.focus({{ window = "address:{user}" }})')
+        wait_for("user window focus", lambda: snapshot() == (66, user))
+
+        # With Num Lock off, the keypad's 8 moves, so the Enter after it ends no line and counts.
+        start = len(probe_events("p-slow"))
+        send(agent_path, "move", 20, 20, "click")
+        machine.send_key("kp_8")
+        machine.send_key("ret")
+        popup = taken_by_user(start, "key hm-p-user 28 1")
+        assert "key hm-p-user 72 1" in [e for _, e in probe_events("p-slow", start)], probe_events("p-slow", start)
+        wait_for("popup focus", lambda: snapshot() == (66, popup["address"]))
+        close_titled(popup["title"])
+        dispatch(f'hl.dsp.focus({{ window = "address:{user}" }})')
+        wait_for("user window focus", lambda: snapshot() == (66, user))
+
+        # A Y that a keybind takes types nothing in the app, so the Enter after it ends no line either.
+        hypr("eval " + shlex.quote('hl.bind("Y", function() end)'))
+        start = len(probe_events("p-slow"))
+        send(agent_path, "move", 20, 20, "click")
+        machine.send_key("y")
+        machine.send_key("ret")
+        popup = taken_by_user(start, "key hm-p-user 28 1")
+        assert not any(e.startswith("key hm-p-user 21 ") for _, e in probe_events("p-slow", start)), probe_events("p-slow", start)
+        hypr("eval " + shlex.quote('hl.unbind("Y")'))
+        wait_for("popup focus", lambda: snapshot() == (66, popup["address"]))
+        close_titled(popup["title"])
+        dispatch(f'hl.dsp.focus({{ window = "address:{user}" }})')
+        wait_for("user window focus", lambda: snapshot() == (66, user))
+
+        # The user's left click opens a popup of their own too, which maps last and takes the focus.
+        start = len(probe_events("p-slow"))
+        send(agent_path, "move", 20, 20, "click")
+        real_click(user)
+        popup = taken_by_user(start, "button hm-p-user 1")
+        own = opened_since("p-slow", start, r"hm-p-user-popup\d+")
+        assert own["workspace"]["id"] == 66 and window_state(own["address"])["source"]["reason"] == "user_input", window_state(own["address"])
+        wait_for("own popup focus", lambda: snapshot() == (66, own["address"]))
+        close_titled(popup["title"], own["title"])
+
+    with subtest("a window that the app created ahead and draws on the agent's click opens next to the agent's window"):
+        # Some apps create a window ahead and draw it only on input. No input had reached the app before its first commit,
+        # so the input up to its map decides.
+        user, agent, agent_path = browser_probe(0, 300, "p-ahead")
+        start = len(probe_events("p-ahead"))
+        machine.succeed("pkill -USR2 -f 'hyprmasq-focus-probe [b]rowser'")
+        wait_for("window created ahead", lambda: "opened hm-p-agent-ahead1" in [e for _, e in probe_events("p-ahead", start)])
+        send(agent_path, "move", 20, 20, "click")
+        ahead = opened_window("hm-p-agent-ahead1")
+        events = probe_events("p-ahead", start)
+        created = next(t for t, e in events if e == "opened hm-p-agent-ahead1")
+        clicked = next(t for t, e in events if e == "button hm-p-agent 1")
+        mapped = next(t for t, e in events if e == "mapped hm-p-agent-ahead1")
+        assert created < clicked < mapped, events
+        assert ahead["workspace"]["id"] == 67 and ahead["floating"] and snapshot() == (66, user), ahead
+        assert window_state(ahead["address"])["source"] == {"window": agent, "stableId": window_state(agent)["stableId"], "placed": True}, window_state(ahead["address"])
+        close_titled(ahead["title"])
+        machine.execute("pkill -f 'hyprmasq-focus-probe [b]rowser'")
+        wait_for("browser probe closed", lambda: client("hm-p-user") is None)
         focus_workspace(4)
         wait_for("focus back", lambda: snapshot() == (4, visible))
 

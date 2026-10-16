@@ -1690,15 +1690,22 @@ the window's rules: for a Wayland window at its first commit, where clients
 have usually named the parent and before Hyprland suggests a size for the
 window, and again when Hyprland maps it, where the parent and the X11 process
 are known; for an X11 window when it maps. The decision at the map keeps,
-moves or takes back what the first commit placed. A new window comes from
+moves or takes back what the first commit placed. Both count the input up to
+the first commit, which the client sends as it creates the window: input after
+it, emulated or the user's, did not open the window. In a benchmark, Chromium
+sent the first commit of a popup 60 ms after the click that opened it and
+mapped the popup 240 to 290 ms later. The decision for an X11 window counts
+the input up to its map, and so does that for a Wayland window that, by its
+first commit, no window that the agent works in can have opened: a client may
+create a window ahead and map it on later input. A new window comes from
 
 - its parent, when it has one: an `xdg_toplevel` parent, `WM_TRANSIENT_FOR`, or
   through xdg-foreign a window of another process, as a portal's file chooser
   has. The parent counts when input reached it through its socket or the plugin
   placed it, also by a launch, and the user's own input to it is older than that;
 - otherwise the window of the same app, a Wayland connection or for Hyprland's
-  XWayland an X11 process, that input reached last, within the last 5 seconds,
-  when the user's own input to that app is older. The plugin keeps the
+  XWayland an X11 process, that input reached last, within the 5 seconds before
+  the first commit, when the user's own input to that app is older. The plugin keeps the
   workspace and parent of each window that input reached for those 5 seconds,
   so a window that the app opens after that one closed, such as a progress
   window after Send in a dialog, still opens on its workspace, or on that of its
@@ -1712,16 +1719,29 @@ counted for the window that Hyprland focuses for it. Any of it counts for a
 window that the agent works in, but for the rest of the app only input that
 can open a window: a button, a touch, a tablet tip, or a key press with Ctrl,
 Alt or Super, or of a key that does not type, edit or move in text, such as
-Enter or a function key. Enter does not count while
+Enter or a function key. Enter does not count when it types a line break: while
 `m_relay.getFocusedTextInput()` is enabled, since the focused text field takes
-it as a line break. Without a parent, the window is the user's when their input
+it as one, or less than 2 s after the release of a key that typed or deleted a
+character on the same surface, for clients without text-input, such as
+Chromium without `--enable-wayland-ime`. The release counts, since the client
+repeats a held key until then, and the keypad's digits and point type only
+while the Num Lock LED of the keyboard that sent them is on. A key that
+Hyprland keeps from the client, for a keybind or input capture, types nothing:
+Hyprland emits a key's release before it forwards it, and the plugin checks
+there that `getKeysFromAllKBs()` holds the key, as it does for a press that
+Hyprland forwarded, unless an input method's grab takes the keys. Any key press in between but a
+modifier alone or such a line break, and any button, touch or tablet tip, ends
+the typing. Without a parent, the window is the user's when their input
 to the window that the agent's input reached last is newer than that input, or
 their input to the app that can open a window is newer than the agent's last
 such input to the app, or than its last input when it had none, counting the
 modifiers that the sender holds for emulated keys. An app does not tell
-which input made it open a window: Hyprland's `xdg_activation_v1` ignores the
-serial and surface of a token, and Chromium names the last press on the seat
-and the surface with the keyboard focus, which are the user's while they type.
+which input made it open a window: Chromium asks for an `xdg_activation_v1`
+token as it creates a popup, with the serial of the last event of any kind on
+its connection and the surface with the keyboard focus, which is the user's
+while they type, and Hyprland drops the serial when the client destroys the
+token object, before the window maps. The serial would name no more than the
+first commit does: the newest input before the client created the window.
 The plugin then places the
 window silently on that window's workspace with the same tag and rule as a
 launch, naming a numbered workspace by its number and others by their name,

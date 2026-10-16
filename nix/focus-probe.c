@@ -70,6 +70,10 @@
 // and logs "elsewhere". In opener mode, A opens a dialog as D does, whose parent answers its close: it asks for a frame
 // callback as the dialog closes, and 300 ms after the first one comes, which on a hidden workspace is when hyprmasq
 // lets it draw, it redraws in orange, as a page lays out the file that a file chooser gave it, and logs "answered NAME".
+// With `browser CREATE_MS MAP_MS TITLE [TITLE]`, it works as the opener mode, but a left click opens a toplevel without
+// a parent as a browser's popup does: it creates TITLE-popupK CREATE_MS milliseconds after the press and draws its first
+// frame MAP_MS milliseconds after creating it, logging "opened" and "mapped" then. A SIGUSR2 creates TITLE-aheadK for its
+// last toplevel at once, as an app that creates a window ahead, and the next left click there draws it MAP_MS later.
 #define _GNU_SOURCE
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
@@ -100,6 +104,7 @@ struct window {
     uint32_t color;
     bool drawn;
     bool hungry; // draws its content only in answer to a frame callback
+    bool                 held;   // draws its first frame only when browser mode lets it
 };
 static struct wl_display *display;
 static struct wl_compositor *compositor;
@@ -136,7 +141,7 @@ static void say(const char *format, ...) {
 
 // Opener mode: the toplevels it opened, the one that opens a late toplevel when its timer expires, and the
 // xdg-foreign handles of its first toplevels.
-static bool opener_mode;
+static bool           opener_mode, browser_mode;
 static struct window opened[16];
 static int opened_count, foreign_count, late_timer = -1, close_timer = -1;
 static struct window *late_from, *closing; // closing: the toplevel that close_timer closes
@@ -265,7 +270,8 @@ static void configure(void *data, struct xdg_surface *surface, uint32_t serial) 
         return;
     }
     xdg_surface_ack_configure(surface, serial);
-    draw(w);
+    if (!w->held)
+        draw(w);
 }
 static void content_frame(void *data, struct wl_callback *callback, uint32_t time);
 static const struct wl_callback_listener content_listener = {.done = content_frame};
@@ -437,7 +443,7 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial, ui
     if (menu_mode && pointer_surface == windows[0].surface && button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED)
         menu_click();
     if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && (button == BTN_LEFT || button == BTN_RIGHT || button == BTN_MIDDLE))
-        opener_input(pointer_surface, button == BTN_LEFT ? 'n' : button == BTN_RIGHT ? 'd' : 'm');
+        opener_input(pointer_surface, button == BTN_LEFT ? (browser_mode ? 'p' : 'n') : button == BTN_RIGHT ? 'd' : 'm');
     if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && button == BTN_RIGHT) close_opened(pointer_surface, false);
 }
 static void pointer_axis(void *data, struct wl_pointer *p, uint32_t time, uint32_t axis, wl_fixed_t value) {}
@@ -582,6 +588,73 @@ static void close_opened(struct wl_surface *s, bool later) {
         return;
     }
 }
+// Browser mode: the popups that clicks open, by the toplevel that got the click until it is created, each with the time
+// of its next step, and the timer of the earliest.
+static int browser_create_ms, browser_map_ms, browser_timer = -1, browser_count;
+static struct {
+    struct window *from, *w;
+    uint64_t       due;
+    bool           ahead; // created ahead, and waits for a click
+} browser_popups[16];
+
+static void browser_arm(void) {
+    uint64_t due = 0;
+    for (int i = 0; i < browser_count; ++i)
+        if (!browser_popups[i].ahead && (!due || browser_popups[i].due < due))
+            due = browser_popups[i].due;
+    struct itimerspec at = {.it_value = {.tv_sec = due / 1000, .tv_nsec = (long)(due % 1000) * 1000000}};
+    assert(timerfd_settime(browser_timer, TFD_TIMER_ABSTIME, &at, NULL) == 0);
+}
+// Creates the popups that are due and draws the ones whose time has come.
+static void browser_step(void) {
+    const uint64_t now = now_ms();
+    for (int i = 0; i < browser_count; ++i) {
+        if (browser_popups[i].ahead || browser_popups[i].due > now)
+            continue;
+        if (browser_popups[i].w) {
+            browser_popups[i].w->held = false;
+            if (browser_popups[i].w->surface)
+                draw(browser_popups[i].w);
+            browser_popups[i--] = browser_popups[--browser_count];
+            continue;
+        }
+        const int before = opened_count;
+        open_toplevel(browser_popups[i].from, "popup", false);
+        if (opened_count == before) {
+            browser_popups[i--] = browser_popups[--browser_count];
+            continue;
+        }
+        browser_popups[i].w       = &opened[before];
+        browser_popups[i].w->held = true;
+        browser_popups[i].due     = now + browser_map_ms;
+    }
+    if (browser_count)
+        browser_arm();
+}
+static void browser_click(struct window* from) {
+    for (int i = 0; i < browser_count; ++i)
+        if (browser_popups[i].ahead && browser_popups[i].from == from) {
+            browser_popups[i].ahead = false;
+            browser_popups[i].due   = now_ms() + browser_map_ms;
+            browser_step();
+            return;
+        }
+    if (browser_count == (int)(sizeof(browser_popups) / sizeof(browser_popups[0])))
+        return;
+    browser_popups[browser_count++] = (typeof(browser_popups[0])){.from = from, .due = now_ms() + browser_create_ms};
+    browser_step();
+}
+static void browser_ahead(void) {
+    struct window* from   = windows[1].surface ? &windows[1] : &windows[0];
+    const int      before = opened_count;
+    if (browser_count == (int)(sizeof(browser_popups) / sizeof(browser_popups[0])))
+        return;
+    open_toplevel(from, "ahead", false);
+    if (opened_count == before)
+        return;
+    opened[before].held             = true;
+    browser_popups[browser_count++] = (typeof(browser_popups[0])){.from = from, .w = &opened[before], .ahead = true};
+}
 // Input to one of the first toplevels redraws it in another color, so it draws something, and opens a toplevel.
 static void opener_input(struct wl_surface *s, char action) {
     struct window *from = s == windows[0].surface ? &windows[0] : s && s == windows[1].surface ? &windows[1] : NULL;
@@ -594,7 +667,9 @@ static void opener_input(struct wl_surface *s, char action) {
         late_parented = action == 'm';
         struct itimerspec in = {.it_value = {.tv_sec = action == 'l' ? 0 : 1, .tv_nsec = (action == 'l' ? 300 : 500) * 1000000}};
         assert(timerfd_settime(late_timer, 0, &in, NULL) == 0);
-    } else if (action == 'f')
+    } else if (action == 'p')
+        browser_click(from);
+    else if (action == 'f')
         open_foreign(from);
     else if (action == 'a') {
         const int before = opened_count;
@@ -750,21 +825,24 @@ static int run_opener(void) {
     late_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
     close_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
     answer_close_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
-    assert(late_timer >= 0 && close_timer >= 0 && answer_close_timer >= 0);
+    browser_timer      = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    assert(late_timer >= 0 && close_timer >= 0 && answer_close_timer >= 0 && browser_timer >= 0);
     sigset_t mask;
     sigemptyset(&mask);
     sigaddset(&mask, SIGUSR1);
+    sigaddset(&mask, SIGUSR2);
     assert(sigprocmask(SIG_BLOCK, &mask, NULL) == 0);
     int signals = signalfd(-1, &mask, SFD_CLOEXEC);
     assert(signals >= 0);
-    struct pollfd fds[5] = {{.fd = wl_display_get_fd(display), .events = POLLIN},
+    struct pollfd fds[6] = {{.fd = wl_display_get_fd(display), .events = POLLIN},
                             {.fd = late_timer, .events = POLLIN},
                             {.fd = signals, .events = POLLIN},
                             {.fd = close_timer, .events = POLLIN},
-                            {.fd = answer_close_timer, .events = POLLIN}};
+                            {.fd = answer_close_timer, .events = POLLIN},
+                            {.fd = browser_timer, .events = POLLIN}};
     for (;;) {
         while (wl_display_prepare_read(display) != 0) wl_display_dispatch_pending(display);
-        if (wl_display_flush(display) < 0 || poll(fds, 5, -1) < 0) {
+        if (wl_display_flush(display) < 0 || poll(fds, 6, -1) < 0) {
             wl_display_cancel_read(display);
             return 1;
         }
@@ -786,7 +864,10 @@ static int run_opener(void) {
         if (fds[2].revents & POLLIN) {
             struct signalfd_siginfo info;
             assert(read(signals, &info, sizeof(info)) == sizeof(info));
-            open_foreign(&windows[0]);
+            if (info.ssi_signo == SIGUSR2 && browser_mode)
+                browser_ahead();
+            else if (info.ssi_signo == SIGUSR1)
+                open_foreign(&windows[0]);
         }
         if (fds[3].revents & POLLIN) {
             uint64_t expirations;
@@ -800,6 +881,11 @@ static int run_opener(void) {
             answering->color = 0xffcc8800;
             draw(answering);
             say("answered %s", answering->name);
+        }
+        if (fds[5].revents & POLLIN) {
+            uint64_t expirations;
+            assert(read(browser_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
+            browser_step();
         }
     }
 }
@@ -1034,6 +1120,17 @@ static int hold_input(const char *path, double x, double y, const char *mode) {
     return 0;
 }
 
+// Opener and browser modes: shows one or two toplevels with these titles.
+static int start_opener(char** titles, int count) {
+    stamped = opener_mode = true;
+    requested             = true; // clicks request nothing
+    signal(SIGCHLD, SIG_IGN);
+    for (int i = 0; i < count; ++i)
+        create_toplevel(&windows[i], titles[i]);
+    for (int i = 0; exporter && i < count; ++i)
+        zxdg_exported_v2_add_listener(zxdg_exporter_v2_export_toplevel(exporter, windows[i].surface), &exported_listener, &handles[i]);
+    return run_opener();
+}
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     if (argc == 4 && !strcmp(argv[1], "regions")) return print_regions(argv[2], atoi(argv[3]));
@@ -1096,15 +1193,13 @@ int main(int argc, char **argv) {
         while (wl_display_dispatch(display) >= 0) {}
         return 1;
     }
-    if ((argc == 3 || argc == 4) && !strcmp(argv[1], "opener")) {
-        stamped = opener_mode = true;
-        requested = true; // clicks request nothing
-        signal(SIGCHLD, SIG_IGN);
-        create_toplevel(&windows[0], argv[2]);
-        if (argc == 4) create_toplevel(&windows[1], argv[3]);
-        for (int i = 0; exporter && i < argc - 2; ++i)
-            zxdg_exported_v2_add_listener(zxdg_exporter_v2_export_toplevel(exporter, windows[i].surface), &exported_listener, &handles[i]);
-        return run_opener();
+    if ((argc == 3 || argc == 4) && !strcmp(argv[1], "opener"))
+        return start_opener(argv + 2, argc - 2);
+    if ((argc == 5 || argc == 6) && !strcmp(argv[1], "browser")) {
+        browser_mode      = true;
+        browser_create_ms = atoi(argv[2]);
+        browser_map_ms    = atoi(argv[3]);
+        return start_opener(argv + 4, argc - 4);
     }
     if (argc == 4 && !strcmp(argv[1], "imported")) {
         stamped = opener_mode = true;
