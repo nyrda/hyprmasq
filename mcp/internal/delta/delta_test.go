@@ -103,6 +103,24 @@ func TestNearbyPixelsGroupIntoOneChange(t *testing.T) {
 	}
 }
 
+// Ignored pixels count as unchanged, so a block next to them is a change of its own, also in a part of an image.
+func TestIgnoredPixelsAreUnchanged(t *testing.T) {
+	o := options
+	o.Ignore = []image.Rectangle{image.Rect(60, 20, 80, 40)}
+	after := screen(func(img *image.NRGBA) {
+		fill(img, image.Rect(40, 20, 58, 36), white)
+		fill(img, image.Rect(62, 22, 78, 38), white)
+	})
+	res := Compare(screen(nil), after, o)
+	if want := []image.Rectangle{image.Rect(39, 19, 59, 37)}; !reflect.DeepEqual(res.Changes, want) || res.Changed != 20*18 || res.Ignored != 18*18 {
+		t.Errorf("changes %v of %d pixels, %d ignored, want %v", res.Changes, res.Changed, res.Ignored, want)
+	}
+	part := image.Rect(30, 10, 100, 50)
+	if res := Compare(screen(nil).SubImage(part), after.SubImage(part), o); !reflect.DeepEqual(res.Changes, []image.Rectangle{image.Rect(39, 19, 59, 37)}) {
+		t.Errorf("in a part: changes %v", res.Changes)
+	}
+}
+
 func TestTransparentPixelsChange(t *testing.T) {
 	res := Compare(screen(nil), screen(func(img *image.NRGBA) { fill(img, image.Rect(0, 0, 30, 30), color.NRGBA{}) }), options)
 	if len(res.Changes) != 1 || res.Changes[0] != image.Rect(0, 0, 31, 31) {

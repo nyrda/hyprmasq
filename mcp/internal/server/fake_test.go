@@ -223,8 +223,11 @@ type fakeWindow struct {
 	// The window waits for a frame callback and has got none from hyprmasq. Waits send it frame callbacks, which end
 	// that, also with onWait.
 	Starved bool
-	// The animations that a wait without onWait reports, in window-local logical pixels.
+	// The animations that a wait without onWait reports, in window-local logical pixels. They keep drawing, so a wait
+	// without onWait that does not ignore animations sees the window draw also when it is idle.
 	Animated []hypr.IntRect
+	// The screenshots taken of the window, by which Paint can draw an animation.
+	Frames int
 	// The window has answered a wait without onWait and draws nothing more until the next state request, which a call
 	// makes before it sends input.
 	idle bool
@@ -671,7 +674,7 @@ func (f *fakeHyprland) plugin(words []string) string {
 		since, _ := strconv.ParseInt(args["since"], 10, 64)
 		f.mu.Lock()
 		w.Resizing = false
-		idle := w.idle && args["expect"] != "" && since == commits
+		idle := w.idle && args["expect"] != "" && since == commits && (len(w.Animated) == 0 || args["ignore"] == "animations")
 		if !idle {
 			w.Commits, w.idle = commits+3, true
 		}
@@ -736,6 +739,7 @@ func (f *fakeHyprland) screenshot(w *fakeWindow, args []string) string {
 		return pluginError("internal", err.Error())
 	}
 	img := image.NewGray(image.Rect(0, 0, width, height))
+	w.Frames++
 	if w.Paint != nil {
 		for py := 0; py < height; py++ {
 			for px := 0; px < width; px++ {

@@ -14,13 +14,20 @@ import (
 
 // A form is a window's content: dark blocks on white, which a test moves and changes, blocks in a faint gray, 33
 // levels darker than the white, as the border of Forgejo's text fields, and a block whose gray level changes with every
-// screenshot, as a video does.
+// screenshot, as a video or an animation does.
 type form struct {
 	mu     sync.Mutex
 	blocks []hypr.Rect
 	faint  []hypr.Rect
 	live   *hypr.Rect
 	frames int
+}
+
+// animate makes the block keep changing.
+func (f *form) animate(r hypr.Rect) {
+	f.mu.Lock()
+	f.live = &r
+	f.mu.Unlock()
 }
 
 func (f *form) paint(x, y float64) uint8 {
@@ -198,21 +205,38 @@ func TestTargetsThatMovedSinceTheShot(t *testing.T) {
 			actions: `[{"action":"click","x":240,"y":190}]`, captures: 1},
 		{name: "a caret next to the button", before: []hypr.Rect{button}, after: []hypr.Rect{button, {X: 143, Y: 86, Width: 2, Height: 18}},
 			actions: `[{"action":"click","x":240,"y":190}]`, captures: 1},
-		{name: "an animation that the wait before the shot saw", before: []hypr.Rect{button, {X: 100, Y: 112, Width: 10, Height: 6}},
-			after: []hypr.Rect{button, {X: 100, Y: 112, Width: 30, Height: 6}},
+		// The bar below the button keeps changing, between the captures of the check too.
+		{name: "an animation that the wait before the shot saw", before: []hypr.Rect{button}, after: []hypr.Rect{button},
 			shot: func(t *testing.T, e *testEnv, w *fakeWindow, f *form) string {
 				e.fake.with(func() { w.Animated = []hypr.IntRect{{X: 100, Y: 112, Width: 40, Height: 6}} })
+				f.animate(hypr.Rect{X: 100, Y: 112, Width: 30, Height: 6})
 				return shotID(t, e.act(`{"window":"0xa1","capture":"window"}`))
 			},
-			actions: `[{"action":"click","x":240,"y":190}]`, captures: 1},
-		{name: "a zoom read from a shot with an animation", before: []hypr.Rect{button, {X: 100, Y: 112, Width: 10, Height: 6}},
-			after: []hypr.Rect{button, {X: 100, Y: 112, Width: 30, Height: 6}},
+			actions: `[{"action":"click","x":240,"y":190}]`, captures: 2},
+		{name: "a zoom read from a shot with an animation", before: []hypr.Rect{button}, after: []hypr.Rect{button},
 			shot: func(t *testing.T, e *testEnv, w *fakeWindow, f *form) string {
 				e.fake.with(func() { w.Animated = []hypr.IntRect{{X: 100, Y: 112, Width: 40, Height: 6}} })
+				f.animate(hypr.Rect{X: 100, Y: 112, Width: 30, Height: 6})
 				id := shotID(t, e.act(`{"window":"0xa1","capture":"window"}`))
 				return shotID(t, e.screenshot(`{"window":"0xa1","region":{"shot":"`+id+`","x":160,"y":120,"width":240,"height":160}}`))
 			},
-			actions: `[{"action":"click","x":80,"y":70}]`, captures: 1},
+			actions: `[{"action":"click","x":80,"y":70}]`, captures: 2},
+		// An application can damage much more than it changes, as Thunderbird damages tiles of 1024×512 logical pixels
+		// around a blinking caret, so a target can move within the box of an animation, also next to a part of it that
+		// keeps changing.
+		{name: "a button that moved within an animation", before: []hypr.Rect{button}, after: []hypr.Rect{moved(button, 60)},
+			shot: func(t *testing.T, e *testEnv, w *fakeWindow, f *form) string {
+				e.fake.with(func() { w.Animated = []hypr.IntRect{{X: 0, Y: 0, Width: 320, Height: 200}} })
+				return shotID(t, e.act(`{"window":"0xa1","capture":"window"}`))
+			},
+			actions: `[{"action":"click","x":240,"y":190}]`, refused: "actions[0] (click) at 240,190", captures: 2},
+		{name: "a button that moved next to an animation", before: []hypr.Rect{button}, after: []hypr.Rect{moved(button, 60)},
+			shot: func(t *testing.T, e *testEnv, w *fakeWindow, f *form) string {
+				e.fake.with(func() { w.Animated = []hypr.IntRect{{X: 0, Y: 0, Width: 320, Height: 200}} })
+				f.animate(hypr.Rect{X: 100, Y: 112, Width: 30, Height: 6})
+				return shotID(t, e.act(`{"window":"0xa1","capture":"window"}`))
+			},
+			actions: `[{"action":"click","x":240,"y":190}]`, refused: "actions[0] (click) at 240,190", captures: 2},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			e := newTestEnv(t)

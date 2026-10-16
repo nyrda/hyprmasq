@@ -22,8 +22,8 @@ import (
 // another field. So before act sends a batch that clicks or drags at the coordinates of a shot, it checks that the
 // window still shows there what the shot showed: at once from the commit counter, which has not moved when the window
 // drew nothing since the shot, and otherwise by comparing a new capture with the shot around each point, as capture
-// "changes" compares, with its thresholds, without tiny changes such as a caret, and without the animations that the
-// wait before the shot saw, and for an edge that moved across the box.
+// "changes" compares, with its thresholds, without tiny changes such as a caret, and without the parts of the
+// animations that the wait before the shot saw that keep changing, and for an edge that moved across the box.
 const (
 	// The check compares the box that reaches this many logical pixels around each point, the margin that the zooms of
 	// capture "changes" give a change. Its 49 pixels cover a text field or button of up to 48 pixels in height, such as
@@ -113,19 +113,54 @@ func (s *Server) captureView(ctx context.Context, window string, ref *detail) (v
 	return v, nil
 }
 
-// changedAt tells whether the box, in window-local logical pixels, differs between two views beyond what capture
-// "changes" leaves out: changes below its thresholds, tiny changes such as a caret, and changes within the animations.
-// An edge that moved across the box counts too (see edgeMoved). Views that do not lie pixel on pixel, such as after a popup past the window's edge opened at a scale that the box
-// sets, cannot be compared, and count as changed, and so do views that show different parts of the box, as when a popup
-// past the window's edge that the box reaches into opened or closed.
-func changedAt(a, b view, box hypr.IntRect, animated []hypr.IntRect) bool {
+// alignment returns the shift by which a pixel of a lies at the same place of the window as the pixel that far further
+// in b, and false when the views do not lie pixel on pixel.
+func alignment(a, b view) (image.Point, bool) {
 	scale := a.geo.Scale
 	ox, oy := (a.geo.Frame.X-b.geo.Frame.X)*scale, (a.geo.Frame.Y-b.geo.Frame.Y)*scale
 	if math.Abs(scale-b.geo.Scale) > 1e-6 || math.Abs(ox-math.Round(ox)) > 1e-3 || math.Abs(oy-math.Round(oy)) > 1e-3 {
+		return image.Point{}, false
+	}
+	return image.Pt(int(math.Round(ox)), int(math.Round(oy))), true
+}
+
+// changingParts returns where two views of the window differ within the boxes of the animations, as capture "changes"
+// finds changes, without tiny ones such as a caret that blinked, in whole window-local logical pixels: the parts of
+// the animations that the window changed between the views. Views that do not lie pixel on pixel give none.
+func changingParts(a, b view, animated []hypr.IntRect) []hypr.IntRect {
+	shift, ok := alignment(a, b)
+	if !ok {
+		return nil
+	}
+	var parts []hypr.IntRect
+	for _, box := range animated {
+		inA := a.geo.pixelsOf(box).Intersect(a.img.Bounds().Sub(a.img.Bounds().Min))
+		if inA.Empty() || !inA.Add(shift).In(b.img.Bounds().Sub(b.img.Bounds().Min)) {
+			continue
+		}
+		ca, okA := crop(a.img, inA)
+		cb, okB := crop(b.img, inA.Add(shift))
+		if !okA || !okB {
+			continue
+		}
+		for _, c := range delta.Compare(ca, cb, deltaOptions(a.geo.Scale, 0)).Changes {
+			parts = append(parts, a.geo.geometry().logicalBox(c.Sub(a.img.Bounds().Min)))
+		}
+	}
+	return parts
+}
+
+// changedAt tells whether the box, in window-local logical pixels, differs between two views beyond what capture
+// "changes" leaves out: changes below its thresholds, tiny changes such as a caret, and changes within the animations
+// where the window kept changing (see withoutAnimations). An edge that moved across the box counts too, outside those
+// parts (see edgeMoved). Views that do not lie pixel on pixel, such as after a popup past the window's edge opened at a
+// scale that the box sets, cannot be compared, and count as changed, and so do views that show different parts of the
+// box, as when a popup past the window's edge that the box reaches into opened or closed.
+func changedAt(a, b view, box hypr.IntRect, animated, changing []hypr.IntRect) bool {
+	shift, ok := alignment(a, b)
+	if !ok {
 		return true
 	}
-	// A pixel of a lies at the same place of the window as the pixel shift further in b.
-	shift := image.Pt(int(math.Round(ox)), int(math.Round(oy)))
 	inA := a.geo.pixelsOf(box).Intersect(a.img.Bounds().Sub(a.img.Bounds().Min))
 	if inB := b.geo.pixelsOf(box).Intersect(b.img.Bounds().Sub(b.img.Bounds().Min)); inB != inA.Add(shift) {
 		return !inA.Empty() || !inB.Empty()
@@ -138,23 +173,24 @@ func changedAt(a, b view, box hypr.IntRect, animated []hypr.IntRect) bool {
 	if !okA || !okB {
 		return true
 	}
-	res, _ := withoutAnimations(delta.Compare(ca, cb, deltaOptions(scale, 0)), a.geo.geometry(), animated)
-	return len(res.Changes) > 0 || edgeMoved(a, b, inA, shift, animated)
+	o := deltaOptions(a.geo.Scale, 0)
+	res, _ := withoutAnimations(ca, cb, delta.Compare(ca, cb, o), o, a.geo.geometry(), animated, changing)
+	return len(res.Changes) > 0 || edgeMoved(a, b, inA, shift, changing)
 }
 
 // The share of a row or column of a target's box whose pixels have to change for an edge to have moved across it.
 const edgeShare = 0.9
 
 // edgeMoved tells whether a row or column of the box, inA in pixels of a, changed in nearly all of its pixels between
-// the views, each by more than the luminance threshold of capture "changes", outside the animations. That is an edge
-// that moved across the box, and no caret, whose line is short, or text, whose pixels fill no row. Around a click in an
-// empty field, the field's faint border of a pixel is all that changes when the field moves away, and the 3×3 average
-// of the comparison dilutes it below the threshold: in the benchmark VM, Forgejo's commit field, whose border is 33
-// levels darker than the white inside, moved away from a click in its middle unnoticed, and the click opened the file
-// chooser of the upload box that had moved there.
-func edgeMoved(a, b view, inA image.Rectangle, shift image.Point, animated []hypr.IntRect) bool {
+// the views, each by more than the luminance threshold of capture "changes", outside the parts of animations that kept
+// changing (see changingParts). That is an edge that moved across the box, and no caret, whose line is short, or text,
+// whose pixels fill no row. Around a click in an empty field, the field's faint border of a pixel is all that changes
+// when the field moves away, and the 3×3 average of the comparison dilutes it below the threshold: in the benchmark VM,
+// Forgejo's commit field, whose border is 33 levels darker than the white inside, moved away from a click in its middle
+// unnoticed, and the click opened the file chooser of the upload box that had moved there.
+func edgeMoved(a, b view, inA image.Rectangle, shift image.Point, changing []hypr.IntRect) bool {
 	var skip []image.Rectangle
-	for _, box := range animated {
+	for _, box := range changing {
 		box.X, box.Y, box.Width, box.Height = box.X-1, box.Y-1, box.Width+2, box.Height+2
 		skip = append(skip, a.geo.pixelsOf(box))
 	}
@@ -226,11 +262,11 @@ func (s *Server) seenShot(sh *shot) *shot {
 // checkTargets checks, before a batch is sent, whether the window changed around a point where it clicks or drags
 // since the shot that its coordinates come from, sh, or the changes shot after it that the agent has seen since (see
 // seenShot), and returns a stale_shot failure if it did. A window whose counter, in cur, has not moved since that shot
-// is not captured. Otherwise the window is rendered as the shot's
-// reference image was and compared with it around each point; a change gets the window up to movedSettleMax to settle,
-// and counts if it then holds still. The check ends by the time given, when the batch has to start to fit before input
-// has to end. When it captured the window, it returns the counter of the capture that it decided on: a window that has
-// drawn since may have moved its targets after it, and is checked again.
+// is not captured. Otherwise the window is rendered as the shot's reference image was and compared with it around each
+// point; a change gets the window up to movedSettleMax to settle, and counts if it then holds still, also within an
+// animation. The check ends by the time given, when the batch has to start to fit before input has to end. When it
+// captured the window, it returns the counter of the capture that it decided on: a window that has drawn since may
+// have moved its targets after it, and is checked again.
 func (s *Server) checkTargets(ctx context.Context, r *actRequest, coords *shot, cur hypr.State, by time.Time, p *progress) (decided *baseline, err error) {
 	targets := targetsOf(r.batch, coords)
 	if len(targets) == 0 {
@@ -256,9 +292,11 @@ func (s *Server) checkTargets(ctx context.Context, r *actRequest, coords *shot, 
 	if err != nil {
 		return nil, checkError(ctx, err, sh, r.batch, targets)
 	}
+	// One capture cannot tell an animation from content that the window drew in its box, so every change counts here,
+	// and the capture after the wait below tells them apart.
 	var changed []target
 	for _, t := range targets {
-		if changedAt(before, now, t.box, sh.Animated) {
+		if changedAt(before, now, t.box, nil, nil) {
 			changed = append(changed, t)
 		}
 	}
@@ -282,8 +320,18 @@ func (s *Server) checkTargets(ctx context.Context, r *actRequest, coords *shot, 
 	}
 	moved, at := changed, now.at
 	if later, err := s.captureView(ctx, r.window, ref); err == nil {
+		// Within the animations, what changed between the two captures keeps changing, and the rest holds still.
+		var boxes []hypr.IntRect
+		for _, t := range changed {
+			for _, a := range animated {
+				if box := rectOf(a).Intersect(rectOf(t.box)); !box.Empty() {
+					boxes = append(boxes, intRectOf(box))
+				}
+			}
+		}
+		changing := changingParts(now, later, boxes)
 		moved, at = slices.DeleteFunc(changed, func(t target) bool {
-			return !changedAt(before, later, t.box, animated) || changedAt(now, later, t.box, animated)
+			return !changedAt(before, later, t.box, animated, changing) || changedAt(now, later, t.box, animated, changing)
 		}), later.at
 	} else if asToolError(err).Code == "window_gone" || expired(ctx) {
 		// A check that ran out of time could not tell a move from content that keeps changing.

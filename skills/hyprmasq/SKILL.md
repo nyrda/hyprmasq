@@ -32,11 +32,12 @@ descriptions and results explain the rest. What `act` returns:
   it may also have opened a window of another process that maps a moment
   later, such as a file chooser: `windows` with `wait_ms` waits for it.
 - `N tiny changes left out`: a blinking caret or a few pixels changed.
-- `quiet 200 ms except animation at 12,40 300×20`: a small part of the window
-  kept redrawing, such as a progress bar, a video or a spinner. The wait did
-  not wait for it, and `N changes in animations left out` counts what changed
-  there. Look at that box in the shot if it matters, such as a spinner that
-  says the page is still loading.
+- `quiet 200 ms except animation at 12,40 300×20`: a part of the window kept
+  redrawing, such as a progress bar, a video or a spinner. The wait did not
+  wait for it, and `N changes in animations left out` counts what kept
+  changing there in a second capture; content that the window drew in that
+  box and that holds still comes as a change. Look at that box in the shot if
+  it matters, such as a spinner that says the page is still loading.
 - `drew again, settled 380 ms later`: after a click, a key or Enter, the
   window drew once more within half a second of settling, such as a page that
   Enter loaded or a search's results; the shot shows it after that. Work that

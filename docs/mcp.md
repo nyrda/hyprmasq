@@ -107,8 +107,8 @@ A shot records:
   uses, and how many [changes shots](#changes) in a row lead to it; for a
   changes shot, the shot it was compared with; for a zoom, the shot of the
   whole window it was read from;
-- the animations that the wait before it saw, which do not count as the
-  window moving its content (see
+- the animations that the wait before it saw, whose parts that keep changing
+  do not count as the window moving its content (see
   [Targets that moved](#targets-that-moved-since-the-shot)).
 
 A shot pixel X,Y maps to the window-local point `frame.x + X / scale`,
@@ -296,12 +296,12 @@ read the window's state:
   next changes capture compares with too, or the overview of a shot without
   one; a zoom's own image, region and all; and for a zoom cut from a changes
   shot, the detail image it was cut from. The comparison is that of
-  [Changes](#changes): its thresholds, tiny changes such as a caret left out,
-  and the changes within the animations that the wait before the shot saw,
-  which the shot records, and a zoom from the shot it was read from, left out
-  too. An edge that moved across the box counts all the same: a row or column
-  of the box in which 90% of the pixels changed, each by more than 24 levels in
-  luminance, outside the animations. That is no caret, whose line is short,
+  [Changes](#changes): its thresholds, and tiny changes such as a caret left
+  out. A change within an animation counts here too: one capture cannot tell
+  the animation from content that the window drew in its box, which the next
+  step tells. An edge that moved across the box counts all the same: a row or
+  column of the box in which 90% of the pixels changed, each by more than 24
+  levels in luminance. That is no caret, whose line is short,
   and no text, whose pixels fill no row, but such as the border of an empty
   field, all that changes around a click in its middle when the field moves
   away, and which the 3×3 average dilutes below the threshold: in the
@@ -319,10 +319,16 @@ read the window's state:
   drawing, and one more capture. A box that differs from the shot and holds
   still, the same in both captures, is a target that moved: the call fails
   with `stale_shot`, sends nothing, and returns a full shot taken after that
-  wait, which records the animations the wait saw. A box that differs between
-  the two captures as well keeps changing by itself, such as a video, which
-  the plugin does not take for an animation when it covers more than 15% of
-  the window. No shot would ever match it, so its batch is sent.
+  wait, which records the animations the wait saw. Within the animations
+  that the wait before the shot saw, which the shot records, a zoom with the
+  shot it was read from, and those that this wait saw, what differs between
+  the two captures is an animation that keeps changing, and it is left out as
+  in [Animations](#animations): a spinner next to a target does not stop its
+  click, and a target that moved within the box of an animation, such as a
+  tile that Thunderbird damages whole, does. A box that differs between the
+  two captures outside the animations keeps changing by itself, such as a
+  video, which the plugin does not take for an animation when it covers more
+  than 15% of the window. No shot would ever match it, so its batch is sent.
 
 ```
 error stale_shot: the window changed since shot s28 around actions[0] (click) at 510,389, so the input could reach something other than what the shot shows there
@@ -818,7 +824,8 @@ After the last action has been applied, the server starts the plugin's
    animation, such as a spinner or a blinking caret that was going on before
    the input, ends its change phase, and its quiet phase waits it out; the
    capture follows. Its commits and animations count also when it ends
-   `no_redraw`, so the capture leaves those animations out of the changes. After a `quiet` wait that saw a redraw, the summary adds
+   `no_redraw`, so the capture leaves out of the changes what keeps changing
+   in those animations. After a `quiet` wait that saw a redraw, the summary adds
    `drew again, settled N ms later`, and `wait.again` has its `quiet_ms` and
    `elapsed_ms`; after `no_redraw`, or a `quiet` wait without one, the wait
    ends `quiet` with a redraw, both waits' time in `elapsed_ms`. A redraw
@@ -848,13 +855,58 @@ that answers input, and an application that damages its whole window do not.
 The quiet phase does not wait for commits of an animation, and `quiet_ms`
 counts from the last other one. The result names the animations drawn during
 the wait in the summary, `quiet 200 ms except animation at 12,40 300×20`, and in
-`wait.animated`, as boxes in the pixels of the result's shot. With capture
-`"changes"`, the changes within them are left out of the zooms and counted in
-`shot.changes.animated`, with the line `1 change in an animation left out`.
-They do not count towards the 35% of the window that gives a full shot. When
-nothing changed outside them, the summary says `shot s7 = s5, no change
-outside animations`, and after input the hint says that its effect may lie
-inside them.
+`wait.animated`, as boxes in the pixels of the result's shot.
+
+A box is where the application said that it redrew, which can be much more
+than what changed: Thunderbird damages tiles of 1024×512 logical pixels, also
+for a blinking caret, so the box of an animation can hold content that the
+window draws there. In the benchmark VM at 2560×1440, the tile of Thunderbird's
+account setup with its Continue button animated while the button showed that
+it was busy and in the frames after the completion page appeared, and the
+completion page's content in that tile, the Finish button among it, held
+still. So with capture `"changes"`, when a change lies within the box of an
+animation, the server tells the animation from content by a second image: a
+`wait … since` the counter of the compared image, with `expect` 200 ms and a
+quiet time of 100 ms, within 400 ms, which sends a hidden window the frame
+callbacks it needs to draw, and a capture of the region around the boxes that
+hold changes, at the monitor's scale as a zoom is captured, or of the whole
+window with the request of the compared image when that image is shrunk. What
+differs between the two images within the boxes, beyond tiny changes such as a
+caret that blinked, is an animation that keeps changing. A change that reaches
+into it is compared again without its pixels and those within 8 logical pixels
+of it, the distance that joins changes, and what remains of the change stays: a
+label next to a spinner comes as a change, the spinner does not, and the
+label's pixels within those 8 go with the spinner (see
+[Known limits](#known-limits)). The changes left out are counted in
+`shot.changes.animated`, with the line `1 change in an animation left out`, and
+the parts that keep changing do not count towards the 35% of the window that
+gives a full shot. When nothing changed outside them, the summary says
+`shot s7 = s5, no change outside animations`, and after input the hint says
+that its effect may lie inside them.
+
+The second image is taken only when it can change the result. A change that
+only reaches into the box of an animation from outside cannot be left out, so
+it needs one only when the regions would come as a full shot unless the parts
+that keep changing are taken off their area. And none is taken when the changes
+come as a full shot even with every change within the boxes left out and the
+whole boxes taken off the area, since a full shot shows them all. In the
+benchmark VM at 3840×2160, a click on a message in Thunderbird changes rows of
+its message list that reach into the box of its animated scrollbar: a session
+of such clicks took five second images, of 200 to 385 ms each, which could not
+change their results, and takes none now.
+
+Content that holds still in the box of an animation comes as a change, and so
+does every change in the box without a second image: when the window drew
+nothing within the 200 ms, so that nothing there animates, or was still
+drawing other content at the 400 ms, when the time left before the 500 ms that
+a full shot keeps before the deadline does not fit the wait, a capture as long
+as the first and the comparison, or the work runs into those 500 ms, and when
+the second capture fails, is of another socket, or does not lie pixel on pixel
+with the first image. An animation that did not change between the two images,
+such as a progress bar that moves once a second, then comes as a zoom too: an
+image more, where content left out would cost a call and the trust in the
+zooms. The second image costs the wait, 100 ms for an animation that draws
+every frame and 200 ms when the window draws nothing, and a capture.
 Before an animation has redrawn for a second, it counts as drawing like any
 other, so a wait over a window that keeps animating ends about 1.2 seconds
 after the input instead of at the deadline.
@@ -2167,8 +2219,14 @@ window, coordinates of changes shots and their zooms, error paths, the files
 and last shots forgotten with a window, an overview and detail image of one
 frame, zooms of the compared frame, captured zooms of another frame or cut by a
 closed popup and the zooms given up with them, the detail image of popups past
-the window's edge, joining thousands of regions, and the time left for the
-full shot; the check of the targets, which does not capture a window that drew
+the window's edge, joining thousands of regions, the time left for the
+full shot, and within the box of an animation the second image, of the
+animation's region, which leaves out what keeps changing and keeps content that
+holds still, also next to a spinner, none for a change that only reaches into
+an animation or for changes that come as a full shot anyway, and every change
+without it: without a redraw, after a wait that ran into its deadline or failed,
+after a failed capture and with one of another socket; the check of the
+targets, which does not capture a window that drew
 nothing since the shot, refuses a click, a later click of a batch, the end of a
 drag, a dark edge and the faint border of an empty field across the box, and
 a popup past the window's edge that closed, when they moved, through overviews and their
@@ -2177,12 +2235,14 @@ base of a changes shot with the changes shot that the agent got since, checks
 again when the window drew right after the check's capture, refuses a zoom
 whose reference image is gone, and sends
 after a change elsewhere, a caret, an animation that the wait before the shot
-or its zoom saw, and content that keeps changing, within the deadline; and the
+or its zoom saw and that keeps changing, and content that keeps changing, and
+refuses a target that moved within the box of an animation, also next to a part
+of it that keeps changing, within the deadline; and the
 wait of the window that a closed window came from for its answer, with and
 without a redraw and under a short deadline. The comparison has tests of its
 own: a block, a caret and a speck, a switch of antialiasing, a hover
 highlight, a change of color that keeps the luminance, grouping, transparency,
-the limit of changed pixels and stopping. They run in the Nix build.
+ignored pixels, the limit of changed pixels and stopping. They run in the Nix build.
 
 Not yet covered by a VM subtest: a toolkit's dropdown kept open across calls.
 
@@ -2248,6 +2308,12 @@ timeouts.
 - If the plugin ever replaced the keyboard, for example on a keymap change,
   the sender would stop with `no_devices`. Reconnecting picks up the new
   keymap.
+- Content that a window draws within 8 logical pixels of a part of an
+  animation that keeps changing, in the animation's box, is left out with the
+  animation (see [Animations](#animations)). Two images cannot tell it from a
+  part of the animation that both show alike, such as the place a spinner's
+  arc has left, whose change from the earlier shot a smaller margin would
+  return as a zoom, and the comparison joins changes that close anyway.
 - A window that maps more than `--new-window-grace-ms` after an `act`'s wait
   comes with the session's next `act`, `screenshot` or `windows`, not with
   that act, and one that maps more than 2 minutes after it as no late window.

@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"time"
 
@@ -46,6 +47,19 @@ const (
 const (
 	// The time that a changes capture leaves before its deadline for the full shot it may fall back to.
 	fallbackReserve = 500 * time.Millisecond
+	// A change within the box of an animation is left out only where the window keeps changing it. The plugin finds an
+	// animation by the boxes that commits damage, and an application can damage much more than it changes: Thunderbird
+	// damages tiles of 1024×512 logical pixels, also for a blinking caret. In the benchmark VM at 2560×1440, the tile of
+	// its account setup's Continue button animated while the button showed that it was busy and in the frames after
+	// the completion page appeared, and the completion page's content in that tile, the Finish button among it, was
+	// left out, though it held still. So after such a change the window gets frame callbacks, without which a hidden
+	// window does not draw, until it has drawn again, within animationExpect, and animationRun has passed, and is
+	// captured once more; a window that goes on drawing other content gets up to animationSettleMax. A spinner or a
+	// progress bar has moved in that time, and its change stays out; content that holds still in both images stays in,
+	// and so does every change when the window drew nothing meanwhile.
+	animationExpect    = 200 * time.Millisecond
+	animationRun       = 100 * time.Millisecond
+	animationSettleMax = 400 * time.Millisecond
 	// About how long decoding two detail images and comparing them takes per pixel: 170 ms for 2544×1432.
 	comparePerPixel = 60 * time.Nanosecond
 )
@@ -71,6 +85,15 @@ func (g detailGeometry) logicalBox(box image.Rectangle) hypr.IntRect {
 	x1 := math.Ceil(g.frame.X + float64(box.Max.X)/g.scale - 1e-9)
 	y1 := math.Ceil(g.frame.Y + float64(box.Max.Y)/g.scale - 1e-9)
 	return hypr.IntRect{X: int(x0), Y: int(y0), Width: int(x1 - x0), Height: int(y1 - y0)}
+}
+
+// pixels is the box of pixels that cover a box of whole logical pixels.
+func (g detailGeometry) pixels(r hypr.IntRect) image.Rectangle {
+	x0 := math.Floor((float64(r.X)-g.frame.X)*g.scale + 1e-6)
+	y0 := math.Floor((float64(r.Y)-g.frame.Y)*g.scale + 1e-6)
+	x1 := math.Ceil((float64(r.X+r.Width)-g.frame.X)*g.scale - 1e-6)
+	y1 := math.Ceil((float64(r.Y+r.Height)-g.frame.Y)*g.scale - 1e-6)
+	return image.Rect(int(x0), int(y0), int(x1), int(y1))
 }
 
 // bounds is the box of whole logical pixels that covers the frame. At a fractional scale the frame can end within a
@@ -146,35 +169,81 @@ func animatedPixels(out *actOut, d *detail) int {
 	return n
 }
 
-// withoutAnimations leaves out the changes, tiny ones too, that lie within the boxes of animations, such as a progress
-// bar or a video that the wait did not wait for, and counts them. The boxes reach a pixel further, which the 3×3
-// average spreads a change to.
-func withoutAnimations(res delta.Result, g detailGeometry, animated []hypr.IntRect) (delta.Result, int) {
-	if len(animated) == 0 {
+// withoutAnimations leaves out of the changes between the images a and b of one size, which res holds in a's
+// coordinates as Compare found them with o, what lies within the boxes of animations, such as a progress bar or a video
+// that the wait did not wait for, where the window kept changing: the parts that changingParts found. A change, tiny
+// ones too, that lies within the boxes and reaches into such a part is compared again without the part's pixels and
+// those within o.Group of it, which would join a change to it, and what remains of it stays, as content that the
+// window drew there and that held still. It counts the changes that it took pixels from. The boxes reach a pixel
+// further, which the 3×3 average spreads a change to.
+func withoutAnimations(a, b image.Image, res delta.Result, o delta.Options, g detailGeometry, animated, changing []hypr.IntRect) (delta.Result, int) {
+	if len(animated) == 0 || len(changing) == 0 {
 		return res, 0
 	}
+	o.MaxChanged, o.Stop, o.Ignore = 0, nil, nil
+	for _, c := range changing {
+		o.Ignore = append(o.Ignore, g.pixels(c).Inset(-o.Group))
+	}
 	n := 0
-	keep := func(boxes []image.Rectangle) []image.Rectangle {
-		kept := boxes[:0:0]
+	var changes, tiny []image.Rectangle
+	offset := b.Bounds().Min.Sub(a.Bounds().Min)
+	for i, boxes := range [][]image.Rectangle{res.Changes, res.Tiny} {
 		for _, box := range boxes {
-			r := rectOf(g.logicalBox(box))
-			inside := false
-			for _, a := range animated {
-				if r.In(rectOf(a).Inset(-1)) {
-					inside = true
-					break
+			if r := rectOf(g.logicalBox(box)); !within(r, animated) || !touches(r, changing) {
+				if i == 0 {
+					changes = append(changes, box)
+				} else {
+					tiny = append(tiny, box)
+				}
+				continue
+			}
+			// The pixel around the box gives the 3×3 average what it has in the whole image.
+			area := box.Inset(-1).Intersect(a.Bounds())
+			ca, okA := subImage(a, area)
+			cb, okB := subImage(b, area.Add(offset))
+			if !okA || !okB {
+				n++
+				continue
+			}
+			rest := delta.Compare(ca, cb, o)
+			if rest.Ignored > 0 {
+				n++
+			}
+			for _, c := range rest.Changes {
+				if c = c.Intersect(box); !c.Empty() {
+					changes = append(changes, c)
 				}
 			}
-			if inside {
-				n++
-			} else {
-				kept = append(kept, box)
+			for _, c := range rest.Tiny {
+				if c = c.Intersect(box); !c.Empty() {
+					tiny = append(tiny, c)
+				}
 			}
 		}
-		return kept
 	}
-	res.Changes, res.Tiny = keep(res.Changes), keep(res.Tiny)
+	res.Changes, res.Tiny = changes, tiny
 	return res, n
+}
+
+// subImage returns the part of an image within r, in the image's coordinates.
+func subImage(img image.Image, r image.Rectangle) (image.Image, bool) {
+	sub, ok := img.(interface {
+		SubImage(image.Rectangle) image.Image
+	})
+	if !ok {
+		return nil, false
+	}
+	return sub.SubImage(r), true
+}
+
+// within tells whether r lies within one of the boxes, which reach a pixel further.
+func within(r image.Rectangle, boxes []hypr.IntRect) bool {
+	return slices.ContainsFunc(boxes, func(b hypr.IntRect) bool { return r.In(rectOf(b).Inset(-1)) })
+}
+
+// touches tells whether r overlaps or touches one of the boxes.
+func touches(r image.Rectangle, boxes []hypr.IntRect) bool {
+	return slices.ContainsFunc(boxes, func(b hypr.IntRect) bool { return r.Overlaps(rectOf(b).Inset(-1)) })
 }
 
 // joinTouching joins rectangles that overlap or touch until none do. Sorted by their left edges, a rectangle can only
@@ -236,16 +305,13 @@ func area(rects []image.Rectangle) float64 {
 	return float64(sum)
 }
 
-// animatedShare is the share of the frame where the regions and the animations of the wait overlap, which does not
-// count towards maxChangedArea: a region can hold an animation and a change next to it. Animations that overlap each
-// other count once for each.
-func animatedShare(regions []hypr.IntRect, g detailGeometry, out *actOut) float64 {
-	if out.Wait == nil {
-		return 0
-	}
+// animatedShare is the share of the frame where the regions and the parts of the animations that kept changing
+// overlap, which does not count towards maxChangedArea: a region can hold an animation and a change next to it. Parts
+// that overlap each other count once for each.
+func animatedShare(regions []hypr.IntRect, g detailGeometry, changing []hypr.IntRect) float64 {
 	area := 0
 	for _, r := range regions {
-		for _, a := range out.Wait.animated {
+		for _, a := range changing {
 			overlap := rectOf(r).Intersect(rectOf(a))
 			area += overlap.Dx() * overlap.Dy()
 		}
@@ -359,6 +425,7 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 	case base.Deltas >= maxDeltas:
 		return full(fmt.Sprintf("%d changes shots in a row", base.Deltas))
 	}
+	captureStart := time.Now()
 	after, st, reply, err := s.captureDetail(ctx, r.window, stableID, base.Detail.Max)
 	if errors.Is(err, errNotSettled) || errors.Is(err, errStarved) {
 		return full(err.Error())
@@ -398,6 +465,8 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 	if before.Bounds().Size() != now.Bounds().Size() {
 		return full(fmt.Sprintf("%s cannot be compared", base.ID))
 	}
+	// A capture and a decode, which a second image of the window takes again.
+	captureCost := time.Since(captureStart)
 	// Animations, which are left out below, do not count towards the limit of changed pixels.
 	o := deltaOptions(after.Scale, int(maxChangedArea*float64(pixels))+animatedPixels(out, after))
 	if hasDeadline {
@@ -411,19 +480,18 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 		return full(fmt.Sprintf("%d%% changed since %s", int(math.Round(100*float64(res.Changed)/float64(pixels))), base.ID))
 	}
 	g := after.geometry()
+	animatedBoxes := out.Wait.animatedBoxes()
+	var changing []hypr.IntRect
+	// Without the counter of the capture, there is nothing to wait from, and every change stays.
+	if boxes := s.evidenceBoxes(res, g, animatedBoxes, base, st.Scale); reply.Commits != nil && len(boxes) > 0 {
+		a := view{img: now, geo: after, at: baseline{commits: *reply.Commits, socket: deref(reply.SocketID)}}
+		changing = s.keepsChanging(ctx, r.window, a, boxes, st.Scale, stopBy, captureCost)
+	}
 	var animated int
-	if out.Wait != nil {
-		res, animated = withoutAnimations(res, g, out.Wait.animated)
-	}
+	res, animated = withoutAnimations(before, now, res, o, g, animatedBoxes, changing)
 	regions, leftOut := planRegions(res, g)
-	if area := regionsArea(regions, g) - animatedShare(regions, g, out); area > maxChangedArea {
-		return full(fmt.Sprintf("%d%% changed since %s", int(math.Round(100*area)), base.ID))
-	}
-	if len(regions) > maxRegions {
-		return full(fmt.Sprintf("%d changed regions since %s", len(regions), base.ID))
-	}
-	if zoomPixels(regions, st.Scale, s.cfg.MaxImageSize) > base.Width*base.Height {
-		return full(fmt.Sprintf("the zooms into the changes since %s would be larger", base.ID))
+	if reason := s.fullReason(regions, g, changing, base, st.Scale); reason != "" {
+		return full(reason)
 	}
 
 	sh := &shot{ID: s.shots.newID(), Window: r.window, StableID: base.StableID, Size: st.Size, Frame: base.Frame, Width: base.Width, Height: base.Height,
@@ -470,13 +538,123 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 	return sh, images, nil
 }
 
+// fullReason tells why the changes in the regions come as a full shot instead of zooms, or "": they cover more than
+// maxChangedArea of the window outside the parts of animations that keep changing, there are more than maxRegions of
+// them, or their zooms at the monitor's scale would take more pixels than the base shot.
+func (s *Server) fullReason(regions []hypr.IntRect, g detailGeometry, changing []hypr.IntRect, base *shot, scale float64) string {
+	if area := regionsArea(regions, g) - animatedShare(regions, g, changing); area > maxChangedArea {
+		return fmt.Sprintf("%d%% changed since %s", int(math.Round(100*area)), base.ID)
+	}
+	if len(regions) > maxRegions {
+		return fmt.Sprintf("%d changed regions since %s", len(regions), base.ID)
+	}
+	if zoomPixels(regions, scale, s.cfg.MaxImageSize) > base.Width*base.Height {
+		return fmt.Sprintf("the zooms into the changes since %s would be larger", base.ID)
+	}
+	return ""
+}
+
+// evidenceBoxes returns the boxes of the animations that a second image has to show, or none when it cannot change the
+// result. The second image tells which changes that lie within a box to leave out, and which parts of the boxes to take
+// off the area of the regions (see animatedShare). So it shows the boxes that hold a change that is not tiny, and,
+// when the regions without that discount would come as a full shot, the boxes that the regions overlap. It is not
+// taken when the changes would come as a full shot even with every change within the boxes left out and the whole
+// boxes taken off the area, since a full shot shows them all.
+func (s *Server) evidenceBoxes(res delta.Result, g detailGeometry, animated []hypr.IntRect, base *shot, scale float64) []hypr.IntRect {
+	if len(animated) == 0 {
+		return nil
+	}
+	var boxes []hypr.IntRect
+	add := func(b hypr.IntRect) {
+		if !slices.Contains(boxes, b) {
+			boxes = append(boxes, b)
+		}
+	}
+	least := delta.Result{}
+	for _, c := range res.Changes {
+		r := rectOf(g.logicalBox(c))
+		if !within(r, animated) {
+			least.Changes = append(least.Changes, c)
+			continue
+		}
+		for _, a := range animated {
+			if r.In(rectOf(a).Inset(-1)) {
+				add(a)
+			}
+		}
+	}
+	for _, c := range res.Tiny {
+		if !within(rectOf(g.logicalBox(c)), animated) {
+			least.Tiny = append(least.Tiny, c)
+		}
+	}
+	if regions, _ := planRegions(least, g); s.fullReason(regions, g, animated, base, scale) != "" {
+		return nil
+	}
+	if regions, _ := planRegions(res, g); s.fullReason(regions, g, nil, base, scale) != "" {
+		for _, a := range animated {
+			if slices.ContainsFunc(regions, func(r hypr.IntRect) bool { return rectOf(r).Overlaps(rectOf(a)) }) {
+				add(a)
+			}
+		}
+	}
+	return boxes
+}
+
+// keepsChanging returns the parts of the animations' boxes where the window kept changing after the view a of it,
+// which the detail capture of a changes capture rendered at the counter a.at: the window gets frame callbacks until it
+// has drawn again and animationRun has passed (see animationExpect), and is captured again, and the two images are
+// compared within the boxes (see changingParts). The second capture is of the region around the boxes when a has the
+// monitor's scale, as a zoom is captured, and with the request of a's image otherwise. It returns none, so that every
+// change within the boxes stays, when the window drew nothing meanwhile or had not settled by the wait's deadline,
+// when the time left before by does not fit the wait, a second capture as long as captureCost and the comparison, or
+// the work does not end by then, and when the second image is not one of the same socket that can be compared with
+// a's.
+func (s *Server) keepsChanging(ctx context.Context, window string, a view, boxes []hypr.IntRect, monitorScale float64, by time.Time, captureCost time.Duration) []hypr.IntRect {
+	pixels := 0
+	var around image.Rectangle
+	for _, box := range boxes {
+		r := a.geo.pixelsOf(box)
+		pixels += r.Dx() * r.Dy()
+		around = around.Union(rectOf(box))
+	}
+	region, limit := a.geo.Region, a.geo.Max
+	if r := intRectOf(around.Intersect(rectOf(a.geo.geometry().bounds()))); a.geo.Region == nil && math.Abs(a.geo.Scale-monitorScale) < 1e-6 && r.Width > 0 && r.Height > 0 {
+		region, limit = &r, 0
+	}
+	settle := min(animationSettleMax, time.Until(by)-captureCost-time.Duration(pixels)*comparePerPixel)
+	if settle < animationRun {
+		return nil
+	}
+	// The time after by is the full shot's.
+	ctx, cancel := context.WithDeadline(ctx, by)
+	defer cancel()
+	reply, err := s.wait(ctx, window, hypr.WaitArgs{Since: a.at.commits, ExpectMs: int(min(animationExpect, settle).Milliseconds()), QuietMs: int(animationRun.Milliseconds()),
+		DeadlineMs: int(settle.Milliseconds()), ID: s.waitID()})
+	if err != nil || reply.Ended != "quiet" || !reply.RedrawObserved || deref(reply.SocketID) != a.at.socket || reply.Resizing {
+		return nil
+	}
+	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
+		return nil
+	}
+	path := filepath.Join(s.shotDir, fmt.Sprintf("d%d.png", s.detailSeq.Add(1)))
+	defer os.Remove(path)
+	shot, err := s.hypr.Screenshot(ctx, window, path, region, limit)
+	b := detailOf(shot, path, limit)
+	if err != nil || shot.Commits == nil || deref(shot.SocketID) != a.at.socket || shot.Resizing || shot.Starved || region == a.geo.Region && !b.sameGeometry(a.geo) {
+		return nil
+	}
+	img, err := readPNG(path)
+	if err != nil || img.Bounds().Dx() != b.Width || img.Bounds().Dy() != b.Height || time.Now().After(by) {
+		return nil
+	}
+	// A box that the second image does not cover whole, or does not lie pixel on pixel with a, gives no parts.
+	return changingParts(a, view{img: img, geo: b}, boxes)
+}
+
 // pixelsOf is the box of the detail image's pixels that cover a region, cut to the image.
 func (d *detail) pixelsOf(region hypr.IntRect) image.Rectangle {
-	x0 := math.Floor((float64(region.X)-d.Frame.X)*d.Scale + 1e-6)
-	y0 := math.Floor((float64(region.Y)-d.Frame.Y)*d.Scale + 1e-6)
-	x1 := math.Ceil((float64(region.X+region.Width)-d.Frame.X)*d.Scale - 1e-6)
-	y1 := math.Ceil((float64(region.Y+region.Height)-d.Frame.Y)*d.Scale - 1e-6)
-	return image.Rect(int(x0), int(y0), int(x1), int(y1)).Intersect(image.Rect(0, 0, d.Width, d.Height))
+	return d.geometry().pixels(region).Intersect(image.Rect(0, 0, d.Width, d.Height))
 }
 
 // cutZoom makes a zoom shot of a changes shot from the box of its detail image, which has the monitor's pixels.

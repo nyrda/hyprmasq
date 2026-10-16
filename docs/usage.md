@@ -266,7 +266,7 @@ includes a window that is hidden only after the wait started.
 | `quietMs` | How long the window had been quiet when the wait ended, not counting the commits of animations. |
 | `elapsedMs` | How long the wait took. |
 | `resizing` | The window had not caught up with a resize when the wait ended, as after a `timeout` while it was resizing. |
-| `animated` | The boxes of the animations drawn during the wait, `{"x","y","width","height"}` in whole window-local logical pixels: small boxes that commits since the last input damaged again and again for a second or more, at least 500 ms after it. The quiet phase does not wait for them. |
+| `animated` | The boxes of the animations drawn during the wait, `{"x","y","width","height"}` in whole window-local logical pixels: small boxes that commits since the last input damaged again and again for a second or more, at least 500 ms after it. The quiet phase does not wait for them. A box is where the application said it redrew, which can be much more than what changed: Thunderbird damages tiles of 1024×512 for a blinking caret, so a box can hold content that the window drew there and that holds still. Compare two captures to tell them apart, as `hyprmasq-mcp` does (see [Animations](mcp.md#animations)). |
 
 COMMITS above the counter is an error (`invalid_arguments`): it can only come
 from another socket of the window. So is an id that a pending wait already

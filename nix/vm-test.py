@@ -3415,6 +3415,34 @@ print(longest)
         assert mcp.call("close", {"window": ticking}).data["closed"]
         assert snapshot() == before_focus
 
+    with subtest("hyprmasq-mcp keeps what a window draws in the box of an animation, and leaves out what goes on changing"):
+        # focus-probe's tiles mode redraws at every frame callback, damaging the tile at 40,40 of 256×128 whole, though
+        # only a spinner at 48,48 of 24×24, noise that is new at every frame, changes in it, as Thunderbird's renderer
+        # damages tiles of 1024×512: the plugin takes the tile for an animation. A click draws a light block at 180,120 of
+        # 96×32 in the same tile, which stays. It comes as a change, and the spinner, which a second capture shows still
+        # changing, stays out.
+        command = "exec hyprmasq-focus-probe tiles hm-m-tiles > /tmp/hyprmasq-m-tiles.log 2>&1"
+        launched = mcp.call("launch", {"command": ["sh", "-c", command], "workspace": "hm-m-tiles"})
+        assert not launched.is_error, launched
+        window, shot = launched.data["window"]["window"], launched.data["shot"]["id"]
+        clicked = mcp.call("act", {"window": window, "shot": shot, "actions": [{"action": "click", "x": 500, "y": 400}]})
+        machine.log(f"hyprmasq-mcp: a block drawn in the tile of an animation: {clicked}")
+        assert not clicked.is_error and clicked.data["actions"]["delivery"] == "complete", clicked
+        assert "content" in [e for _, e in probe_events("m-tiles")], probe_events("m-tiles")
+        tile = clicked.data["wait"].get("animated", [])
+        assert any(a["x"] <= 40 and a["y"] <= 40 and a["x"] + a["width"] >= 296 and a["y"] + a["height"] >= 168 for a in tile), clicked
+        changes = clicked.data["shot"]["changes"]
+        assert changes["base"] == shot and changes.get("animated") == 1, clicked
+        # One zoom, around the block, which shows it, and none of the spinner.
+        assert len(changes["regions"]) == 1 and len(clicked.images) == 1, clicked
+        zoom = changes["regions"][0]
+        assert zoom["x"] <= 180 and zoom["y"] <= 120 and zoom["x"] + zoom["width"] >= 276 and zoom["y"] + zoom["height"] >= 152, clicked
+        assert zoom["x"] > 72 or zoom["y"] > 72, clicked
+        assert near(pixels(keep(clicked, "tiles"), (228 - zoom["x"], 136 - zoom["y"]))[0], (0xEE, 0xEE, 0xEE)), clicked
+        assert clicked.text.endswith("\n1 change in an animation left out"), clicked
+        assert mcp.call("close", {"window": window}).data["closed"]
+        assert snapshot() == before_focus
+
     with subtest("hyprmasq-mcp lets a click settle before the keys after it"):
         shot_id = mcp.call("screenshot", {"window": probe}).data["shot"]["id"]
         start = len(probe_events("m-probe"))

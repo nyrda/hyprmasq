@@ -22,6 +22,8 @@ type Options struct {
 	Thin, Speck int
 	// When more pixels than this have changed, Compare only counts them and finds no changes. 0 has no limit.
 	MaxChanged int
+	// Pixels within these boxes, in the images' coordinates, count as unchanged.
+	Ignore []image.Rectangle
 	// Compare asks Stop now and then, if it is set, and gives up when it says so.
 	Stop func() bool
 }
@@ -32,8 +34,8 @@ type Result struct {
 	Changes []image.Rectangle
 	// The tiny changes.
 	Tiny []image.Rectangle
-	// How many pixels changed.
-	Changed int
+	// How many pixels changed, and how many changed pixels Ignore left out of that.
+	Changed, Ignored int
 	// Stop ended the comparison, so the result says nothing.
 	Stopped bool
 }
@@ -55,8 +57,20 @@ func Compare(a, b image.Image, o Options) Result {
 	if stopped {
 		return Result{Stopped: true}
 	}
-	res := Result{Changed: changed}
-	if changed == 0 || res.Over(o) {
+	ignored := 0
+	for _, r := range o.Ignore {
+		r = r.Sub(bounds.Min).Intersect(image.Rect(0, 0, w, h))
+		for y := r.Min.Y; y < r.Max.Y; y++ {
+			for x := r.Min.X; x < r.Max.X; x++ {
+				if mask[y*w+x] {
+					mask[y*w+x] = false
+					ignored++
+				}
+			}
+		}
+	}
+	res := Result{Changed: changed - ignored, Ignored: ignored}
+	if res.Changed == 0 || res.Over(o) {
 		return res
 	}
 	for _, box := range group(mask, w, h, max(0, o.Group)) {

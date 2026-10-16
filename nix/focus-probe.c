@@ -74,6 +74,10 @@
 // a parent as a browser's popup does: it creates TITLE-popupK CREATE_MS milliseconds after the press and draws its first
 // frame MAP_MS milliseconds after creating it, logging "opened" and "mapped" then. A SIGUSR2 creates TITLE-aheadK for its
 // last toplevel at once, as an app that creates a window ahead, and the next left click there draws it MAP_MS later.
+// With `tiles TITLE`, it shows one toplevel that redraws at every frame callback, damaging the tile at 40,40 of 256×128
+// whole, as Thunderbird's renderer damages tiles, though only a spinner at 48,48 of 24×24 changes in it: noise that is
+// new at every frame. A left click draws a light block at 180,120 of 96×32 in the same tile, which stays, and logs
+// "content".
 #define _GNU_SOURCE
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
@@ -184,6 +188,14 @@ static bool        shift_mode, shift_elsewhere;
 static int         shift_ms, shift_offset, shift_timer = -1;
 static void        shift_paint(uint32_t* pixels, int width, int height);
 
+// Tiles mode: the frames drawn, the size last drawn, whether a frame callback is pending, and whether the block is drawn.
+static bool                              tiles_mode, tiles_pending, tiles_content;
+static unsigned                          tiles_frame;
+static int                               tiles_width, tiles_height;
+static void                              tiles_paint(uint32_t* pixels, int width, int height);
+static void                              tiles_frame_done(void* data, struct wl_callback* callback, uint32_t time);
+static const struct wl_callback_listener tiles_listener = {.done = tiles_frame_done};
+
 static const char *surface_name(struct wl_surface *s) {
     for (size_t i = 0; i < 3; ++i)
         if (windows[i].surface == s) return windows[i].name;
@@ -287,6 +299,8 @@ static void draw(struct window *w) {
     for (size_t i = 0; i < size / 4; ++i) pixels[i] = w->color;
     if (shift_mode && w == &windows[0])
         shift_paint(pixels, width, height);
+    if (tiles_mode && w == &windows[0])
+        tiles_paint(pixels, width, height);
     // In resize mode, its right edge is green, so a frame of another width shows where it ends.
     if (resize_mode && w == &windows[0])
         for (int y = 0; y < height; ++y)
@@ -299,7 +313,18 @@ static void draw(struct window *w) {
     close(fd);
     if (mx || my) xdg_surface_set_window_geometry(w->xdg, mx, my, w->width, w->height);
     wl_surface_attach(w->surface, buffer, 0, 0);
-    wl_surface_damage(w->surface, 0, 0, width, height);
+    if (tiles_mode && width == tiles_width && height == tiles_height)
+        wl_surface_damage(w->surface, 40, 40, 256, 128);
+    else
+        wl_surface_damage(w->surface, 0, 0, width, height);
+    if (tiles_mode) {
+        tiles_width  = width;
+        tiles_height = height;
+    }
+    if (tiles_mode && !tiles_pending) {
+        tiles_pending = true;
+        wl_callback_add_listener(wl_surface_frame(w->surface), &tiles_listener, w);
+    }
     if (frames_mode) request_frame(w);
     if (w->hungry) wl_callback_add_listener(wl_surface_frame(w->surface), &content_listener, w);
     if (menu_mode && menu_state == 1)
@@ -442,6 +467,11 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial, ui
         answer_click();
     if (menu_mode && pointer_surface == windows[0].surface && button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED)
         menu_click();
+    if (tiles_mode && pointer_surface == windows[0].surface && button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED) {
+        tiles_content = true;
+        draw(&windows[0]);
+        say("content");
+    }
     if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && (button == BTN_LEFT || button == BTN_RIGHT || button == BTN_MIDDLE))
         opener_input(pointer_surface, button == BTN_LEFT ? (browser_mode ? 'p' : 'n') : button == BTN_RIGHT ? 'd' : 'm');
     if (opener_mode && state == WL_POINTER_BUTTON_STATE_PRESSED && button == BTN_RIGHT) close_opened(pointer_surface, false);
@@ -902,6 +932,27 @@ static void shift_paint(uint32_t* pixels, int width, int height) {
     if (shift_elsewhere)
         shift_fill(pixels, width, height, width - 100, height - 80, 80, 60, 0xffcc2222);
 }
+static void tiles_paint(uint32_t* pixels, int width, int height) {
+    // Noise of 8×8 cells, each light or dark by a hash of the frame and the cell, so that any two frames differ across
+    // the whole spinner.
+    for (uint32_t cell = 0; cell < 64; ++cell) {
+        uint32_t x = tiles_frame * 0x9e3779b1u ^ (cell + 1) * 0x85ebca77u;
+        x ^= x >> 15;
+        x *= 0x2c1b3c6du;
+        x ^= x >> 12;
+        x *= 0x297a2d39u;
+        x ^= x >> 15;
+        shift_fill(pixels, width, height, 48 + 3 * (int)(cell % 8), 48 + 3 * (int)(cell / 8), 3, 3, x & 1 ? 0xffeeeeee : 0xff111111);
+    }
+    if (tiles_content)
+        shift_fill(pixels, width, height, 180, 120, 96, 32, 0xffeeeeee);
+}
+static void tiles_frame_done(void* data, struct wl_callback* callback, uint32_t time) {
+    wl_callback_destroy(callback);
+    tiles_pending = false;
+    ++tiles_frame;
+    draw(data);
+}
 static int run_shift(const char* title) {
     sigset_t mask;
     sigemptyset(&mask);
@@ -1224,6 +1275,12 @@ int main(int argc, char **argv) {
         stamped = shift_mode = requested = true; // clicks request nothing
         shift_ms                         = atoi(argv[3]);
         return run_shift(argv[2]);
+    }
+    if (argc == 3 && !strcmp(argv[1], "tiles")) {
+        stamped = tiles_mode = requested = true; // clicks request nothing
+        create_toplevel(&windows[0], argv[2]);
+        while (wl_display_dispatch(display) >= 0) {}
+        return 1;
     }
     if ((argc == 3 || argc == 4) && !strcmp(argv[1], "focus")) {
         stamped = true;

@@ -36,6 +36,26 @@ func (e *testEnv) paint(address string, rects ...hypr.Rect) {
 	})
 }
 
+// animate draws the rects over the window's content in a gray that changes with every screenshot, as an animation that
+// keeps drawing.
+func (e *testEnv) animate(address string, rects ...hypr.Rect) {
+	e.fake.with(func() {
+		w := e.fake.find(address)
+		under := w.Paint
+		w.Paint = func(x, y float64) uint8 {
+			for _, r := range rects {
+				if x >= r.X && x < r.X+r.Width && y >= r.Y && y < r.Y+r.Height {
+					return uint8(100 + 50*(w.Frames%2))
+				}
+			}
+			if under == nil {
+				return 0
+			}
+			return under(x, y)
+		}
+	})
+}
+
 func images(res *mcp.CallToolResult) int {
 	n := 0
 	for _, c := range res.Content {
@@ -171,13 +191,14 @@ func TestChangesShotOfSeveralRegions(t *testing.T) {
 	}
 }
 
-// Changes within an animation that the wait did not wait for are left out and counted, and the summary names the
-// animation's box in the shot's pixels.
+// Changes within an animation that the wait did not wait for, where the window keeps changing, are left out and
+// counted, and the summary names the animation's box in the shot's pixels. The window is captured once more for them.
 func TestChangesLeaveOutAnimations(t *testing.T) {
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = []hypr.IntRect{{X: 90, Y: 40, Width: 40, Height: 30}} })
 	e.screenshot(`{"window":"0xa1"}`)
-	e.paint("0xa1", hypr.Rect{X: 100, Y: 50, Width: 20, Height: 10}, hypr.Rect{X: 300, Y: 200, Width: 10, Height: 10})
+	e.paint("0xa1", hypr.Rect{X: 300, Y: 200, Width: 10, Height: 10})
+	e.animate("0xa1", hypr.Rect{X: 100, Y: 50, Width: 20, Height: 10})
 	res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
 	if res.IsError || images(res) != 1 {
 		t.Fatalf("%d images: %s", images(res), text(res))
@@ -192,17 +213,172 @@ func TestChangesLeaveOutAnimations(t *testing.T) {
 	if got := get(t, res, "shot.changes.animated"); got != 1.0 {
 		t.Errorf("shot.changes.animated %v", got)
 	}
+	// The second capture came after a wait from the counter of the first, for the window's next frame, and is of the
+	// animation's box alone.
+	if waits := e.fake.requestsMatching("j/hyprmasq wait 0xa1 since 3 expect 200 quiet 100 "); len(waits) != 1 {
+		t.Errorf("waits %q", e.fake.requestsMatching("j/hyprmasq wait"))
+	}
+	if shots := e.fake.requestsMatching("j/hyprmasq screenshot"); len(shots) != 3 || !strings.HasSuffix(shots[2], " 90 40 40 30 popups") {
+		t.Errorf("screenshots %q", shots)
+	}
+}
+
+// The window is captured a second time only when that can change the result: not when no change lies within an
+// animation and the changes fit into zooms anyway, as a row of a list that reaches into its animated scrollbar, and not
+// when they come as a full shot even with every change within the animations left out.
+func TestChangesWithoutASecondImageThatChangesNothing(t *testing.T) {
+	for _, c := range []struct {
+		name         string
+		paint, moves []hypr.Rect
+		summary      string
+	}{
+		{name: "a change that reaches into an animation", paint: []hypr.Rect{{X: 20, Y: 100, Width: 300, Height: 20}},
+			summary: "shot s2 = s1 + 1 change · lease 60 s\nzoom s3 690×140 of s2 at 0,150 690×140"},
+		{name: "a full shot", paint: []hypr.Rect{{X: 0, Y: 200, Width: 640, Height: 200}}, moves: []hypr.Rect{{X: 300, Y: 20, Width: 20, Height: 100}},
+			summary: "% changed since s1) · lease 60 s"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = []hypr.IntRect{{X: 300, Y: 0, Width: 20, Height: 400}} })
+			e.screenshot(`{"window":"0xa1"}`)
+			e.paint("0xa1", c.paint...)
+			e.animate("0xa1", c.moves...)
+			res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
+			if got := summaryOf(t, res); res.IsError || !strings.HasSuffix(got, c.summary) {
+				t.Errorf("summary %q, want the end %q", got, c.summary)
+			}
+			if waits := e.fake.requestsMatching("j/hyprmasq wait 0xa1 since 3 expect 200 "); len(waits) != 0 {
+				t.Errorf("waits %q", e.fake.requestsMatching("j/hyprmasq wait"))
+			}
+		})
+	}
+}
+
+// An application can damage much more than it changes, so the box of an animation can hold content that the window
+// drew there: in the benchmark VM, Thunderbird damaged a tile of 1024×512 logical pixels around a blinking caret, and
+// its completion page with the Finish button came in that tile. A change within the box that holds still in the capture
+// after it is such content, and stays; the part that changes again stays out.
+func TestChangesKeepContentWithinAnimations(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = []hypr.IntRect{{X: 0, Y: 0, Width: 320, Height: 160}} })
+	e.screenshot(`{"window":"0xa1"}`)
+	// A button that the window drew in the tile, and a spinner in the same tile that goes on turning.
+	e.paint("0xa1", hypr.Rect{X: 200, Y: 100, Width: 60, Height: 20})
+	e.animate("0xa1", hypr.Rect{X: 20, Y: 20, Width: 16, Height: 16})
+	res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
+	if res.IsError || images(res) != 1 {
+		t.Fatalf("%d images: %s", images(res), text(res))
+	}
+	want := "quiet 200 ms except animation at 0,0 640×320 · 412 ms · shot s2 = s1 + 1 change · lease 60 s\nzoom s3 220×140 of s2 at 350,150 220×140\n1 change in an animation left out"
+	if got := summaryOf(t, res); !strings.HasSuffix(got, want) {
+		t.Errorf("summary %q, want the end %q", got, want)
+	}
+
+	// A label 4 pixels from the spinner, which the comparison joins with it, stays without the spinner and the pixels
+	// within the distance that joins changes.
+	e = newTestEnv(t)
+	e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = []hypr.IntRect{{X: 0, Y: 0, Width: 320, Height: 160}} })
+	e.screenshot(`{"window":"0xa1"}`)
+	e.paint("0xa1", hypr.Rect{X: 40, Y: 22, Width: 60, Height: 12})
+	e.animate("0xa1", hypr.Rect{X: 20, Y: 20, Width: 16, Height: 16})
+	res = e.act(`{"window":"0xa1","actions":` + pressA + `}`)
+	want = "shot s2 = s1 + 1 change · lease 60 s\nzoom s3 210×118 of s2 at 40,0 210×118\n1 change in an animation left out"
+	if got := summaryOf(t, res); res.IsError || images(res) != 1 || !strings.HasSuffix(got, want) {
+		t.Errorf("label: summary %q, want the end %q", got, want)
+	}
+
+	// Content that holds still in a box where nothing else changes stays too, without a zoom of the box.
+	e = newTestEnv(t)
+	e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = []hypr.IntRect{{X: 0, Y: 0, Width: 320, Height: 160}} })
+	e.screenshot(`{"window":"0xa1"}`)
+	e.paint("0xa1", hypr.Rect{X: 200, Y: 100, Width: 60, Height: 20})
+	res = e.act(`{"window":"0xa1","actions":` + pressA + `}`)
+	if got := summaryOf(t, res); res.IsError || images(res) != 1 || !strings.HasSuffix(got, "shot s2 = s1 + 1 change · lease 60 s\nzoom s3 220×140 of s2 at 350,150 220×140") {
+		t.Errorf("%d images: %s", images(res), text(res))
+	}
+}
+
+// Without a second image to tell an animation from content, every change within the animation stays: when the window
+// drew nothing after the first image, when it was still drawing at the wait's deadline, when the wait fails, when the
+// second capture fails, and when it is of another socket.
+func TestChangesWithinAnimationsWithoutASecondImage(t *testing.T) {
+	animation := []hypr.IntRect{{X: 90, Y: 40, Width: 40, Height: 30}}
+	for _, c := range []struct {
+		name string
+		// The reply to the wait after the first image, or "" for one that sees the window draw.
+		reply      func(w *fakeWindow) string
+		screenshot func(w *fakeWindow, n int) string
+	}{
+		{name: "no redraw", reply: func(w *fakeWindow) string {
+			return jsonReply(map[string]any{"ok": true, "ended": "no_redraw", "commits": w.Commits, "socketId": w.socketID(), "redrawObserved": false, "commitsSince": 0,
+				"quietMs": 0, "elapsedMs": 200, "resizing": false, "animated": []hypr.IntRect{}})
+		}},
+		{name: "still drawing", reply: func(w *fakeWindow) string {
+			return jsonReply(map[string]any{"ok": true, "ended": "timeout", "commits": w.Commits + 30, "socketId": w.socketID(), "redrawObserved": true, "commitsSince": 30,
+				"quietMs": 10, "elapsedMs": 400, "resizing": false, "animated": []hypr.IntRect{}})
+		}},
+		{name: "a failed wait", reply: func(w *fakeWindow) string { return pluginError("internal", "the wait failed") }},
+		{name: "a failed capture", screenshot: func(w *fakeWindow, n int) string {
+			if n == 2 {
+				return "the capture failed"
+			}
+			return ""
+		}},
+		{name: "another socket", screenshot: func(w *fakeWindow, n int) string {
+			if n == 2 {
+				w.SocketID = "another"
+			}
+			return ""
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = animation })
+			e.screenshot(`{"window":"0xa1"}`)
+			e.animate("0xa1", hypr.Rect{X: 100, Y: 50, Width: 20, Height: 10})
+			shots := 0
+			e.fake.with(func() {
+				e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+					if args["quiet"] == "100" && c.reply != nil {
+						return c.reply(w)
+					}
+					var reply string
+					e.fake.with(func() {
+						reply = jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": w.Commits + 3, "socketId": w.socketID(), "redrawObserved": true, "commitsSince": 3,
+							"quietMs": 200, "elapsedMs": 412, "resizing": false, "animated": animation})
+						w.Commits += 3
+					})
+					return reply
+				}
+				e.fake.onScreenshot = func(w *fakeWindow) string {
+					shots++
+					if c.screenshot != nil {
+						return c.screenshot(w, shots)
+					}
+					return ""
+				}
+			})
+			res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
+			if got := summaryOf(t, res); res.IsError || images(res) != 1 || !strings.HasSuffix(got, "shot s2 = s1 + 1 change · lease 60 s\nzoom s3 140×120 of s2 at 150,50 140×120") {
+				t.Errorf("%d images: %s", images(res), text(res))
+			}
+			if waits := e.fake.requestsMatching("j/hyprmasq wait 0xa1 since 3 expect 200 quiet 100 "); len(waits) != 1 {
+				t.Errorf("waits %q", e.fake.requestsMatching("j/hyprmasq wait"))
+			}
+		})
+	}
 }
 
 // Animations together may cover more than 35% of the window without a full shot, and when only they changed, the
 // result says so instead of no change, and its hint says that the input's effect may lie inside them. A tiny change
-// inside an animation counts as one of its changes.
+// inside an animation counts as tiny: a tiny difference between the two captures, such as a caret that blinked, does
+// not tell an animation apart from content.
 func TestChangesOfAnimationsOnly(t *testing.T) {
 	e := newTestEnv(t)
 	animated := []hypr.IntRect{{X: 0, Y: 0, Width: 300, Height: 200}, {X: 320, Y: 0, Width: 300, Height: 200}, {X: 0, Y: 220, Width: 300, Height: 150}}
 	e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = animated })
 	e.screenshot(`{"window":"0xa1"}`)
-	e.paint("0xa1", hypr.Rect{X: 10, Y: 10, Width: 280, Height: 180}, hypr.Rect{X: 330, Y: 10, Width: 280, Height: 180}, hypr.Rect{X: 10, Y: 230, Width: 280, Height: 130},
+	e.animate("0xa1", hypr.Rect{X: 10, Y: 10, Width: 280, Height: 180}, hypr.Rect{X: 330, Y: 10, Width: 280, Height: 180}, hypr.Rect{X: 10, Y: 230, Width: 280, Height: 130},
 		hypr.Rect{X: 400, Y: 300, Width: 2, Height: 30})
 	e.fake.with(func() {
 		e.fake.find("0xa1").Animated = append(animated, hypr.IntRect{X: 390, Y: 290, Width: 30, Height: 50})
@@ -211,13 +387,13 @@ func TestChangesOfAnimationsOnly(t *testing.T) {
 	if res.IsError || images(res) != 0 {
 		t.Fatalf("%d images: %s", images(res), text(res))
 	}
-	if got := summaryOf(t, res); !strings.Contains(got, "shot s2 = s1, no change outside animations · lease 60 s\n4 changes in animations left out") {
+	if got := summaryOf(t, res); !strings.HasSuffix(got, "shot s2 = s1, no change outside animations · lease 60 s\n1 tiny change left out\n3 changes in animations left out") {
 		t.Errorf("summary %q", got)
 	}
 	if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, "Nothing changed since s1 outside the animations, so the input may have missed, or its effect lies inside them"+laterClause+".") {
 		t.Errorf("hint %q", hint)
 	}
-	if got := get(t, res, "shot.changes.left_out"); got != nil {
+	if got := get(t, res, "shot.changes.left_out"); got != 1.0 {
 		t.Errorf("left_out %v", got)
 	}
 }
@@ -228,9 +404,10 @@ func TestChangesNextToAnAnimation(t *testing.T) {
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Animated = []hypr.IntRect{{X: 0, Y: 0, Width: 200, Height: 190}} })
 	e.screenshot(`{"window":"0xa1"}`)
-	// The animation's change touches another change, so the two make one region of 38% of the window, 23% of it
-	// outside the animation.
-	e.paint("0xa1", hypr.Rect{X: 10, Y: 10, Width: 180, Height: 170}, hypr.Rect{X: 190, Y: 10, Width: 200, Height: 200})
+	// The animation's change touches another change, so the two make one region of 38% of the window, 26% of it
+	// outside the part of the animation that keeps changing.
+	e.paint("0xa1", hypr.Rect{X: 190, Y: 10, Width: 200, Height: 200})
+	e.animate("0xa1", hypr.Rect{X: 10, Y: 10, Width: 180, Height: 170})
 	res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
 	if res.IsError || get(t, res, "shot.full_shot") != nil || images(res) != 1 {
 		t.Fatalf("%d images: %s", images(res), text(res))
