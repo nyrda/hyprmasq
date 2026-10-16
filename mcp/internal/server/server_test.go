@@ -3620,8 +3620,8 @@ func TestShotOfTheWindowAClosedWindowCameFrom(t *testing.T) {
 				hint != "The window closed. It came from window 0xa1, which shot "+shot+" shows now: go on there with that shot's pixels. Any new windows are listed; call windows for the rest." {
 				t.Fatalf("result: %s", text(res))
 			}
-			// The window settled before its shot, which takes coordinates and is the window's last shot, which the next
-			// changes compare with.
+			// The window answered the close before its shot, which takes coordinates and is the window's last shot,
+			// which the next changes compare with.
 			if waits := e.fake.requestsMatching("j/hyprmasq wait 0xa1"); len(waits) != 1 {
 				t.Errorf("waits %q", waits)
 			}
@@ -3630,6 +3630,93 @@ func TestShotOfTheWindowAClosedWindowCameFrom(t *testing.T) {
 			}
 			if res := e.act(`{"window":"0xa1","shot":"` + shot + `","actions":[{"action":"click","x":5,"y":5}]}`); res.IsError {
 				t.Errorf("click in its shot: %s", text(res))
+			}
+		})
+	}
+}
+
+// The window that a closed window came from gets time to answer the close before its shot, as a page draws the file that
+// a file chooser gave it once it gets frame callbacks: the wait sends them, waits for its first redraw, and if it comes,
+// for quiet. A window that draws nothing is captured after the change phase. The wait ends early enough for the capture
+// within the deadline.
+func TestTheWindowItCameFromAnswersTheClose(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		redraw   bool
+		deadline int
+		// How long the dialog takes to close after the input.
+		closing time.Duration
+	}{
+		{"it draws", true, 15000, 0},
+		{"it draws nothing", false, 15000, 0},
+		// Less than 1500 ms is left after the dialog closed and the capture's half reserve.
+		{"a short deadline", true, 3000, 1200 * time.Millisecond},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			f := &form{}
+			parent := formWindow(e, f)
+			e.window("0xd1", "d1", 100, 80, func(w *fakeWindow) { w.Source = &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true} })
+			var start time.Time
+			e.fake.with(func() {
+				e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+					if w.Address == "0xd1" {
+						time.Sleep(c.closing)
+						e.fake.removeWindow("0xd1")
+						start = time.Now()
+						return jsonReply(map[string]any{"ok": true, "ended": "window_closed", "commits": 1, "redrawObserved": true, "commitsSince": 1, "quietMs": 0, "elapsedMs": 100})
+					}
+					expect, _ := strconv.Atoi(args["expect"])
+					if !c.redraw {
+						time.Sleep(time.Duration(expect) * time.Millisecond)
+						var reply string
+						e.fake.with(func() {
+							reply = jsonReply(map[string]any{"ok": true, "ended": "no_redraw", "commits": w.Commits, "socketId": w.socketID(), "redrawObserved": false, "commitsSince": 0,
+								"quietMs": 0, "elapsedMs": expect, "resizing": false, "animated": []hypr.IntRect{}})
+						})
+						return reply
+					}
+					// The file lands in the list a moment after the frame callbacks start.
+					time.Sleep(50 * time.Millisecond)
+					e.redraw(parent, f, elsewhere)
+					var reply string
+					e.fake.with(func() { reply = quietReply(w) })
+					return reply
+				}
+			})
+			called := time.Now()
+			res := e.act(fmt.Sprintf(`{"window":"0xd1","actions":[{"action":"key","keys":["enter"]}],"deadline_ms":%d}`, c.deadline))
+			took := time.Since(start)
+			if time.Since(called) > time.Duration(c.deadline)*time.Millisecond {
+				t.Errorf("returned after %v", time.Since(called))
+			}
+			shot, _ := get(t, res, "source.shot.id").(string)
+			if res.IsError || shot == "" {
+				t.Fatalf("result: %s", text(res))
+			}
+			waits := e.fake.requestsMatching("j/hyprmasq wait 0xa1 ")
+			if len(waits) != 1 {
+				t.Fatalf("waits %q", waits)
+			}
+			args := waitArgsOf(t, waits[0])
+			deadline, _ := strconv.Atoi(args["deadline"])
+			// The capture has half of its reserve left after the wait.
+			if args["expect"] != strconv.Itoa(min(sourceExpectMs, deadline)) || args["quiet"] != "200" || args["ignore"] != "animations" ||
+				deadline > int(sourceSettleMax.Milliseconds()) {
+				t.Errorf("wait %q", waits[0])
+			}
+			if left := called.Add(time.Duration(c.deadline)*time.Millisecond).Sub(e.fake.timeOf("j/hyprmasq wait 0xa1 ")) - captureReserve/2; c.closing > 0 &&
+				(deadline >= int(sourceSettleMax.Milliseconds()) || time.Duration(deadline)*time.Millisecond > left+20*time.Millisecond) {
+				t.Errorf("wait %q", waits[0])
+			}
+			// The shot shows the window after its redraw.
+			var drew bool
+			e.fake.with(func() { drew = e.server.shots.get(shot).Commits == parent.Commits })
+			if !drew {
+				t.Errorf("shot %s was taken before the redraw", shot)
+			}
+			if !c.redraw && (took < sourceExpectMs*time.Millisecond || took > sourceExpectMs*time.Millisecond+time.Second) {
+				t.Errorf("took %v", took)
 			}
 		})
 	}

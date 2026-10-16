@@ -64,6 +64,12 @@
 // the page has let it go by: MS milliseconds after the key, in the toplevel that got it, if that is still active. It
 // then logs "shortcut TITLE MODS KEY" and redraws that toplevel in another color, and otherwise logs "shortcut TITLE
 // MODS KEY inactive" and does nothing.
+// With `shift TITLE MS`, it shows one toplevel with a light button at 40,40 of 160×40 with a dark label, and logs its
+// input like the focus mode. A SIGUSR1 moves the button 60 pixels down MS milliseconds later, as a form that a finished
+// upload pushes down, and logs "shifted"; a SIGUSR2 draws a red block in the bottom right corner, far from the button,
+// and logs "elsewhere". In opener mode, A opens a dialog as D does, whose parent answers its close: it asks for a frame
+// callback as the dialog closes, and 300 ms after the first one comes, which on a hidden workspace is when hyprmasq
+// lets it draw, it redraws in orange, as a page lays out the file that a file chooser gave it, and logs "answered NAME".
 #define _GNU_SOURCE
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
@@ -138,6 +144,16 @@ static const char *late_kind;
 static bool late_parented;
 static char *late_after; // the name of the toplevel to open, when a toplevel closed for an S
 static char *handles[2];
+// The dialog whose close its parent answers, its parent, and the timer of the answer, which starts at the parent's
+// first frame callback after the close.
+static struct window *answered, *answering;
+static int            answer_close_timer = -1;
+static void           answer_close_frame(void* data, struct wl_callback* callback, uint32_t time) {
+    wl_callback_destroy(callback);
+    struct itimerspec in = {.it_value = {.tv_nsec = 300 * 1000000}};
+    assert(timerfd_settime(answer_close_timer, 0, &in, NULL) == 0);
+}
+static const struct wl_callback_listener answer_close_listener = {.done = answer_close_frame};
 
 static bool           answer_mode;
 static void           answer_click(void);
@@ -157,6 +173,11 @@ static int                shortcut_timer = -1, shortcut_ms;
 static uint32_t           mods_depressed, shortcut_mods, shortcut_key;
 static struct wl_surface *shortcut_surface;
 static void               shortcut_key_pressed(uint32_t key);
+
+// Shift mode: how far the button has moved down, whether the block elsewhere is drawn, and the timer of the move.
+static bool        shift_mode, shift_elsewhere;
+static int         shift_ms, shift_offset, shift_timer = -1;
+static void        shift_paint(uint32_t* pixels, int width, int height);
 
 static const char *surface_name(struct wl_surface *s) {
     for (size_t i = 0; i < 3; ++i)
@@ -258,6 +279,8 @@ static void draw(struct window *w) {
     uint32_t *pixels = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     assert(pixels != MAP_FAILED);
     for (size_t i = 0; i < size / 4; ++i) pixels[i] = w->color;
+    if (shift_mode && w == &windows[0])
+        shift_paint(pixels, width, height);
     // In resize mode, its right edge is green, so a frame of another width shows where it ends.
     if (resize_mode && w == &windows[0])
         for (int y = 0; y < height; ++y)
@@ -302,6 +325,11 @@ static void destroy_opened(struct window *w) {
     w->toplevel = NULL;
     w->surface = NULL;
     say("destroyed %s", w->name);
+    if (w == answered) {
+        answered = NULL;
+        wl_callback_add_listener(wl_surface_frame(answering->surface), &answer_close_listener, NULL);
+        wl_surface_commit(answering->surface);
+    }
 }
 static void toplevel_close(void *data, struct xdg_toplevel *top) {
     struct window *w = data;
@@ -430,8 +458,8 @@ static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial, ui
     if (shortcut_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED) shortcut_key_pressed(key);
     if (menu_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_DOWN || key == KEY_ENTER))
         menu_key(key);
-    if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_N || key == KEY_D || key == KEY_L || key == KEY_K || key == KEY_F))
-        opener_input(keyboard_surface, key == KEY_N ? 'n' : key == KEY_D ? 'd' : key == KEY_L ? 'l' : key == KEY_K ? 'k' : 'f');
+    if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_N || key == KEY_D || key == KEY_L || key == KEY_K || key == KEY_F || key == KEY_A))
+        opener_input(keyboard_surface, key == KEY_N ? 'n' : key == KEY_D ? 'd' : key == KEY_L ? 'l' : key == KEY_K ? 'k' : key == KEY_A ? 'a' : 'f');
     if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && key == KEY_S) close_and_follow(keyboard_surface);
     if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && key == KEY_ENTER) close_opened(keyboard_surface, true);
     if (key == KEY_ESC && state == WL_KEYBOARD_KEY_STATE_PRESSED)
@@ -568,7 +596,14 @@ static void opener_input(struct wl_surface *s, char action) {
         assert(timerfd_settime(late_timer, 0, &in, NULL) == 0);
     } else if (action == 'f')
         open_foreign(from);
-    else
+    else if (action == 'a') {
+        const int before = opened_count;
+        open_toplevel(from, "answer", true);
+        if (opened_count > before) {
+            answered  = &opened[before];
+            answering = from;
+        }
+    } else
         open_toplevel(from, action == 'n' ? "new" : "dialog", action == 'd');
 }
 // Answer mode: the timer after a click, and the frame callback that the answer waits for.
@@ -714,20 +749,22 @@ static int run_shortcuts(void) {
 static int run_opener(void) {
     late_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
     close_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
-    assert(late_timer >= 0 && close_timer >= 0);
+    answer_close_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    assert(late_timer >= 0 && close_timer >= 0 && answer_close_timer >= 0);
     sigset_t mask;
     sigemptyset(&mask);
     sigaddset(&mask, SIGUSR1);
     assert(sigprocmask(SIG_BLOCK, &mask, NULL) == 0);
     int signals = signalfd(-1, &mask, SFD_CLOEXEC);
     assert(signals >= 0);
-    struct pollfd fds[4] = {{.fd = wl_display_get_fd(display), .events = POLLIN},
+    struct pollfd fds[5] = {{.fd = wl_display_get_fd(display), .events = POLLIN},
                             {.fd = late_timer, .events = POLLIN},
                             {.fd = signals, .events = POLLIN},
-                            {.fd = close_timer, .events = POLLIN}};
+                            {.fd = close_timer, .events = POLLIN},
+                            {.fd = answer_close_timer, .events = POLLIN}};
     for (;;) {
         while (wl_display_prepare_read(display) != 0) wl_display_dispatch_pending(display);
-        if (wl_display_flush(display) < 0 || poll(fds, 4, -1) < 0) {
+        if (wl_display_flush(display) < 0 || poll(fds, 5, -1) < 0) {
             wl_display_cancel_read(display);
             return 1;
         }
@@ -756,6 +793,72 @@ static int run_opener(void) {
             assert(read(close_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
             if (closing && closing->surface) destroy_opened(closing);
             closing = NULL;
+        }
+        if (fds[4].revents & POLLIN) {
+            uint64_t expirations;
+            assert(read(answer_close_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
+            answering->color = 0xffcc8800;
+            draw(answering);
+            say("answered %s", answering->name);
+        }
+    }
+}
+// Shift mode: the button and its label, moved down by shift_offset, and the block elsewhere.
+static void shift_fill(uint32_t* pixels, int width, int height, int x, int y, int w, int h, uint32_t color) {
+    for (int row = y; row < y + h && row < height; ++row)
+        for (int column = x; column < x + w && column < width; ++column)
+            if (row >= 0 && column >= 0)
+                pixels[(size_t)row * width + column] = color;
+}
+static void shift_paint(uint32_t* pixels, int width, int height) {
+    shift_fill(pixels, width, height, 40, 40 + shift_offset, 160, 40, 0xffeeeeee);
+    shift_fill(pixels, width, height, 60, 55 + shift_offset, 80, 10, 0xff222222);
+    if (shift_elsewhere)
+        shift_fill(pixels, width, height, width - 100, height - 80, 80, 60, 0xffcc2222);
+}
+static int run_shift(const char* title) {
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGUSR1);
+    sigaddset(&mask, SIGUSR2);
+    assert(sigprocmask(SIG_BLOCK, &mask, NULL) == 0);
+    int signals = signalfd(-1, &mask, SFD_CLOEXEC);
+    shift_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    assert(signals >= 0 && shift_timer >= 0);
+    create_toplevel(&windows[0], title);
+    struct pollfd fds[3] = {{.fd = wl_display_get_fd(display), .events = POLLIN}, {.fd = signals, .events = POLLIN}, {.fd = shift_timer, .events = POLLIN}};
+    for (;;) {
+        while (wl_display_prepare_read(display) != 0)
+            wl_display_dispatch_pending(display);
+        if (wl_display_flush(display) < 0 || poll(fds, 3, -1) < 0) {
+            wl_display_cancel_read(display);
+            return 1;
+        }
+        if (fds[0].revents & POLLIN) {
+            if (wl_display_read_events(display) < 0)
+                return 1;
+        } else
+            wl_display_cancel_read(display);
+        if (wl_display_dispatch_pending(display) < 0)
+            return 1;
+        if (fds[1].revents & POLLIN) {
+            struct signalfd_siginfo info;
+            assert(read(signals, &info, sizeof(info)) == sizeof(info));
+            if (info.ssi_signo == SIGUSR1) {
+                struct itimerspec in = {.it_value = {.tv_sec = shift_ms / 1000, .tv_nsec = (long)(shift_ms % 1000) * 1000000 + 1}};
+                assert(timerfd_settime(shift_timer, 0, &in, NULL) == 0);
+            } else {
+                shift_elsewhere = true;
+                draw(&windows[0]);
+                say("elsewhere");
+            }
+        }
+        if (fds[2].revents & POLLIN) {
+            uint64_t expirations;
+            assert(read(shift_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
+            shift_offset = 60;
+            draw(&windows[0]);
+            say("shifted");
         }
     }
 }
@@ -1021,6 +1124,11 @@ int main(int argc, char **argv) {
         create_toplevel(&windows[0], argv[2]);
         create_toplevel(&windows[1], argv[3]);
         return run_shortcuts();
+    }
+    if (argc == 4 && !strcmp(argv[1], "shift")) {
+        stamped = shift_mode = requested = true; // clicks request nothing
+        shift_ms                         = atoi(argv[3]);
+        return run_shift(argv[2]);
     }
     if ((argc == 3 || argc == 4) && !strcmp(argv[1], "focus")) {
         stamped = true;

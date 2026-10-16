@@ -472,6 +472,7 @@ func (s *Server) failCaptured(ctx context.Context, r *actRequest, out *actOut, t
 	}
 	out.Shot = shotInfo(sh)
 	s.shots.returned(sh)
+	sh.Animated = mergeAnimated(slices.Clone(sh.Animated), te.animated)
 	images := oneImage(png)
 	// The windows that earlier input opened after its act come with this result too, which the agent reads before it
 	// acts again.
@@ -541,6 +542,8 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 			}
 		} else {
 			s.shots.returned(sh)
+			// The animations count for the check of targets in the shot, as they do for its changes.
+			sh.Animated = mergeAnimated(slices.Clone(sh.Animated), out.Wait.animatedBoxes())
 			if out.Wait != nil {
 				for _, a := range out.Wait.animated {
 					if box, ok := sh.pixelBox(a); ok {
@@ -612,7 +615,7 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	}
 	if r.captureMode != "none" && reports {
 		if src := out.Source; src != nil {
-			switch sh, png, err := s.newWindowShot(ctx, src.Window, src.StableID, end); {
+			switch sh, png, err := s.sourceShot(ctx, src.Window, src.StableID, r.quietMs, end); {
 			case err == nil:
 				s.shots.returned(sh)
 				src.Shot = shotInfo(sh)
@@ -861,6 +864,56 @@ func (s *Server) newWindowShot(ctx context.Context, window, stableID string, end
 	return s.capture(ctx, window, stableID, nil)
 }
 
+// The window that a closed target came from gets time to answer the close before its shot, as a page draws the file
+// that a file chooser gave it. In the benchmark VM at 2560×1440, Chromium drew the file from the portal's chooser only
+// once it got frame callbacks, which a hidden window gets from hyprmasq's waits: 4 to 16 ms after the first one, or once
+// by itself 44 ms after the chooser closed. It then drew every frame while the page animated the upload: for 330 ms
+// when the callbacks started 0.4 or 1.5 s after the close, and for 950 ms when they started with it.
+const (
+	// How long the window gets to start drawing once the wait sends it frame callbacks: ten times the 44 ms in which
+	// Chromium had the chooser's file, for an app that first reads the file it got, and the time that act watches a
+	// window that settled for drawing again (see watchForRedraw). A window that draws nothing spends it instead of the
+	// 200 ms of quiet of before.
+	sourceExpectMs = 500
+	// The most that the wait takes: the longest redraw, 950 ms, and a quiet time of 200 ms after it, with room to spare.
+	// In the benchmark run at 1920×1080 that lost a click after an upload, Chromium still drew after the wait of up to a
+	// second of before: between the two images of the shot, twice, so that the shot kept no detail image.
+	sourceSettleMax = 1500 * time.Millisecond
+)
+
+// sourceShot captures the window that a closed target came from once it has answered the close: after a wait that
+// sends it frame callbacks, for its first redraw up to sourceExpectMs, and if it drew, for quietMs of quiet, within
+// sourceSettleMax and the deadline, which leaves half of the capture's reserve to the capture. Animations, such as a
+// caret that blinks, neither end the change phase nor keep the quiet phase from ending, and the shot records them. A
+// starved window gets frame callbacks from the capture's own wait.
+func (s *Server) sourceShot(ctx context.Context, window, stableID string, quietMs int, end time.Time) (*shot, []byte, error) {
+	ctx, cancel := context.WithDeadline(ctx, end)
+	defer cancel()
+	st, err := s.openState(ctx, window, stableID)
+	if err != nil {
+		return nil, nil, err
+	}
+	var animated []hypr.IntRect
+	if settle := min(sourceSettleMax, time.Until(end)-captureReserve/2).Milliseconds(); !st.Starved && settle >= 1 {
+		reply, err := s.wait(ctx, window, hypr.WaitArgs{Since: *st.Commits, ExpectMs: int(min(sourceExpectMs, settle)), QuietMs: quietMs, DeadlineMs: int(settle),
+			ID: s.waitID(), IgnoreAnimations: true})
+		var pe *hypr.Error
+		switch {
+		case ctx.Err() != nil:
+			return nil, nil, ctx.Err()
+		case errors.As(err, &pe) && pe.Code == "window_gone":
+			return nil, nil, err
+		case err == nil && deref(reply.SocketID) == deref(st.SocketID):
+			animated = reply.Animated
+		}
+	}
+	sh, png, err := s.capture(ctx, window, stableID, nil)
+	if err == nil {
+		sh.Animated = animated
+	}
+	return sh, png, err
+}
+
 // captureResult captures the window for the result of an act. A capture region whose shot no longer has the window's
 // size, after a resize during the call, would show another part of the window than it did in that shot, so the whole
 // window is captured instead, and the hint says why.
@@ -966,23 +1019,34 @@ func (s *Server) send(clientCtx, sendCtx context.Context, r *actRequest, steps [
 	defer sendLock.release()
 
 	// Other calls may have changed the window while this one waited for the locks.
-	cur, err := s.openState(sendCtx, r.window, st.StableID)
-	switch {
-	case clientCtx.Err() != nil:
-		return out, st, errCancelled
-	case sendCtx.Err() != nil:
-		return out, st, deadlineWhileSending("none", r.deadline)
-	case err != nil:
-		return out, st, err
-	case sh != nil && batchHasCoordinates(r.batch) && cur.Size != sh.Size:
-		return out, cur, &toolError{Code: "stale_shot", Message: fmt.Sprintf("the window was resized from %s to %s since shot %s", formatSize(sh.Size), formatSize(cur.Size), sh.ID),
-			Hint: hintScreenshot, ShotHint: hintScreenshotShot}
-	}
-	if err := checkCapabilities(r.batch, cur.Capabilities, r.window); err != nil {
+	cur, err := s.sendable(clientCtx, sendCtx, r, sh, st)
+	if err != nil {
 		return out, cur, err
 	}
+	inputBy, _ := sendCtx.Deadline()
+	for round := 0; sh != nil; round++ {
+		// The check leaves the batch the time it takes to send.
+		decided, err := s.checkTargets(sendCtx, r, sh, cur, inputBy.Add(-sendTime(steps)), p)
+		switch {
+		case clientCtx.Err() != nil:
+			return out, cur, errCancelled
+		case err != nil:
+			return out, cur, err
+		case decided == nil:
+		default:
+			// The window may have been resized or replaced meanwhile.
+			if cur, err = s.sendable(clientCtx, sendCtx, r, sh, st); err != nil {
+				return out, cur, err
+			}
+		}
+		// A window that drew after the capture that the check decided on may have moved its targets since, and is
+		// checked once more. One that keeps drawing would never hold still for it.
+		if decided == nil || round == movedRechecks || cur.Commits != nil && *cur.Commits == decided.commits && deref(cur.SocketID) == decided.socket {
+			break
+		}
+	}
 	// Input that would be cut off part-way is not started. sendCtx ends where the time for input does.
-	if inputBy, ok := sendCtx.Deadline(); ok {
+	if !inputBy.IsZero() {
 		if need, left := sendTime(steps), time.Until(inputBy); need > left {
 			return out, cur, &toolError{Code: "deadline",
 				Message: fmt.Sprintf("the batch takes about %d ms to send with round trips, and %d ms were left for it after waiting for other calls", need.Milliseconds(), max(0, left.Milliseconds())),
@@ -1000,6 +1064,25 @@ func (s *Server) send(clientCtx, sendCtx context.Context, r *actRequest, steps [
 		s.restoreLease(clientCtx, r.window, before, read)
 	}
 	return out, cur, err
+}
+
+// sendable reads the window's state right before the input, and fails when the window was replaced, was resized since
+// the shot that the batch's coordinates come from, or lacks a capability that the batch needs. st is the state that the
+// call read before, which a failure returns when there is no newer one.
+func (s *Server) sendable(clientCtx, sendCtx context.Context, r *actRequest, sh *shot, st hypr.State) (hypr.State, error) {
+	cur, err := s.openState(sendCtx, r.window, st.StableID)
+	switch {
+	case clientCtx.Err() != nil:
+		return st, errCancelled
+	case sendCtx.Err() != nil:
+		return st, deadlineWhileSending("none", r.deadline)
+	case err != nil:
+		return st, err
+	case sh != nil && batchHasCoordinates(r.batch) && cur.Size != sh.Size:
+		return cur, &toolError{Code: "stale_shot", Message: fmt.Sprintf("the window was resized from %s to %s since shot %s", formatSize(sh.Size), formatSize(cur.Size), sh.ID),
+			Hint: hintScreenshot, ShotHint: hintScreenshotShot}
+	}
+	return cur, checkCapabilities(r.batch, cur.Capabilities, r.window)
 }
 
 // restoreLease undoes the renewal before a batch that sent nothing: without input, a new lease would hold no focus,

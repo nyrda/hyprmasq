@@ -427,7 +427,7 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 	}
 
 	sh := &shot{ID: s.shots.newID(), Window: r.window, StableID: base.StableID, Size: st.Size, Frame: base.Frame, Width: base.Width, Height: base.Height,
-		Scale: base.Scale, Base: base.ID, Deltas: base.Deltas + 1, Detail: after}
+		Scale: base.Scale, Base: base.ID, Deltas: base.Deltas + 1, Detail: after, Animated: out.Wait.animatedBoxes()}
 	if reply.Commits != nil {
 		sh.Commits, sh.SocketID = *reply.Commits, deref(reply.SocketID)
 	} else if st.Commits != nil {
@@ -499,7 +499,9 @@ func (s *Server) cutZoom(img image.Image, d *detail, box image.Rectangle, of *sh
 	}
 	zsh := &shot{ID: id, Window: of.Window, StableID: of.StableID, Size: of.Size,
 		Frame: hypr.Rect{X: d.Frame.X + float64(box.Min.X)/d.Scale, Y: d.Frame.Y + float64(box.Min.Y)/d.Scale, Width: float64(box.Dx()) / d.Scale, Height: float64(box.Dy()) / d.Scale},
-		Width: box.Dx(), Height: box.Dy(), Scale: d.Scale, Commits: of.Commits, SocketID: of.SocketID, Path: path, Parent: of.ID}
+		Width: box.Dx(), Height: box.Dy(), Scale: d.Scale, Commits: of.Commits, SocketID: of.SocketID, Path: path, Parent: of.ID,
+		// It shows part of the detail image, which holds what it does at the same commit.
+		Ref: d, Animated: of.Animated}
 	s.shots.add(zsh)
 	return zsh, buf.Bytes(), nil
 }

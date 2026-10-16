@@ -45,6 +45,13 @@ type shot struct {
 	Deltas int
 	// What the next changes shot is compared with, for a shot of the whole window, or nil.
 	Detail *detail
+	// The image that act compares the window with before it clicks or drags at the shot's coordinates, when it has
+	// none in Detail: a zoom's own image, the detail image that a zoom of a changes shot was cut from, or the overview of
+	// a shot without a detail image. See reference.
+	Ref *detail
+	// The animations that the window drew during the wait before the shot, in window-local logical pixels, whose changes
+	// do not count as the window moving its content.
+	Animated []hypr.IntRect
 }
 
 // A starvation tells why the shot of a starved window may show an older frame: the window did not draw within WaitedMs
@@ -63,6 +70,8 @@ type detail struct {
 	Frame  hypr.Rect
 	// The max of the screenshot request, which the next one repeats to get an image at the same scale.
 	Max int
+	// The region of the screenshot request, in window-local logical pixels, or nil for the whole window.
+	Region *hypr.IntRect
 }
 
 func (d *detail) geometry() detailGeometry {
@@ -74,6 +83,15 @@ func (d *detail) sameGeometry(o *detail) bool {
 	near := func(a, b float64) bool { return math.Abs(a-b) < 1e-6 }
 	return d.Width == o.Width && d.Height == o.Height && near(d.Scale, o.Scale) && near(d.Frame.X, o.Frame.X) && near(d.Frame.Y, o.Frame.Y) &&
 		near(d.Frame.Width, o.Frame.Width) && near(d.Frame.Height, o.Frame.Height)
+}
+
+// reference is the image of the window as the shot shows it, which act compares a new capture with before it clicks or
+// drags at the shot's coordinates, or nil.
+func (s *shot) reference() *detail {
+	if s.Detail != nil {
+		return s.Detail
+	}
+	return s.Ref
 }
 
 // toLogical maps a point in shot pixels to window-local logical pixels.

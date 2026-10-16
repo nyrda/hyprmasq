@@ -3623,13 +3623,15 @@ print(longest)
         # A middle click opens a dialog of the clicked window 1.5 s later, after the act has returned, as the portal's
         # file chooser mapped 0.7 s after the click's act in a benchmark. The session's next result reports it, once.
         late_titles = []
-        agent_shot = opener.call("screenshot", {"window": agent}).data["shot"]["id"]
+        latest = {"shot": opener.call("screenshot", {"window": agent}).data["shot"]["id"]}
 
         def middle_click():
-            """Clicks so that the probe opens a dialog 1.5 s later, and returns the act's result."""
-            clicked = opener.call("act", {"window": agent, "shot": agent_shot, "actions": [{"action": "click", "x": 320, "y": 240, "button": "middle"}],
+            """Clicks so that the probe opens a dialog 1.5 s later, and returns the act's result. The click redraws the
+            window in another color, so the next one takes its coordinates from this one's shot, which shows it."""
+            clicked = opener.call("act", {"window": agent, "shot": latest["shot"], "actions": [{"action": "click", "x": 320, "y": 240, "button": "middle"}],
                                           "wait": {"quiet_ms": 100}})
-            assert not clicked.is_error, clicked
+            assert not clicked.is_error and clicked.data["actions"]["delivery"] == "complete", clicked
+            latest["shot"] = clicked.data["shot"]["id"]
             return clicked
 
         def click_late():
@@ -3838,6 +3840,31 @@ print(longest)
         assert clicked.data["window_closed"] and "source" not in clicked.data and not clicked.images, clicked
         assert gone not in clicked.text, clicked
         machine.execute("pkill -f 'hyprmasq-focus-probe [i]mported'")
+        assert snapshot() == before_focus
+
+    with subtest("a dialog whose parent redraws 300 ms after the close returns the parent's shot with the redraw"):
+        # In opener mode, A opens a dialog whose parent answers its close: it asks for a frame callback, and redraws in
+        # orange 300 ms after the first one, as a hidden page lays out the file that a file chooser gave it once it can
+        # draw. On its hidden workspace the parent gets that callback from act's wait for it before its shot, so the shot
+        # shows the redraw only because the wait waits for one, and not only for 200 ms of quiet.
+        orange = (0xCC, 0x88, 0x00)
+        for attempt in range(3):
+            start = len(probe_events("o-agent"))
+            opener.call("act", {"window": agent, "actions": [{"action": "key", "keys": ["a"]}]})
+            dialog = opened_since("o-agent", start, r"hm-o-agent-answer\d+")
+            dialog_shot = opener.call("screenshot", {"window": dialog["address"]}).data["shot"]["id"]
+            assert not near(pixels(keep(opener.call("screenshot", {"window": agent}), "answer-before"), (320, 240))[0], orange)
+            # The parent gets frame callbacks for a second after the key that opened the dialog, which would start its
+            # answer before act waits for it.
+            time.sleep(1.2)
+            clicked = opener.call("act", {"window": dialog["address"], "shot": dialog_shot, "actions": [{"action": "click", "x": 20, "y": 30, "button": "right"}]})
+            machine.log(f"hyprmasq-mcp: a dialog whose parent answers its close: {clicked}")
+            wait_for("dialog closed", lambda: client(dialog["title"]) is None)
+            if not clicked.is_error and "error" not in clicked.data:
+                break
+        assert clicked.data["window_closed"] and clicked.data["source"]["window"] == agent and len(clicked.images) == 1, clicked
+        assert "answered hm-o-agent" in [e for _, e in probe_events("o-agent", start)], probe_events("o-agent", start)
+        assert near(pixels(clicked.images[0], (320, 240))[0], orange), pixels(clicked.images[0], (320, 240))
         assert snapshot() == before_focus
 
     with subtest("with place_new_windows off, a window that input opens opens as Hyprland places it, with the focus"):
@@ -4511,6 +4538,46 @@ print(longest)
         focus_workspace(4)
         for window in [hidden, shown]:
             assert mcp.call("close", {"window": window}).data["closed"]
+
+    with subtest("hyprmasq-mcp sends no click at a target that moved since its shot, and one after a change elsewhere"):
+        # focus-probe's shift mode draws a light button at 40,40 of 160×40, which a SIGUSR1 moves 60 pixels down 200 ms
+        # later, as an upload that finished pushes a form down, and a SIGUSR2 draws a block far from it. A click at the
+        # button in a shot from before the move would reach the background below it: act refuses it and sends nothing.
+        command = "exec hyprmasq-focus-probe shift hm-m-shift 200 > /tmp/hyprmasq-m-shift.log 2>&1"
+        shifting = mcp.call("launch", {"command": ["sh", "-c", command], "workspace": "hm-m-shift"})
+        assert not shifting.is_error, shifting
+        window, shot = shifting.data["window"]["window"], shifting.data["shot"]["id"]
+        light, background = (0xEE, 0xEE, 0xEE), (0x22, 0x44, 0x66)
+        assert near(pixels(shifting.images[0], (170, 45))[0], light), shifting
+        signal = "pkill -{} -f 'hyprmasq-focus-probe [s]hift hm-m-shift '"
+        machine.succeed(signal.format("USR1"))
+        machine.wait_until_succeeds("grep -q shifted /tmp/hyprmasq-m-shift.log", timeout=10)
+        start = len(probe_events("m-shift"))
+        moved = mcp.call("act", {"window": window, "shot": shot, "actions": [{"action": "click", "x": 120, "y": 60}]})
+        machine.log(f"hyprmasq-mcp: a click at a button that moved: {moved}")
+        refused(moved, "stale_shot")
+        assert moved.data["error"]["message"] == f"the window changed since shot {shot} around actions[0] (click) at 120,60, so the input could reach something other than what the shot shows there", moved
+        assert moved.data["hint"].startswith(f"The target of actions[0] (click) moved or changed since {shot}. Read the coordinates from the new shot in this result."), moved
+        time.sleep(0.5)
+        assert not [e for _, e in probe_events("m-shift", start) if e.startswith(("button ", "motion "))], probe_events("m-shift", start)
+        # The new shot shows the button where it is now, and a click there reaches it.
+        shot = moved.data["shot"]["id"]
+        assert near(pixels(moved.images[0], (170, 105))[0], light) and near(pixels(moved.images[0], (170, 45))[0], background), moved
+        clicked = mcp.call("act", {"window": window, "shot": shot, "actions": [{"action": "click", "x": 120, "y": 120}]})
+        assert not clicked.is_error and clicked.data["actions"]["delivery"] == "complete", clicked
+        machine.wait_until_succeeds("grep -q 'button hm-m-shift 0' /tmp/hyprmasq-m-shift.log", timeout=10)
+
+        # A change far from the button does not keep a click at it from being sent, from the same shot.
+        machine.succeed(signal.format("USR2"))
+        machine.wait_until_succeeds("grep -q elsewhere /tmp/hyprmasq-m-shift.log", timeout=10)
+        start = len(probe_events("m-shift"))
+        clicked = mcp.call("act", {"window": window, "shot": shot, "actions": [{"action": "click", "x": 120, "y": 120}]})
+        machine.log(f"hyprmasq-mcp: a click after a change elsewhere: {clicked}")
+        assert not clicked.is_error and clicked.data["actions"]["delivery"] == "complete", clicked
+        wait_for("the click after the change", lambda: "button hm-m-shift 0" in [e for _, e in probe_events("m-shift", start)], timeout=10)
+        assert "motion hm-m-shift 120 120" in [e for _, e in probe_events("m-shift", start)], probe_events("m-shift", start)
+        assert mcp.call("close", {"window": window}).data["closed"]
+        assert snapshot() == before_focus
 
     with subtest("hyprmasq-mcp takes coordinates from shots taken while a window pops in"):
         # launch captures a window once it has gone quiet for 300 ms, well within the 10 seconds in which it pops in.

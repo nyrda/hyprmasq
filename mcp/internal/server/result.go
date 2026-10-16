@@ -20,6 +20,9 @@ type toolError struct {
 	Hint    string
 	// Replaces Hint when the result carries a shot taken after the failure.
 	ShotHint string
+	// For a target that moved: the animations that the window drew meanwhile, which the shot taken after the failure
+	// records.
+	animated []hypr.IntRect
 }
 
 func (e *toolError) Error() string {
@@ -295,6 +298,14 @@ type waitOut struct {
 	// The window's commit counter when the wait ended, and the socket it counts for, or "" when the plugin named none.
 	counter int64
 	socket  string
+}
+
+// animatedBoxes is the animations of the wait in window-local logical pixels, or nil without a wait.
+func (w *waitOut) animatedBoxes() []hypr.IntRect {
+	if w == nil {
+		return nil
+	}
+	return w.animated
 }
 
 // waitAgainOut is the wait for a window that drew again after it had settled, until it settled again.

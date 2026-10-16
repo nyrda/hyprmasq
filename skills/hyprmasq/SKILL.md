@@ -58,7 +58,14 @@ descriptions and results explain the rest. What `act` returns:
   after the wait. That is no failure; do not repeat the input. `back to ADDR
   …` with a line `shot sN … of ADDR, the window it came from` names the window
   that opened it, such as the page behind a file chooser or a popup, and sN
-  shows it now: go on there with that shot.
+  shows it now, once it has drawn its answer to the close, such as the file
+  that the chooser gave it: go on there with that shot.
+- `error stale_shot: the window changed since shot sN around actions[0]
+  (click) at X,Y`: the window drew since your shot, and what lies at the
+  point where you click or drag differs from the shot now, as when a form
+  moved down after an upload finished. Nothing was sent; read the coordinates
+  from the new shot in the result and act again. Changes elsewhere, a blinking
+  caret or an animation do not stop a click.
 - `N/M delivered, interrupted by the user's input`: the window shares its
   app with the window the user is typing in, such as a second window of their
   browser, and the user typed or clicked there before your shortcut, such as

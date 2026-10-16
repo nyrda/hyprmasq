@@ -279,11 +279,19 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 		case starvedMs > 0 && !starvedDrew:
 			sh.Starved = &starvation{WaitedMs: starvedMs}
 		}
-		if z != nil {
+		switch {
+		case z != nil:
 			sh.Parent = z.from.ID
 			if z.from.Parent != "" {
 				sh.Parent = z.from.Parent
 			}
+			// A zoom is compared by its own image, and keeps the animations of the shot it was read from.
+			rect := z.rect
+			sh.Ref = detailOf(reply, path, s.cfg.MaxImageSize)
+			sh.Ref.Region = &rect
+			sh.Animated = z.from.Animated
+		case det == nil && !reply.Resizing:
+			sh.Ref = detailOf(reply, path, s.cfg.MaxImageSize)
 		}
 		switch {
 		case reply.Commits != nil:

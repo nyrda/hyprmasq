@@ -106,7 +106,10 @@ A shot records:
 - for a shot of the whole window, the detail image that a later comparison
   uses, and how many [changes shots](#changes) in a row lead to it; for a
   changes shot, the shot it was compared with; for a zoom, the shot of the
-  whole window it was read from.
+  whole window it was read from;
+- the animations that the wait before it saw, which do not count as the
+  window moving its content (see
+  [Targets that moved](#targets-that-moved-since-the-shot)).
 
 A shot pixel X,Y maps to the window-local point `frame.x + X / scale`,
 `frame.y + Y / scale`, rounded to thousandths of a logical pixel for
@@ -216,13 +219,18 @@ again is not starved; see [Known limits](#known-limits).
 - no point lies left of or above the window, which pointer input cannot reach
   (see [Pointer regions](usage.md#pointer-regions));
 - the points lie in the pointer regions of the window as it is now, which
-  `hyprmasq-input` checks when it connects.
+  `hyprmasq-input` checks when it connects;
+- the window still shows what the shot showed around every point where the
+  batch clicks or drags, see
+  [Targets that moved](#targets-that-moved-since-the-shot).
 
 Otherwise the call fails with `stale_shot` or `out_of_bounds` and nothing is
 sent. Once the call holds both [locks](#concurrency), the server reads the
 window's state again, right before it starts the sender. A window replaced
 since (`window_gone`), resized since the shot (`stale_shot`), or now lacking a
 capability the batch needs (`unsupported`) fails the call with nothing sent.
+Then it checks the targets, and after a check that captured the window it
+reads the state once more.
 An `act` without actions reads the window again once it holds the window
 lock, and fails with `window_gone` when the window closed while the call
 waited, also when another window has its address now. Nothing of the call
@@ -241,9 +249,10 @@ click or scroll does not stop the batch, since the keys may cause it
 themselves. A move that keeps the size is not noticed; see
 [Known limits](#known-limits).
 
-These checks guard geometry, not content. Content can move without the window
-resizing, and a popup can close after its shot was taken. The server does not
-invalidate shots on every redraw, which would make animated windows unusable.
+The checks of the size guard geometry, and the check of the targets guards
+content where the batch points. The server does not invalidate shots on every
+redraw, which would make animated windows unusable: changes away from the
+targets, carets and animations leave a shot usable.
 
 Shot IDs count up per server process. The server keeps the 64 most recently
 used shots per window, and deletes their files, detail images included, when
@@ -255,6 +264,120 @@ of the window a result gave last. Image files live under
 for the Hyprland instance, whose name is `$HYPRLAND_INSTANCE_SIGNATURE`
 without the commit hash in front (see
 [Security model](usage.md#security-model)).
+
+### Targets that moved since the shot
+
+A page can move its content after a shot without the window resizing: the
+upload form of Forgejo moves 152 logical pixels down when the file that the
+portal's file chooser gave it lands in the list above it, and a click at the
+commit field in a shot from before then reaches the list. So before `act`
+sends a batch with a `shot` that clicks or drags, it checks the window around
+every click point and both points of a drag, once it holds both locks and has
+read the window's state:
+
+- The shot it compares with is the one given in `shot`, or the last shot of
+  the window that a result gave the session, when that is a changes shot that
+  descends from it, or from the shot that a zoom was read from: the agent
+  reads coordinates from s5 after `shot s7 = s5 + 2 changes`, and has seen
+  the changes since in s7's zooms.
+- When the window's commit counter, of the same socket, is where that shot
+  recorded it, the window has drawn nothing since, and the batch goes out at
+  once, with no capture. In the benchmark VM, Chromium on its hidden
+  workspace drew nothing between calls after a shot of a page at rest; it did
+  after a shot taken while the page still animated, such as a page that loaded
+  or the upload's check mark fading.
+- Otherwise the check takes one capture, two decodes and the comparison of
+  the boxes: 116 to 185 ms, 124 ms in the median, with a detail image of
+  2560×1440 in the benchmark VM, and 62 ms with an overview of 1280×720.
+- Otherwise the server renders the window as it rendered the shot's reference
+  image, with the same region and `max`, and compares the box of 49×49 logical
+  pixels around each point, 24 on every side, with it. The reference is the
+  detail image of a shot of the whole window or of a changes shot, which the
+  next changes capture compares with too, or the overview of a shot without
+  one; a zoom's own image, region and all; and for a zoom cut from a changes
+  shot, the detail image it was cut from. The comparison is that of
+  [Changes](#changes): its thresholds, tiny changes such as a caret left out,
+  and the changes within the animations that the wait before the shot saw,
+  which the shot records, and a zoom from the shot it was read from, left out
+  too. An edge that moved across the box counts all the same: a row or column
+  of the box in which 90% of the pixels changed, each by more than 24 levels in
+  luminance, outside the animations. That is no caret, whose line is short,
+  and no text, whose pixels fill no row, but such as the border of an empty
+  field, all that changes around a click in its middle when the field moves
+  away, and which the 3×3 average dilutes below the threshold: in the
+  benchmark VM, a click at the shot's coordinates of Forgejo's commit field,
+  whose border is 33 levels darker than its inside, passed that comparison
+  after the form had moved, and opened the file chooser of the upload box
+  that had moved there. So does a box that the new capture covers in another
+  part, as when a popup past the
+  window's edge that the box reaches into closed or opened, or whose pixels do
+  not lie on the reference's. Changes elsewhere in the window count for
+  nothing.
+- A box that changed gets the window up to 1 s to settle, with a
+  `wait … since` the new capture with `ignore animations` and a quiet time of
+  200 ms, which sends a hidden window the frame callbacks it needs to finish
+  drawing, and one more capture. A box that differs from the shot and holds
+  still, the same in both captures, is a target that moved: the call fails
+  with `stale_shot`, sends nothing, and returns a full shot taken after that
+  wait, which records the animations the wait saw. A box that differs between
+  the two captures as well keeps changing by itself, such as a video, which
+  the plugin does not take for an animation when it covers more than 15% of
+  the window. No shot would ever match it, so its batch is sent.
+
+```
+error stale_shot: the window changed since shot s28 around actions[0] (click) at 510,389, so the input could reach something other than what the shot shows there
+0/3 delivered, nothing sent · shot s29 1280×720
+The target of actions[0] (click) moved or changed since s28. Read the coordinates from the new shot in this result. Nothing was sent.
+```
+
+The refusal names every action whose target moved, a drag's point by
+`from` or `to`. It reuses `stale_shot`, whose remedy it shares with a resize
+since the shot: the shot no longer shows where things are, and the agent reads
+the coordinates from the new shot in the result. Agents and hints know the
+code already; another one would ask the same of them.
+
+The box of 24 logical pixels around a point, the margin that a zoom of
+capture `"changes"` gives a change, covers a text field or button of up to 48
+pixels in height when the click is in its middle, such as Forgejo's of 38. Any
+edge that a move carries across the point lies within half of the move from
+it, so a move of up to 48 pixels changes the box also between plain borders,
+and a longer one brings other content there. In the benchmark VM at
+2560×1440, the upload moved Forgejo's form 152 pixels down, and the boxes
+around the shot's points of its commit field, description, check box, radio
+buttons, email field and buttons all changed, at 24 as at 32, 48 and 64
+pixels, and those of the folder field above and of empty space below and
+beside it did not. The box stays clear of most of what changes next to a
+target, such as a field above a button.
+
+After a check that captured the window, the server reads its state once more,
+and checks again, once, when the window drew after the capture that the
+check decided on, as it may have moved a target in between. A shot whose
+reference image is gone, as that of a changes shot which the server dropped
+while a zoom cut from it stays, can no longer be compared: once the window
+has drawn, its batch fails with `stale_shot` and a new shot.
+
+The check ends early enough for the batch to fit before input has to end:
+within the deadline less the capture's reserve, the sender's stop and the
+time the batch takes to send. A check that runs out of that time fails the
+call with `deadline` and sends nothing, and the wait to settle leaves the
+capture after it twice the time that the first capture took, and at least
+250 ms.
+
+The check compares every target of a batch with the shot before the batch
+goes out, and not again before a later click, after `act` has waited for the
+window's [answer to an earlier one](#pacing). What the batch's own clicks
+change there is what the agent planned: in the benchmarks of 2026-10-15,
+gpt-6.1-sol clicked, in one batch, the button that ends Thunderbird's account
+setup and a point in the mail view that this shows, in every run at both
+sizes, and Forgejo's Add file button and the Upload file entry of the menu that
+it opens. The box of the second click changes by design there, and a check
+would refuse it every time. A change between the agent's shot and its call,
+which it could not see, is what the check is for.
+
+What it does not catch: content that moves in the milliseconds between the
+check and the click, content that looks the same around the point after the
+move, such as a row of a list of identical rows, and content that keeps
+changing, which is sent.
 
 ## Changes
 
@@ -1170,11 +1293,27 @@ window is gone. The summary keeps how the wait ended, as in `3/3 delivered ·
 redraw observed · quiet 201 ms · 492 ms · window closed`.
 
 The result names the window that the closed window came from, where the agent
-goes on, and returns a shot of it, taken as a new window's shot is: the
-`source` that the plugin found for the closed window when it mapped, its
-parent or the window of its app that input reached last (see
-[Windows that input opens](#windows-that-input-opens)), if that window is
-still open with the same `stable_id`. The agent works in it, since the plugin
+goes on, and returns a shot of it: the `source` that the plugin found for the
+closed window when it mapped, its parent or the window of its app that input
+reached last (see [Windows that input opens](#windows-that-input-opens)), if
+that window is still open with the same `stable_id`. The shot comes once the
+window has answered the close, as a page draws the file that a file chooser
+gave it: a `wait … since` its counter sends it frame callbacks, with `expect`
+500 ms, the call's `quiet_ms`, and `ignore animations`, for at most 1.5 s, and
+leaves half of the capture's reserve to the capture. A window that starts to
+draw within the 500 ms is captured once it has been quiet; one that draws
+nothing, after them.
+
+In the benchmark VM at 2560×1440, Chromium drew the file that the portal's
+chooser gave it only once it got frame callbacks, which a window on a hidden
+workspace gets from hyprmasq: 4 to 16 ms after the first one, or once by
+itself 44 ms after the chooser closed. It then drew every frame while the page
+animated the upload: for 330 ms when the frame callbacks started 0.4 or 1.5 s
+after the close, and for 950 ms when they started with it. The 500 ms are ten
+times the 44 ms, for an app that first reads the file it got, and the time
+that the [watch](#phases) gives a window that settled to draw again; the 1.5 s
+leave the longest redraw, 950 ms, its quiet time. The second that the shot's
+wait had before ended in a benchmark run while Chromium still drew. The agent works in it, since the plugin
 found the closed window to come from it, and it is not listed again among the
 late windows when it is one. A window that the user's own input opened, or
 whose source has closed, has none.
@@ -1251,7 +1390,7 @@ hint. The structured content has `error`
 | --- | --- | --- |
 | `invalid_arguments` | none | Names the field by its path, for example `actions[0].count must be 1 to 3, not 5`, `actions[0].from must be [x, y] in shot pixels, not [100]` or `actions[0].x must be a number, not null`, or the key name the sender did not know. Also a batch that its `deadline_ms` cannot fit, also once the sender has resolved its keys with the keymap, or a `wait.expect_ms` that does not fit in it, naming the `deadline_ms` needed. |
 | `window_gone` | none, partial or uncertain | The window closed or its `stable_id` changed. Call `windows`. When it closed while the input was sent, maybe because of it, `wait.ended` is `window_closed`, no shot is taken, and the message names the actions delivered before it closed: `window 0x… closed after actions[0] (key) was delivered, while actions[1] (type) was sent`. When only pauses were left once the plugin had confirmed the input, as after a click on the button that closes a dialog, the result is no error: it reports `complete` and `wait.ended` `window_closed`. Events in flight when it closed, such as a release sent as it closed, are not counted as delivered, and the delivery stays `partial` or `uncertain`. Either way the result names the window it came from, if it has one, with a shot, as [A window that closes](#a-window-that-closes) describes. |
-| `stale_shot` | none, partial or uncertain | Unknown shot, another window's shot, a shot of an older frame, a resize since the shot, while the call waited for the locks, or during the batch, or a zoom into a popup that has closed or into a window that was resized since the zoom's shot. Read the coordinates from the attached shot, or take a screenshot. |
+| `stale_shot` | none, partial or uncertain | Unknown shot, another window's shot, a shot of an older frame, a resize since the shot, while the call waited for the locks, or during the batch, a zoom into a popup that has closed or into a window that was resized since the zoom's shot, or a [target that moved](#targets-that-moved-since-the-shot) since the shot, which names the action and sends nothing. Read the coordinates from the attached shot, or take a screenshot. |
 | `out_of_bounds` | none or partial | A coordinate lies outside the shot, left of or above the window, or outside the pointer regions, which end at the monitor's edges. Names the action. With `partial`, the window moved during the batch and a later point no longer lies in the new regions. |
 | `cannot_type` | none | The keymap cannot produce a character. Names it, for example U+00E9. |
 | `unsupported` | none | The window lacks a capability the batch needs: `hold` for a `drag`, a `click` with modifiers, or a `key` chord that holds a key other than a modifier. Says why and suggests the keyboard or a click without modifiers, or for a chord, holding only modifiers or separate `key` actions. |
@@ -1950,8 +2089,11 @@ returns as soon as it maps, and which a `match` with one result returns with
 the shot that `act` takes and compares with, Enter that closes its
 dialog after the wait has ended quiet, delivered without a failed capture,
 and the shot of the window that a dialog came from when Enter or a click
-closes it, and none for a dialog whose parent is gone or the user's, two
-servers acting at once on one window, the deadline,
+closes it, also once that window has redrawn 300 ms after the frame callbacks
+of its wait started, and none
+for a dialog whose parent is gone or the user's, a click at a button that
+moved since its shot, refused with nothing sent, and one after a change far
+from it, sent, two servers acting at once on one window, the deadline,
 cancellation, `act` with a capture region, also when the window is resized
 during the call, changes shots of a terminal that the test draws in, from no
 change and one region, whose zoom shows the drawn cells at their place, to
@@ -2006,7 +2148,18 @@ and last shots forgotten with a window, an overview and detail image of one
 frame, zooms of the compared frame, captured zooms of another frame or cut by a
 closed popup and the zooms given up with them, the detail image of popups past
 the window's edge, joining thousands of regions, and the time left for the
-full shot. The comparison has tests of its
+full shot; the check of the targets, which does not capture a window that drew
+nothing since the shot, refuses a click, a later click of a batch, the end of a
+drag, a dark edge and the faint border of an empty field across the box, and
+a popup past the window's edge that closed, when they moved, through overviews and their
+detail images, zooms, changes shots and the zooms cut from them, compares the
+base of a changes shot with the changes shot that the agent got since, checks
+again when the window drew right after the check's capture, refuses a zoom
+whose reference image is gone, and sends
+after a change elsewhere, a caret, an animation that the wait before the shot
+or its zoom saw, and content that keeps changing, within the deadline; and the
+wait of the window that a closed window came from for its answer, with and
+without a redraw and under a short deadline. The comparison has tests of its
 own: a block, a caret and a speck, a switch of antialiasing, a hover
 highlight, a change of color that keeps the luminance, grouping, transparency,
 the limit of changed pixels and stopping. They run in the Nix build.
