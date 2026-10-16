@@ -639,6 +639,39 @@ baseline is older than #22, which made the click on Finish and the Inbox wait fo
   for the tile at 2560×1440, against 85 ms for the window). hyprmasq's own time per run is 1.3 s above #25 at
   2560×1440, where the password step's full shot costs more than the four zooms did.
 
+## 2026-10-16: the Calc task
+
+The third task ([bench/README.md](../bench/README.md#calc)): Mara's Firefox shows five reports of the company
+intranet as tabs, and the agent enters 18 monthly figures from them into her sheet in LibreOffice Calc, adds the
+totals, an average and a growth as formulas, and saves. Each page has something to read carefully: a region's total
+row, a budget column, a superseded draft, figures in EUR thousands, last year's figure in the prose. Firefox and Calc
+share one hidden workspace at 2560×1440, and have one each at 1920×1080. hyprmasq as on `main` at 649f320, the task
+at f156ac5; the sheets were graded again with the final grader of #27, with the same verdicts. gpt-6.1-sol, five
+runs per size.
+
+| Display | Passed | Wall s | In tools s | Calls | hyprmasq s | Sheet saved at s | User undisturbed |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1920×1080 at 1 | 5/5 | 112 (98–114) | 30 (26–33) | 21 (18–22) | 14.4 | 102 (68–106) | 5/5 |
+| 2560×1440 at 1 | 5/5 | 95 (80–100) | 28 (22–28) | 18 (16–19) | 11.8 | 86 (71–92) | 5/5 |
+
+- **Every run read every trap right**, and every sheet used `SUM`, `AVERAGE` and a ratio of the two months.
+- **The Name Box**: to start entering at B5, all 10 agents clicked Calc's Name Box and typed `B5`. The click put
+  the caret after the `A1` there instead of selecting it, so in 8 runs the box got `A1B5`, and the figures that
+  followed went from A1 over Mara's labels. Those 8 agents saw it in the result and undid it, with 27 or 28 times
+  Ctrl+Z, at the cost of two calls; the other 2 had pressed Ctrl+A in the box first. Whether a real click selects
+  the box's text in this LibreOffice, so that the emulated click differs from it, is not checked yet.
+- **Full shots asked for**: in 51 of 77 `act` calls at 1920×1080 and 27 of 64 at 2560×1440, against 10 to 39% in
+  the other tasks. After the Name Box went wrong, agents asked for one on 49 of the 53 calls left; before it, on
+  0 of 8 to 10 calls in five runs, and in the others from a tab switch on, after a switch had come as zooms.
+- **One click refused**, rightly: the shot of Calc that `act` returned when the Manage Names dialog closed showed
+  its toolbar greyed out, and by the next call the buttons had come back, so the clicks on two of them were
+  refused with `stale_shot` and a fresh shot, and the next call worked.
+- **Four results after a tab switch** came as a full shot because the shot before `cannot be compared`, beside
+  Firefox's overlay scrollbar, which the wait named as an animation.
+- **Tidying up**: an earlier wording of the prompt ("change nothing else") had the agents spend three to four calls
+  putting Mara's tabs back on their first page; with "leave Mara's tabs open on their reports", one run of ten went
+  back to the first tab, the others stopped after saving.
+
 ## Open
 
 - **Typing that lands in another field**: in 1 of about 140 browser runs, the text after a click on Forgejo's
@@ -651,7 +684,11 @@ baseline is older than #22, which made the click on Finish and the Inbox wait fo
   actions to wait it out, 30 of the 49 new looks after zooms. After the password, the completion page draws about
   0.5 or 1 s after the wait, and the 0.5 s watch for a second wave misses the later one.
 - **hyprmasq's own time per call**, 19 to 29 s a run.
-- More apps, to settle floating and placement: Firefox, a Qt app, an Electron app.
+- **Calc's Name Box** keeps its text when clicked, so typing into it appends: 8 of 10 Calc runs, two calls each.
+  Not known yet whether a real click selects it.
+- **The shot of the window a dialog came from** can be taken before that window has drawn itself active again,
+  such as Calc's toolbar greyed out after Manage Names, which gets the next click refused.
+- More apps, to settle floating and placement: a Qt app, an Electron app.
 
 Settled, and not for hyprmasq:
 

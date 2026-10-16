@@ -124,9 +124,9 @@ user's workspace, errors from input that closed its window, wait timeouts, and t
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |
 | `start-*.png`, `end-*.png` | Screenshots of every window and of the screen. |
-| `sent-1.eml`, `user-notes.txt` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo). |
+| `sent-1.eml`, `user-notes.txt`, `sheet.ods` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc). |
 | `vm-events.log` | Hyprland's events (`socket2`), each with the VM's time. |
-| `vm-*.log` | Hyprland, hyprmasq-mcp, socat, and the task's servers. |
+| `vm-*.log`, `vm-*.jsonl` | Hyprland, hyprmasq-mcp, socat, and the task's servers and apps, such as the intranet's requests and the watch of the sheet (Calc). |
 | `debrief-prompt.md`, `debrief.md`, `debrief.jsonl` | The debrief. |
 | `transcript-*.jsonl` | The harness's own transcript of the session. |
 | `driver.log` | The test driver and the VM's console. |
@@ -185,6 +185,61 @@ sign-in in a popup window.
   with the given message, and the dashboard is connected to `mara`. It also reports branches and commits.
 - `setup.py`: Mara's account, repository, OAuth client and file; the two browser windows; the user's typing
   (`during()`); and the grade, with the user's notes, in `collect()`.
+- `prompt.md`, `debrief.md`: what the agent is told.
+
+### calc
+
+The user's own Firefox 157 shows five reports of the company intranet as tabs, and LibreOffice Calc 26.8 has
+Mara's sheet `~/Documents/Office revenue Q4 2025.ods` open: one row per office, the months as columns, and a
+summary. Both apps are started like a user would, on the visible workspace, and moved to hidden ones: side by
+side on `work` when the monitor is 2560 logical pixels wide or more, below that Firefox on `web` and Calc on
+`calc`. The user stays on workspace 1 with the terminal. The prompt asks the agent to enter each office's
+revenue for October to December, to fill in the Q4 totals, the "All offices" row, the average per office and
+month and the growth from October to December as formulas, to save the sheet, and to leave Mara's tabs open on
+their reports.
+
+The task exercises what the others do not: Gecko outside Thunderbird, Calc, and work that goes back and forth
+between two apps, reading pages in one and entering cells in the other. The pages vary their layout the way
+real reports do, and each has something to read carefully:
+
+| Tab | Layout | Office | To read carefully |
+| --- | --- | --- | --- |
+| Region North: revenue Q4 2025 | a plain table | Hamburg, Rotterdam | a "Region North total" row |
+| Stockholm: monthly revenue 2025 | a table of the year, six months a page | Stockholm | October to December on page 2, beside the budget |
+| Lisbon office: updates | cards, newest first, older ones behind "Show older updates" | Lisbon | 2026's months on top; November's draft, among the older ones, next to October |
+| Vienna office: quarterly report Q4 2025 | a long report, key figures at its end | Vienna | the figures are in EUR thousands |
+| Dublin closes 2025 with a record December | a news article | Dublin | the figures are in its prose, with December 2024's |
+
+The pages render their content in the browser from JSON that needs Mara's session cookie, which her profile has.
+Calc does not get it: its External Data import (Sheet ▸ External Links) of a report gets the sign-in page, and
+`WEBSERVICE()` of a page's JSON gives `#VALUE!` (401). So the figures reach the sheet only through the UI.
+
+- `vm.nix`: the intranet on `intranet.example.test:80`, Firefox with policies against first-run pages, and
+  LibreOffice.
+- `figures.py`: the figures, the traps, the tabs and the sheet's layout, for the pages, the sheet and the grade.
+- `intranet.py`: the intranet. It signs in Mara's browser while `setup.py` opens her tabs, as single sign-on
+  would, and logs every request.
+- `sheet.py`: Mara's sheet, written as ODF XML with fixed dates, the same file on every build.
+- `user.js`, `registrymodifications.xcu`: the Firefox and LibreOffice profiles: no first-run pages, tips or
+  infobars, and Firefox writing its session every 2 s.
+- `watch.py`: reads the open sheet once a second through a UNO pipe that Calc is started with, and notes when
+  the file changes on disk, for the milestones `first figure`, `figures entered`, `formulas entered` and `sheet
+  saved`. `reports viewed` is when every tab had been shown, from the window titles in Hyprland's events.
+- `check.py`: passes when the sheet was saved as ODS under its own name; holds the 18 figures, in euros, as
+  numbers; holds formulas for the Q4 totals, the "All offices" row, the average and the growth that read every
+  figure their result comes from, directly or through the other totals, with the results that the sheet's own
+  figures give, so that a wrong figure is one failure; keeps Mara's labels and note, and has no content outside
+  its layout and no other sheet; Mara's five tabs are open on their pages, from Firefox's session
+  file; and no other file in Mara's home, hidden ones aside, was added, removed or changed. A failure names the
+  cell, what it holds and, for a trap, which one: `B10 (Vienna, October) is 112.4, in EUR thousands as the
+  report gives it; expected 112400`. It also reports requests without Mara's session, such as Calc's, and when
+  Stockholm's page 2 and Lisbon's older updates were loaded.
+- `check_test.py`, `check-test.nix`: `nix-build bench/tasks/calc/check-test.nix` fills Mara's sheet through UNO
+  in a headless LibreOffice in 26 ways, a right one and ones wrong in each way above, saves it, and checks each
+  verdict and its failures.
+- `setup.py`: the profiles, the two windows and their workspaces, a window rule that ignores Calc's request to be
+  maximized, as Hyprland's example configuration does for every app, the watch, the list of Mara's files to
+  compare with, and the grade with the saved sheet and the logs in `collect()`.
 - `prompt.md`, `debrief.md`: what the agent is told.
 
 ## Adding a task

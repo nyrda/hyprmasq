@@ -1,0 +1,30 @@
+// Mara's Firefox profile: no first-run noise that is not part of the task, plain http for the intranet, and the
+// session written every 2 seconds, which check.py reads Mara's tabs from.
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("browser.startup.homepage_override.mstone", "ignore");
+user_pref("browser.aboutwelcome.enabled", false);
+user_pref("trailhead.firstrun.didSeeAboutWelcome", true);
+user_pref("browser.uitour.enabled", false);
+user_pref("datareporting.policy.dataSubmissionEnabled", false);
+user_pref("datareporting.policy.firstRunURL", "");
+user_pref("datareporting.healthreport.uploadEnabled", false);
+user_pref("toolkit.telemetry.reportingpolicy.firstRun", false);
+user_pref("app.normandy.enabled", false);
+user_pref("app.update.auto", false);
+user_pref("browser.region.update.enabled", false);
+user_pref("browser.search.update", false);
+user_pref("browser.safebrowsing.malware.enabled", false);
+user_pref("browser.safebrowsing.phishing.enabled", false);
+user_pref("browser.safebrowsing.downloads.remote.enabled", false);
+user_pref("network.captive-portal-service.enabled", false);
+user_pref("network.connectivity-service.enabled", false);
+user_pref("dom.security.https_first", false);
+user_pref("dom.security.https_only_mode", false);
+user_pref("browser.translations.automaticallyPopup", false);
+user_pref("browser.ml.chat.enabled", false);
+user_pref("sidebar.revamp", false);
+user_pref("sidebar.verticalTabs", false);
+user_pref("signon.rememberSignons", false);
+user_pref("browser.tabs.warnOnClose", false);
+user_pref("browser.tabs.unloadOnLowMemory", false);
+user_pref("browser.sessionstore.interval", 2000);
