@@ -26,7 +26,7 @@ namespace hyprmasq {
             "usage:\n"
             "  hyprctl hyprmasq screenshot <window-address> <absolute-path.png> [x y width height] [max pixels] [popups] [raw] [detail <absolute-path>]\n"
             "  hyprctl hyprmasq wait <window-address> [quiet-ms [timeout-ms]]\n"
-            "  hyprctl hyprmasq wait <window-address> since <commits> [expect ms] [quiet ms] [deadline ms] [id word] [ignore animations]\n"
+            "  hyprctl hyprmasq wait <window-address> since <commits> [expect ms] [quiet ms] [deadline ms] [id word] [ignore animations] [drags id]\n"
             "  hyprctl hyprmasq cancel <word>\n"
             "  hyprctl hyprmasq state <window-address>\n"
             "  hyprctl hyprmasq launch <workspace-hex> <token> <shell-command-line-hex>\n"
@@ -262,6 +262,25 @@ namespace hyprmasq {
             return std::format(R"({{"window":{},"stableId":{},"placed":{}{}}})", jsonString(source->address), stableId, source->placed, reason);
         }
 
+        // The drag-and-drop operations of a window with a socket, see `drag` in docs/mcp.md.
+        std::string dragJson(const SDragRecord* drags) {
+            if (!drags)
+                return "null";
+            std::string ended;
+            for (const auto& e : drags->ended)
+                ended += std::format(R"({}{{"id":{},"phase":"{}","reason":{}}})", ended.empty() ? "" : ",", e.id, e.phase, e.reason.empty() ? "null" : jsonString(e.reason));
+            return std::format(R"({{"id":{},"phase":"{}","private":{},"reason":{},"started":{},"finished":{},"cancelled":{},"unconfirmed":{},"ended":[{}]}})", drags->id,
+                               drags->phase, drags->privately, drags->reason.empty() ? "null" : jsonString(drags->reason), drags->started, drags->finished, drags->cancelled,
+                               drags->unconfirmed, ended);
+        }
+
+        std::string dragText(const SDragRecord* drags) {
+            if (!drags)
+                return "none";
+            return std::format("{} {}{}{} started={} finished={} cancelled={} unconfirmed={}", drags->id, drags->phase, drags->privately ? " private" : "",
+                               drags->reason.empty() ? "" : " " + drags->reason, drags->started, drags->finished, drags->cancelled, drags->unconfirmed);
+        }
+
         std::string sourceText(const std::optional<placement::SSource>& source) {
             if (!source)
                 return "none";
@@ -283,6 +302,7 @@ namespace hyprmasq {
             const auto             commits  = socket ? std::optional{socket->content->commits} : std::nullopt;
             const auto             lease    = socket ? socket->lease : std::nullopt;
             const auto             cut      = socket ? std::optional{socket->interrupted} : std::nullopt;
+            const auto*            drags    = socket ? socket->drags.get() : nullptr;
             const std::string_view keyboard = caps.x11Focus ? "x11-focus" : "yes";
             const bool             behind   = resizing(window);
             const bool             hungry   = starved(window);
@@ -290,15 +310,15 @@ namespace hyprmasq {
             if (format == FORMAT_JSON)
                 return std::format(
                     R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"scale":{},)"
-                    R"("socket":{},"socketId":{},"commits":{},"interrupted":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"keyboard":"{}"}},"source":{}}})",
+                    R"("socket":{},"socketId":{},"commits":{},"interrupted":{},"drag":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"privateDnd":{},"keyboard":"{}"}},"source":{}}})",
                     jsonString(windowAddress(window)), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
-                    socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut),
-                    lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, keyboard, sourceJson(source));
+                    socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut), dragJson(drags),
+                    lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, caps.privateDnd, keyboard, sourceJson(source));
             return std::format("address: {}\nstableId: {:x}\nxwayland: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
-                               "interrupted: {}\nlease: {}\ncapabilities: lease={} hold={} dnd={} keyboard={}\nsource: {}\n",
+                               "interrupted: {}\ndrag: {}\nlease: {}\ncapabilities: lease={} hold={} dnd={} private_dnd={} keyboard={}\nsource: {}\n",
                                windowAddress(window), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
                                socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none", cut ? std::to_string(*cut) : "none",
-                               lease ? leaseText(*lease) : "none", caps.lease, caps.hold, caps.dnd, keyboard, sourceText(source));
+                               dragText(drags), lease ? leaseText(*lease) : "none", caps.lease, caps.hold, caps.dnd, caps.privateDnd, keyboard, sourceText(source));
         }
 
         constexpr int MAX_LEASE_MS = 600000;
@@ -346,6 +366,11 @@ namespace hyprmasq {
                     if (!since)
                         return error(format, eErrorCode::INVALID_ARGUMENTS, "since needs a commit counter value, a whole number of at least 0");
                     options.since = *since;
+                } else if (key == "drags") {
+                    const auto drags = parseNumber<uint64_t>(value);
+                    if (!drags)
+                        return error(format, eErrorCode::INVALID_ARGUMENTS, "drags needs the id of a drag, a whole number of at least 0");
+                    options.drags = *drags;
                 } else if (key == "id")
                     options.id = value;
                 else if (key == "ignore") {

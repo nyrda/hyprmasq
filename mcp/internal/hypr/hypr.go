@@ -153,10 +153,14 @@ type Lease struct {
 }
 
 type Capabilities struct {
-	Lease    bool   `json:"lease"`
-	Hold     bool   `json:"hold"`
-	DnD      bool   `json:"dnd"`
-	Keyboard string `json:"keyboard"`
+	Lease bool `json:"lease"`
+	Hold  bool `json:"hold"`
+	// A drag-and-drop that the window's app starts runs with the user's pointer, as it does in the active window.
+	DnD bool `json:"dnd"`
+	// A drag-and-drop that emulated input starts in the window runs privately, within its app, and a plugin without
+	// private drags reports none.
+	PrivateDnD bool   `json:"privateDnd"`
+	Keyboard   string `json:"keyboard"`
 }
 
 type State struct {
@@ -177,11 +181,47 @@ type State struct {
 	// Times the user's own input to the window's app took the keyboard focus back from the window while a shortcut or
 	// function key had not settled, which may have kept it from taking effect. Nil without a socket, and from a plugin
 	// that does not count them.
-	Interrupted  *int64       `json:"interrupted"`
+	Interrupted *int64 `json:"interrupted"`
+	// The drag-and-drop operations that the window's app started while the socket was open. Nil without a socket, and
+	// from a plugin that does not count them.
+	Drag         *Drag        `json:"drag"`
 	Lease        *Lease       `json:"lease"`
 	Capabilities Capabilities `json:"capabilities"`
 	// The window a new window came from, as the plugin found it when the window mapped, or nil when it found none.
 	Source *Source `json:"source"`
+}
+
+// Drag counts the drag-and-drop operations of a window's app, and tells how the last one went.
+type Drag struct {
+	// The id of the last one: they count from 1, and 0 means none yet.
+	ID int64 `json:"id"`
+	// Of the last one: none, active (before the drop), dropped (waiting for the destination to finish), finished,
+	// cancelled or unconfirmed (the destination did not finish in time after the drop).
+	Phase string `json:"phase"`
+	// The last one ran as a private drag, within the window's app.
+	Private bool `json:"private"`
+	// Why the last one was cancelled or unconfirmed, or "".
+	Reason string `json:"reason"`
+	// Of them, the private drags that started and that the destination finished, the cancelled ones, also those that
+	// the plugin cancelled before they could start, and the unconfirmed ones.
+	Started     int64 `json:"started"`
+	Finished    int64 `json:"finished"`
+	Cancelled   int64 `json:"cancelled"`
+	Unconfirmed int64 `json:"unconfirmed"`
+	// How the last ones ended, up to 32, the latest last, or nil from a plugin that does not tell.
+	Ended []DragEnd `json:"ended"`
+}
+
+// DragEnd tells how the drag with the id ended: finished, cancelled or unconfirmed, and why.
+type DragEnd struct {
+	ID     int64  `json:"id"`
+	Phase  string `json:"phase"`
+	Reason string `json:"reason"`
+}
+
+// Pending tells whether the last one has not ended.
+func (d *Drag) Pending() bool {
+	return d.Phase == "active" || d.Phase == "dropped"
 }
 
 // Source is the window whose input a new window came from: its parent, or the window of its app that got emulated
@@ -350,6 +390,9 @@ type WaitArgs struct {
 	ID         string
 	// IgnoreAnimations makes the change phase wait for a commit that is not part of an animation.
 	IgnoreAnimations bool
+	// Drags is the id of the last drag-and-drop the caller knows of, or nil. Neither phase ends while a later one goes
+	// on, and its end ends the change phase.
+	Drags *int64
 }
 
 type WaitReply struct {
@@ -379,6 +422,9 @@ func (c *Client) Wait(ctx context.Context, addr string, a WaitArgs) (WaitReply, 
 	}
 	if a.IgnoreAnimations {
 		args += " ignore animations"
+	}
+	if a.Drags != nil {
+		args += fmt.Sprintf(" drags %d", *a.Drags)
 	}
 	var r WaitReply
 	err := c.Plugin(ctx, args, &r)

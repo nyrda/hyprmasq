@@ -177,13 +177,14 @@ namespace hyprmasq::wait {
         struct SChangeWaiter {
             PHLWINDOWREF                   window;
             std::shared_ptr<CContentWatch> content;
-            std::string                    socketId; // of the socket that content counts for
+            std::shared_ptr<SDragRecord>   drags;
+            std::string                    socketId; // of the socket that content and drags count for
             SChangeOptions                 options;
             std::vector<CBox>              animated; // drawn during the wait
             Time::steady_tp                start = Time::steadyNow(), lastInput = start;
             bool                           changing = false; // in the change phase
             wl_event_source*               timer    = nullptr;
-            CHyprSignalListener            commit, unmap, destroy;
+            CHyprSignalListener            commit, unmap, destroy, dragChange;
             std::promise<SChangeResult>    promise;
 
             ~SChangeWaiter() {
@@ -196,6 +197,22 @@ namespace hyprmasq::wait {
                 wl_event_source_timer_update(timer, 1);
             }
 
+            // A drag-and-drop after the caller's has started.
+            bool dragged() const {
+                return options.drags && drags->id > *options.drags;
+            }
+            // When the last drag-and-drop after the caller's ended, once it has.
+            std::optional<Time::steady_tp> dragEnded() const {
+                if (!dragged() || drags->pending())
+                    return std::nullopt;
+                return drags->endedAt;
+            }
+
+            // The start of the quiet phase's quiet: the last change, input or drag's end.
+            Time::steady_tp quietSince() const {
+                return std::max({content->lastChange, lastInput, start, dragEnded().value_or(start)});
+            }
+
             SChangeResult result(std::string_view ended) const {
                 const auto now = Time::steadyNow();
                 const auto w   = window.lock();
@@ -203,7 +220,7 @@ namespace hyprmasq::wait {
                         .commits      = content->commits,
                         .commitsSince = content->commits > options.since ? content->commits - options.since : 0,
                         .socketId     = socketId,
-                        .quietMs      = elapsedMs(std::max({content->lastChange, lastInput, start}), now),
+                        .quietMs      = elapsedMs(quietSince(), now),
                         .elapsedMs    = elapsedMs(start, now),
                         .resizing     = w && w->m_isMapped && hyprmasq::resizing(w),
                         .animated     = animated,
@@ -240,15 +257,19 @@ namespace hyprmasq::wait {
             const auto       deadlineAt = waiter->start + milliseconds(options.deadlineMs);
             Time::steady_tp  phaseEnd;
             std::string_view phaseEnding;
-            // A window that has not caught up with a resize shows a frame of another size, so it is not quiet yet.
-            bool behind = false;
+            // A window that has not caught up with a resize shows a frame of another size, so it is not quiet yet, and
+            // neither is one whose drag-and-drop goes on.
+            bool behind = waiter->dragged() && waiter->drags->pending();
+            // A drag-and-drop that ended answers the input, as a redraw does.
+            if (waiter->changing && waiter->dragEnded())
+                waiter->changing = false;
             if (waiter->changing) {
                 phaseEnd    = waiter->start + milliseconds(*options.expectMs);
                 phaseEnding = "no_redraw";
             } else {
-                phaseEnd    = std::max({waiter->content->lastChange, waiter->lastInput, waiter->start}) + milliseconds(options.quietMs);
+                phaseEnd    = waiter->quietSince() + milliseconds(options.quietMs);
                 phaseEnding = "quiet";
-                behind      = hyprmasq::resizing(w);
+                behind      = behind || hyprmasq::resizing(w);
             }
             // The phase's ending wins a tie with the deadline: it holds just as well and says more.
             if (!behind && phaseEnd <= now && phaseEnd <= deadlineAt) {
@@ -450,6 +471,7 @@ namespace hyprmasq::wait {
         auto raw          = waiter.get();
         waiter->window    = window;
         waiter->content   = socket->content;
+        waiter->drags     = socket->drags;
         waiter->socketId  = socket->id;
         waiter->options   = options;
         waiter->lastInput = socket->lastInput;
@@ -466,7 +488,7 @@ namespace hyprmasq::wait {
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot start a timer"});
         // The change phase ends at the first commit after the baseline, or the first that is not part of an animation,
         // unless expect ran out before it.
-        waiter->commit  = socket->content->committed.listen([raw] {
+        waiter->commit     = socket->content->committed.listen([raw] {
             if (raw->content->lastAnimated)
                 merge(raw->animated, *raw->content->lastAnimated);
             if (raw->options.ignoreAnimations && raw->content->lastAnimated)
@@ -476,9 +498,10 @@ namespace hyprmasq::wait {
                 raw->wake();
             }
         });
-        waiter->unmap   = window->m_events.unmap.listen([raw] { raw->wake(); });
-        waiter->destroy = window->m_events.destroy.listen([raw] { raw->wake(); });
-        auto future     = waiter->promise.get_future();
+        waiter->dragChange = socket->drags->changed.listen([raw] { raw->wake(); });
+        waiter->unmap      = window->m_events.unmap.listen([raw] { raw->wake(); });
+        waiter->destroy    = window->m_events.destroy.listen([raw] { raw->wake(); });
+        auto future        = waiter->promise.get_future();
         changeWaiters.push_back(std::move(waiter));
         check(raw);
         return future;

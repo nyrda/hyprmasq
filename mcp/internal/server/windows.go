@@ -143,11 +143,13 @@ type windowLeaseOut struct {
 	Mine bool `json:"mine"`
 }
 
-// capabilitiesOut is what act can use of the plugin's capabilities. Its dnd is left out: drag-and-drop works only from
-// the active window, which shares the user's keyboard focus and so lacks hold, which act needs for a drag.
+// capabilitiesOut is what act can use of the plugin's capabilities. Its dnd is the plugin's privateDnd: the active
+// window, whose drags run with the user's pointer, shares the user's keyboard focus and so lacks hold, which act needs
+// for a drag.
 type capabilitiesOut struct {
 	Lease    bool   `json:"lease"`
 	Hold     bool   `json:"hold"`
+	DnD      bool   `json:"dnd"`
 	Keyboard string `json:"keyboard"`
 }
 
@@ -185,7 +187,7 @@ func (s *Server) describeWindow(ctx context.Context, w hypr.Window, visible map[
 	if st, err := s.hypr.State(ctx, w.Address); err == nil {
 		out.Size = sizeOut(st.Size)
 		out.Resizing = st.Resizing
-		out.Capabilities = &capabilitiesOut{Lease: st.Capabilities.Lease, Hold: st.Capabilities.Hold, Keyboard: st.Capabilities.Keyboard}
+		out.Capabilities = &capabilitiesOut{Lease: st.Capabilities.Lease, Hold: st.Capabilities.Hold, DnD: st.Capabilities.PrivateDnD, Keyboard: st.Capabilities.Keyboard}
 		if st.Lease != nil && st.Lease.Held {
 			out.Lease = &windowLeaseOut{Held: true, RemainingS: int(math.Round(float64(st.Lease.RemainingMs) / 1000)), Mine: st.Lease.Owner == s.owner}
 		}
@@ -524,7 +526,7 @@ func windowLine(w windowOut) string {
 		for _, cap := range []struct {
 			name string
 			on   bool
-		}{{"lease", c.Lease}, {"hold", c.Hold}} {
+		}{{"lease", c.Lease}, {"hold", c.Hold}, {"dnd", c.DnD}} {
 			if !cap.on {
 				lacks = append(lacks, cap.name)
 			}

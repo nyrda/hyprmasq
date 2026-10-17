@@ -74,11 +74,14 @@ writes the address as they do, in lower case and without leading zeros:
 emulated focus can stay on the window between calls, see
 [Focus lease](#focus-lease)), `hold` (buttons and keys can stay pressed across
 input frames, needed for `drag`, for a `click` with modifiers and for a `key`
-chord that holds a key other than a modifier) and
+chord that holds a key other than a modifier), `dnd` (a drag-and-drop that a
+`drag` starts in the window's app runs within the window, see
+[Drag-and-drop](#drag-and-drop)) and
 `keyboard` (`yes`, or `x11-focus` when X11 input depends on which window has
 the focus). They are observations, not reservations. `act` checks `hold`
-before sending and again once it holds both [locks](#concurrency). The
-plugin's `dnd` capability is left out, see [Actions](#actions).
+before sending and again once it holds both [locks](#concurrency). `dnd` is
+the plugin's `privateDnd`: its `dnd`, the active window, whose drags Hyprland
+runs with the user's pointer, lacks `hold`.
 
 Every call first checks that the plugin is loaded and has interface 4
 (`plugin_missing`, `plugin_version`).
@@ -615,11 +618,53 @@ every character with the current keymap, and the pointer regions by
 `hyprmasq-input` once it has connected. These last checks run after the locks
 are taken, but they too fail the call with nothing sent.
 
-A `drag` presses, moves and releases, which works for sliders and selections.
-A Wayland drag-and-drop that the application starts is cancelled: the plugin
-lets only the active window start one (its `dnd` capability), and the active
-window lacks `hold`, which `act` needs for a drag. So `windows` does not report
-`dnd`.
+A `drag` presses, moves and releases, which works for sliders and selections,
+and for widgets that drag with plain pointer motion.
+
+### Drag-and-drop
+
+A `drag` can also start the app's own drag-and-drop, such as an HTML5 drag in
+a browser, a kanban card, or a file or a tab in a GTK or Qt app. On a window
+with the `dnd` capability, it runs as a private drag within the window's app
+(see [Drag-and-drop in docs/usage.md](usage.md#drag-and-drop)): the drag
+follows the `drag`'s motion, drops at its end over the window's own surfaces,
+and the app passes the data to itself. It never reaches another window, also
+not one of the same app, and the user's pointer and focus stay where they are.
+The user's own input to the app cancels it. On a window without `dnd`, and
+for a drag that cannot run privately, the plugin cancels it.
+
+The plugin's wait does not end while a drag of the batch goes on, before its
+drop or until the app confirms the drop, so `act` waits through it within its
+deadline, then for the window to settle, and captures it. An `act` that
+presses a button, with a `click` or a `drag`, reads the plugin's drag record
+before the input and after the wait, and reports a drag that the app started.
+A drag that was still going on when the call started counts too, so an `act`
+after one that left a drag pending, also one without actions, waits for it
+and reports how it ended:
+
+- `· drag-and-drop finished`: the app took the drop and confirmed it. The
+  shot shows what it did with it.
+- `· drag-and-drop cancelled to protect the user's input`: the plugin
+  cancelled it before it started, with the reason in the hint, such as a
+  window that shares its app with the window the user works in. Nothing was
+  dropped; the hint says to move the item without dragging, through cut and
+  paste, a menu, buttons, keyboard commands or a mode that drags with plain
+  pointer motion, or to ask the user.
+- `· drag-and-drop cancelled (REASON)`: the private drag ended without a drop,
+  such as `rejected` when it ended over a place that took nothing, `no_target`
+  outside the window, or `user_input` when the user's input reached the app.
+  The hint says why and to look at the shot before dragging again.
+- `· drag-and-drop unconfirmed (timeout)`: it dropped, but the app did not
+  confirm it within 10 seconds, so whether it took the item is not known. The
+  hint says to look before repeating anything, as a repeated move may move the
+  item twice.
+- `· drag-and-drop pending`, with `: dropped, not yet confirmed` after the
+  drop: it had not ended at the deadline. The hint says to look at the shot,
+  and to wait with an `act` without actions.
+
+`actions.drag_and_drop` carries the same (see [Results](#results)). When the
+cancel or the outcome explains why nothing changed, the hint says so in place
+of the hints that guess at a missed input.
 
 ### Batching
 
@@ -1165,7 +1210,21 @@ action) when an action failed, and `shared_focus_returned` (`{"effect":
 "unknown"}`) and `interrupted` (`true`), the same event under its older name,
 only when the user's input took the shared keyboard focus back shortly after a
 shortcut (see [Shortcuts beside the user's window](#shortcuts-beside-the-users-window)).
-Neither says whether the shortcut took effect.
+Neither says whether the shortcut took effect. `actions.drag_and_drop` is
+there only when the window's app started a drag-and-drop during a batch with a
+`click` or a `drag` (see [Drag-and-drop](#drag-and-drop)): `outcome`
+(`finished`, `cancelled`, `unconfirmed` or `pending`), `phase` for a pending
+one (`active` before the drop, `dropped` after it), `private` (it ran within
+the app), `reason` of a cancelled or unconfirmed one, as the plugin's `drag`
+names it, and `count` when the app started more than one. With several, or
+when a `drag` of the batch started none, as when the app was not ready to
+start its drag-and-drop, it also has `finished`, `cancelled` (with `reasons`),
+`unconfirmed`, `pending` and `none`, the drags that started none, and
+`outcome` is `finished` only when every drag of the batch finished, and
+`partial` when they did not all end alike, such as an unconfirmed drop and a
+cancel: the summary then says `· drag-and-drop: 6 finished,
+2 drags started none`, and the hint to drag again only the items that did
+not move.
 `wait.commits` counts the commits since the baseline, and `wait.quiet_ms` how
 long the window had been quiet when the wait ended. `wait.again` is there only
 when the window drew again during the [watch](#phases) after it settled. An error adds `error`
@@ -1204,7 +1263,7 @@ The other tools answer in the same way:
 
 | Tool | Text | Structured content |
 | --- | --- | --- |
-| `windows` | One line per window: `ADDR · CLASS "TITLE" · workspace NAME (hidden\|visible) · W×H [· resizing (not yet redrawn at its new size)] [· xwayland] [· launched] [· opened by your input to ADDR[, not yet reported]] [· lease N s (this session\|another session)] [· lacks lease, hold] [· keyboard x11-focus]`, naming only what the window lacks of `lease`, `hold` and `keyboard yes`, so a line without them has them all, and `capabilities unknown` when the plugin did not answer for it. With `match` and no window matching: `no window has "TEXT" in its class or title, of N windows`. Then a line on how a wait ended, if it did not find a window at once, `late window ADDR (…) on workspace NAME (…)` for a late window that `match` leaves out, `shot sN W×H of window ADDR` for the shot of the one window listed and `shot sN W×H of late window ADDR` for that of each late window, in the order of the images, and the hint: the one about a shot's older frame, as for `screenshot`, and those about late windows, as for `act`. | `{"windows": [...]}`, with `stable_id`, `pid`, `capabilities` `{"lease", "hold", "keyboard"}`, `shot` for a window with one and every other fact of the lines; `late_windows` when there are any, as for `act`; `wait` `{"ended", "elapsed_ms"}` with `wait_ms`; `summary` with the lines after those of the windows, when there are any, such as the one that says why it lists none; and `hint` |
+| `windows` | One line per window: `ADDR · CLASS "TITLE" · workspace NAME (hidden\|visible) · W×H [· resizing (not yet redrawn at its new size)] [· xwayland] [· launched] [· opened by your input to ADDR[, not yet reported]] [· lease N s (this session\|another session)] [· lacks lease, hold, dnd] [· keyboard x11-focus]`, naming only what the window lacks of `lease`, `hold`, `dnd` and `keyboard yes`, so a line without them has them all, and `capabilities unknown` when the plugin did not answer for it. With `match` and no window matching: `no window has "TEXT" in its class or title, of N windows`. Then a line on how a wait ended, if it did not find a window at once, `late window ADDR (…) on workspace NAME (…)` for a late window that `match` leaves out, `shot sN W×H of window ADDR` for the shot of the one window listed and `shot sN W×H of late window ADDR` for that of each late window, in the order of the images, and the hint: the one about a shot's older frame, as for `screenshot`, and those about late windows, as for `act`. | `{"windows": [...]}`, with `stable_id`, `pid`, `capabilities` `{"lease", "hold", "dnd", "keyboard"}`, `shot` for a window with one and every other fact of the lines; `late_windows` when there are any, as for `act`; `wait` `{"ended", "elapsed_ms"}` with `wait_ms`; `summary` with the lines after those of the windows, when there are any, such as the one that says why it lists none; and `hint` |
 | `screenshot` | `shot sN W×H · window ADDR W×H`, with ` · zoom of sM at X,Y W×H` after the shot for a zoom, and ` (stale: not yet redrawn at its new size)` after the shot when it shows an older frame, or ` (may be stale: not redrawn within N ms)` or ` (may be stale: no time to redraw)` when the window was starved and did not draw. Then the [late windows](#late-windows), as for `act`. | `{"summary": "...", "shot": {...}}`, and `late_windows` when there are any |
 | `launch` | `launched ADDR CLASS "TITLE" · pid N · workspace NAME · settled after N ms · shot sN W×H`, or `still resizing after N ms` when the window had not caught up with a resize, `still drawing after N ms`, or `not settled after N ms, no redraw` when input from elsewhere kept the window from counting as quiet, with ` (stale: not yet redrawn at its new size)` or ` (may be stale: …)` after the shot as for `screenshot`, then other new windows. The hint names the windows on its workspace whose size changed. | `{"summary": "...", "window": {...}, "wait": {...}, "shot": {...}, "new_windows": [...]}` |
 | `release` | `lease released; ADDR stays open`, `lease of another session released; ADDR stays open`, or `no lease was held on ADDR`. | `{"summary": "...", "released": true}` |
@@ -1644,11 +1703,14 @@ and plain-text errors still start with `error:`.
 
 `interface` increases with every incompatible change to these commands. New
 fields in replies are compatible: `socketId`, `resizing`, `starved`,
-`interrupted` and the `stableId` of `source` came without a new interface. The
+`interrupted`, `drag`, `privateDnd`, the `stableId` of `source` and the
+`drags` option of `wait` came without a new interface. The
 server reads replies without `socketId` as from a plugin that names no sockets,
 without `resizing` as of a window that has caught up, without `starved` as of a
 window that is not starved, without `interrupted` as from a plugin that counts
-no interruptions, and a `source` without
+no interruptions, without `drag` as from a plugin that keeps no record of drags,
+whose `wait` it then gives no `drags`, without `privateDnd` as of a window
+without the capability, and a `source` without
 `stableId` as one that is gone: it cannot tell such a source from a later window
 at its address, so with that plugin it reports no
 [late windows](#late-windows) and no window to go back to.
@@ -1660,8 +1722,11 @@ The server refuses to run against another interface (`plugin_version`).
 {"ok":true,"address":"0x55d1c0a3e4b0","stableId":"1a","xwayland":false,
  "size":{"width":640,"height":400},"resizing":false,"starved":false,"scale":2,
  "socket":"/run/user/1000/hyprmasq/<instance>/0x55d1c0a3e4b0.eis","socketId":"9f3a61c2-3",
- "commits":123,"interrupted":0,"lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
- "capabilities":{"lease":true,"hold":true,"dnd":false,"keyboard":"yes"}}
+ "commits":123,"interrupted":0,
+ "drag":{"id":2,"phase":"finished","private":true,"reason":null,"started":1,"finished":1,"cancelled":1,"unconfirmed":0,
+         "ended":[{"id":1,"phase":"cancelled","reason":"shared_focus"},{"id":2,"phase":"finished","reason":null}]},
+ "lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
+ "capabilities":{"lease":true,"hold":true,"dnd":false,"privateDnd":true,"keyboard":"yes"}}
 ```
 
 - `stableId` is Hyprland's `m_stableID`, formatted as `hyprctl -j clients`
@@ -1689,14 +1754,39 @@ The server refuses to run against another interface (`plugin_version`).
   starved, also once it waits for a frame callback again. A screenshot answers
   the callbacks once, after the image, which leaves a window starved that asks
   for the next one.
-- `socket`, `socketId`, `commits` and `interrupted` are `null` without an open
-  socket. `lease` is `null` when none is held.
+- `socket`, `socketId`, `commits`, `interrupted` and `drag` are `null`
+  without an open socket. `lease` is `null` when none is held.
 - `interrupted` counts the times the user's own key, modifier or button to the
   window's Wayland connection took the keyboard focus back from the window
   within a quarter of a second of a key it pressed with Ctrl, Alt or Super
   held, a function key, Escape or a media key. It counts that event, not
   shortcuts that failed: the shortcut may have run before, see
   [Shortcuts beside the user's window](#shortcuts-beside-the-users-window).
+- `drag` records the Wayland drag-and-drop operations that the window's app
+  started from the window, or from its popups and subsurfaces, while the
+  window was not the active one and the socket was open. `id` counts them, and
+  is the id of the last one. `phase` tells how the last one went: `none`
+  before the first, `active` until the drop, `dropped` until the destination
+  confirms it, `finished` once it has, `cancelled`, and `unconfirmed` when the
+  destination did not confirm the drop within 10 seconds. `private` tells
+  whether it ran as a private drag, within the app (see
+  [Drag-and-drop in docs/usage.md](usage.md#drag-and-drop)), `reason` why it
+  was cancelled or unconfirmed, and `started`, `finished`, `cancelled` and
+  `unconfirmed` count the private drags, the ones the destination confirmed,
+  the cancelled ones, also those cancelled before they could start, and the
+  unconfirmed ones. Every drag that ends counts once, so a drag that started
+  and ended between two reads still shows in the counters. Reasons of a drag
+  that could not start: `x11`, `shared_focus`, `user_drag`, `serial` (no held
+  press of the socket started it), `version`, `icon`, `busy` (an earlier
+  private drag of the app has not dropped yet), `limit` and
+  `source_gone`. Reasons of a private drag: `rejected`, `no_target`,
+  `destination`, `user_input`, `source_gone`, `device_gone`, `sender_gone`,
+  `window_moved`, `other_window`, `icon`, `limit` and `timeout`. `ended`
+  lists how the last 32 drags that ended went, `{"id", "phase", "reason"}`,
+  the latest last, so that a caller sees each one that ended since its last
+  read, also one that ended while a later one was the last. Plain text
+  prints a `drag:` line such as
+  `2 finished private started=1 finished=1 cancelled=1 unconfirmed=0`.
 - `socketId` names the socket: it differs for every socket the plugin opens,
   also for one opened again for the same window, and in every load of the
   plugin. Plain text prints it as a `socketId:` line.
@@ -1714,8 +1804,13 @@ The server refuses to run against another interface (`plugin_version`).
     frame after that enters the window again with no keys held, only with the
     modifier state of the keys the sender holds, so of the keys of a chord
     only modifiers stay pressed.
-  - `dnd`: the window is the active window. Drags from other driven windows
-    are cancelled. `hyprmasq-mcp` does not report it.
+  - `dnd`: the window is the active window, whose drags Hyprland runs with
+    the user's pointer. `hyprmasq-mcp` does not report it.
+  - `privateDnd`: a drag-and-drop that emulated input starts in the window
+    runs as a private drag: a Wayland window that is not the active one, on a
+    connection with neither the real keyboard focus, the real pointer focus
+    nor a touch held down, with a data device of version 3 or later. `hyprmasq-mcp` reports
+    it as `dnd`.
   - `keyboard`: `x11-focus` for X11 windows of Hyprland's XWayland or
     xwayland-satellite whose socket was opened without `force`, or that have
     no socket, otherwise `yes`.
@@ -1879,7 +1974,7 @@ same commits.
   draw.
 - A box larger than the GPU's texture limit is `internal`.
 
-**`wait <addr> since COMMITS [expect MS] [quiet MS] [deadline MS] [id WORD] [ignore animations]`**
+**`wait <addr> since COMMITS [expect MS] [quiet MS] [deadline MS] [id WORD] [ignore animations] [drags ID]`**
 
 The new form. `wait <addr> [QUIET-MS [TIMEOUT-MS]]` keeps working as before.
 Needs an open socket (`no_socket` otherwise) and a request through Hyprland's
@@ -1906,6 +2001,12 @@ socket (`unsupported` otherwise). Each option may come once, in any order.
   COMMITS that is not part of an animation: it ends at once when one came
   before the wait, and animation does not end it. Another value is
   `invalid_arguments`.
+- With `drags ID`, the id of the last drag-and-drop in `state`'s `drag` that
+  the caller knows of, neither phase ends while a later one goes on, before
+  its drop or until the destination confirms it, or while any private drag of
+  the socket has not ended once a later one came, such as one refused as
+  `busy`, so only the deadline ends the wait then. Its end, also a cancel before it could start, ends the change
+  phase at once, as a commit does, and the quiet phase counts from it too.
 - COMMITS above the counter is `invalid_arguments`.
 - A socket that closes during the wait does not end it.
 - The wait never blocks Hyprland's main thread. In a `hyprctl --batch` whose

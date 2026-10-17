@@ -1,8 +1,10 @@
 #pragma once
 #include "Error.hpp"
 #include "Windows.hpp"
+#include <hyprland/src/helpers/signal/Signal.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <cstdint>
+#include <deque>
 #include <expected>
 #include <memory>
 #include <optional>
@@ -32,6 +34,37 @@ namespace hyprmasq {
         std::string owner;
     };
 
+    // The drag-and-drop operations that a driven window's app started while its socket was open, see `drag` in
+    // docs/mcp.md. A wait holds it to see them end.
+    struct SDragRecord {
+        uint64_t    id        = 0;      // counts them, so the last one has this id; 0 before the first
+        std::string phase     = "none"; // of the last one: none, active, dropped, finished, cancelled or unconfirmed
+        bool        privately = false;  // the last one ran as a private drag, see Drag.hpp
+        std::string reason;             // why the last one was cancelled or unconfirmed
+        // Of them, the private drags that started, that the destination finished, and that were cancelled, also
+        // before they started, or that the destination did not finish in time after the drop.
+        uint64_t        started = 0, finished = 0, cancelled = 0, unconfirmed = 0;
+        Time::steady_tp endedAt    = {}; // when the last one ended
+        uint64_t        unfinished = 0;  // private drags that have not ended, also ones before the last
+        // How the last ones ended, the latest last, so that a caller sees each one that ended since it last looked.
+        struct SEnded {
+            uint64_t    id = 0;
+            std::string phase, reason;
+        };
+        std::deque<SEnded> ended;
+        CSignalT<>         changed; // after any of these changed
+        // Records that the drag with the id ended so.
+        void end(uint64_t drag, std::string_view how, std::string_view why) {
+            ended.push_back({.id = drag, .phase = std::string{how}, .reason = std::string{why}});
+            if (ended.size() > 32)
+                ended.pop_front();
+        }
+        // A private drag has not ended: the last one, or one before it, as when the last was refused as busy.
+        bool pending() const {
+            return unfinished > 0;
+        }
+    };
+
     struct SSocketState {
         std::string                          path;
         std::string                          id; // of this socket, see SEisInfo
@@ -42,7 +75,8 @@ namespace hyprmasq {
         std::optional<SLeaseState>           lease;                // while one is held
         // Times the user's own input to the window's Wayland connection took the keyboard focus back from the window
         // before a shortcut or function key had settled, which may have kept it from taking effect.
-        uint64_t interrupted = 0;
+        uint64_t                     interrupted = 0;
+        std::shared_ptr<SDragRecord> drags; // kept while the socket is open
     };
     // For a window with a socket. Main thread only.
     std::optional<SSocketState> socketState(const PHLWINDOW& window);
@@ -62,7 +96,8 @@ namespace hyprmasq {
     // What input can do in a window at the moment, see `state` in docs/mcp.md.
     struct SCapabilities {
         bool lease = false, hold = false, dnd = false;
-        bool x11Focus = false; // keys follow X input focus, which the plugin moves
+        bool privateDnd = false; // a drag-and-drop that emulated input starts runs as a private drag, see Drag.hpp
+        bool x11Focus   = false; // keys follow X input focus, which the plugin moves
     };
     SCapabilities capabilities(const PHLWINDOW& window);
 }

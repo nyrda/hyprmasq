@@ -97,6 +97,10 @@ namespace hyprmasq::wait {
         std::string        id;
         // The change phase waits for a commit that is not part of an animation after the baseline.
         bool ignoreAnimations = false;
+        // The id of the last drag-and-drop of the socket that the caller knows of. While a later one goes on, before
+        // its drop or the destination's finish, neither phase ends. Its end ends the change phase, as a redraw does,
+        // and the quiet phase counts from it.
+        std::optional<uint64_t> drags;
     };
 
     struct SChangeResult {

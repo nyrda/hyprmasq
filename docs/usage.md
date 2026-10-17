@@ -333,8 +333,10 @@ hyprctl -j hyprmasq state "$addr"
 {"ok":true,"address":"0x55d1c0a3e4b0","stableId":"1a","xwayland":false,
  "size":{"width":640,"height":400},"resizing":false,"starved":false,"scale":2,
  "socket":"/run/user/1000/hyprmasq/<instance>/0x55d1c0a3e4b0.eis","socketId":"9f3a61c2-3",
- "commits":123,"interrupted":0,"lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
- "capabilities":{"lease":true,"hold":true,"dnd":false,"keyboard":"yes"}}
+ "commits":123,"interrupted":0,
+ "drag":{"id":0,"phase":"none","private":false,"reason":null,"started":0,"finished":0,"cancelled":0,"unconfirmed":0,"ended":[]},
+ "lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
+ "capabilities":{"lease":true,"hold":true,"dnd":false,"privateDnd":true,"keyboard":"yes"}}
 ```
 
 - `stableId` is the `stableId` of `hyprctl -j clients`. It changes when a new
@@ -360,8 +362,8 @@ hyprctl -j hyprmasq state "$addr"
   window is not starved, also when it waits for a frame callback again. An
   application with nothing new to draw is starved too, and a
   `wait … since` with `expect` ends `no_redraw` for it.
-- `socket`, `socketId`, `commits` and `interrupted` are `null` without an open
-  socket. `socketId` names the socket that `commits` counts for; see
+- `socket`, `socketId`, `commits`, `interrupted` and `drag` are `null`
+  without an open socket. `socketId` names the socket that `commits` counts for; see
   [The commit counter](#the-commit-counter). `lease` is `null` when none is
   held.
 - `interrupted` counts the times your own input to the window's Wayland
@@ -370,6 +372,25 @@ hyprctl -j hyprmasq state "$addr"
   that failed: the app may have run the shortcut before, or may run one so late
   that it misses the focus without being counted. See
   [How input is delivered](#how-input-is-delivered).
+- `drag` records the drag-and-drop operations that the window's app started
+  while the window was not the active window and the socket was open, see
+  [Drag-and-drop](#drag-and-drop). `id` counts them, and the rest is about the
+  last one, then the counters:
+  - `phase`: `none` before the first, `active` until its drop, `dropped` until
+    the destination confirms it, then `finished`, `cancelled` or
+    `unconfirmed`, when the destination did not confirm it within 10 seconds
+    of the drop.
+  - `private`: it ran as a private drag. One that the plugin cancelled before
+    it could start has `false`.
+  - `reason`: why it was cancelled or unconfirmed, or `null`.
+  - `started` counts the private drags, `finished` those that the destination
+    confirmed, `cancelled` those cancelled before or after they started, and
+    `unconfirmed` the rest that ended.
+  - `ended` lists how the last 32 that ended went, each with its `id`, `phase`
+    and `reason`, the latest last, also those that ended while a later one was
+    the last.
+- `source` is the window that this one came from, as the plugin found it when
+  the window mapped, or `null`; see [New windows](#new-windows).
 - `source` is the window that this one came from, as the plugin found it when
   the window mapped, or `null`; see [New windows](#new-windows).
 - `capabilities` describe what input can do in the window at the moment:
@@ -378,7 +399,8 @@ hyprctl -j hyprmasq state "$addr"
 | --- | --- |
 | `lease` | The window is a Wayland window that does not share its Wayland connection with the window that has the real keyboard focus. See [Focus lease](#focus-lease). |
 | `hold` | The window shares its Wayland connection with neither the real keyboard focus nor the real pointer focus. Otherwise the plugin hands the connection's pointer focus back to your window after every input frame, which releases held buttons, so drags do not work, and its keyboard focus once the window's keys are up and a shortcut among them has settled, or at once when your own input to the connection comes, which releases held keys and gives a click with modifiers the modifiers of your keyboard. |
-| `dnd` | The window is the active window. Drags from other driven windows are cancelled. |
+| `dnd` | The window is the active window, whose drag-and-drop Hyprland runs with your pointer. |
+| `privateDnd` | A drag-and-drop that emulated input starts in the window runs as a private drag, see [Drag-and-drop](#drag-and-drop): it is a Wayland window that is not the active one, its connection has neither the real keyboard focus, the real pointer focus nor a touch held down, and it has a data device of version 3 or later. |
 | `keyboard` | `x11-focus` for windows of Hyprland's XWayland or of xwayland-satellite, unless their socket was opened with `force`: their keys depend on which window has the X focus. Otherwise `yes`. |
 
 Plain `hyprctl hyprmasq state` prints the same as `key: value` lines.
@@ -899,13 +921,95 @@ windows, the app sees one of them lose focus: a browser fires `blur` and
 
 Hidden windows normally stop receiving frame callbacks, so many applications
 stop redrawing. The plugin sends a hidden target frame callbacks every 16 ms
-for about a second after input, for as long as a sender is connected and has
-its devices, which `hyprmasq-input` keeps until it exits, also through a
+with its input, also while input comes faster than that, as a drag's motion
+does, and for about a second after it, for as long as a sender is connected
+and has its devices, which `hyprmasq-input` keeps until it exits, also through a
 `sleep`, and during a `wait … since` for as long as the wait runs. So the next
 screenshot shows the result. The plain `wait` sends none of its own. A window
 that has got none of these yet, such as an application that started on a
 hidden workspace, may not have drawn its content: `state` reports it as
 `starved`.
+
+## Drag-and-drop
+
+Hyprland runs a Wayland drag-and-drop as a grab of the seat: the drag follows
+your pointer, and your button drops it. So the plugin never lets a driven
+window that is not the active window start one through Hyprland. When emulated
+input starts it, the plugin runs it as a private drag within the window's own
+app instead, and otherwise cancels it. Either way `state` records it in `drag`
+(see [Window state](#window-state)), with the reason of a cancel. The app
+learns of a cancel as of a drop that nothing accepted.
+
+A drag runs privately only when all of these hold, which the
+`privateDnd` capability sums up, otherwise it is cancelled with the reason in
+brackets:
+
+- The window is a native Wayland window (`x11` for windows of XWayland and
+  xwayland-satellite, whose drags are XDND within their X server).
+- Its connection has neither your keyboard focus nor your pointer focus, nor a
+  finger of yours held down (`shared_focus`): your input to the app would
+  reach the drag.
+- You are not dragging something yourself (`user_drag`).
+- The app's `start_drag` request carries the serial of a press that the
+  window's socket sent, whose button is still held (`serial`). Hyprland's
+  handler of the request drops its serial, so the plugin wraps the handler of
+  the app's data devices when a press goes to the window, keeps Hyprland's
+  handler, and puts it back when it unloads. The serial is that of the press
+  that Hyprland sent, which the plugin reads as the display's serial right
+  after it; each one starts at most one drag.
+- The data device and the data source have version 3 or later (`version`).
+- The icon surface has no role (`icon`), no other private drag of the app is
+  running before its drop (`busy`), and the app has destroyed the offers of
+  earlier drags, at most 64 kept (`limit`). A drop that still waits for its
+  destination does not hold up the next drag; a wait goes on until both have
+  ended.
+
+A drag without a source, which the protocol allows within an app that passes
+its data itself, runs in the same way, after the same checks: it enters the
+window's surfaces without an offer, and the release ends it with a leave,
+without a drop, as `finished`. Hyprland's own handler cannot take such a drag,
+so one from a window that is not driven, or is active, is ignored.
+
+A private drag:
+
+- Takes the window's pointer: the pointer leaves the window's surface, without
+  the release of the held button that Hyprland sends otherwise, and the
+  sender's motion goes to the drag, until the button's release drops it.
+- Is offered only on the app's data device that started it, and enters only
+  the window's own surfaces, its subsurfaces and popups, under the emulated
+  pointer, with a new offer for each surface it enters. A point outside the
+  window and its popups is over none; a release there cancels it
+  (`no_target`). It never reaches another app, nor another window of the same
+  app.
+- Offers the source's types and the actions copy and move, and chooses the
+  destination's preferred one when the source allows it. It does not offer ask,
+  which needs a choice after the drop, so a destination that only asks takes
+  nothing. A release over a surface whose offer accepted no type or no action
+  cancels the drag (`rejected`).
+- Passes the destination's file descriptor to the source, which writes the
+  data into it. The compositor never reads or writes the data, and does not
+  wait for it.
+- Ends `finished` when the destination confirms the drop, `cancelled` when
+  the destination destroys the offer without confirming it (`destination`),
+  and `unconfirmed` when it has not confirmed it 10 seconds after the drop
+  (`timeout`): the source then gets a cancel, so a move keeps its item, and
+  the destination may or may not have taken the data.
+- Is cancelled before its drop when the app destroys its source or data device
+  (`source_gone`, `device_gone`), the sender exits or stops emulating
+  (`sender_gone`), the window moves or is resized, which replaces the pointer
+  device (`window_moved`), input goes to another window of the same app
+  (`other_window`), no input comes for 10 seconds (`timeout`), the icon takes
+  another role (`icon`), or the window or the socket closes or the plugin
+  unloads. A drag that dropped outlives the sender, the socket and the window,
+  until the destination confirms it or 10 seconds pass.
+- Gives way to you: your pointer or touch entering any surface of the app, the
+  keyboard focus moving to the app, or a drag of yours starting from it cancels
+  the private drag (`user_input`) before Hyprland delivers that input.
+
+The plugin sends the icon surface frame callbacks every 16 ms while the drag
+runs and once at its end, so that an app that animates its icon does not wait.
+Screenshots do not show the icon; what the app draws in its window during the
+drag, such as a page's drop highlight, they show.
 
 ## Virtual cursor
 
@@ -1145,7 +1249,18 @@ loss close once the sender exits. Open them and pick the entry in one run.
 - A driven window cannot take over your real input. The plugin invalidates the
   button serials it generates, so they cannot start interactive moves or
   resizes. For a driven window that is not focused, it also suppresses popup
-  grabs and cancels drag-and-drop. The popups themselves still open.
+  grabs, and keeps its drag-and-drop off Hyprland's drag, a grab of the seat
+  that would take your pointer. The popups themselves still open.
+- The drag-and-drop of a driven window that is not focused never moves your
+  pointer, changes your keyboard focus, or grabs your seat, and nothing it
+  does reaches another app. One that the window's socket's held press started
+  runs privately: only within that window, on its own app's connection, and
+  only while neither your keyboard focus, your pointer nor your touch is on that
+  connection. Your pointer or touch reaching the app, the keyboard focus moving
+  to it, or a drag of yours from it cancels the private drag before the app
+  gets your input. Every other drag of such a window is cancelled. The data of
+  a drop goes from the app to itself through a file descriptor that the plugin
+  passes on without reading. See [Drag-and-drop](#drag-and-drop).
 - An app cannot take your focus by opening a window in response to emulated
   input: the window opens silently on the workspace of the window it came from,
   and is only marked urgent when it asks for activation. See
@@ -1185,6 +1300,12 @@ loss close once the sender exits. Open them and pick the entry in one run.
   table the sender uses. The windows of xwayland-satellite all report the
   satellite's process, so their locale is not known.
 - Reconnect senders after changing the keyboard layout or keymap.
+- A drag-and-drop runs only within the driven window's own surfaces: drops
+  into another window, of the same app or of another, are cancelled, and so
+  are drags of X11 apps, drags with the ask action only, and drags that start
+  while the app's connection shares your focus. A drag without a source is
+  ignored in an app whose window is not driven, or is active. Screenshots do
+  not show a drag's icon.
 - Held keys, key repeat, drags and clicks with modifiers are unreliable when
   the target shares a Wayland connection with the focused window or with the
   window under the real pointer. Shortcuts there may do nothing when you type

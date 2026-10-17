@@ -73,6 +73,22 @@ descriptions and results explain the rest. What `act` returns:
   shortly after your shortcut, such as `ctrl+l`. The shortcut may or may not
   have taken effect. Look at the shot: go on if it shows the result, and if it
   is unclear, verify the state before repeating the action.
+- `drag-and-drop finished`: your `drag` started the app's own drag-and-drop,
+  such as moving a card on a web page, and the app took the drop. It works in
+  windows with the `dnd` capability, and drops only within that window; check
+  the shot for where the item went.
+- `drag-and-drop cancelled to protect the user's input`: the app started a
+  drag-and-drop that hyprmasq could not run without the user's pointer, for
+  the reason in the hint. Nothing was dropped; do not repeat the drag. Move
+  the item without dragging, through what the app offers, such as cut and
+  paste, a menu, buttons or keyboard commands, or ask the user to do the drag.
+- `drag-and-drop: 6 finished, 2 drags started none`: of a batch of drags, some
+  did not go through. Look at the shot and drag again only the items that did
+  not move.
+- `drag-and-drop cancelled (rejected)` or `(no_target)`: the drop missed a
+  place that takes the item; aim again from the shot. `(user_input)`: the
+  user's input reached the app; try later. `unconfirmed` or `pending`: look at
+  the shot before repeating, since a second move may move the item twice.
 - A full shot, which says why it came instead: without an earlier shot, after
   a resize or a change of popups past the window's edge, for a change of more
   than 35% of the window or too scattered to join into 5 regions, and after 10

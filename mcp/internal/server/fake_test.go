@@ -237,6 +237,9 @@ type fakeWindow struct {
 	Source *hypr.Source
 	// The plugin's count of the user's input that took the keyboard back before a shortcut had settled.
 	Interrupted int64
+	// The plugin's record of the drag-and-drop operations of the window's app, which state reports with a socket, or
+	// nil as from a plugin that keeps none.
+	Drag *hypr.Drag
 }
 
 // fakeHyprland serves Hyprland's request socket with the plugin commands of the contract, and its event socket with
@@ -378,7 +381,7 @@ func (f *fakeHyprland) addWindow(w *fakeWindow) *fakeWindow {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if w.Caps.Keyboard == "" {
-		w.Caps = hypr.Capabilities{Lease: true, Hold: true, Keyboard: "yes"}
+		w.Caps = hypr.Capabilities{Lease: true, Hold: true, PrivateDnD: true, Keyboard: "yes"}
 	}
 	if w.Workspace.Name == "" {
 		w.Workspace = hypr.Workspace{ID: 1, Name: "1"}
@@ -536,6 +539,9 @@ func (f *fakeHyprland) state(w *fakeWindow) map[string]any {
 		st["socketId"] = w.socketID()
 		st["commits"] = w.Commits
 		st["interrupted"] = w.Interrupted
+		if w.Drag != nil {
+			st["drag"] = *w.Drag
+		}
 	}
 	if w.Lease != nil {
 		st["lease"] = w.Lease
@@ -857,7 +863,7 @@ func (e *testEnv) setExe(pid int, exe string) {
 
 func (e *testEnv) window(address, stableID string, width, height float64, options ...func(*fakeWindow)) *fakeWindow {
 	w := &fakeWindow{Window: hypr.Window{Address: address, StableID: stableID, Class: "test.app", Title: "Test", PID: 4242}, Width: width, Height: height,
-		Caps: hypr.Capabilities{Lease: true, Hold: true, Keyboard: "yes"}}
+		Caps: hypr.Capabilities{Lease: true, Hold: true, PrivateDnD: true, Keyboard: "yes"}}
 	for _, option := range options {
 		option(w)
 	}

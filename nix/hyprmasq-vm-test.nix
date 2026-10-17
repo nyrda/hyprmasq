@@ -25,6 +25,7 @@ let
     };
   };
   focusProbe = pkgs.callPackage ./focus-probe.nix { };
+  dndProbe = pkgs.callPackage ./dnd-probe.nix { };
   python = pkgs.python3.withPackages (ps: [ ps.pillow ]);
 
   testConfig = pkgs.writeText "hyprmasq-test.lua" ''
@@ -89,6 +90,7 @@ pkgs.testers.runNixOSTest {
         # A virtual pointer, whose clicks are real input to Hyprland.
         pkgs.wlrctl
         focusProbe
+        dndProbe
         pkgs.xterm
         pkgs.xev
         pkgs.xdotool

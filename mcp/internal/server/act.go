@@ -386,6 +386,7 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 	}
 
 	var base baseline
+	drags := dragBaseline(st)
 	applied := false
 	if len(r.batch) > 0 {
 		var locale targetLocale
@@ -411,7 +412,7 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 			res := s.finish(ctx, r, out, cur, end, region, applied, before)
 			return withError(res, te, out, r.batch)
 		}
-		st, base = cur, currentBaseline(cur)
+		st, base, drags = cur, currentBaseline(cur), dragBaseline(cur)
 	} else {
 		// Without a shot, the baseline is read when the call starts.
 		base = currentBaseline(st)
@@ -434,7 +435,7 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 	}
 
 	p.set("waiting for the window to settle")
-	wait, err := s.waitForWindow(ctx, r, base, sendBy)
+	wait, err := s.waitForWindow(ctx, r, base, drags, sendBy)
 	if err != nil {
 		te := asToolError(err)
 		if !applied {
@@ -639,6 +640,14 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	if applied && !closed && !cancelled && s.focusReturned(capCtx, r, st) {
 		out.Actions.SharedFocusReturned, out.Actions.Interrupted = &focusReturnedOut{Effect: "unknown"}, true
 	}
+	// A drag that was going on before the call counts also without input.
+	if out.Actions != nil && !closed && !cancelled && (applied || len(r.batch) == 0) {
+		waited := ""
+		if out.Wait != nil {
+			waited = out.Wait.socket
+		}
+		out.Actions.DragAndDrop = s.dragged(capCtx, r, st, waited)
+	}
 
 	out.Summary = summaryLine(out, r.batch)
 	wait, unchanged := waitHint(out.Wait, r.batch, r.shotID, out.Actions, out.Shot), noChangeHint(out, r.batch)
@@ -649,6 +658,19 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		focus, unchanged = focusReturnedHint(out.Shot), ""
 		if out.Wait != nil && out.Wait.Ended == "no_redraw" {
 			wait = ""
+		}
+	}
+	// A drag-and-drop that did not go through tells why the window may not have changed, which the hints about a
+	// missing redraw or change would only guess at.
+	drag := ""
+	if out.Actions != nil && out.Actions.DragAndDrop != nil {
+		drag = dragHint(out.Actions.DragAndDrop, out.Shot)
+		if drag != "" {
+			unchanged = ""
+			// A drag that goes on keeps the wait from ending before the deadline.
+			if out.Wait != nil && (out.Wait.Ended == "no_redraw" || out.Wait.Ended == "timeout" && out.Actions.DragAndDrop.Outcome == "pending") {
+				wait = ""
+			}
 		}
 	}
 	// That the window did not change says nothing about the input when it opened a window.
@@ -666,7 +688,7 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		}
 		wait = joinHints(wait, closedHint(out.Source))
 	}
-	out.Hint = joinHints(focus, wait, unchanged, out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows),
+	out.Hint = joinHints(focus, drag, wait, unchanged, out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows),
 		lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
 	if out.Actions != nil {
 		out.Hint = joinHints(out.Hint, out.Actions.composeNote)
@@ -688,6 +710,99 @@ func (s *Server) focusReturned(ctx context.Context, r *actRequest, st hypr.State
 	}
 	cur, err := s.hypr.State(ctx, r.window)
 	return err == nil && cur.StableID == st.StableID && deref(cur.SocketID) == deref(st.SocketID) && cur.Interrupted != nil && *cur.Interrupted > *st.Interrupted
+}
+
+// dragged tells how the drag-and-drop operations went that the window's app started during a batch that presses a
+// button, or that were going on before it, from the plugin's drag record before the input, in st, and now, of the
+// socket that the wait read, waited. The wait does not end while one goes on, so
+// one that has not ended by now is pending at the deadline. It is nil when the app started none, and for a plugin that
+// does not count them.
+func (s *Server) dragged(ctx context.Context, r *actRequest, st hypr.State, waited string) *dragOut {
+	base, socket, first := dragBaseline(st), deref(st.SocketID), int64(0)
+	if st.Drag != nil {
+		first = st.Drag.ID
+	}
+	// A socket that replaced st's during the wait counts its drags from its start, during the call. Input of a batch
+	// went to st's socket, so only a call without actions, which waited for those drags, reports them.
+	replaced := base != nil && len(r.batch) == 0 && waited != "" && socket != "" && waited != socket
+	if replaced {
+		base, socket, first = ptr(int64(0)), waited, 0
+	}
+	if base == nil || !replaced && !st.Drag.Pending() && !slices.ContainsFunc(r.batch, func(a action) bool { return a.Kind == "click" || a.Kind == "drag" }) {
+		return nil
+	}
+	cur, err := s.hypr.State(ctx, r.window)
+	if err != nil || cur.StableID != st.StableID || deref(cur.SocketID) != socket || cur.Drag == nil || cur.Drag.ID <= *base {
+		return nil
+	}
+	out := &dragOut{Outcome: cur.Drag.Phase, Private: cur.Drag.Private, Reason: cur.Drag.Reason}
+	if cur.Drag.Pending() {
+		out.Outcome, out.Phase = "pending", cur.Drag.Phase
+	}
+	// The ones that the app started during the call, which a drag still going on before it is not, and the drags of the
+	// batch that started none, such as one whose app did not start its drag-and-drop in time.
+	n := int(cur.Drag.ID - first)
+	none := max(0, countKind(r.batch, "drag")-n)
+	if (n > 1 || none > 0) && cur.Drag.Ended != nil {
+		out.Count, out.None = n, none
+		for _, e := range cur.Drag.Ended {
+			if e.ID <= first || e.ID > cur.Drag.ID {
+				continue
+			}
+			switch e.Phase {
+			case "finished":
+				out.Finished++
+			case "cancelled":
+				out.Cancelled++
+			case "unconfirmed":
+				out.Unconfirmed++
+			}
+			if e.Reason != "" && !slices.Contains(out.Reasons, e.Reason) {
+				out.Reasons = append(out.Reasons, e.Reason)
+			}
+		}
+		out.Pending = max(0, n-out.Finished-out.Cancelled-out.Unconfirmed)
+		// Finished only when every drag of the batch did, and one outcome only when all of them had it: a mix, such as
+		// an unconfirmed drop and a cancel, is partial, which keeps the uncertainty of the one that may have moved its
+		// item.
+		kinds := 0
+		for _, k := range []int{out.Finished, out.Cancelled, out.Unconfirmed, out.Pending, none} {
+			if k > 0 {
+				kinds++
+			}
+		}
+		if kinds > 1 {
+			out.Outcome, out.Phase = "partial", ""
+		}
+	} else if n > 1 {
+		out.Count = n
+	}
+	return out
+}
+
+func countKind(batch []action, kind string) int {
+	n := 0
+	for _, a := range batch {
+		if a.Kind == kind {
+			n++
+		}
+	}
+	return n
+}
+
+// dragBaseline is the id of the last drag-and-drop of the window's app in st that has ended, which a wait is told so
+// that it waits through the later ones, or nil from a plugin that does not count them. A drag that was still going on,
+// such as one that an earlier act left pending, counts as later, so that an act without actions waits for it and
+// reports how it ended.
+func dragBaseline(st hypr.State) *int64 {
+	if st.Drag == nil {
+		return nil
+	}
+	id := st.Drag.ID
+	if st.Drag.Pending() {
+		id--
+	}
+	return &id
 }
 
 // closedSource describes the window that the target came from, as the plugin found it when the target mapped, once the
@@ -1416,8 +1531,9 @@ func socketReplaced(base baseline, reply hypr.WaitReply, err error) bool {
 	return err == nil && base.socket != "" && reply.SocketID != nil && *reply.SocketID != base.socket
 }
 
-// waitForWindow waits for the window to redraw and settle, until sendBy at the latest.
-func (s *Server) waitForWindow(ctx context.Context, r *actRequest, base baseline, sendBy time.Time) (*waitOut, error) {
+// waitForWindow waits for the window to redraw and settle, until sendBy at the latest. A drag-and-drop after the one
+// with the id drags keeps it from ending while it goes on, and its end ends the change phase as a redraw does.
+func (s *Server) waitForWindow(ctx context.Context, r *actRequest, base baseline, drags *int64, sendBy time.Time) (*waitOut, error) {
 	expect := 0
 	if r.expectChange {
 		expect = r.expectMs
@@ -1431,12 +1547,16 @@ func (s *Server) waitForWindow(ctx context.Context, r *actRequest, base baseline
 			out.Ended, out.Summary, out.skipped = "timeout", waitSummary("timeout", false, false), true
 			return out, nil
 		}
-		reply, err = s.wait(ctx, r.window, hypr.WaitArgs{Since: base.commits, ExpectMs: expect, QuietMs: r.quietMs, DeadlineMs: int(remaining), ID: s.waitID()})
-		if base.commits == 0 || !socketReplaced(base, reply, err) || ctx.Err() != nil {
+		reply, err = s.wait(ctx, r.window, hypr.WaitArgs{Since: base.commits, ExpectMs: expect, QuietMs: r.quietMs, DeadlineMs: int(remaining), ID: s.waitID(), Drags: drags})
+		// A counter of 0 counts from the new socket's start already, but a drag id may be the old socket's.
+		if base.commits == 0 && (drags == nil || *drags == 0) || !socketReplaced(base, reply, err) || ctx.Err() != nil {
 			break
 		}
-		// The new socket opened after the baseline was read, so every commit it counted came after it.
+		// The new socket opened after the baseline was read, so every commit it counted came after it, and every drag.
 		base = baseline{}
+		if drags != nil {
+			drags = ptr(int64(0))
+		}
 	}
 	if err != nil {
 		var pe *hypr.Error

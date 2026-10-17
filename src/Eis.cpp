@@ -1,5 +1,6 @@
 #include "Eis.hpp"
 #include "Cursor.hpp"
+#include "Drag.hpp"
 #include "Hooks.hpp"
 #include "Launch.hpp"
 #include "Placement.hpp"
@@ -52,6 +53,7 @@ namespace hyprmasq {
         void*                                           originalKeyboardKey   = nullptr;
         void*                                           originalKeyboardMods  = nullptr;
         void*                                           originalPointerButton = nullptr;
+        void*                                           originalTouchDown     = nullptr;
         CHyprSignalListener                             monitorLayout;
 
         // How long a window of the connection with the real keyboard focus keeps the emulated focus after a command key,
@@ -76,6 +78,15 @@ namespace hyprmasq {
             }
         };
         template struct SFocusAccess<&CWLKeyboardResource::m_currentSurface, &CWLPointerResource::m_currentSurface>;
+        // The buttons that a pointer resource releases when it leaves its surface, outside Hyprland's own drags.
+        std::vector<uint32_t>& pressedOf(CWLPointerResource& pointer);
+        template <std::vector<uint32_t> CWLPointerResource::* Pressed>
+        struct SPressedAccess {
+            friend std::vector<uint32_t>& pressedOf(CWLPointerResource& pointer) {
+                return pointer.*Pressed;
+            }
+        };
+        template struct SPressedAccess<&CWLPointerResource::m_pressedButtons>;
 
         // True if focus is on a surface of the window's Wayland connection.
         bool sharesConnection(const PHLWINDOW& w, const WP<CWLSurfaceResource>& focus) {
@@ -206,14 +217,27 @@ namespace hyprmasq {
             bool keepingKeyboard = false, keepingPointer = false;
             // While the window keeps the emulated keyboard focus on the connection of the real focus, see keepKeyboard:
             // that connection's seat, and when it gives it back without further keys.
-            bool                keyboardKept = false;
-            WP<CWLSeatResource> keptSeat;
-            Time::steady_tp     keysSettled;
-            Time::steady_tp     lastCommand;     // the last press of a commandKey
-            uint64_t            interrupted = 0; // times the user's own input took the keyboard back before that one settled
+            bool                         keyboardKept = false;
+            WP<CWLSeatResource>          keptSeat;
+            Time::steady_tp              keysSettled;
+            Time::steady_tp              lastCommand;     // the last press of a commandKey
+            uint64_t                     interrupted = 0; // times the user's own input took the keyboard back before that one settled
+            std::shared_ptr<SDragRecord> drags       = std::make_shared<SDragRecord>();
+            // The serials of the presses that the window got from the sender, while their buttons are held: only they
+            // start a private drag.
+            struct SPress {
+                uint32_t serial = 0, button = 0;
+            };
+            std::vector<SPress>               pressSerials;
+            std::weak_ptr<drag::CPrivateDrag> drag;
+            uint32_t                          dragButton = 0;               // the held button that started the drag, its drop
+            Vector2D                          pointerAt  = position;        // the last motion, also outside the window
+            std::string_view                  closing    = "socket_closed"; // why the session ends, for its drag
 
             Session(const PHLWINDOW& w, std::string p, bool f) : window(w), path(std::move(p)), content(std::make_shared<wait::CContentWatch>(w)), force(f) {}
             ~Session() {
+                // A drag that was dropped waits for the destination without the socket.
+                cancelDrag(closing);
                 lease.reset(); // the emulated focus ends with the socket
                 returnKeyboard(false);
                 clearClient();
@@ -245,6 +269,8 @@ namespace hyprmasq {
                 d = nullptr;
             }
             void clearClient() {
+                cancelDrag("sender_gone");
+                pressSerials.clear();
                 // Buttons first, so that the modifiers held around them still apply to the release.
                 releasePointer();
                 releaseKeyboard();
@@ -311,6 +337,7 @@ namespace hyprmasq {
                 enteredKeyboard.reset();
             }
             void leavePointer() {
+                pressSerials.clear();
                 auto s = wlSeat();
                 if (s && enteredPointer)
                     for (auto& p : s->m_pointers)
@@ -327,6 +354,91 @@ namespace hyprmasq {
             void leave() {
                 leaveKeyboard();
                 leavePointer();
+            }
+            // Counts a drag-and-drop of the window's app that the plugin cancelled before it could start, and why.
+            void dragCancelled(std::string_view reason) {
+                ++drags->id;
+                ++drags->cancelled;
+                drags->phase     = "cancelled";
+                drags->privately = false;
+                drags->reason    = reason;
+                drags->endedAt   = Time::steadyNow();
+                drags->end(drags->id, "cancelled", reason);
+                drags->changed.emit();
+            }
+            // The private drag of the window's app, before its drop.
+            std::shared_ptr<drag::CPrivateDrag> activeDrag() const {
+                auto d = drag.lock();
+                return d && d->active() ? d : nullptr;
+            }
+            void cancelDrag(std::string_view reason) {
+                if (auto d = activeDrag())
+                    d->cancel(reason);
+            }
+            // Why a drag that the window's app starts cannot run as a private drag, or none when it can: see `drag` in
+            // docs/mcp.md.
+            std::optional<std::string_view> dragRefusal(const drag::SRequest* request, const SP<CWLDataSourceResource>& source, const SP<CWLSurfaceResource>& icon) {
+                auto w = window.lock();
+                auto s = wlSeat();
+                if (!w || !s || (!source && !(request && request->sourceless)))
+                    return "source_gone";
+                if (w->m_isX11 || xServer())
+                    return "x11";
+                // The user's input to the connection would reach the drag's client in the middle of it: their keys, their
+                // pointer, or a finger they hold down.
+                if (sharesConnection(w, g_pSeatManager->m_state.keyboardFocus) || sharesConnection(w, g_pSeatManager->m_state.pointerFocus) ||
+                    sharesConnection(w, g_pSeatManager->m_state.touchFocus))
+                    return "shared_focus";
+                if (PROTO::data->dndActive())
+                    return "user_drag";
+                const auto press = request ? std::ranges::find(pressSerials, request->serial, &SPress::serial) : pressSerials.end();
+                if (!request || !request->device || request->device->client() != s->client() || press == pressSerials.end() || !buttons.contains(press->button))
+                    return "serial";
+                if (request->deviceVersion < 3 || (!request->sourceless && request->sourceVersion < 3))
+                    return "version";
+                if (icon && icon->m_role->role() != SURFACE_ROLE_UNASSIGNED)
+                    return "icon";
+                // A drop that waits for its destination does not hold up the next drag: waits follow both.
+                if (drag::activeOn(s->client()))
+                    return "busy";
+                if (drag::full(s->client()))
+                    return "limit";
+                return std::nullopt;
+            }
+            void beginDrag(const drag::SRequest& request, const SP<CWLDataSourceResource>& source, const SP<CWLSurfaceResource>& icon) {
+                auto w     = window.lock();
+                auto s     = wlSeat();
+                auto d     = w && s ? drag::start(request, source, icon, drags) : nullptr;
+                auto press = std::ranges::find(pressSerials, request.serial, &SPress::serial);
+                if (!d || press == pressSerials.end()) {
+                    if (source)
+                        source->cancelled();
+                    dragCancelled("device_gone");
+                    return;
+                }
+                drag       = d;
+                dragButton = press->button;
+                pressSerials.clear();
+                // The emulated pointer leaves the window, as a pointer leaves the surface where a drag starts, but without
+                // the release that Hyprland's sendLeave sends outside its own drags: the button is the drag's.
+                for (auto& p : s->m_pointers)
+                    if (p && surfaceOf(*p)) {
+                        pressedOf(*p).clear();
+                        p->sendLeave();
+                        p->sendFrame();
+                    }
+                enteredPointer.reset();
+                dragMotion(d, w);
+            }
+            // Moves the drag to the surface under the emulated pointer. Only the window's own surfaces take part: a point
+            // outside the window and its popups is over none, and the drag leaves the surface it was over.
+            void dragMotion(const std::shared_ptr<drag::CPrivateDrag>& d, const PHLWINDOW& w) {
+                const auto             size = w->size(Desktop::View::IGeometric::GEOMETRIC_GOAL);
+                SP<CWLSurfaceResource> target;
+                Vector2D               local;
+                if (popupAt(w, pointerAt) || (pointerAt.x >= 0 && pointerAt.y >= 0 && pointerAt.x < size.x && pointerAt.y < size.y))
+                    target = surfaceAt(w, pointerAt, local);
+                d->motion(target, local);
             }
             // Lets go of the keys the sender holds. Without a lease the keyboard leaves the window, which releases them
             // for the application. With one, or while the window keeps the focus for a shortcut to settle, the focus
@@ -352,6 +464,7 @@ namespace hyprmasq {
             // Lets go of the buttons the sender holds. Without a lease the pointer leaves the window; with one it stays
             // where it is.
             void releasePointer() {
+                cancelDrag("sender_gone");
                 if (!leased()) {
                     leavePointer();
                     return;
@@ -420,6 +533,7 @@ namespace hyprmasq {
                         self->regionCheck = nullptr; // libwayland removes it after this call
                         auto w            = self->window.lock();
                         if (self->pointer && w && pointerRegions(w) != self->regions) {
+                            self->cancelDrag("window_moved");
                             self->clearDevice(self->pointer);
                             self->makePointer();
                         }
@@ -625,6 +739,11 @@ namespace hyprmasq {
                 if (toSender)
                     eis_device_keyboard_send_xkb_modifiers(keyboard, dep, lat, lock, group);
             }
+            void rememberPress(uint32_t serial, uint32_t button) {
+                if (pressSerials.size() >= 8)
+                    pressSerials.erase(pressSerials.begin());
+                pressSerials.push_back({.serial = serial, .button = button});
+            }
             void deliver(eis_device* device) {
                 auto w = window.lock();
                 auto s = wlSeat();
@@ -643,6 +762,7 @@ namespace hyprmasq {
                 // pointer are on one surface at a time, so that window loses its emulated focus and its lease.
                 for (auto& [_, other] : sessions) {
                     if (other.get() != this && other->wlSeat() == s) {
+                        other->cancelDrag("other_window");
                         other->lease.reset();
                         other->leave();
                     }
@@ -656,7 +776,14 @@ namespace hyprmasq {
                 // Clicks and scrolling take X focus too, as a real click does: Wine only takes input once X focus has
                 // made it the foreground window. If the X server does not respond, the sender learns that input was
                 // dropped.
-                const bool                 takesFocus = isKeyboard || presses || scrolls;
+                const bool takesFocus = isKeyboard || presses || scrolls;
+                // A press can start a drag, whose request then tells its serial.
+                if (presses)
+                    drag::watchDevices(s->client());
+                // A drag that ended without the release of its button leaves the release nothing to do.
+                if (!isKeyboard && dragButton && !activeDrag()) {
+                    buttons.erase(std::exchange(dragButton, 0));
+                }
 
                 std::optional<x11::SStack> stack;
                 if (w->m_isX11 && ((takesFocus && !x11::focus(w)) || (!isKeyboard && !(stack = x11::raise(w))))) {
@@ -712,6 +839,7 @@ namespace hyprmasq {
                             // other point is clamped to the window.
                             const auto size = w->size(Desktop::View::IGeometric::GEOMETRIC_GOAL);
                             position = popupAt(w, {x, y}) ? Vector2D{x, y} : Vector2D{std::clamp(x, 0.0, std::max(0.0, size.x - 1)), std::clamp(y, 0.0, std::max(0.0, size.y - 1))};
+                            pointerAt = {x, y};
                         }
                         if (type == EIS_EVENT_BUTTON_BUTTON) {
                             const auto button = eis_event_button_get_button(e);
@@ -719,6 +847,23 @@ namespace hyprmasq {
                             // sendLeave already releases buttons during a same-client switch.
                             if (down ? buttons.contains(button) : !buttons.contains(button))
                                 continue;
+                        }
+                        // A private drag takes the pointer's motion and the release of its button, which drops, and the
+                        // window's pointer gets nothing meanwhile.
+                        if (auto d = activeDrag()) {
+                            if (type == EIS_EVENT_POINTER_MOTION_ABSOLUTE)
+                                dragMotion(d, w);
+                            else if (type == EIS_EVENT_BUTTON_BUTTON && !eis_event_button_get_is_press(e)) {
+                                const auto button = eis_event_button_get_button(e);
+                                buttons.erase(button);
+                                if (button == dragButton) {
+                                    dragButton = 0;
+                                    d->drop();
+                                }
+                                trigger = true;
+                            }
+                            cursor::show(w, position, false);
+                            continue;
                         }
                         Vector2D local;
                         auto     target = surfaceAt(w, position, local);
@@ -750,11 +895,16 @@ namespace hyprmasq {
                             switch (type) {
                                 case EIS_EVENT_POINTER_MOTION_ABSOLUTE: p->sendMotion(now, local); break;
                                 case EIS_EVENT_BUTTON_BUTTON: {
-                                    auto button = eis_event_button_get_button(e);
-                                    bool down   = eis_event_button_get_is_press(e);
+                                    auto       button = eis_event_button_get_button(e);
+                                    bool       down   = eis_event_button_get_is_press(e);
+                                    const auto last   = wl_display_get_serial(g_pCompositor->m_wlDisplay);
                                     p->sendButton(now, button, down ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
-                                    if (down)
+                                    if (down) {
+                                        // The press's serial, which Hyprland takes as the next one when it sends the press.
+                                        if (const auto serial = wl_display_get_serial(g_pCompositor->m_wlDisplay); serial != last)
+                                            rememberPress(serial, button);
                                         g_pSeatManager->clearPointerButtonSerials(s, target, button);
+                                    }
                                     break;
                                 }
                                 case EIS_EVENT_SCROLL_DELTA:
@@ -787,8 +937,10 @@ namespace hyprmasq {
                             trigger = true;
                             if (eis_event_button_get_is_press(e))
                                 buttons.insert(eis_event_button_get_button(e));
-                            else
+                            else {
                                 buttons.erase(eis_event_button_get_button(e));
+                                std::erase_if(pressSerials, [&](const SPress& p) { return p.button == eis_event_button_get_button(e); });
+                            }
                         }
                     }
                 }
@@ -838,6 +990,10 @@ namespace hyprmasq {
                 commitsAtInput     = content->commits;
                 content->lastInput = lastInput;
                 placement::emulatedInput(w, trigger);
+                // Input that comes more often than every 16 ms, as a drag's motion does, keeps putting tick() off, so the
+                // frame callbacks that a hidden window needs to go on, such as Firefox before it starts a drag, go out
+                // here too, at most every 16 ms.
+                content->sendFrames();
                 wl_event_source_timer_update(timer, 16);
             }
             int tick() {
@@ -1010,6 +1166,7 @@ namespace hyprmasq {
 
         void closeClosedWindow(const std::string& address) {
             if (const auto it = sessions.find(address); it != sessions.end()) {
+                it->second->closing = "window_closed";
                 it->second->answerPings();
                 sessions.erase(it);
             }
@@ -1026,7 +1183,8 @@ namespace hyprmasq {
             return session ? session->xServer() != nullptr : x11::server(window) != nullptr;
         }
 
-        bool protectedSurface(const SP<CWLSurfaceResource>& surface) {
+        // The session of the driven window that the surface belongs to, unless that window is the active one.
+        Session* protectedSession(const SP<CWLSurfaceResource>& surface) {
             for (auto& [_, session] : sessions) {
                 auto w = session->window.lock();
                 if (!w || w == Desktop::focusState()->window())
@@ -1034,9 +1192,12 @@ namespace hyprmasq {
                 bool found = false;
                 forEachSurface(w, [&](SP<CWLSurfaceResource> s) { found |= s == surface; });
                 if (found)
-                    return true;
+                    return session.get();
             }
-            return false;
+            return nullptr;
+        }
+        bool protectedSurface(const SP<CWLSurfaceResource>& surface) {
+            return protectedSession(surface) != nullptr;
         }
         void popupGrab(CXDGShellProtocol* self, SP<CXDGPopupResource> popup) {
             // The new popup need not be mapped or in the window's popup tree yet.
@@ -1049,14 +1210,39 @@ namespace hyprmasq {
             using Fn = void (*)(CXDGShellProtocol*, SP<CXDGPopupResource>);
             reinterpret_cast<Fn>(originalPopupGrab)(self, popup);
         }
-        void startDrag(CWLDataDeviceProtocol* self, WP<CWLDataSourceResource> source, SP<CWLSurfaceResource> icon, SP<CWLSurfaceResource> origin) {
-            if (protectedSurface(origin)) {
+        // Hyprland runs a drag-and-drop as a grab of the seat, which takes the user's pointer, so a drag from a driven
+        // window that is not active runs as a private drag of its app, see Drag.hpp, when emulated input started it, or
+        // is cancelled. Either is counted for its socket.
+        void privateDrag(Session* session, const SP<CWLDataSourceResource>& source, const SP<CWLSurfaceResource>& icon) {
+            const auto* request = drag::request();
+            if (const auto refused = session->dragRefusal(request, source, icon)) {
                 if (source)
                     source->cancelled();
+                session->dragCancelled(*refused);
                 return;
             }
+            session->beginDrag(*request, source, icon);
+        }
+        void startDrag(CWLDataDeviceProtocol* self, WP<CWLDataSourceResource> source, SP<CWLSurfaceResource> icon, SP<CWLSurfaceResource> origin) {
+            if (auto* session = protectedSession(origin)) {
+                privateDrag(session, source.lock(), icon);
+                return;
+            }
+            // Hyprland's drag sends its offers to the data device of the client under the user's pointer, so a private
+            // drag of the client ends first.
+            if (origin)
+                drag::cancelClient(origin->client(), "user_input");
             using Fn = void (*)(CWLDataDeviceProtocol*, WP<CWLDataSourceResource>, SP<CWLSurfaceResource>, SP<CWLSurfaceResource>);
             reinterpret_cast<Fn>(originalStartDrag)(self, source, icon, origin);
+        }
+
+        // A drag without a source stays within its client, as a private drag does. Hyprland's handler cannot take one, so
+        // one from a window that is not driven, or is active, is ignored: there is no source to tell.
+        void sourcelessDrag(const SP<CWLSurfaceResource>& origin, const SP<CWLSurfaceResource>& icon) {
+            if (auto* session = protectedSession(origin))
+                privateDrag(session, nullptr, icon);
+            else
+                Log::logger->log(Log::WARN, "[hyprmasq] ignoring a drag without a source");
         }
 
         // X11 has no popup grabs to refuse. An X11 app takes focus by asking for activation, or by mapping a window
@@ -1163,12 +1349,17 @@ namespace hyprmasq {
             std::vector<Session*>                                        m_kept;
             bool Session::* m_keeping;
         };
+        // The user's real input to the client of a private drag cancels the drag before the input arrives.
         void setKeyboardFocus(CSeatManager* self, SP<CWLSurfaceResource> surface) {
+            if (surface)
+                drag::cancelClient(surface->client(), "user_input");
             CKeptFocus<CWLKeyboardResource> kept(surface, &Session::enteredKeyboard, &CWLSeatResource::m_keyboards, &Session::keepingKeyboard);
             using Fn = void (*)(CSeatManager*, SP<CWLSurfaceResource>);
             reinterpret_cast<Fn>(originalKeyboardFocus)(self, surface);
         }
         void setPointerFocus(CSeatManager* self, SP<CWLSurfaceResource> surface, const Vector2D& local) {
+            if (surface)
+                drag::cancelClient(surface->client(), "user_input");
             CKeptFocus<CWLPointerResource> kept(surface, &Session::enteredPointer, &CWLSeatResource::m_pointers, &Session::keepingPointer);
             using Fn = void (*)(CSeatManager*, SP<CWLSurfaceResource>, const Vector2D&);
             reinterpret_cast<Fn>(originalPointerFocus)(self, surface, local);
@@ -1195,6 +1386,12 @@ namespace hyprmasq {
             returnKeyboards(self->m_state.keyboardFocusResource);
             using Fn = void (*)(CSeatManager*, uint32_t, uint32_t, uint32_t, uint32_t);
             reinterpret_cast<Fn>(originalKeyboardMods)(self, depressed, latched, locked, group);
+        }
+        void sendTouchDown(CSeatManager* self, SP<CWLSurfaceResource> surface, uint32_t timeMs, int32_t id, const Vector2D& local) {
+            if (surface)
+                drag::cancelClient(surface->client(), "user_input");
+            using Fn = void (*)(CSeatManager*, SP<CWLSurfaceResource>, uint32_t, int32_t, const Vector2D&);
+            reinterpret_cast<Fn>(originalTouchDown)(self, surface, timeMs, id, local);
         }
         void sendPointerButton(CSeatManager* self, uint32_t timeMs, uint32_t button, wl_pointer_button_state state) {
             returnKeyboards(self->m_state.pointerFocusResource);
@@ -1238,14 +1435,19 @@ namespace hyprmasq {
         originalKeyboardKey   = hook(handle, "CSeatManager::sendKeyboardKey", reinterpret_cast<void*>(&sendKeyboardKey));
         originalKeyboardMods  = hook(handle, "CSeatManager::sendKeyboardMods", reinterpret_cast<void*>(&sendKeyboardMods));
         originalPointerButton = hook(handle, "CSeatManager::sendPointerButton", reinterpret_cast<void*>(&sendPointerButton));
-        monitorLayout         = Event::bus()->m_events.monitor.layoutChanged.listen([] {
+        originalTouchDown     = hook(handle, "CSeatManager::sendTouchDown", reinterpret_cast<void*>(&sendTouchDown));
+        drag::onSourceless(&sourcelessDrag);
+        monitorLayout = Event::bus()->m_events.monitor.layoutChanged.listen([] {
             for (auto& [_, session] : sessions)
                 session->checkRegionsLater();
         });
     }
     void shutdownEis() {
         monitorLayout.reset();
+        for (auto& [_, session] : sessions)
+            session->closing = "unloaded";
         sessions.clear();
+        drag::shutdown();
     }
     std::expected<SEisInfo, SError> openEis(const PHLWINDOW& w, bool force) {
         const auto address = windowAddress(w);
@@ -1329,7 +1531,8 @@ namespace hyprmasq {
                             .framesSinceInput = sc<int>(session->content->commits - session->commitsAtInput),
                             .content          = session->content,
                             .lease            = session->leaseState(),
-                            .interrupted      = session->interrupted};
+                            .interrupted      = session->interrupted,
+                            .drags            = session->drags};
     }
     bool starved(const PHLWINDOW& window) {
         if (g_pHyprRenderer->shouldRenderWindow(window))
@@ -1348,9 +1551,12 @@ namespace hyprmasq {
         const bool keyboardShared = sharesConnection(window, g_pSeatManager->m_state.keyboardFocus);
         const bool pointerShared  = sharesConnection(window, g_pSeatManager->m_state.pointerFocus);
         const bool isX11          = x11Window(window, session);
-        return {.lease    = !isX11 && !keyboardShared,
-                .hold     = !keyboardShared && !pointerShared,
-                .dnd      = window == Desktop::focusState()->window(),
+        const bool active         = window == Desktop::focusState()->window();
+        return {.lease      = !isX11 && !keyboardShared,
+                .hold       = !keyboardShared && !pointerShared,
+                .dnd        = active,
+                .privateDnd = !isX11 && !keyboardShared && !pointerShared && !sharesConnection(window, g_pSeatManager->m_state.touchFocus) && !active && window->resource() &&
+                    drag::hasDevice(window->resource()->client()),
                 .x11Focus = isX11 && !(session && session->force)};
     }
     std::expected<SLeaseState, SError> holdLease(const PHLWINDOW& window, int ms, const std::string& owner) {

@@ -279,8 +279,145 @@ type actionsOut struct {
 	SharedFocusReturned *focusReturnedOut `json:"shared_focus_returned,omitempty"`
 	// The same event under its older name, kept for clients that read it: true with shared_focus_returned.
 	Interrupted bool `json:"interrupted,omitempty"`
+	// Present only when the window's app started a drag-and-drop during the batch: how the last one went.
+	DragAndDrop *dragOut `json:"drag_and_drop,omitempty"`
 	// Why characters typed through Compose may have arrived as others, for the hint.
 	composeNote string
+}
+
+// dragOut tells how the last drag-and-drop went that the window's app started during the batch.
+type dragOut struct {
+	// finished: the app took the drop and confirmed it. cancelled: nothing was dropped. pending: it had not ended by
+	// the deadline, see phase. unconfirmed: the drop went out, but the app did not confirm it within 10 s, so whether
+	// it took the item is not known.
+	Outcome string `json:"outcome"`
+	// For a pending one: active, before the drop, or dropped, waiting for the app to confirm it.
+	Phase string `json:"phase,omitempty"`
+	// It ran within the window's app, which only a drag of a window with the dnd capability does. Without it, hyprmasq
+	// cancelled it before it started, to protect the user's input.
+	Private bool `json:"private"`
+	// Why it was cancelled or unconfirmed, see dragReasons.
+	Reason string `json:"reason,omitempty"`
+	// Present only when the app started more than one, or when a drag of the batch started none: how many it started,
+	// and of them how many finished, were cancelled, are unconfirmed and still go on, with the reasons of those that
+	// were cancelled or are unconfirmed, and how many drags of the batch started none. The outcome is then finished
+	// only when every drag of the batch finished, and otherwise partial, unless none finished.
+	Count       int      `json:"count,omitempty"`
+	Finished    int      `json:"finished,omitempty"`
+	Cancelled   int      `json:"cancelled,omitempty"`
+	Unconfirmed int      `json:"unconfirmed,omitempty"`
+	Pending     int      `json:"pending,omitempty"`
+	Reasons     []string `json:"reasons,omitempty"`
+	None        int      `json:"none,omitempty"`
+}
+
+// breakdown is "6 finished, 2 started none" for a drag-and-drop out of several, or "".
+func (d *dragOut) breakdown() string {
+	if d.Count < 2 && d.None == 0 {
+		return ""
+	}
+	var parts []string
+	add := func(n int, what string) {
+		if n > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", n, what))
+		}
+	}
+	reasons := ""
+	if len(d.Reasons) > 0 {
+		reasons = " (" + strings.Join(d.Reasons, ", ") + ")"
+	}
+	add(d.Finished, "finished")
+	add(d.Cancelled, "cancelled"+reasons)
+	add(d.Unconfirmed, "unconfirmed")
+	add(d.Pending, "pending")
+	if d.None == 1 {
+		parts = append(parts, "1 drag started none")
+	} else {
+		add(d.None, "drags started none")
+	}
+	return strings.Join(parts, ", ")
+}
+
+// dragReasons explain why the plugin cancelled a drag-and-drop. Those of a drag that did not run within the app say
+// why it could not; see `drag` in docs/mcp.md.
+var dragReasons = map[string]string{
+	"shared_focus": "this window shares its app with the window that has the user's keyboard or pointer focus, so the user's input could reach the drag",
+	"x11":          "the window is an X11 window, whose drags Hyprland would run with the user's pointer",
+	"user_drag":    "the user was dragging something at the time",
+	"serial":       "the app started it from a press that hyprmasq did not send, or whose button was already up",
+	"version":      "the app uses a version of the drag-and-drop protocol older than 3",
+	"icon":         "the app's drag icon is a surface with another role",
+	"busy":         "an earlier drag of the app had not ended, or its drop was still waiting for the app",
+	"limit":        "the app keeps too many offers of earlier drags",
+	"source_gone":  "the app ended the drag itself",
+	"device_gone":  "the app ended the drag itself",
+	"destination":  "the app refused the drop after it",
+	"rejected":     "it ended over a place that took none of its types or actions",
+	"no_target":    "it ended outside the window, where it can drop nothing: it drops only within this window",
+	"user_input":   "the user's own input reached the app, which ends the drag first",
+	"sender_gone":  "the input ended before the button's release",
+	"window_moved": "the window moved or was resized during it",
+	"other_window": "input went to another window of the same app during it",
+	"timeout":      "it got no input for 10 seconds",
+}
+
+// dragText is the summary's part about a drag-and-drop of the batch.
+func dragText(d *dragOut) string {
+	if d.Outcome == "cancelled" && !d.Private {
+		return " · drag-and-drop cancelled to protect the user's input"
+	}
+	if b := d.breakdown(); b != "" && d.Outcome != "finished" {
+		return " · drag-and-drop: " + b
+	}
+	switch {
+	case d.Outcome == "cancelled", d.Outcome == "unconfirmed":
+		return fmt.Sprintf(" · drag-and-drop %s (%s)", d.Outcome, d.Reason)
+	case d.Outcome == "pending" && d.Phase == "dropped":
+		return " · drag-and-drop pending: dropped, not yet confirmed"
+	}
+	return " · drag-and-drop " + d.Outcome
+}
+
+// dragHint explains a drag-and-drop of the batch that did not go through, or whose end is not known, and what to do,
+// or "".
+func dragHint(d *dragOut, s *shotOut) string {
+	why := dragReasons[d.Reason]
+	if why == "" {
+		why = "hyprmasq ended it"
+	}
+	look := lookAt(s)
+	if d.Outcome == "partial" {
+		hint := "Not every drag of the batch went through: " + d.breakdown() + "."
+		if d.None > 0 {
+			hint += " A drag that started no drag-and-drop moved nothing in an app that drags that way, as when it was not ready to start one."
+		}
+		if d.Cancelled > 0 {
+			hint += " Nothing was dropped for a cancelled one."
+		}
+		hint += " " + look + ", and drag again only the items that did not move"
+		if d.Unconfirmed > 0 || d.Pending > 0 {
+			hint += "; an unconfirmed or pending drop may have moved its item already"
+		}
+		return hint + "."
+	}
+	switch {
+	case d.Outcome == "cancelled" && !d.Private:
+		return "The app started a drag-and-drop, which hyprmasq cancelled to protect the user's input: " + why + ". Nothing was dropped, though the pointer motion was delivered. " +
+			"Do it without dragging, through what the app offers instead, such as cut and paste, a menu, buttons or keyboard commands that move the item, or a mode that drags with plain pointer motion; otherwise ask the user to do the drag."
+	case d.Outcome == "cancelled" && d.Reason == "user_input":
+		return "The app's drag-and-drop was cancelled, since " + why + ": nothing was dropped. " + look + ", and drag again once the user has left the app, or ask the user."
+	case d.Outcome == "cancelled":
+		return "The app's drag-and-drop was cancelled, since " + why + ": nothing was dropped. " + look + " before you drag again, at a place that takes the item."
+	case d.Outcome == "unconfirmed" && d.Reason == "timeout":
+		return "The drag-and-drop dropped, but the app did not confirm it within 10 seconds, so whether it took the item is not known. " + look + " before repeating anything: a repeated move may move the item twice."
+	case d.Outcome == "unconfirmed":
+		return "The drag-and-drop dropped, but it ended before the app confirmed it, since " + why + ", so whether the app took the item is not known. " + look + " before repeating anything: a repeated move may move the item twice."
+	case d.Outcome == "pending" && d.Phase == "dropped":
+		return "The drag-and-drop dropped, and the app had not confirmed it by the deadline. " + look + " before repeating anything; to wait for it, act with no actions."
+	case d.Outcome == "pending":
+		return "The drag-and-drop had not dropped by the deadline. " + look + "; to wait for it, act with no actions, and drag again only if the item did not move."
+	}
+	return ""
 }
 
 type focusReturnedOut struct {
@@ -462,6 +599,9 @@ type actOut struct {
 // actionsText counts the actions the application received as delivered: the sender cannot see whether the application
 // acted on them as meant, which only the shot can show.
 func actionsText(a *actionsOut, batch []action) string {
+	if a != nil && a.Total == 0 && a.DragAndDrop != nil {
+		return strings.TrimPrefix(dragText(a.DragAndDrop), " · ")
+	}
 	if a == nil || a.Total == 0 {
 		return ""
 	}
@@ -489,6 +629,9 @@ func actionsText(a *actionsOut, batch []action) string {
 	}
 	if a.SharedFocusReturned != nil {
 		text += " · shared keyboard focus returned for user input"
+	}
+	if a.DragAndDrop != nil {
+		text += dragText(a.DragAndDrop)
 	}
 	return text
 }
