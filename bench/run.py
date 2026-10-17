@@ -37,14 +37,23 @@ CODEX_DISABLED = [
 ]
 
 
-def build_driver(out, source, task, display):
+def build_driver(out, source, task, variant, display):
     link = os.path.join(out, "driver")
     command = ["nix-build", os.path.join(BENCH, "default.nix"), "-A", "driver", "-o", link, "--argstr", "task", task,
-               "--argstr", "display", display]
+               "--argstr", "variant", variant or "", "--argstr", "display", display]
     if source:
         command += ["--arg", "source", source]
     subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
     return link
+
+
+def task_variants(task):
+    """The variants a task has, from tasks/TASK/variants, one a line; none for most tasks."""
+    path = os.path.join(BENCH, "tasks", task, "variants")
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        return [line.strip() for line in f if line.strip()]
 
 
 def source_commit(source):
@@ -180,7 +189,7 @@ def stop_driver(proc, run_dir, timeout=300):
     shutil.rmtree(os.path.join(run_dir, "tmp"), ignore_errors=True)
 
 
-def run_one(driver, task, harness, model, rep, out, cid, timeout, debrief):
+def run_one(driver, task, variant, harness, model, rep, out, cid, timeout, debrief):
     task_dir = os.path.join(BENCH, "tasks", task)
     run_dir = os.path.join(out, f"{harness}-{model}-{rep}")
     os.makedirs(os.path.join(run_dir, "tmp"))
@@ -213,7 +222,7 @@ def run_one(driver, task, harness, model, rep, out, cid, timeout, debrief):
         stop_driver(driver_proc, run_dir)
 
     run = {
-        "task": task, "harness": harness, "model": model, "rep": rep, "cid": cid,
+        "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
         "agent_start": agent["start"], "agent_end": agent["end"], "agent_exit": agent["exit"],
         "timed_out": agent["timed_out"], "session": agent["session"],
         "harness_version": version([harness, "--version"]),
@@ -262,15 +271,15 @@ def vm_lock(path):
 
 
 def check_resume(out, config, parser):
-    """Refuse to add runs to a results directory whose finished runs had another commit, task or display, so that
-    one report never mixes them. Keys that an older source.json lacks are not compared."""
+    """Refuse to add runs to a results directory whose finished runs had another commit, task, variant or display,
+    so that one report never mixes them. Keys that an older source.json lacks are not compared."""
     path = os.path.join(out, "source.json")
     finished = any(os.path.exists(os.path.join(out, name, "summary.json")) for name in os.listdir(out))
     if not finished or not os.path.exists(path):
         return
     with open(path) as f:
         before = json.load(f)
-    differ = [k for k in ("commit", "task", "display") if k in before and before[k] != config[k]]
+    differ = [k for k in ("commit", "task", "variant", "display") if k in before and before[k] != config[k]]
     if differ:
         parser.error(f"{out} has runs with another {', '.join(differ)}: "
                      + ", ".join(f"{k} {before[k]} against {config[k]}" for k in differ) + "; use another --out")
@@ -288,21 +297,28 @@ def main():
     parser.add_argument("--source", help="hyprmasq checkout to run in the VM, by default this one")
     parser.add_argument("--lock", help="lock file to hold during each run, shared with other VM users")
     parser.add_argument("--display", default="1920x1080@1", help="the VM's monitor, WIDTHxHEIGHT@SCALE")
+    parser.add_argument("--variant", help="the task's variant, for a task that has them (bench/tasks/TASK/variants)")
     args = parser.parse_args()
 
     agents = [a.split(":", 1) for a in (args.agent or DEFAULT_AGENTS)]
     for harness, _ in agents:
         if harness not in ("claude", "codex"):
             parser.error(f"unknown harness {harness}")
-    out = os.path.abspath(args.out or os.path.join(
-        BENCH, "results", f"{datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{args.task}"))
-    os.makedirs(out, exist_ok=True)
-    source = os.path.abspath(args.source) if args.source else None
     if not os.path.isdir(os.path.join(BENCH, "tasks", args.task)):
         parser.error(f"no task {args.task} in {os.path.join(BENCH, 'tasks')}")
-    config = {**source_commit(source), "task": args.task, "display": args.display}
+    variants = task_variants(args.task)
+    if variants and args.variant not in variants:
+        parser.error(f"task {args.task} needs --variant, one of {', '.join(variants)}")
+    if not variants and args.variant:
+        parser.error(f"task {args.task} has no variants")
+    name = args.task + (f"-{args.variant}" if args.variant else "")
+    out = os.path.abspath(args.out or os.path.join(
+        BENCH, "results", f"{datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{name}"))
+    os.makedirs(out, exist_ok=True)
+    source = os.path.abspath(args.source) if args.source else None
+    config = {**source_commit(source), "task": args.task, "variant": args.variant, "display": args.display}
     check_resume(out, config, parser)
-    driver = build_driver(out, source, args.task, args.display)
+    driver = build_driver(out, source, args.task, args.variant, args.display)
     with open(os.path.join(out, "source.json"), "w") as f:
         json.dump(config, f, indent=2)
     # Repetitions go round the agents, so that a slow hour of an API does not hit one agent's runs only.
@@ -313,7 +329,7 @@ def main():
             shutil.rmtree(os.path.join(out, f"{harness}-{model}-{rep}"), ignore_errors=True)
             try:
                 with vm_lock(args.lock):
-                    run_one(driver, args.task, harness, model, rep, out, args.cid, args.timeout, not args.no_debrief)
+                    run_one(driver, args.task, args.variant, harness, model, rep, out, args.cid, args.timeout, not args.no_debrief)
             except Exception as e:  # one broken run does not end the benchmark
                 print(f"[{harness} {model} #{rep}] error: {e}", flush=True)
     print(report.report(out))

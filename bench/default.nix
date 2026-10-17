@@ -6,9 +6,11 @@
 # `source` is the hyprmasq checkout whose plugin, MCP server and NixOS module the VM gets, by default this one;
 # run.py --source points it at another worktree, to benchmark a branch without the benchmark in it.
 # `display` is the monitor, WIDTHxHEIGHT@SCALE in device pixels: hyprmasq's shots and zooms depend on it.
+# `variant` is the task's variant, for a task that has them (tasks/TASK/variants): its vm.nix gets it as benchVariant.
 {
   system ? "x86_64-linux",
   task ? "thunderbird",
+  variant ? "",
   source ? ../.,
   display ? "1920x1080@1",
   nixpkgs ?
@@ -101,7 +103,7 @@ let
   '';
 in
 pkgs.testers.runNixOSTest {
-  name = "hyprmasq-bench-${task}";
+  name = "hyprmasq-bench-${task}${pkgs.lib.optionalString (variant != "") "-${variant}"}";
 
   nodes.machine =
     { pkgs, ... }:
@@ -110,6 +112,7 @@ pkgs.testers.runNixOSTest {
         module
         (./tasks + "/${task}/vm.nix")
       ];
+      _module.args.benchVariant = variant;
       programs.hyprmasq.enable = true;
 
       users.users.alice = {

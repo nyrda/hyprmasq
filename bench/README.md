@@ -16,13 +16,19 @@ python3 bench/run.py --out bench/results/my-run         # resumes: runs with a s
 python3 bench/run.py --source ../hyprmasq-feature       # the plugin and server of another worktree
 python3 bench/run.py --task forgejo                     # another task: a directory under bench/tasks
 python3 bench/run.py --display 2560x1440@1              # another monitor: WIDTHxHEIGHT@SCALE
+python3 bench/run.py --task board --variant pointer     # a task's variant: one of tasks/TASK/variants
 python3 bench/report.py bench/results/my-run            # the report again
 ```
 
 `--source DIR` builds the plugin, `hyprmasq-mcp` and the NixOS module from another checkout, for example a
 feature branch's worktree, so that a branch can be benchmarked without the benchmark in it. The plugin is
 built from the files Git tracks there, as in a flake build. `source.json` in the results records its commit,
-the task and the display; `run.py` refuses to add runs to a directory whose finished runs had another of them.
+the task, its variant and the display; `run.py` refuses to add runs to a directory whose finished runs had another
+of them.
+
+`--variant NAME` picks one of a task's variants, which `tasks/TASK/variants` lists, one a line. A task with that
+file needs it, and others refuse it. `default.nix` gives it to the task's `vm.nix` as `benchVariant`; the default
+results directory and the driver's name carry it.
 
 `--display WIDTHxHEIGHT@SCALE` sets the VM's monitor, in device pixels, by default `1920x1080@1`. Shots fit
 within 1280 pixels and zooms come at the monitor's scale, so what agents can read depends on it. The VM draws
@@ -140,9 +146,10 @@ and their grace for new windows (#15) stays in the rest.
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |
 | `start-*.png`, `end-*.png` | Screenshots of every window and of the screen. |
-| `sent-1.eml`, `user-notes.txt`, `sheet.ods` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc). |
+| `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board). |
 | `vm-events.log` | Hyprland's events (`socket2`), each with the VM's time. |
-| `vm-*.log`, `vm-*.jsonl` | Hyprland, hyprmasq-mcp, socat, and the task's servers and apps, such as the intranet's requests and the watch of the sheet (Calc). |
+| `vm-*.log`, `vm-*.jsonl` | Hyprland, hyprmasq-mcp, socat, and the task's servers and apps, such as the intranet's requests and the watch of the sheet (Calc), or the page's events and saves (board). |
+| `attribution.json` | Board: who each drag's outcome is due to, written by `tasks/board/attribute.py`. |
 | `debrief-prompt.md`, `debrief.md`, `debrief.jsonl` | The debrief. |
 | `transcript-*.jsonl` | The harness's own transcript of the session. |
 | `driver.log` | The test driver and the VM's console. |
@@ -150,7 +157,8 @@ and their grace for new windows (#15) stays in the rest.
 ## By hand
 
 `bench/smoke.sh DRIVER DIR` boots the VM for a run directory and returns when it is ready, and
-`bench/mcp_probe.py CID TOOL [ARGS] [--image OUT.png]` calls one tool in it. Any MCP client can use the VM
+`bench/mcp_probe.py CID TOOL [ARGS] [TOOL [ARGS]]... [--image OUT.png] [--log LOG]` calls tools in it, in one
+session, so that `"@shot"` in a call's arguments can stand for the latest shot of the calls before it. Any MCP client can use the VM
 with `python3 bench/mcp_tap.py 4242 5000 LOG` as its server, for example an interactive Claude Code session.
 `touch DIR/agent-done` grades the run and stops the VM.
 
@@ -258,10 +266,74 @@ Calc does not get it: its External Data import (Sheet ▸ External Links) of a r
   compare with, and the grade with the saved sheet and the logs in `collect()`.
 - `prompt.md`, `debrief.md`: what the agent is told.
 
+### board
+
+Mara is writing a guide to building a PC. Her Firefox 157 shows the guide's figure of her motherboard, an AM4
+micro-ATX server board on a blue mat with a RAM module, a USB stick, thermal paste and tweezers around it, and a tray
+of eight labels: CPU socket, Memory slots, 24-pin ATX power, 8-pin CPU power, SATA ports, First PCIe slot,
+USB 3.0 header and BMC chip. Firefox is started like a user would, on the visible workspace, and moved to the hidden
+workspace `web`; the user stays on workspace 1 with the terminal. The prompt asks the agent to put each label on its
+part of the board. It names no tools and gives no coordinates.
+
+The task exercises what the others do not: drags, and a target that only the image shows. Parts of the board look
+alike: the loose RAM module is the trap for the memory slots, the M.2 slots for the SATA ports, the lower PCIe slots
+for the first, and the heatsinks and connectors around them for the rest. A label lands where it is dropped, the pointer's position at
+the drop; dragging it again moves it, and dragging it back to the tray takes it off. The photo is scaled to fit the
+window, the same on every load, and the page does not scroll.
+
+The page drags in one of two ways, the task's variants, so that each has its own results directory:
+
+- `dnd`: HTML5 drag-and-drop (`draggable`, `dragstart`, `dragover`, `drop`), which Firefox does with Wayland's
+  data-device protocol: `start_drag` and a DnD session in the compositor;
+- `pointer`: `pointerdown`, `pointermove` and `pointerup` with pointer capture, as a custom widget or a canvas would
+  do, which needs only pointer input.
+
+Both look and behave the same. A press that moves less than 4 CSS pixels is a click, not a drag, in both.
+
+- `vm.nix`: the guide on `guide.example.test:80`, with the variant from `default.nix`, and Firefox with policies
+  against first-run pages.
+- `guide.py`: the guide's server and its page. Every drop is saved on the server, in `board.json` (each label's
+  point in photo pixels, or null in the tray), and logged with the time in `places.jsonl`, so the grade comes from
+  the server, not from the screen. The page also logs every pointer and drag event it gets, with its type, client
+  and screen coordinates, buttons, the label under it and the time, its layout after every change (the photo's,
+  the tray's and every label's box, the scale, `devicePixelRatio` and `mozInnerScreenX/Y`), and each drop it
+  applies, with the label, the point in client and photo pixels and where it went, in `events.jsonl`.
+- `motherboard.jpg`: the user's photo, 2000×1296, at JPEG quality 95. The original was a PNG cut out along the mat,
+  with a transparent edge, which the JPEG has on white.
+- `regions.json`: the boxes of the photo, in photo pixels: `labels`, each label's part, some with several boxes,
+  and `distractors`, the parts and objects a careless placement lands on.
+- `check.py`: per label, where it lies and whether that is inside one of its boxes (correct), on another label's
+  part, on a distractor (named), elsewhere, or still in the tray: `Memory slots is on the loose RAM module, at
+  (1654.4, 679.8)`. It passes when all eight are correct, and reports the number correct for partial credit, the
+  variant and the number of saves. Its milestones are `first label placed`, `all labels placed` and `last change`.
+- `attribute.py RUN-DIR | RESULTS-DIR`: who each drag's outcome is due to, from `mcp.jsonl` and the page's events.
+  It maps each `act` drag's start and end from shot pixels to window-local logical pixels through the shot's frame,
+  zooms included, as hyprmasq does, and to the page's coordinates with the content's offset in the window, which
+  Wayland does not tell the page: the median difference between where the agent's presses (clicks and drag starts)
+  went in the window and where the page saw them, paired in order within each `act` call, with the page's zoom
+  (ctrl+minus) from its `devicePixelRatio`. In the VM, it agrees within a shot pixel with Firefox's
+  `mozInnerScreenY`. It then finds the press the page logged for the drag and
+  what followed, and classifies the outcome: `correct` (the label landed where the agent dropped it, on its part),
+  `model` (where the agent dropped it, but on another part or none; or the drag grabbed no label, or dropped it off
+  the photo and the tray), `hyprmasq` (the page saw no press, the press or the drop came more than 6 CSS pixels
+  from where the agent aimed, or the drag started on a label and the label did not move), `tray`, or `not sent`
+  (`act` refused the batch). Per label, it names whose the final placement is. It prints a table per run and
+  writes `attribution.json`.
+- `check_test.py`: `python3 bench/tasks/board/check_test.py` checks the grade and the attribution on constructed
+  states and logs: a correct board, a label on the RAM module, one on another label's part and one in the tray,
+  the milestones, a drop far from where the drag aimed, a drag the page never saw, a cancelled drag-and-drop, a
+  drag back to the tray, a refused batch, a drag in a zoom's pixels, and a page zoomed out.
+- `setup.py`: the profile, Firefox's window and its workspace, and the grade with the page's logs in `collect()`.
+  With `HYPRMASQ_BENCH_WAYLAND_DEBUG` set in the driver's environment, Firefox logs its Wayland protocol to
+  `vm-firefox.log`.
+- `user.js`: no first-run pages, tips or telemetry in Firefox.
+- `variants`, `prompt.md`, `debrief.md`: the variants, and what the agent is told.
+
 ## Adding a task
 
 A task is a directory under `tasks/` with a NixOS module (`vm.nix`, which `default.nix` imports for the task
-it is given), a `setup.py` for `vm.py`, a `prompt.md` and a `debrief.md`. `setup.py` defines `prepare()`,
+it is given), a `setup.py` for `vm.py`, a `prompt.md` and a `debrief.md`, and, if it comes in variants, a `variants`
+file. `setup.py` defines `prepare()`,
 which returns the address of the agent's window, and `collect()`, which returns `check` with `passed` and
 `failures` and `events` with VM times that `report.metrics()` turns into milestones. It may define
 `HYPRLAND_ENV`, variables for Hyprland's environment and so for the apps it starts, and `during(stop)`,

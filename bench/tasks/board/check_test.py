@@ -1,0 +1,282 @@
+#!/usr/bin/env python3
+"""Tests the board task's grader and attribution on constructed states and logs: python3 check_test.py"""
+
+import json
+import os
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import attribute  # noqa: E402
+import check  # noqa: E402
+
+
+def centre(box):
+    return [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2]
+
+
+CORRECT = {label: centre(boxes[0]) for label, boxes in check.REGIONS["labels"].items()}
+RAM = centre(check.REGIONS["distractors"]["loose RAM module"][0])
+
+
+class Grade(unittest.TestCase):
+    def test_correct_board(self):
+        result = check.grade(CORRECT)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["failures"], [])
+        self.assertEqual(result["checks"]["correct"], 8)
+
+    def test_label_on_the_ram_module(self):
+        result = check.grade({**CORRECT, "Memory slots": RAM})
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["checks"]["correct"], 7)
+        self.assertEqual(result["checks"]["labels"]["Memory slots"]["verdict"], "distractor")
+        self.assertEqual(result["failures"], [f"Memory slots is on the loose RAM module, at ({RAM[0]:g}, {RAM[1]:g})"])
+
+    def test_label_in_the_tray(self):
+        result = check.grade({**CORRECT, "BMC chip": None})
+        self.assertEqual(result["failures"], ["BMC chip is still in the tray"])
+        self.assertEqual(result["checks"]["correct"], 7)
+
+    def test_label_missing_from_the_state_is_in_the_tray(self):
+        labels = dict(CORRECT)
+        del labels["CPU socket"]
+        self.assertEqual(check.grade(labels)["failures"], ["CPU socket is still in the tray"])
+
+    def test_label_on_another_labels_part(self):
+        usb = CORRECT["USB 3.0 header"]
+        result = check.grade({**CORRECT, "SATA ports": usb})
+        self.assertEqual(result["checks"]["labels"]["SATA ports"], {"point": usb, "verdict": "other label",
+                                                                      "on": "USB 3.0 header"})
+
+    def test_label_on_no_part(self):
+        result = check.grade({**CORRECT, "CPU socket": [30, 30]})
+        self.assertEqual(result["failures"], ["CPU socket is at (30, 30), on no part"])
+
+    def test_second_box_counts(self):
+        result = check.grade({**CORRECT, "SATA ports": centre(check.REGIONS["labels"]["SATA ports"][1])})
+        self.assertTrue(result["passed"])
+
+    def test_milestones(self):
+        places = [{"time": 5, "label": "CPU socket", "point": [1, 1]}]  # before the agent started
+        places += [{"time": 10 + i, "label": label, "point": point} for i, (label, point) in enumerate(CORRECT.items())]
+        places += [{"time": 30, "label": "BMC chip", "point": None}, {"time": 31, "label": "BMC chip", "point": [2, 2]}]
+        self.assertEqual(list(check.events(places, since=8).items()),
+                         [("first label placed", 10), ("all labels placed", 17), ("last change", 31)])
+        self.assertEqual(check.events([], since=8), {})
+
+
+# A page laid out as in the VM at 1920×1080: the content 85.5 logical pixels below the window's top, the photo at
+# 16,60 in it at a scale of 0.709, and the tray's chips at x 1464 to 1656.
+OFFSET = (0, 85.5)
+PHOTO = [16, 60, 1434, 979]
+SCALE = (PHOTO[2] - PHOTO[0]) / 2000
+CHIPS = {label: [1464, 175 + 42 * i, 1656, 207 + 42 * i] for i, label in enumerate(
+    ["First PCIe slot", "Memory slots", "BMC chip", "24-pin ATX power", "SATA ports", "CPU socket", "USB 3.0 header",
+     "8-pin CPU power"])}
+WINDOW = "0x1234"
+VM_TO_HOST = 4000.0
+
+
+def client_of_photo(point):
+    return [PHOTO[0] + point[0] * SCALE, PHOTO[1] + point[1] * SCALE]
+
+
+def shot_of_client(point):
+    """In s1, a 1280×720 shot of the 1920×1080 window."""
+    return [(point[0] + OFFSET[0]) / 1.5, (point[1] + OFFSET[1]) / 1.5]
+
+
+class Run:
+    """A run directory under construction: act calls in mcp.jsonl, and the page's events."""
+
+    def __init__(self):
+        self.tap, self.page, self.id, self.t = [], [], 1, 5000.0
+        self.page_event(4999, "layout", screen=list(OFFSET), photo=PHOTO, tray=[1450, 60, 1670, 521], labels={
+            label: [chip] for label, chip in CHIPS.items()}, dpr=1)
+
+    def page_event(self, host, kind, **fields):
+        self.page.append({"t": (host - VM_TO_HOST) * 1000, "type": kind, **fields})
+
+    def act(self, actions, shot="s1", done=None, result_shot=None):
+        self.id += 1
+        start, end = self.t, self.t + 1
+        self.tap.append({"t": start, "dir": "request", "msg": {"id": self.id, "method": "tools/call", "params": {
+            "name": "act", "arguments": {"window": WINDOW, "shot": shot, "actions": actions}}}})
+        sc = {"actions": {"done": len(actions) if done is None else done, "total": len(actions)}}
+        if result_shot:
+            sc["shot"] = result_shot
+        self.tap.append({"t": end, "dir": "response", "msg": {"id": self.id, "result": {
+            "content": [{"type": "text", "text": "1/1 delivered"}], "structuredContent": sc}}})
+        self.t += 3
+        return start
+
+    def screenshot(self):
+        self.id += 1
+        self.tap.append({"t": self.t, "dir": "request", "msg": {"id": self.id, "method": "tools/call", "params": {
+            "name": "screenshot", "arguments": {"window": WINDOW}}}})
+        self.tap.append({"t": self.t + 0.2, "dir": "response", "msg": {"id": self.id, "result": {
+            "content": [], "structuredContent": {"shot": {"id": "s1", "width": 1280, "height": 720,
+                                                          "frame": {"x": 0, "y": 0, "width": 1920, "height": 1080}}}}}})
+        self.t += 1
+
+    def drag(self, label, to_photo=None, to_client=None, landed=None, seen=True, dropped=True, done=None,
+             result_shot=None, shot="s1", via_shot=None):
+        """An act drag from LABEL's chip to a point, and what the page logs for it."""
+        chip = CHIPS[label]
+        start_client = [(chip[0] + chip[2]) / 2, (chip[1] + chip[3]) / 2]
+        to_client = to_client or client_of_photo(to_photo)
+        from_shot, to_shot = (via_shot or shot_of_client)(start_client), (via_shot or shot_of_client)(to_client)
+        start = self.act([{"action": "drag", "from": from_shot, "to": to_shot}], shot=shot, done=done,
+                         result_shot=result_shot)
+        if not seen or done == 0:
+            return
+        self.page_event(start + 0.1, "pointerdown", x=start_client[0], y=start_client[1], label=label)
+        landed = landed or to_client
+        if not dropped:
+            self.page_event(start + 0.15, "dragstart", x=start_client[0], y=start_client[1], label=label)
+            self.page_event(start + 0.16, "pointercancel", x=start_client[0], y=start_client[1], label=label)
+            self.page_event(start + 0.17, "dragend", x=start_client[0], y=start_client[1], label=label)
+            self.page_event(start + 0.4, "pointerup", x=landed[0], y=landed[1], label=None)
+            return
+        self.page_event(start + 0.4, "pointerup", x=landed[0], y=landed[1], label=label)
+        inside_photo = attribute.inside(PHOTO, landed)
+        point = [round((landed[0] - PHOTO[0]) / SCALE, 1), round((landed[1] - PHOTO[1]) / SCALE, 1)] \
+            if inside_photo else None
+        self.page_event(start + 0.4, "place", label=label, x=landed[0], y=landed[1],
+                        to="photo" if inside_photo else "tray", point=point)
+
+    def write(self, d, final):
+        with open(os.path.join(d, "ready.json"), "w") as f:
+            json.dump({"task_window": WINDOW, "vm_time": 1000.0, "host_time": 1000.0 + VM_TO_HOST}, f)
+        for name, lines in (("mcp.jsonl", self.tap), ("vm-board-events.jsonl", self.page)):
+            with open(os.path.join(d, name), "w") as f:
+                f.writelines(json.dumps(line) + "\n" for line in lines)
+        with open(os.path.join(d, "vm-result.json"), "w") as f:
+            json.dump({"task": {"check": check.grade(final)}}, f)
+        return d
+
+
+class Attribute(unittest.TestCase):
+    def run_of(self, build, final):
+        run = Run()
+        run.screenshot()
+        build(run)
+        with tempfile.TemporaryDirectory(prefix="board-attribution-") as d:
+            return attribute.attribute(run.write(d, final))
+
+    def test_correct_drags_and_calibration(self):
+        out = self.run_of(lambda r: [r.drag(label, point) for label, point in CORRECT.items()], CORRECT)
+        self.assertEqual(out["calibration"]["offset"], [0, 85.5])
+        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct"] * 8)
+        self.assertTrue(all(v["blame"] is None for v in out["labels"].values()))
+
+    def test_label_dropped_on_the_ram_module_is_the_models(self):
+        def build(r):
+            r.drag("CPU socket", CORRECT["CPU socket"])
+            r.drag("Memory slots", RAM)
+        out = self.run_of(build, {"CPU socket": CORRECT["CPU socket"], "Memory slots": RAM})
+        drag = out["drags"][1]
+        self.assertEqual((drag["outcome"], drag["blame"]), ("model", "model"))
+        self.assertIn("loose RAM module", drag["why"])
+        self.assertEqual(out["labels"]["Memory slots"]["blame"], "model")
+
+    def test_label_left_in_the_tray_is_the_models(self):
+        out = self.run_of(lambda r: r.drag("CPU socket", CORRECT["CPU socket"]), {"CPU socket": CORRECT["CPU socket"]})
+        self.assertEqual(out["labels"]["BMC chip"], {"verdict": "tray", "on": None, "drags": 0, "blame": "model",
+                                                      "failed_drags": 0, "point": None})
+
+    def test_drop_far_from_where_aimed_is_hyprmasqs(self):
+        aimed = client_of_photo(CORRECT["BMC chip"])
+
+        def build(r):
+            r.drag("CPU socket", CORRECT["CPU socket"])
+            r.drag("BMC chip", CORRECT["BMC chip"], landed=[aimed[0] + 40, aimed[1]])
+        out = self.run_of(build, {"CPU socket": CORRECT["CPU socket"]})
+        drag = out["drags"][1]
+        self.assertEqual((drag["outcome"], drag["blame"]), ("hyprmasq", "hyprmasq"))
+        self.assertEqual(drag["off"], 40)
+        self.assertEqual(out["labels"]["BMC chip"]["blame"], "hyprmasq")
+
+    def test_drag_the_page_never_saw_is_hyprmasqs(self):
+        def build(r):
+            r.drag("CPU socket", CORRECT["CPU socket"])
+            r.drag("SATA ports", CORRECT["SATA ports"], seen=False)
+        out = self.run_of(build, {"CPU socket": CORRECT["CPU socket"]})
+        drag = out["drags"][1]
+        self.assertEqual((drag["outcome"], drag["why"]), ("hyprmasq", "the page saw no press"))
+        self.assertEqual(drag["aim_label"], "SATA ports")
+        self.assertEqual(out["labels"]["SATA ports"]["blame"], "hyprmasq")
+
+    def test_press_lost_in_a_batch(self):
+        # One act call with three drags, the second of which the page never saw: the others keep their presses.
+        def build(r):
+            moves = [("CPU socket", CORRECT["CPU socket"]), ("SATA ports", CORRECT["SATA ports"]),
+                     ("BMC chip", CORRECT["BMC chip"])]
+            actions, start = [], r.t
+            for label, point in moves:
+                chip = CHIPS[label]
+                actions.append({"action": "drag", "from": shot_of_client([(chip[0] + chip[2]) / 2, (chip[1] + chip[3]) / 2]),
+                                "to": shot_of_client(client_of_photo(point))})
+            r.act(actions)
+            for n, (label, point) in enumerate(moves):
+                if label == "SATA ports":
+                    continue
+                chip, to = CHIPS[label], client_of_photo(point)
+                r.page_event(start + 0.1 + n * 0.3, "pointerdown", x=(chip[0] + chip[2]) / 2, y=(chip[1] + chip[3]) / 2,
+                             label=label)
+                r.page_event(start + 0.3 + n * 0.3, "place", label=label, x=to[0], y=to[1], to="photo", point=point)
+        out = self.run_of(build, {"CPU socket": CORRECT["CPU socket"], "BMC chip": CORRECT["BMC chip"]})
+        self.assertEqual(out["calibration"]["offset"], [0, 85.5])  # the layout's mozInnerScreenX/Y
+        self.assertEqual([(d["outcome"], d.get("label")) for d in out["drags"]],
+                         [("correct", "CPU socket"), ("hyprmasq", None), ("correct", "BMC chip")])
+        self.assertEqual(out["drags"][1]["why"], "the page saw no press where the drag started")
+
+    def test_cancelled_drag_and_drop_is_hyprmasqs(self):
+        out = self.run_of(lambda r: r.drag("CPU socket", CORRECT["CPU socket"], dropped=False), {})
+        drag = out["drags"][0]
+        self.assertEqual(drag["blame"], "hyprmasq")
+        self.assertEqual(drag["why"], "the label did not move; the page saw dragstart, pointercancel, dragend, pointerup")
+        self.assertEqual(out["labels"]["CPU socket"]["failed_drags"], 1)
+
+    def test_back_to_the_tray_and_refused_batches(self):
+        def build(r):
+            r.drag("CPU socket", CORRECT["CPU socket"])
+            r.drag("BMC chip", to_client=[1500, 300])
+            r.drag("USB 3.0 header", CORRECT["USB 3.0 header"], done=0)
+        out = self.run_of(build, {"CPU socket": CORRECT["CPU socket"]})
+        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct", "tray", "not sent"])
+
+    def test_page_zoomed_out(self):
+        # At 90%, a CSS pixel is 0.9 logical pixels, and the page logs its devicePixelRatio as 0.9.
+        def zoomed(client):
+            return [(client[0] * 0.9 + OFFSET[0]) / 1.5, (client[1] * 0.9 + OFFSET[1]) / 1.5]
+
+        def build(r):
+            r.drag("CPU socket", CORRECT["CPU socket"])
+            r.page_event(r.t - 0.5, "layout", photo=PHOTO, tray=[1450, 60, 1670, 521], labels={}, dpr=0.9)
+            r.drag("BMC chip", CORRECT["BMC chip"], via_shot=zoomed)
+        out = self.run_of(build, {"CPU socket": CORRECT["CPU socket"], "BMC chip": CORRECT["BMC chip"]})
+        self.assertEqual(out["calibration"]["spread"], 0)
+        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct", "correct"])
+
+    def test_zoom_into_a_change(self):
+        # The first drag's result has a zoom s3 of the box 300,200 to 1120,400 of s2, at 1.5 logical pixels each: the
+        # logical pixels 450,300 to 1680,600, which hold the CPU and the tray, captured at scale 1.
+        zoom = {"id": "s2", "width": 1280, "height": 720, "frame": {"x": 0, "y": 0, "width": 1920, "height": 1080},
+                "changes": {"base": "s1", "regions": [{"shot": "s3", "image_width": 1230, "image_height": 300,
+                                                       "x": 300, "y": 200, "width": 820, "height": 200}]}}
+
+        def in_zoom(client):
+            return [client[0] + OFFSET[0] - 450, client[1] + OFFSET[1] - 300]
+
+        def build(r):
+            r.drag("BMC chip", CORRECT["BMC chip"], result_shot=zoom)
+            r.drag("CPU socket", CORRECT["CPU socket"], shot="s3", via_shot=in_zoom)
+        out = self.run_of(build, {"BMC chip": CORRECT["BMC chip"], "CPU socket": CORRECT["CPU socket"]})
+        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct", "correct"])
+        self.assertEqual(out["drags"][1]["aim_point"], [round(v, 1) for v in CORRECT["CPU socket"]])
+
+if __name__ == "__main__":
+    unittest.main()
