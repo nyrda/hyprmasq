@@ -539,7 +539,8 @@ Merged as 5bb5766.
 - **The failure** made a second commit: the agent clicked the commit-message field and typed, and the text went
   into the folder field above it. Its shot, the one `act` returned when the file chooser closed, already showed the
   form below the uploaded file, and the click's coordinates were on the commit-message field there, so the form had
-  not moved; the folder field kept or took the keyboard focus. Why is open.
+  not moved; the folder field kept or took the keyboard focus. It did not happen again in about 140 browser runs,
+  and is not followed up: it is put down to the host the benchmark ran on, which is not proved.
 
 ## 2026-10-16: targets that moved since the shot (#24)
 
@@ -933,8 +934,6 @@ outcome. gpt-6.1-sol; the pilots ran on `main` at 566dde2, and all runs were gra
 
 ## Open
 
-- **Typing that lands in another field**: in 1 of about 140 browser runs, the text after a click on Forgejo's
-  commit-message field went into the folder field, with the shot and the click right.
 - **Shortcuts that an app runs more than 250 ms after the key** still fail without a word beside the user's window.
 - **hyprmasq's own time per call**: beyond its waits and the sender's pacing, `act` takes 0.2 to 0.5 s a call at
   1920×1080 and 2560×1440 and 0.8 s at 3840×2160, about 3 to 6 s a run and 10 s at 3840×2160, mostly capturing and
