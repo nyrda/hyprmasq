@@ -73,7 +73,7 @@ func (e *testEnv) redraw(w *fakeWindow, f *form, blocks ...hypr.Rect) {
 }
 
 // The screenshots that the check of the targets took, which go to files of their own.
-var checkCapture = regexp.MustCompile(`^j/hyprmasq screenshot 0xa1 \S+/t\d+\.png`)
+var checkCapture = regexp.MustCompile(`^j/hyprmasq screenshot 0xa1 \S+/t\d+\.raw`)
 
 func (e *testEnv) checkCaptures() []string {
 	var out []string
@@ -251,7 +251,7 @@ func TestTargetsThatMovedSinceTheShot(t *testing.T) {
 			}
 			e.redraw(w, f, c.after...)
 			res := e.act(`{"window":"0xa1","shot":"` + shot + `","actions":` + c.actions + `}`)
-			if captures := e.checkCaptures(); len(captures) != c.captures || c.request != "" && !strings.HasSuffix(captures[0], c.request) {
+			if captures := e.checkCaptures(); len(captures) != c.captures || c.request != "" && !strings.HasSuffix(captures[0], c.request+" raw") {
 				t.Errorf("the check's screenshots %q", captures)
 			}
 			if c.refused == "" {

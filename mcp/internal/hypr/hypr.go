@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"net"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,7 +20,7 @@ import (
 )
 
 // Interface is the plugin interface version this package is written against.
-const Interface = 3
+const Interface = 4
 
 // Client sends one request per connection, as hyprctl does. Hyprland keeps the connection open until a deferred
 // plugin reply is ready, so a request can take as long as its context allows.
@@ -253,34 +255,90 @@ type IntRect struct {
 	Height int `json:"height"`
 }
 
+// An Image is a file that a screenshot wrote.
+type Image struct {
+	Path   string  `json:"path"`
+	Width  int     `json:"width"`
+	Height int     `json:"height"`
+	Scale  float64 `json:"scale"`
+	Region Rect    `json:"region"`
+}
+
 type Screenshot struct {
-	Path    string  `json:"path"`
-	Width   int     `json:"width"`
-	Height  int     `json:"height"`
-	Scale   float64 `json:"scale"`
-	Region  Rect    `json:"region"`
-	Commits *int64  `json:"commits"`
+	Image
+	Commits *int64 `json:"commits"`
 	// The socket whose counter Commits is.
 	SocketID *string `json:"socketId"`
 	// The window had not caught up with its size when it was rendered, so the image shows a frame of another size.
 	Resizing bool `json:"resizing"`
 	// The window was starved when it was rendered (see State), so the image may show an older frame.
 	Starved bool `json:"starved"`
+	// The detail image that ScreenshotArgs.DetailPath asked for, or nil when the image has as many pixels as it would.
+	Detail *Detail `json:"detail"`
 }
 
-// Screenshot captures the window with its popups, or a region of that box, fitted within max pixels if max > 0.
-func (c *Client) Screenshot(ctx context.Context, addr, path string, region *IntRect, max int) (Screenshot, error) {
-	args := []string{"screenshot", addr, path}
-	if region != nil {
-		args = append(args, strconv.Itoa(region.X), strconv.Itoa(region.Y), strconv.Itoa(region.Width), strconv.Itoa(region.Height))
+// A Detail is an image of the same render as the screenshot's, with a pixel per logical pixel, or the monitor's pixels
+// where they are fewer.
+type Detail struct {
+	Image
+	// The max of a screenshot request that renders the area at the same scale, or 0 for the monitor's scale.
+	Max int `json:"max"`
+}
+
+// ScreenshotArgs ask for a screenshot of the window with its popups.
+type ScreenshotArgs struct {
+	// The file for the image: a PNG, or with Raw its pixels (see ReadRaw).
+	Path string
+	// A region of the box of the window and its popups, or nil for all of it.
+	Region *IntRect
+	// Fits the image within Max pixels on its long side, if Max > 0.
+	Max int
+	Raw bool
+	// Where to write the pixels of a detail image (see Detail), if set. It is only written when the image has fewer
+	// pixels than one per logical pixel or than the monitor's, whichever are fewer.
+	DetailPath string
+}
+
+// Screenshot renders the window once and writes the images that the arguments ask for.
+func (c *Client) Screenshot(ctx context.Context, addr string, a ScreenshotArgs) (Screenshot, error) {
+	args := []string{"screenshot", addr, a.Path}
+	if a.Region != nil {
+		args = append(args, strconv.Itoa(a.Region.X), strconv.Itoa(a.Region.Y), strconv.Itoa(a.Region.Width), strconv.Itoa(a.Region.Height))
 	}
-	if max > 0 {
-		args = append(args, "max", strconv.Itoa(max))
+	if a.Max > 0 {
+		args = append(args, "max", strconv.Itoa(a.Max))
 	}
 	args = append(args, "popups")
+	if a.Raw {
+		args = append(args, "raw")
+	}
+	if a.DetailPath != "" {
+		args = append(args, "detail", a.DetailPath)
+	}
 	var s Screenshot
 	err := c.Plugin(ctx, strings.Join(args, " "), &s)
 	return s, err
+}
+
+// ReadRaw reads the pixels of an image that a screenshot wrote with Raw, or as a detail image: straight-alpha RGBA,
+// top row first, without a header.
+func ReadRaw(path string, width, height int) (*image.NRGBA, error) {
+	if width <= 0 || height <= 0 {
+		return nil, fmt.Errorf("%s: an image of %d×%d pixels", path, width, height)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	img := image.NewNRGBA(image.Rect(0, 0, width, height))
+	if _, err := io.ReadFull(f, img.Pix); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if n, _ := f.Read(make([]byte, 1)); n != 0 {
+		return nil, fmt.Errorf("%s has more than the pixels of %d×%d", path, width, height)
+	}
+	return img, nil
 }
 
 type WaitArgs struct {

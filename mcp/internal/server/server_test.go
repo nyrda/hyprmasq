@@ -3807,7 +3807,7 @@ func TestCaptureRegionAfterAResize(t *testing.T) {
 	zoomed := func(e *testEnv, from int) []string {
 		var out []string
 		for _, r := range e.fake.requestsMatching("j/hyprmasq screenshot")[from:] {
-			if !strings.HasSuffix(r, ".png popups") {
+			if !strings.Contains(r, " detail ") {
 				out = append(out, r)
 			}
 		}

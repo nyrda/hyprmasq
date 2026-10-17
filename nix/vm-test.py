@@ -1102,8 +1102,8 @@ os.rename(sys.argv[2] + ".part", sys.argv[2])
         return json.loads(machine.succeed(f"cat {output}"))
 
     with subtest("plugin version and window state"):
-        assert json.loads(hypr("-j hyprmasq version")) == {"ok": True, "version": "0.3.0", "interface": 3}
-        assert hypr("hyprmasq version") == "hyprmasq 0.3.0 interface 3"
+        assert json.loads(hypr("-j hyprmasq version")) == {"ok": True, "version": "0.3.0", "interface": 4}
+        assert hypr("hyprmasq version") == "hyprmasq 0.3.0 interface 4"
         # The module installs the MCP server of the same version, which runs the package's own hyprmasq-input.
         package = plugin.removesuffix("/lib/hyprmasq.so")
         assert alice("hyprmasq-mcp --version").strip() == "0.3.0"
@@ -1433,6 +1433,52 @@ print(json.dumps([im.getpixel(p) for p in {list(points)!r}] + [im.size]))
         _, reply = shot(green, "max-fractional", "max 256")
         assert (reply["width"], reply["height"], reply["scale"]) == (256, 192, 0.5) and reply["region"] == region(0, 0, 512, 384), reply
         monitor_scale(1, 640)
+
+    def raw_pixels(path, width, height, *points):
+        """The RGBA values of a raw image at the points, after checking that the file holds width x height pixels."""
+        script = f"""
+import json
+from PIL import Image
+data = open({path!r}, 'rb').read()
+assert len(data) == {width} * {height} * 4, len(data)
+im = Image.frombytes('RGBA', ({width}, {height}), data)
+print(json.dumps([im.getpixel(p) for p in {list(points)!r}]))
+"""
+        return [tuple(v) for v in json.loads(machine.succeed("python3 - <<'PY'\n" + script + "\nPY"))]
+
+    with subtest("one render gives an image and its detail image, also as raw pixels"):
+        green = windows[1][1]
+        detail = "/tmp/hm-p-detail.raw"
+        # A shrunk image gets a detail image of the same render at the monitor's pixels, where they are fewer than the
+        # logical ones.
+        reply = json.loads(hypr(f"-j hyprmasq screenshot {green} /tmp/hm-p-raw.raw max 320 popups raw detail {detail}"))
+        assert reply["ok"] and (reply["width"], reply["height"], reply["scale"]) == (320, 240, 0.5), reply
+        assert reply["detail"] == {"path": detail, "width": 640, "height": 480, "scale": 1, "region": region(0, 0, 640, 480), "max": None}, reply
+        assert all(near(p, (0, 255, 0)) for p in raw_pixels("/tmp/hm-p-raw.raw", 320, 240, (160, 120), (319, 239)))
+        assert all(near(p, (0, 255, 0)) for p in raw_pixels(detail, 640, 480, (320, 240), (639, 479)))
+        # An image with as many pixels has none, and its PNG is the detail image.
+        machine.succeed(f"rm -f {detail}")
+        path, reply = shot(green, "detail-none", f"max 640 detail {detail}")
+        assert reply["detail"] is None and (reply["width"], reply["scale"]) == (640, 1), reply
+        machine.succeed(f"test ! -e {detail}")
+        # Above scale 1, the detail image has a pixel per logical pixel.
+        monitor_scale(2, 320)
+        _, reply = shot(green, "detail-scale2", f"max 160 detail {detail}")
+        assert (reply["width"], reply["scale"]) == (160, 0.5), reply
+        assert reply["detail"] == {"path": detail, "width": 320, "height": 240, "scale": 1, "region": region(0, 0, 320, 240), "max": 320}, reply
+        assert near(raw_pixels(detail, 320, 240, (160, 120))[0], (0, 255, 0))
+        _, reply = shot(green, "detail-scale2-logical", f"max 320 detail {detail}")
+        assert reply["detail"] is None and reply["scale"] == 1, reply
+        monitor_scale(1, 640)
+        for arguments, message in [
+            ("detail", "usage"),
+            ("raw raw", "usage"),
+            ("detail relative.raw", "absolute"),
+            ("detail /tmp/hm-p-bad.png", "a path of its own"),
+        ]:
+            reply = json.loads(hypr(f"-j hyprmasq screenshot {green} /tmp/hm-p-bad.png {arguments}"))
+            assert not reply["ok"] and reply["code"] == "invalid_arguments" and message in reply["error"], (arguments, reply)
+        machine.succeed("test ! -e /tmp/hm-p-bad.png")
 
     with subtest("popups outside the window are captured and get pointer input"):
         # The popup covers 250,150 to 350,250 of the 300x200 window, so it reaches past its right and bottom edges.

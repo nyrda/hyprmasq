@@ -99,7 +99,7 @@ func TestChangesShotOfOneRegion(t *testing.T) {
 	}
 	// The detail image has the monitor's pixels, so the zoom is cut from the image that was compared, not captured.
 	shots := e.fake.requestsMatching("j/hyprmasq screenshot")
-	if last := shots[len(shots)-1]; !regexp.MustCompile(`/d1\.png popups$`).MatchString(last) {
+	if last := shots[len(shots)-1]; !regexp.MustCompile(`/f2\.raw popups raw detail \S+/f2-detail\.raw$`).MatchString(last) {
 		t.Errorf("last screenshot request %q", last)
 	}
 	if zoom := e.server.shots.get("s3"); zoom == nil || zoom.Frame != (hypr.Rect{X: 75, Y: 25, Width: 70, Height: 60}) || zoom.Scale != 2 || zoom.Parent != "s2" {
@@ -218,7 +218,7 @@ func TestChangesLeaveOutAnimations(t *testing.T) {
 	if waits := e.fake.requestsMatching("j/hyprmasq wait 0xa1 since 3 expect 200 quiet 100 "); len(waits) != 1 {
 		t.Errorf("waits %q", e.fake.requestsMatching("j/hyprmasq wait"))
 	}
-	if shots := e.fake.requestsMatching("j/hyprmasq screenshot"); len(shots) != 3 || !strings.HasSuffix(shots[2], " 90 40 40 30 popups") {
+	if shots := e.fake.requestsMatching("j/hyprmasq screenshot"); len(shots) != 3 || !strings.HasSuffix(shots[2], " 90 40 40 30 popups raw") {
 		t.Errorf("screenshots %q", shots)
 	}
 }
@@ -492,12 +492,17 @@ func TestChangesFallBackToAFullShot(t *testing.T) {
 			e := newTestEnv(t)
 			e.window("0xa1", "1a", 640, 400)
 			c.setup(e)
+			before := len(e.fake.requestsMatching("j/hyprmasq screenshot"))
 			res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
 			if res.IsError || images(res) != 1 || get(t, res, "shot.changes") != nil {
 				t.Fatalf("%d images: %s", images(res), text(res))
 			}
 			if got := get(t, res, "shot.full_shot"); got != c.reason {
 				t.Errorf("reason %v, want %q", got, c.reason)
+			}
+			// The window is rendered once: a full shot after the comparison shows the frame that was compared.
+			if got := len(e.fake.requestsMatching("j/hyprmasq screenshot")) - before; got != 1 {
+				t.Errorf("%d screenshots for the act", got)
 			}
 			id := get(t, res, "shot.id").(string)
 			if !regexp.MustCompile(` · shot ` + id + ` \d+×\d+ \(full shot: ` + regexp.QuoteMeta(c.reason) + `\) · `).MatchString(summaryOf(t, res)) {
@@ -517,9 +522,13 @@ func TestChangesOfAShrunkShot(t *testing.T) {
 	e.server.cfg.MaxImageSize = 320
 	e.window("0xa1", "1a", 640, 400)
 	e.screenshot(`{"window":"0xa1"}`)
+	// One render gives the overview and the detail image.
 	shots := e.fake.requestsMatching("j/hyprmasq screenshot")
-	if len(shots) != 2 || !strings.HasSuffix(shots[0], "/s1.png max 320 popups") || !strings.HasSuffix(shots[1], "/s1-detail.png max 640 popups") {
+	if len(shots) != 1 || !regexp.MustCompile(`/f1\.raw max 320 popups raw detail \S+/f1-detail\.raw$`).MatchString(shots[0]) {
 		t.Fatalf("requests %q", shots)
+	}
+	if d := e.server.shots.get("s1").Detail; d == nil || d.Scale != 1 || d.Width != 640 || d.Max != 640 {
+		t.Fatalf("detail %+v", d)
 	}
 	// A block of 4 logical pixels, 2 of the overview, is found in the detail images.
 	e.paint("0xa1", hypr.Rect{X: 300, Y: 200, Width: 4, Height: 4})
@@ -528,7 +537,7 @@ func TestChangesOfAShrunkShot(t *testing.T) {
 		t.Fatalf("%d images: %s", images(res), text(res))
 	}
 	shots = e.fake.requestsMatching("j/hyprmasq screenshot")
-	if detail := shots[2]; !regexp.MustCompile(`/d\d+\.png max 640 popups$`).MatchString(detail) {
+	if detail := shots[1]; !regexp.MustCompile(`/f2\.raw max 320 popups raw detail \S+/f2-detail\.raw$`).MatchString(detail) {
 		t.Errorf("detail request %q", detail)
 	}
 	// The zoom is at the monitor's scale, and listed in the overview's pixels.
@@ -664,6 +673,7 @@ func TestChangesCleanup(t *testing.T) {
 		t.Fatal(text(res))
 	}
 	files := func() []string {
+		e.server.shots.wait()
 		entries, _ := os.ReadDir(e.server.shotDir)
 		var names []string
 		for _, entry := range entries {
@@ -671,7 +681,9 @@ func TestChangesCleanup(t *testing.T) {
 		}
 		return names
 	}
-	if got := files(); !reflect.DeepEqual(got, []string{"d1.png", "s1-detail.png", "s1.png", "s3.png"}) {
+	// The detail image of s1 left memory for that of the changes shot s2, which the zoom s3 is cut from, and went to a
+	// file. The raw images of the renders are gone.
+	if got := files(); !reflect.DeepEqual(got, []string{"f1-detail.z", "s1.png", "s3.png"}) {
 		t.Errorf("files %q", got)
 	}
 	if e.server.shots.lastOf("0xa1", "1a") == nil {
@@ -708,33 +720,6 @@ func TestShotStoreDropsDetails(t *testing.T) {
 	}
 	if st.lastOf("0xa1", "1a") != nil {
 		t.Error("the dropped shot is still the last")
-	}
-}
-
-// A popup that opens past the window's edge between an overview and its detail image changes the box, so the shot keeps
-// no detail image, and cannot be compared with.
-func TestDetailOfAnotherBoxIsDropped(t *testing.T) {
-	e := newTestEnv(t)
-	e.server.cfg.MaxImageSize = 100
-	w := e.window("0xa1", "1a", 320, 200)
-	shots := 0
-	e.fake.with(func() {
-		e.fake.onScreenshot = func(*fakeWindow) string {
-			if shots++; shots == 2 {
-				w.PopupBox = &hypr.Rect{X: 0, Y: 0, Width: 360, Height: 200}
-			}
-			return ""
-		}
-	})
-	e.screenshot(`{"window":"0xa1"}`)
-	if sh := e.server.shots.get("s1"); sh == nil || sh.Detail != nil {
-		t.Fatalf("shot %+v", sh)
-	}
-	if _, err := os.Stat(filepath.Join(e.server.shotDir, "s1-detail.png")); !os.IsNotExist(err) {
-		t.Errorf("detail image kept: %v", err)
-	}
-	if res := e.act(`{"window":"0xa1","actions":` + pressA + `}`); get(t, res, "shot.full_shot") != "s1 cannot be compared" {
-		t.Errorf("act: %s", text(res))
 	}
 }
 
@@ -853,50 +838,62 @@ func grayAt(t *testing.T, res *mcp.CallToolResult, index, x, y int) uint8 {
 	return 0
 }
 
-// An overview and its detail image show one frame: a window that drew in between is captured again, and the overview
-// shows what the detail image holds. A window that keeps drawing leaves its shots without a detail image, which act then
-// cannot compare with.
+// An overview and its detail image come from one render, so they show one frame, also of a window that keeps drawing.
 func TestOverviewAndDetailAreOneFrame(t *testing.T) {
 	e := newTestEnv(t)
 	e.server.cfg.MaxImageSize = 320
 	w := e.window("0xa1", "1a", 640, 400)
-	shots := 0
 	e.fake.with(func() {
 		e.fake.onScreenshot = func(*fakeWindow) string {
-			// A block appears, in a frame of its own, right before the first detail image.
-			if shots++; shots == 2 {
-				w.Commits++
-				w.Paint = block(hypr.Rect{X: 100, Y: 100, Width: 40, Height: 20})
-			}
+			// A block appears, in a frame of its own, with every render.
+			w.Commits++
+			w.Paint = block(hypr.Rect{X: 100, Y: 100, Width: 40, Height: 20})
 			return ""
 		}
 	})
 	res := e.screenshot(`{"window":"0xa1"}`)
-	if got := len(e.fake.requestsMatching("j/hyprmasq screenshot")); got != 4 || shotID(t, res) != "s2" {
+	if got := len(e.fake.requestsMatching("j/hyprmasq screenshot")); got != 1 || shotID(t, res) != "s1" {
 		t.Fatalf("%d screenshots: %s", got, text(res))
 	}
-	if sh := e.server.shots.get("s2"); sh.Detail == nil || grayAt(t, res, 0, 60, 55) != 255 {
+	sh := e.server.shots.get("s1")
+	if sh.Detail == nil || grayAt(t, res, 0, 60, 55) != 255 {
 		t.Fatalf("detail %+v, the overview shows the block: %v", sh.Detail, grayAt(t, res, 0, 60, 55))
+	}
+	img, err := sh.Detail.image()
+	if err != nil || color.GrayModel.Convert(img.At(110, 105)).(color.Gray).Y != 255 || sh.Detail.Scale != 1 {
+		t.Fatalf("the detail image does not show the block: %v", err)
 	}
 	if res := e.act(`{"window":"0xa1","actions":` + pressA + `}`); get(t, res, "shot.changes") == nil || images(res) != 0 {
 		t.Errorf("after the block: %s", text(res))
 	}
+}
 
+// The full shot that changes come as shows the frame that was compared, not one the window drew after it.
+func TestFullShotOfTheComparedFrame(t *testing.T) {
+	e := newTestEnv(t)
+	e.server.cfg.MaxImageSize = 320
+	w := e.window("0xa1", "1a", 640, 400)
+	e.screenshot(`{"window":"0xa1"}`)
+	e.paint("0xa1", hypr.Rect{Width: 640, Height: 300})
+	states := 0
 	e.fake.with(func() {
 		e.fake.onScreenshot = func(*fakeWindow) string {
-			w.Commits++
+			// After the render, the window draws again.
+			e.fake.onState = func(*fakeWindow) {
+				if states++; states == 1 {
+					w.Commits++
+					w.Paint = nil
+				}
+			}
 			return ""
 		}
 	})
-	id := shotID(t, e.screenshot(`{"window":"0xa1"}`))
-	if sh := e.server.shots.get(id); sh.Detail != nil {
-		t.Errorf("a window that keeps drawing: detail %+v", sh.Detail)
+	res := e.act(`{"window":"0xa1","actions":` + pressA + `}`)
+	if get(t, res, "shot.full_shot") != "75% changed since s1" || images(res) != 1 {
+		t.Fatalf("result %s", text(res))
 	}
-	if res := e.act(`{"window":"0xa1","actions":` + pressA + `}`); get(t, res, "shot.full_shot") != id+" cannot be compared" {
-		t.Errorf("act: %s", text(res))
-	}
-	if files, _ := filepath.Glob(filepath.Join(e.server.shotDir, "*-detail.png")); len(files) != 1 {
-		t.Errorf("detail images %q", files)
+	if grayAt(t, res, 0, 10, 10) != 255 || grayAt(t, res, 0, 10, 190) != 0 {
+		t.Error("the full shot does not show the compared frame")
 	}
 }
 
@@ -983,10 +980,10 @@ func TestDetailOfPopupsPastTheEdge(t *testing.T) {
 	e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.PopupBox = &hypr.Rect{Width: 1600, Height: 400} })
 	e.screenshot(`{"window":"0xa1"}`)
 	shots := e.fake.requestsMatching("j/hyprmasq screenshot")
-	if len(shots) != 2 || !strings.HasSuffix(shots[1], "/s1-detail.png max 1600 popups") {
+	if len(shots) != 1 || !strings.HasSuffix(shots[0], "/f1.raw max 1280 popups raw detail "+e.server.shotDir+"/f1-detail.raw") {
 		t.Fatalf("requests %q", shots)
 	}
-	if d := e.server.shots.get("s1").Detail; d == nil || d.Scale != 1 || d.Width != 1600 {
+	if d := e.server.shots.get("s1").Detail; d == nil || d.Scale != 1 || d.Width != 1600 || d.Max != 1600 {
 		t.Errorf("detail %+v", d)
 	}
 }

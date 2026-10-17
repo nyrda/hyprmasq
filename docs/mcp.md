@@ -1,6 +1,6 @@
 # MCP server
 
-Status: implemented in hyprmasq 0.3.0, plugin interface 3. This document is
+Status: implemented in hyprmasq 0.3.0, plugin interface 4. This document is
 the design as built. [Installation](installation.md#mcp-server) covers
 installing and registering the server.
 
@@ -80,7 +80,7 @@ the focus). They are observations, not reservations. `act` checks `hold`
 before sending and again once it holds both [locks](#concurrency). The
 plugin's `dnd` capability is left out, see [Actions](#actions).
 
-Every call first checks that the plugin is loaded and has interface 3
+Every call first checks that the plugin is loaded and has interface 4
 (`plugin_missing`, `plugin_version`).
 
 ## Shots and coordinates
@@ -256,7 +256,10 @@ targets, carets and animations leave a shot usable.
 
 Shot IDs count up per server process. The server keeps the 64 most recently
 used shots per window, and deletes their files, detail images included, when
-it drops them. It forgets the shots of a window that it saw close, and,
+it drops them. It keeps the pixels of the latest detail image of each window in
+memory, for at most 4 windows, those whose latest is newest; the other detail
+images are in files, compressed when they leave memory, or the shot's own PNG
+when that is its detail image. It forgets the shots of a window that it saw close, and,
 whenever a tool lists the windows, those of windows that the list no longer has
 or whose address now has another `stable_id`; with them it forgets which shot
 of the window a result gave last. Image files live under
@@ -286,9 +289,10 @@ read the window's state:
   workspace drew nothing between calls after a shot of a page at rest; it did
   after a shot taken while the page still animated, such as a page that loaded
   or the upload's check mark fading.
-- Otherwise the check takes one capture, two decodes and the comparison of
-  the boxes: 116 to 185 ms, 124 ms in the median, with a detail image of
-  2560×1440 in the benchmark VM, and 62 ms with an overview of 1280×720.
+- Otherwise the check takes one capture, read as raw pixels, and the
+  comparison of the boxes with the reference image, which is in memory for the
+  latest shot of the window: 47 to 55 ms, 51 ms in the median, with a detail
+  image of 2560×1440 in the benchmark VM, and 28 ms with one of 1920×1080.
 - Otherwise the server renders the window as it rendered the shot's reference
   image, with the same region and `max`, and compares the box of 49×49 logical
   pixels around each point, 24 on every side, with it. The reference is the
@@ -410,22 +414,21 @@ size. At a quarter, a typed `i` or `.` did not show in the comparison at all,
 while in logical pixels each changed a box of 6×16 or 5×16 pixels. So every
 shot of the whole window keeps a detail image: its own image when it has the
 window's logical pixels or the monitor's, whichever are fewer, and otherwise
-one more screenshot right after the overview, with `max` set to the long side
-of the box of the window and its popups in logical pixels on a monitor above
-scale 1, and without `max` otherwise. Both images have to show one frame: when
-the commit counters of the two replies differ, since the window drew in
-between, or the box differs, since a popup opened or closed past the window's
-edge, the pair is captured once more, and when that happens again the shot
-keeps no detail image, which a later changes capture answers with a full shot.
-A detail image never holds what the agent was not shown. A changes shot keeps
-the detail image it was compared at. For a
-2544×1432 window, a detail image takes about 50 ms to capture and 25 ms to
-decode, and the comparison 120 ms.
+a second image that the plugin reads from the same render as the overview, at
+one pixel per logical pixel on a monitor above scale 1, and at the monitor's
+pixels otherwise ([`detail`](usage.md#raw-pixels-and-detail-images)). The two
+always show one frame. A detail image never holds what the agent was not
+shown. A changes shot keeps the detail image it was compared at. Detail images
+are raw pixels that the server reads into memory: only the images that the
+agent gets are encoded, as PNG.
 
-**Comparison.** After the wait, the server captures a detail image with the
-same request as the base's, and compares the two if the window has the same
-size, the box of the window and its popups is the same, and the scale is the
-same. A pixel has changed when the average of the 3×3 pixels around it changed
+**Comparison.** After the wait, the server renders the window once, as for a
+full shot, for an overview and a detail image, and compares the detail image
+with the base's if the window has the same size, the box of the window and its
+popups is the same, and the scale is the same. When the changes come as a full
+shot, for any reason found once the window was rendered, the full shot is that
+render: its overview shows the frame that was compared, and the window is not
+captured again. A pixel has changed when the average of the 3×3 pixels around it changed
 by more than 24 of 255 levels in luminance, or by more than 64 in a color
 channel; transparent pixels count as mid grey. Averages ignore Chromium's
 switches between subpixel and grayscale antialiasing, which it makes when it
@@ -501,10 +504,10 @@ and it is the next base:
 | --- | --- |
 | `no earlier shot to compare with` | There is no `shot` and no shot of the window in this session. |
 | `the shot that sN zooms into is gone` | `shot` is a zoom, and the server no longer keeps the shot it zooms into. |
-| `sN cannot be compared` | The base shows an older frame of a window that had not caught up with a resize, or has no detail image, as when the window drew between its overview and detail image twice in a row. |
+| `sN cannot be compared` | The base shows an older frame of a window that had not caught up with a resize, or has no detail image. |
 | `10 changes shots in a row` | The base is the tenth of a chain of changes shots since a full shot, each compared with the one before, as when `act` gets no `shot`. The eleventh gets a full shot, so that the agent's picture, an overview with the zooms of ten results over it, does not drift from the window. Calls that keep comparing with the same shot show every change since it in their zooms, and need no such refresh. |
-| `the window is resizing` | The window had not caught up with a resize, or was resized, while the detail image was captured. The full shot gives it time to catch up, as every capture does. |
-| `the window waits to draw` | The window was [starved](#shots-and-coordinates) while the detail image was captured, as after an `act` that sent nothing and had no time left to wait. The full shot lets it draw if there is time, and otherwise says that it may be stale. |
+| `the window is resizing` | The window had not caught up with a resize, or was resized, while it was rendered for the comparison. The full shot gives it time to catch up, as every capture does. |
+| `the window waits to draw` | The window was [starved](#shots-and-coordinates) while it was rendered for the comparison, as after an `act` that sent nothing and had no time left to wait. The full shot lets it draw if there is time, and otherwise says that it may be stale. |
 | `resized since sN` | The window's size changed. |
 | `the monitor's scale changed since sN` | The detail images have different scales, as after a move between monitors at or below scale 1. Above scale 1 detail images have logical pixels, which stay comparable, and coordinates are in logical pixels anyway. |
 | `popups outside the window changed since sN` | The box of the window and its popups changed, as when a menu that reaches past the window's edge opens or closes. The base's coordinates would not cover it. |
@@ -1636,7 +1639,7 @@ and plain-text errors still start with `error:`.
 **`version`**
 
 ```json
-{"ok":true,"version":"0.3.0","interface":3}
+{"ok":true,"version":"0.3.0","interface":4}
 ```
 
 `interface` increases with every incompatible change to these commands. New
@@ -2250,7 +2253,8 @@ changed nothing, tiny changes left out and counted, each reason for a full
 shot, detail images of shrunk shots, the base by shot, zoom, session and
 window, coordinates of changes shots and their zooms, error paths, the files
 and last shots forgotten with a window, an overview and detail image of one
-frame, zooms of the compared frame, captured zooms of another frame or cut by a
+render, the full shot of the compared frame, detail images in memory for the
+latest shots and in files for the others, zooms of the compared frame, captured zooms of another frame or cut by a
 closed popup and the zooms given up with them, the detail image of popups past
 the window's edge, joining thousands of regions, the time left for the
 full shot, and within the box of an animation the second image, of the

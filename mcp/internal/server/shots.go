@@ -3,8 +3,10 @@ package server
 import (
 	"container/list"
 	"fmt"
+	"image"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -62,7 +64,9 @@ type starvation struct {
 
 // A detail is an image of the window as a shot of it saw it, in enough detail to find what changed since: a few
 // pixels of text, which shrinking for an overview would blur away. It is the shot's own image when that was not shrunk.
+// Its pixels are in memory while it is among the latest (see residentDetails), and otherwise in a file.
 type detail struct {
+	// The PNG of the image, when it has one: the shot's own image, or "".
 	Path   string
 	Width  int
 	Height int
@@ -72,6 +76,14 @@ type detail struct {
 	Max int
 	// The region of the screenshot request, in window-local logical pixels, or nil for the whole window.
 	Region *hypr.IntRect
+
+	mu sync.Mutex
+	// The pixels, while they are in memory.
+	img *image.NRGBA
+	// The file that the pixels are written to when they leave memory without a PNG, and the file once they are.
+	spillPath, spilled string
+	// Set once the pixels leave memory, and once they are gone for good.
+	leaving, gone bool
 }
 
 func (d *detail) geometry() detailGeometry {
@@ -156,10 +168,18 @@ type shotStore struct {
 	byWindow map[string]*list.List
 	// The last shot of the whole window that a result gave the session, by window.
 	last map[string]string
+	// The detail images whose pixels are in memory, oldest first, and the writes of the others to their files.
+	resident []residentDetail
+	spills   *spiller
+}
+
+type residentDetail struct {
+	window string
+	d      *detail
 }
 
 func newShotStore() *shotStore {
-	return &shotStore{byID: map[string]*list.Element{}, byWindow: map[string]*list.List{}, last: map[string]string{}}
+	return &shotStore{byID: map[string]*list.Element{}, byWindow: map[string]*list.List{}, last: map[string]string{}, spills: newSpiller()}
 }
 
 // returned records a shot that a result gives the session. A zoom shows part of a shot the session has, which stays
@@ -230,6 +250,13 @@ func (st *shotStore) dropClosed(windows []hypr.Window, mark int) {
 }
 
 func (st *shotStore) add(s *shot) {
+	// The writes of the pixels that leave memory start once the store is unlocked, since they may wait for others.
+	var leaving []*detail
+	defer func() {
+		for _, d := range leaving {
+			d.release(st.spills)
+		}
+	}()
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	l := st.byWindow[s.Window]
@@ -238,9 +265,28 @@ func (st *shotStore) add(s *shot) {
 		st.byWindow[s.Window] = l
 	}
 	st.byID[s.ID] = l.PushFront(s)
+	if s.Detail != nil && s.Detail.inMemory() {
+		// The window's older detail images leave memory, and then those of the windows whose latest is oldest.
+		st.resident = slices.DeleteFunc(st.resident, func(r residentDetail) bool {
+			if r.window == s.Window {
+				leaving = append(leaving, r.d)
+			}
+			return r.window == s.Window
+		})
+		st.resident = append(st.resident, residentDetail{s.Window, s.Detail})
+		for len(st.resident) > residentDetails {
+			leaving = append(leaving, st.resident[0].d)
+			st.resident = st.resident[1:]
+		}
+	}
 	for l.Len() > shotsPerWindow {
 		st.removeLocked(l.Back())
 	}
+}
+
+// wait waits for the detail images that are being written to their files.
+func (st *shotStore) wait() {
+	st.spills.wait()
 }
 
 // get returns the shot and marks it as used.
@@ -287,15 +333,19 @@ func (st *shotStore) removeLocked(e *list.Element) {
 	if st.last[s.Window] == s.ID {
 		delete(st.last, s.Window)
 	}
+	if s.Detail != nil {
+		st.resident = slices.DeleteFunc(st.resident, func(r residentDetail) bool { return r.d == s.Detail })
+		s.Detail.drop()
+	}
 	s.removeFiles()
 }
 
-// removeFiles deletes the shot's image and its detail image.
+// removeFiles deletes the shot's image and the PNG of its detail image.
 func (s *shot) removeFiles() {
 	if s.Path != "" {
 		os.Remove(s.Path)
 	}
-	if s.Detail != nil && s.Detail.Path != s.Path {
+	if s.Detail != nil && s.Detail.Path != "" && s.Detail.Path != s.Path {
 		os.Remove(s.Detail.Path)
 	}
 }

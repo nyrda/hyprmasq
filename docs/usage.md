@@ -16,7 +16,7 @@ underneath, for scripts, tests and people.
 
 | Command | Result |
 | --- | --- |
-| `hyprctl hyprmasq screenshot <addr> <path.png> [X Y WIDTH HEIGHT] [max PIXELS] [popups]` | Renders the window, or the given region of it, to a PNG at `path.png`, which must be absolute. Prints `ok`. See [Screenshots](#screenshots). |
+| `hyprctl hyprmasq screenshot <addr> <path.png> [X Y WIDTH HEIGHT] [max PIXELS] [popups] [raw] [detail <path>]` | Renders the window, or the given region of it, to a PNG at `path.png`, which must be absolute. Prints `ok`. See [Screenshots](#screenshots). |
 | `hyprctl hyprmasq wait <addr> [QUIET-MS [TIMEOUT-MS]]` | Answers once the window has settled, or when the timeout passes. Prints `settled` or `timeout`. See [Waiting for a redraw](#waiting-for-a-redraw). |
 | `hyprctl hyprmasq wait <addr> since COMMITS [expect MS] [quiet MS] [deadline MS] [id WORD]` | Waits for a change since a value of the window's commit counter, then until it is quiet. Prints how the wait ended. See [Waiting for a change](#waiting-for-a-change). |
 | `hyprctl hyprmasq cancel <word>` | Ends the pending `wait` with that id. Prints `cancelled` or `no pending wait`. |
@@ -28,7 +28,7 @@ underneath, for scripts, tests and people.
 | `hyprctl hyprmasq eis open <addr> [force]` | Creates the window's input socket and prints its path. Opening it again returns the same path. `force` drives an X11 window even while another window of its X server has the focus; see [X11 windows](#x11-windows). Each `open` sets or clears it. |
 | `hyprctl hyprmasq eis close <addr>` | Removes the socket and disconnects its client. Prints `ok`. |
 | `hyprctl hyprmasq eis list` | Prints one `address path` line per open socket, followed by `force` for sockets opened with `force`. |
-| `hyprctl hyprmasq version` | Prints the plugin version and its interface version, such as `hyprmasq 0.3.0 interface 3`. |
+| `hyprctl hyprmasq version` | Prints the plugin version and its interface version, such as `hyprmasq 0.3.0 interface 4`. |
 | `hyprctl hyprmasq help` | Prints the command summary. |
 
 New keywords such as `since`, `max` and `release` are plain words, because
@@ -56,7 +56,7 @@ With `hyprctl -j`, every command answers in JSON:
 | `eis list` | `[{"address":"0x...","path":"...","socketId":"9f3a61c2-3","force":false}]` |
 | `launch` | `{"ok":true,"pid":4242}` |
 | `launched` | `{"ok":true,"windows":[{"address":"0x...","stableId":"1a","token":"9c1f0e4ab27d3365"}]}` |
-| `version` | `{"ok":true,"version":"0.3.0","interface":3}` |
+| `version` | `{"ok":true,"version":"0.3.0","interface":4}` |
 | any error | `{"ok":false,"error":"...","code":"window_gone"}` |
 
 Every JSON error has a `code` that scripts can rely on:
@@ -154,6 +154,28 @@ pixels.
 
 ```sh
 hyprctl -j hyprmasq screenshot "$addr" /tmp/overview.png max 1280
+```
+
+### Raw pixels and detail images
+
+`raw` writes the image's pixels instead of a PNG: straight-alpha RGBA, 4 bytes
+a pixel, top row first, without a header, `width` × `height` of the reply.
+Nothing is encoded, so a program that reads the pixels back saves the time of
+encoding and decoding a PNG.
+
+`detail PATH` also writes the pixels of a detail image, from the same render,
+so that both show the same frame of the window: the same area at one pixel per
+logical pixel, or at the monitor's pixels where they are fewer, as raw pixels
+at the absolute `PATH`. It is for an image that `max` shrank: a detail image
+keeps small text that shrinking blurs away. An image that has at least as many
+pixels gets none, and the reply's `detail` is `null`. Otherwise `detail`
+describes it as the reply does the image, with `path`, `width`, `height`,
+`scale` and `region`, and `max`: the `max PIXELS` of a request that renders
+the area at the same scale again, or `null` for the monitor's scale.
+
+```sh
+hyprctl -j hyprmasq screenshot "$addr" /tmp/overview.raw max 1280 raw detail /tmp/detail.raw
+# {"ok":true,...,"width":1280,"height":720,"scale":0.5,...,"detail":{"path":"/tmp/detail.raw","width":2560,"height":1440,"scale":1,"region":{...},"max":null}}
 ```
 
 ### Popups outside the window

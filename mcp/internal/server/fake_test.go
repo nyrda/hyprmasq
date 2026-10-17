@@ -307,7 +307,7 @@ func newFakeHyprland(t *testing.T) *fakeHyprland {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(dir) })
-	f := &fakeHyprland{t: t, socket: filepath.Join(dir, ".socket.sock"), scale: 2, iface: 3, waits: map[string]chan struct{}{},
+	f := &fakeHyprland{t: t, socket: filepath.Join(dir, ".socket.sock"), scale: 2, iface: hypr.Interface, waits: map[string]chan struct{}{},
 		environ: map[int]string{}, exe: map[int]string{}, parents: map[int]int{}, launches: map[int]string{}}
 	l, err := net.Listen("unix", f.socket)
 	if err != nil {
@@ -725,21 +725,50 @@ func (f *fakeHyprland) screenshot(w *fakeWindow, args []string) string {
 		}
 	}
 	scale := f.scale
-	for i := 0; i+1 < len(rest); i++ {
-		if rest[i] == "max" {
+	raw, detailPath := false, ""
+	for i := 0; i < len(rest); i++ {
+		switch {
+		case rest[i] == "max" && i+1 < len(rest):
 			limit, _ := strconv.Atoi(rest[i+1])
 			if long := math.Max(region.Width, region.Height) * scale; long > float64(limit) {
 				scale *= float64(limit) / long
 			}
+		case rest[i] == "raw":
+			raw = true
+		case rest[i] == "detail" && i+1 < len(rest):
+			detailPath = rest[i+1]
 		}
 	}
-	width, height := int(math.Round(region.Width*scale)), int(math.Round(region.Height*scale))
-	file, err := os.Create(path)
+	w.Frames++
+	width, height, err := f.writeImage(w, path, region, scale, raw)
 	if err != nil {
 		return pluginError("internal", err.Error())
 	}
+	reply := map[string]any{"ok": true, "path": path, "width": width, "height": height, "scale": scale, "region": region, "resizing": w.Resizing, "starved": w.Starved, "detail": nil}
+	// The detail image has a pixel per logical pixel, or the monitor's pixels where they are fewer.
+	if least := math.Min(f.scale, 1); detailPath != "" && scale < least-1e-6 {
+		limit := 0
+		if f.scale > 1 {
+			limit = int(math.Max(region.Width, region.Height))
+		}
+		dw, dh, err := f.writeImage(w, detailPath, region, least, true)
+		if err != nil {
+			return pluginError("internal", err.Error())
+		}
+		reply["detail"] = map[string]any{"path": detailPath, "width": dw, "height": dh, "scale": least, "region": region, "max": limit}
+	}
+	if w.Socket {
+		reply["commits"] = w.Commits
+		reply["socketId"] = w.socketID()
+	}
+	return jsonReply(reply)
+}
+
+// writeImage renders the window's region at the scale, from its Paint, as a gray PNG, or as raw pixels as the plugin
+// writes them.
+func (f *fakeHyprland) writeImage(w *fakeWindow, path string, region hypr.Rect, scale float64, raw bool) (int, int, error) {
+	width, height := int(math.Round(region.Width*scale)), int(math.Round(region.Height*scale))
 	img := image.NewGray(image.Rect(0, 0, width, height))
-	w.Frames++
 	if w.Paint != nil {
 		for py := 0; py < height; py++ {
 			for px := 0; px < width; px++ {
@@ -747,14 +776,19 @@ func (f *fakeHyprland) screenshot(w *fakeWindow, args []string) string {
 			}
 		}
 	}
-	png.Encode(file, img)
-	file.Close()
-	reply := map[string]any{"ok": true, "path": path, "width": width, "height": height, "scale": scale, "region": region, "resizing": w.Resizing, "starved": w.Starved}
-	if w.Socket {
-		reply["commits"] = w.Commits
-		reply["socketId"] = w.socketID()
+	if raw {
+		pix := make([]byte, 0, 4*width*height)
+		for _, v := range img.Pix {
+			pix = append(pix, v, v, v, 255)
+		}
+		return width, height, os.WriteFile(path, pix, 0o600)
 	}
-	return jsonReply(reply)
+	file, err := os.Create(path)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer file.Close()
+	return width, height, png.Encode(file, img)
 }
 
 type testEnv struct {

@@ -156,6 +156,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 	for _, w := range windows {
 		s.hypr.LeaseRelease(release, w, s.owner)
 	}
+	s.shots.wait()
 	os.RemoveAll(s.shotDir)
 }
 

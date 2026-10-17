@@ -22,22 +22,23 @@
 
 namespace hyprmasq {
     namespace {
-        constexpr std::string_view USAGE = "usage:\n"
-                                           "  hyprctl hyprmasq screenshot <window-address> <absolute-path.png> [x y width height] [max pixels] [popups]\n"
-                                           "  hyprctl hyprmasq wait <window-address> [quiet-ms [timeout-ms]]\n"
-                                           "  hyprctl hyprmasq wait <window-address> since <commits> [expect ms] [quiet ms] [deadline ms] [id word] [ignore animations]\n"
-                                           "  hyprctl hyprmasq cancel <word>\n"
-                                           "  hyprctl hyprmasq state <window-address>\n"
-                                           "  hyprctl hyprmasq launch <workspace-hex> <token> <shell-command-line-hex>\n"
-                                           "  hyprctl hyprmasq launched\n"
-                                           "  hyprctl hyprmasq lease <window-address> <ms> <owner>\n"
-                                           "  hyprctl hyprmasq lease <window-address> release [owner]\n"
-                                           "  hyprctl hyprmasq eis open <window-address> [force]\n"
-                                           "  hyprctl hyprmasq eis close <window-address>\n"
-                                           "  hyprctl hyprmasq eis list\n"
-                                           "  hyprctl hyprmasq version\n";
+        constexpr std::string_view USAGE =
+            "usage:\n"
+            "  hyprctl hyprmasq screenshot <window-address> <absolute-path.png> [x y width height] [max pixels] [popups] [raw] [detail <absolute-path>]\n"
+            "  hyprctl hyprmasq wait <window-address> [quiet-ms [timeout-ms]]\n"
+            "  hyprctl hyprmasq wait <window-address> since <commits> [expect ms] [quiet ms] [deadline ms] [id word] [ignore animations]\n"
+            "  hyprctl hyprmasq cancel <word>\n"
+            "  hyprctl hyprmasq state <window-address>\n"
+            "  hyprctl hyprmasq launch <workspace-hex> <token> <shell-command-line-hex>\n"
+            "  hyprctl hyprmasq launched\n"
+            "  hyprctl hyprmasq lease <window-address> <ms> <owner>\n"
+            "  hyprctl hyprmasq lease <window-address> release [owner]\n"
+            "  hyprctl hyprmasq eis open <window-address> [force]\n"
+            "  hyprctl hyprmasq eis close <window-address>\n"
+            "  hyprctl hyprmasq eis list\n"
+            "  hyprctl hyprmasq version\n";
 
-        std::string                jsonString(std::string_view in) {
+        std::string jsonString(std::string_view in) {
             std::string out = "\"";
             for (const char c : in) {
                 switch (c) {
@@ -109,9 +110,11 @@ namespace hyprmasq {
             if (args.size() < 2)
                 return usage(format);
 
-            SCaptureOptions options;
-            size_t          next = 2;
-            if (args.size() > next && args[next] != "max" && args[next] != "popups") {
+            SCaptureOptions       options;
+            bool                  raw = false;
+            std::filesystem::path detailPath;
+            size_t                next = 2;
+            if (args.size() > next && args[next] != "max" && args[next] != "popups" && args[next] != "raw" && args[next] != "detail") {
                 if (args.size() < next + 4)
                     return usage(format);
                 std::optional<int> v[4];
@@ -128,11 +131,16 @@ namespace hyprmasq {
                     return usage(format);
                 if (args[next] == "popups")
                     options.popups = true;
+                else if (args[next] == "raw")
+                    raw = true;
                 else if (args[next] == "max" && next + 1 < args.size()) {
                     const auto pixels = parseNumber<int>(args[++next]);
                     if (!pixels || *pixels < 1)
                         return error(format, eErrorCode::INVALID_ARGUMENTS, "max needs a whole number of pixels, at least 1");
                     options.maxPixels = *pixels;
+                } else if (args[next] == "detail" && next + 1 < args.size()) {
+                    detailPath     = args[++next];
+                    options.detail = true;
                 } else
                     return usage(format);
             }
@@ -142,8 +150,10 @@ namespace hyprmasq {
                 return windowGone(format, args[0]);
 
             const std::filesystem::path path = args[1];
-            if (!path.is_absolute())
+            if (!path.is_absolute() || (options.detail && !detailPath.is_absolute()))
                 return error(format, eErrorCode::INVALID_ARGUMENTS, "output path must be absolute");
+            if (options.detail && detailPath == path)
+                return error(format, eErrorCode::INVALID_ARGUMENTS, "the detail image needs a path of its own");
 
             // Rendering answers the frame callbacks that a hidden window waits for, so this is read before.
             const bool hungry  = starved(window);
@@ -158,14 +168,26 @@ namespace hyprmasq {
             const bool behind = resizing(window);
 
             // Rendering needs the compositor, encoding does not.
-            return defer(format, [format, path, commits, socketId, behind, hungry, capture = std::move(*capture)] mutable -> std::string {
-                if (auto written = writePNG(capture, path); !written)
+            return defer(format, [format, path, raw, detailPath, commits, socketId, behind, hungry, capture = std::move(*capture)] mutable -> std::string {
+                if (auto written = raw ? writeRaw(capture.image, path) : writePNG(capture.image, path); !written)
                     return error(format, eErrorCode::INTERNAL, written.error());
+                if (capture.detail)
+                    if (auto written = writeRaw(*capture.detail, detailPath); !written)
+                        return error(format, eErrorCode::INTERNAL, written.error());
                 if (format == FORMAT_JSON) {
-                    const auto& r = capture.region;
+                    const auto& r = capture.image.region;
+                    // Without a detail image, the image has as many pixels as one would.
+                    std::string detail = "null";
+                    if (capture.detail) {
+                        const auto& d  = *capture.detail;
+                        const auto& dr = d.region;
+                        detail         = std::format(R"({{"path":{},"width":{},"height":{},"scale":{},"region":{{"x":{},"y":{},"width":{},"height":{}}},"max":{}}})",
+                                                     jsonString(detailPath.string()), d.width, d.height, d.scale, dr.x, dr.y, dr.width, dr.height, jsonOrNull(d.maxPixels));
+                    }
                     return std::format(
-                        R"({{"ok":true,"path":{},"width":{},"height":{},"scale":{},"region":{{"x":{},"y":{},"width":{},"height":{}}},"commits":{},"socketId":{},"resizing":{},"starved":{}}})",
-                        jsonString(path.string()), capture.width, capture.height, capture.scale, r.x, r.y, r.width, r.height, jsonOrNull(commits), socketId, behind, hungry);
+                        R"({{"ok":true,"path":{},"width":{},"height":{},"scale":{},"region":{{"x":{},"y":{},"width":{},"height":{}}},"commits":{},"socketId":{},"resizing":{},"starved":{},"detail":{}}})",
+                        jsonString(path.string()), capture.image.width, capture.image.height, capture.image.scale, r.x, r.y, r.width, r.height, jsonOrNull(commits), socketId,
+                        behind, hungry, detail);
                 }
                 return "ok";
             });

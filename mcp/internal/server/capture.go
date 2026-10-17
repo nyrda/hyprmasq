@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"math"
 	"os"
 	"path/filepath"
@@ -171,7 +172,7 @@ func (s *Server) waitID() string {
 // capture takes a shot of the window with the stable_id, or a zoom into it, and remembers it. A window that has not
 // caught up with a resize gets a short time to do so first, and a starved window frame callbacks and a short time to
 // draw. A new window at the address is not captured, and a zoom only while the window has the size of the shot it was
-// read from.
+// read from. A shot of the whole window comes from one render, which gives its image and its detail image.
 func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) (*shot, []byte, error) {
 	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
 		return nil, nil, err
@@ -180,7 +181,7 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 	if z != nil {
 		region = &z.rect
 	}
-	caughtUp, detailRetried := false, false
+	caughtUp := false
 	// For a starved window: how long the wait gave it to draw, 0 without one, and whether it drew.
 	starvedMs, starvedDrew := 0, false
 	catchUp := func(st hypr.State, starved bool) error {
@@ -208,40 +209,36 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 		}
 		id := s.shots.newID()
 		path := filepath.Join(s.shotDir, id+".png")
-		reply, err := s.hypr.Screenshot(ctx, window, path, region, s.cfg.MaxImageSize)
-		if err != nil {
+		var f *frame
+		var reply hypr.Screenshot
+		if z == nil {
+			if f, err = s.renderFrame(ctx, window); err == nil {
+				reply = f.reply
+			}
+		} else if reply, err = s.hypr.Screenshot(ctx, window, hypr.ScreenshotArgs{Path: path, Region: region, Max: s.cfg.MaxImageSize}); err != nil {
 			os.Remove(path)
 			var pe *hypr.Error
-			if region != nil && errors.As(err, &pe) && pe.Code == "invalid_arguments" {
+			if errors.As(err, &pe) && pe.Code == "invalid_arguments" {
 				// The region is whole and not empty, so the plugin refuses it only when it lies outside the window and
 				// its popups, as when it showed a popup that has closed since.
 				return nil, nil, &toolError{Code: "stale_shot", Message: "the region shows nothing of the window now; a popup it showed may have closed: " + pe.Message,
 					Hint: hintScreenshot}
 			}
+		}
+		if err != nil {
 			return nil, nil, err
-		}
-		var det *detail
-		sameFrame := true
-		if z == nil {
-			det, sameFrame = s.overviewDetail(ctx, window, id, path, reply, pre)
-		}
-		removeAll := func() {
-			os.Remove(path)
-			if det != nil && det.Path != path {
-				os.Remove(det.Path)
-			}
 		}
 		post, err := s.hypr.State(ctx, window)
 		if err != nil {
-			removeAll()
+			os.Remove(path)
 			return nil, nil, err
 		}
 		if post.StableID != pre.StableID {
-			removeAll()
+			os.Remove(path)
 			return nil, nil, &toolError{Code: "window_gone", Message: fmt.Sprintf("window %s closed during the capture", window), Hint: hintWindows}
 		}
 		if post.Size != pre.Size {
-			removeAll()
+			os.Remove(path)
 			// Which of the sizes the image shows is unknown, so it never becomes a shot.
 			if attempt == captureAttempts {
 				return nil, nil, &toolError{Code: "internal", Message: fmt.Sprintf("window %s was resized during each of %d captures", window, attempt),
@@ -250,28 +247,43 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 			attempt++
 			continue
 		}
-		// The window drew between the overview and its detail image, which would hold what the overview does not. The
-		// pair is captured once more; after that, the shot keeps no detail image.
-		if !sameFrame && !detailRetried {
-			removeAll()
-			detailRetried = true
-			continue
-		}
 		// A resize, or a wait for a frame callback, that started after the state was read.
 		if (reply.Resizing || reply.Starved) && !caughtUp {
-			removeAll()
+			os.Remove(path)
 			if err := catchUp(post, reply.Starved); err != nil {
 				return nil, nil, err
 			}
 			continue
 		}
-		png, err := os.ReadFile(path)
-		if err != nil {
-			removeAll()
-			return nil, nil, err
+		if reply.Scale <= 0 || reply.Width <= 0 || reply.Height <= 0 {
+			os.Remove(path)
+			return nil, nil, &toolError{Code: "internal", Message: fmt.Sprintf("the plugin returned an empty screenshot (%d×%d at scale %v)", reply.Width, reply.Height, reply.Scale)}
 		}
-		sh := &shot{ID: id, Window: window, StableID: pre.StableID, Size: post.Size, Frame: reply.Region,
-			Width: reply.Width, Height: reply.Height, Scale: reply.Scale, Resizing: reply.Resizing, Path: path, Detail: det}
+		var sh *shot
+		var png []byte
+		if z == nil {
+			f.pre, f.post = pre, post
+			if sh, png, err = s.frameShot(id, window, f); err != nil {
+				return nil, nil, err
+			}
+		} else {
+			if png, err = os.ReadFile(path); err != nil {
+				os.Remove(path)
+				return nil, nil, err
+			}
+			sh = &shot{ID: id, Window: window, StableID: pre.StableID, Size: post.Size, Frame: reply.Region,
+				Width: reply.Width, Height: reply.Height, Scale: reply.Scale, Resizing: reply.Resizing, Path: path}
+			sh.setCommits(reply, pre)
+			sh.Parent = z.from.ID
+			if z.from.Parent != "" {
+				sh.Parent = z.from.Parent
+			}
+			// A zoom is compared by its own image, and keeps the animations of the shot it was read from.
+			rect := z.rect
+			sh.Ref = detailOf(reply.Image, path, s.cfg.MaxImageSize)
+			sh.Ref.Region = &rect
+			sh.Animated = z.from.Animated
+		}
 		// A window still starved got no frame callbacks from the wait, which did not run.
 		switch {
 		case reply.Starved:
@@ -279,83 +291,95 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 		case starvedMs > 0 && !starvedDrew:
 			sh.Starved = &starvation{WaitedMs: starvedMs}
 		}
-		switch {
-		case z != nil:
-			sh.Parent = z.from.ID
-			if z.from.Parent != "" {
-				sh.Parent = z.from.Parent
-			}
-			// A zoom is compared by its own image, and keeps the animations of the shot it was read from.
-			rect := z.rect
-			sh.Ref = detailOf(reply, path, s.cfg.MaxImageSize)
-			sh.Ref.Region = &rect
-			sh.Animated = z.from.Animated
-		case det == nil && !reply.Resizing:
-			sh.Ref = detailOf(reply, path, s.cfg.MaxImageSize)
-		}
-		switch {
-		case reply.Commits != nil:
-			sh.Commits, sh.SocketID = *reply.Commits, deref(reply.SocketID)
-		case pre.Commits != nil:
-			sh.Commits, sh.SocketID = *pre.Commits, deref(pre.SocketID)
-		}
-		if sh.Scale <= 0 || sh.Width <= 0 || sh.Height <= 0 {
-			removeAll()
-			return nil, nil, &toolError{Code: "internal", Message: fmt.Sprintf("the plugin returned an empty screenshot (%d×%d at scale %v)", sh.Width, sh.Height, sh.Scale)}
-		}
 		s.shots.add(sh)
 		return sh, png, nil
 	}
 }
 
-// detailLimit is the max of a screenshot request for a detail image of a window on a monitor of the scale, whose box
-// with its popups is frame: logical pixels, or the monitor's pixels where they are fewer.
-func detailLimit(frame hypr.Rect, monitorScale float64) int {
-	if monitorScale <= 1 {
-		return 0
+// A frame is what one render of the whole window gave: the overview that a shot shows, and the detail image that is
+// compared, in memory.
+type frame struct {
+	reply    hypr.Screenshot
+	overview *image.NRGBA
+	// The detail image, which is the overview when that has as many pixels, or nil when the window had not caught up
+	// with a resize.
+	detail *detail
+	// The window's state before and after the render.
+	pre, post hypr.State
+}
+
+// renderFrame renders the whole window once, for its overview and its detail image, which the plugin writes as raw
+// pixels: they are read into memory and their files deleted.
+func (s *Server) renderFrame(ctx context.Context, window string) (*frame, error) {
+	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
+		return nil, err
 	}
-	return int(math.Ceil(max(frame.Width, frame.Height) - 1e-6))
-}
-
-func detailOf(reply hypr.Screenshot, path string, max int) *detail {
-	return &detail{Path: path, Width: reply.Width, Height: reply.Height, Scale: reply.Scale, Frame: reply.Region, Max: max}
-}
-
-// overviewDetail returns the detail image of an overview shot: the overview itself when it has logical pixels or the
-// monitor's, whichever are fewer, or else one more image of the window, rendered right after it at that scale. Without
-// one, the shot cannot be compared, which a later changes capture answers with a full shot. sameFrame is false when
-// the window drew between the two images, which then show different frames.
-func (s *Server) overviewDetail(ctx context.Context, window, id, path string, reply hypr.Screenshot, st hypr.State) (det *detail, sameFrame bool) {
+	n := s.detailSeq.Add(1)
+	path, detailPath := filepath.Join(s.shotDir, fmt.Sprintf("f%d.raw", n)), filepath.Join(s.shotDir, fmt.Sprintf("f%d-detail.raw", n))
+	defer os.Remove(path)
+	defer os.Remove(detailPath)
+	reply, err := s.hypr.Screenshot(ctx, window, hypr.ScreenshotArgs{Path: path, Max: s.cfg.MaxImageSize, Raw: true, DetailPath: detailPath})
+	if err != nil {
+		return nil, err
+	}
+	f := &frame{reply: reply}
+	if f.overview, err = hypr.ReadRaw(path, reply.Width, reply.Height); err != nil {
+		return nil, err
+	}
+	// Without a detail image, the shot cannot be compared, which a later changes capture answers with a full shot.
 	if reply.Resizing || reply.Scale <= 0 {
-		return nil, true
+		return f, nil
 	}
-	least := min(st.Scale, 1) - 1e-6
-	if reply.Scale >= least {
-		return detailOf(reply, path, s.cfg.MaxImageSize), true
+	spill := filepath.Join(s.shotDir, fmt.Sprintf("f%d-detail.z", n))
+	if reply.Detail == nil {
+		f.detail = detailOf(reply.Image, "", s.cfg.MaxImageSize)
+		f.detail.keepPixels(f.overview, spill)
+		return f, nil
 	}
-	// The box includes popups past the window's edges, so the limit is that of the box.
-	limit := detailLimit(reply.Region, st.Scale)
-	detailPath := filepath.Join(s.shotDir, id+"-detail.png")
-	full, err := s.hypr.Screenshot(ctx, window, detailPath, nil, limit)
-	switch {
-	case err != nil || full.Resizing || full.Scale < least:
-		os.Remove(detailPath)
-		return nil, true
-	// The commit counter counts every frame of the window and its popups, so the same count is the same frame, and a
-	// popup that opened or closed past the window's edge changes the box too.
-	case reply.Commits == nil || full.Commits == nil || *reply.Commits != *full.Commits || deref(reply.SocketID) != deref(full.SocketID) || !sameBox(reply, full):
-		os.Remove(detailPath)
-		return nil, false
+	img, err := hypr.ReadRaw(detailPath, reply.Detail.Width, reply.Detail.Height)
+	if err != nil {
+		return nil, err
 	}
-	return detailOf(full, detailPath, limit), true
+	f.detail = detailOf(reply.Detail.Image, "", reply.Detail.Max)
+	f.detail.keepPixels(img, spill)
+	return f, nil
 }
 
-// sameBox tells whether two screenshots of the whole window show the same box of the window and its popups: both start
-// at its corner, and the plugin widens each by less than one of its pixels to cover it.
-func sameBox(a, b hypr.Screenshot) bool {
-	slack := max(1/a.Scale, 1/b.Scale) + 1e-6
-	return math.Abs(a.Region.X-b.Region.X) < 1e-6 && math.Abs(a.Region.Y-b.Region.Y) < 1e-6 &&
-		math.Abs(a.Region.Width-b.Region.Width) < slack && math.Abs(a.Region.Height-b.Region.Height) < slack
+// frameShot makes the shot with the id of a frame: its overview, encoded as the PNG that the agent gets, and its detail
+// image. The caller adds it to the store.
+func (s *Server) frameShot(id, window string, f *frame) (*shot, []byte, error) {
+	png, err := encodePNG(f.overview)
+	if err != nil {
+		return nil, nil, err
+	}
+	path := filepath.Join(s.shotDir, id+".png")
+	if err := os.WriteFile(path, png, 0o600); err != nil {
+		os.Remove(path)
+		return nil, nil, err
+	}
+	reply := f.reply
+	sh := &shot{ID: id, Window: window, StableID: f.pre.StableID, Size: f.post.Size, Frame: reply.Region,
+		Width: reply.Width, Height: reply.Height, Scale: reply.Scale, Resizing: reply.Resizing, Path: path, Detail: f.detail}
+	// The overview is the detail image, whose pixels its PNG keeps once they leave memory.
+	if f.detail != nil && reply.Detail == nil {
+		f.detail.Path = path
+	}
+	sh.setCommits(reply, f.pre)
+	return sh, png, nil
+}
+
+// setCommits records the window's counter when the shot was rendered, or before, from a plugin that reads none then.
+func (sh *shot) setCommits(reply hypr.Screenshot, pre hypr.State) {
+	switch {
+	case reply.Commits != nil:
+		sh.Commits, sh.SocketID = *reply.Commits, deref(reply.SocketID)
+	case pre.Commits != nil:
+		sh.Commits, sh.SocketID = *pre.Commits, deref(pre.SocketID)
+	}
+}
+
+func detailOf(img hypr.Image, path string, max int) *detail {
+	return &detail{Path: path, Width: img.Width, Height: img.Height, Scale: img.Scale, Frame: img.Region, Max: max}
 }
 
 type screenshotArgs struct {

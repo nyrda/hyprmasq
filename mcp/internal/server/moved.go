@@ -84,9 +84,9 @@ type view struct {
 	at baseline
 }
 
-// readView decodes the reference image of a shot.
+// readView returns the reference image of a shot.
 func readView(ref *detail) (view, error) {
-	img, err := readPNG(ref.Path)
+	img, err := ref.image()
 	return view{img: img, geo: ref}, err
 }
 
@@ -96,17 +96,17 @@ func (s *Server) captureView(ctx context.Context, window string, ref *detail) (v
 	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
 		return view{}, err
 	}
-	path := filepath.Join(s.shotDir, fmt.Sprintf("t%d.png", s.detailSeq.Add(1)))
+	path := filepath.Join(s.shotDir, fmt.Sprintf("t%d.raw", s.detailSeq.Add(1)))
 	defer os.Remove(path)
-	reply, err := s.hypr.Screenshot(ctx, window, path, ref.Region, ref.Max)
+	reply, err := s.hypr.Screenshot(ctx, window, hypr.ScreenshotArgs{Path: path, Region: ref.Region, Max: ref.Max, Raw: true})
 	if err != nil {
 		return view{}, err
 	}
-	img, err := readPNG(path)
+	img, err := hypr.ReadRaw(path, reply.Width, reply.Height)
 	if err != nil {
 		return view{}, err
 	}
-	v := view{img: img, geo: detailOf(reply, path, ref.Max), at: baseline{socket: deref(reply.SocketID)}}
+	v := view{img: img, geo: detailOf(reply.Image, "", ref.Max), at: baseline{socket: deref(reply.SocketID)}}
 	if reply.Commits != nil {
 		v.at.commits = *reply.Commits
 	}

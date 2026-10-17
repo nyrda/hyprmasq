@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -60,7 +59,8 @@ const (
 	animationExpect    = 200 * time.Millisecond
 	animationRun       = 100 * time.Millisecond
 	animationSettleMax = 400 * time.Millisecond
-	// About how long decoding two detail images and comparing them takes per pixel: 170 ms for 2544×1432.
+	// About how long comparing two detail images takes per pixel, with time to spare: decoding them and comparing took
+	// 170 ms for 2544×1432 when they were PNG files.
 	comparePerPixel = 60 * time.Nanosecond
 )
 
@@ -347,51 +347,42 @@ func (s *Server) changesBase(window string, sh *shot, st hypr.State) (*shot, str
 	return nil, fmt.Sprintf("the shot that %s zooms into is gone", sh.ID)
 }
 
-// errNotSettled means that the window had not caught up with a resize, or was resized, while a detail image was
-// rendered, which a full shot then waits for.
+// errNotSettled means that the window had not caught up with a resize, or was resized, while it was rendered, which a
+// full shot then waits for.
 var errNotSettled = errors.New("the window is resizing")
 
-// errStarved means that the window was starved while a detail image was rendered, which a full shot then lets it draw
-// for, or marks.
+// errStarved means that the window was starved while it was rendered, which a full shot then lets it draw for, or marks.
 var errStarved = errors.New("the window waits to draw")
 
-// captureDetail renders a detail image of the window with the max of an earlier one, and returns it with the window's
-// state after it.
-func (s *Server) captureDetail(ctx context.Context, window, stableID string, limit int) (*detail, hypr.State, hypr.Screenshot, error) {
+// captureFrame renders the whole window for a changes capture, as a full shot renders it, once the window has settled.
+func (s *Server) captureFrame(ctx context.Context, window, stableID string) (*frame, error) {
 	pre, err := s.openState(ctx, window, stableID)
 	if err != nil {
-		return nil, pre, hypr.Screenshot{}, err
+		return nil, err
 	}
 	if pre.Resizing {
-		return nil, pre, hypr.Screenshot{}, errNotSettled
+		return nil, errNotSettled
 	}
 	if pre.Starved {
-		return nil, pre, hypr.Screenshot{}, errStarved
+		return nil, errStarved
 	}
-	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
-		return nil, pre, hypr.Screenshot{}, err
-	}
-	path := filepath.Join(s.shotDir, fmt.Sprintf("d%d.png", s.detailSeq.Add(1)))
-	reply, err := s.hypr.Screenshot(ctx, window, path, nil, limit)
+	f, err := s.renderFrame(ctx, window)
 	if err != nil {
-		os.Remove(path)
-		return nil, pre, reply, err
+		return nil, err
 	}
 	post, err := s.hypr.State(ctx, window)
 	switch {
 	case err != nil:
+		return nil, err
 	case post.StableID != pre.StableID:
-		err = &toolError{Code: "window_gone", Message: fmt.Sprintf("window %s closed during the capture", window), Hint: hintWindows}
-	case post.Size != pre.Size || reply.Resizing || reply.Scale <= 0 || reply.Width <= 0 || reply.Height <= 0:
-		err = errNotSettled
-	case reply.Starved:
-		err = errStarved
+		return nil, &toolError{Code: "window_gone", Message: fmt.Sprintf("window %s closed during the capture", window), Hint: hintWindows}
+	case post.Size != pre.Size || f.detail == nil || f.reply.Width <= 0 || f.reply.Height <= 0:
+		return nil, errNotSettled
+	case f.reply.Starved:
+		return nil, errStarved
 	}
-	if err != nil {
-		os.Remove(path)
-		return nil, post, reply, err
-	}
-	return detailOf(reply, path, limit), post, reply, nil
+	f.pre, f.post = pre, post
+	return f, nil
 }
 
 func readPNG(path string) (image.Image, error) {
@@ -405,7 +396,8 @@ func readPNG(path string) (image.Image, error) {
 
 // captureChanges captures what changed since the base shot: a changes shot with the base's pixels, and a zoom into each
 // region that changed, at the monitor's scale. Without a base to compare with, or when a full shot serves better, it
-// captures a full shot and says why.
+// captures a full shot and says why. Once the window is rendered for the comparison, that full shot shows the frame
+// that was compared.
 func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut, stableID string) (*shot, [][]byte, error) {
 	full := func(reason string) (*shot, [][]byte, error) {
 		sh, image, err := s.capture(ctx, r.window, stableID, nil)
@@ -426,46 +418,51 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 		return full(fmt.Sprintf("%d changes shots in a row", base.Deltas))
 	}
 	captureStart := time.Now()
-	after, st, reply, err := s.captureDetail(ctx, r.window, stableID, base.Detail.Max)
+	f, err := s.captureFrame(ctx, r.window, stableID)
 	if errors.Is(err, errNotSettled) || errors.Is(err, errStarved) {
 		return full(err.Error())
 	}
 	if err != nil {
 		return nil, nil, err
 	}
-	keep := false
-	defer func() {
-		if !keep {
-			os.Remove(after.Path)
+	whole := func(reason string) (*shot, [][]byte, error) {
+		sh, image, err := s.frameShot(s.shots.newID(), r.window, f)
+		if err != nil {
+			return nil, nil, err
 		}
-	}()
+		s.shots.add(sh)
+		out.Shot = shotInfo(sh)
+		out.Shot.FullShot = reason
+		return sh, [][]byte{image}, nil
+	}
+	after, st, reply := f.detail, f.post, f.reply
 	switch {
 	case st.Size != base.Size:
-		return full("resized since " + base.ID)
+		return whole("resized since " + base.ID)
 	case math.Abs(after.Scale-base.Detail.Scale) > 1e-6:
-		return full("the monitor's scale changed since " + base.ID)
+		return whole("the monitor's scale changed since " + base.ID)
 	case !after.sameGeometry(base.Detail):
-		return full("popups outside the window changed since " + base.ID)
+		return whole("popups outside the window changed since " + base.ID)
 	}
 	// A comparison that runs out of time leaves the full shot the time it needs.
 	pixels := after.Width * after.Height
 	deadline, hasDeadline := ctx.Deadline()
 	stopBy := deadline.Add(-fallbackReserve)
 	if hasDeadline && time.Until(stopBy) < time.Duration(pixels)*comparePerPixel {
-		return full("too little time left to compare with " + base.ID)
+		return whole("too little time left to compare with " + base.ID)
 	}
-	before, err := readPNG(base.Detail.Path)
+	before, err := base.Detail.image()
 	if err != nil {
-		return full(fmt.Sprintf("%s cannot be compared", base.ID))
+		return whole(fmt.Sprintf("%s cannot be compared", base.ID))
 	}
-	now, err := readPNG(after.Path)
+	now, err := after.image()
 	if err != nil {
 		return nil, nil, err
 	}
 	if before.Bounds().Size() != now.Bounds().Size() {
-		return full(fmt.Sprintf("%s cannot be compared", base.ID))
+		return whole(fmt.Sprintf("%s cannot be compared", base.ID))
 	}
-	// A capture and a decode, which a second image of the window takes again.
+	// A capture, which a second image of the window takes again.
 	captureCost := time.Since(captureStart)
 	// Animations, which are left out below, do not count towards the limit of changed pixels.
 	o := deltaOptions(after.Scale, int(maxChangedArea*float64(pixels))+animatedPixels(out, after))
@@ -474,10 +471,10 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 	}
 	res := delta.Compare(before, now, o)
 	if res.Stopped {
-		return full("too little time left to compare with " + base.ID)
+		return whole("too little time left to compare with " + base.ID)
 	}
 	if res.Over(o) {
-		return full(fmt.Sprintf("%d%% changed since %s", int(math.Round(100*float64(res.Changed)/float64(pixels))), base.ID))
+		return whole(fmt.Sprintf("%d%% changed since %s", int(math.Round(100*float64(res.Changed)/float64(pixels))), base.ID))
 	}
 	g := after.geometry()
 	animatedBoxes := out.Wait.animatedBoxes()
@@ -491,17 +488,12 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 	res, animated = withoutAnimations(before, now, res, o, g, animatedBoxes, changing)
 	regions, leftOut := planRegions(res, g)
 	if reason := s.fullReason(regions, g, changing, base, st.Scale); reason != "" {
-		return full(reason)
+		return whole(reason)
 	}
 
 	sh := &shot{ID: s.shots.newID(), Window: r.window, StableID: base.StableID, Size: st.Size, Frame: base.Frame, Width: base.Width, Height: base.Height,
 		Scale: base.Scale, Base: base.ID, Deltas: base.Deltas + 1, Detail: after, Animated: out.Wait.animatedBoxes()}
-	if reply.Commits != nil {
-		sh.Commits, sh.SocketID = *reply.Commits, deref(reply.SocketID)
-	} else if st.Commits != nil {
-		sh.Commits, sh.SocketID = *st.Commits, deref(st.SocketID)
-	}
-	keep = true
+	sh.setCommits(reply, st)
 	s.shots.add(sh)
 	info := shotInfo(sh)
 	info.Changes = &changesOut{Base: base.ID, Regions: []regionOut{}, LeftOut: leftOut, Animated: animated}
@@ -637,15 +629,15 @@ func (s *Server) keepsChanging(ctx context.Context, window string, a view, boxes
 	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
 		return nil
 	}
-	path := filepath.Join(s.shotDir, fmt.Sprintf("d%d.png", s.detailSeq.Add(1)))
+	path := filepath.Join(s.shotDir, fmt.Sprintf("d%d.raw", s.detailSeq.Add(1)))
 	defer os.Remove(path)
-	shot, err := s.hypr.Screenshot(ctx, window, path, region, limit)
-	b := detailOf(shot, path, limit)
+	shot, err := s.hypr.Screenshot(ctx, window, hypr.ScreenshotArgs{Path: path, Region: region, Max: limit, Raw: true})
+	b := detailOf(shot.Image, "", limit)
 	if err != nil || shot.Commits == nil || deref(shot.SocketID) != a.at.socket || shot.Resizing || shot.Starved || region == a.geo.Region && !b.sameGeometry(a.geo) {
 		return nil
 	}
-	img, err := readPNG(path)
-	if err != nil || img.Bounds().Dx() != b.Width || img.Bounds().Dy() != b.Height || time.Now().After(by) {
+	img, err := hypr.ReadRaw(path, b.Width, b.Height)
+	if err != nil || time.Now().After(by) {
 		return nil
 	}
 	// A box that the second image does not cover whole, or does not lie pixel on pixel with a, gives no parts.
@@ -665,13 +657,13 @@ func (s *Server) cutZoom(img image.Image, d *detail, box image.Rectangle, of *sh
 	if !ok || box.Empty() {
 		return nil, nil, fmt.Errorf("cannot cut %v from the detail image", box)
 	}
-	var buf bytes.Buffer
-	if err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&buf, sub.SubImage(box.Add(img.Bounds().Min))); err != nil {
+	data, err := encodePNG(sub.SubImage(box.Add(img.Bounds().Min)))
+	if err != nil {
 		return nil, nil, err
 	}
 	id := s.shots.newID()
 	path := filepath.Join(s.shotDir, id+".png")
-	if err := os.WriteFile(path, buf.Bytes(), 0o600); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		os.Remove(path)
 		return nil, nil, err
 	}
@@ -681,7 +673,7 @@ func (s *Server) cutZoom(img image.Image, d *detail, box image.Rectangle, of *sh
 		// It shows part of the detail image, which holds what it does at the same commit.
 		Ref: d, Animated: of.Animated}
 	s.shots.add(zsh)
-	return zsh, buf.Bytes(), nil
+	return zsh, data, nil
 }
 
 // sameFrame tells whether a captured zoom of a changes shot shows the frame that the changes shot was compared at,

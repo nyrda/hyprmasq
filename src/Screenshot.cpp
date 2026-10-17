@@ -258,10 +258,6 @@ namespace hyprmasq {
         int          readW  = std::clamp(sc<int>(std::ceil((area.x + area.width - boxX) * scale - epsilon)) - readX, 1, width - readX);
         int          readH  = std::clamp(sc<int>(std::ceil((area.y + area.height - boxY) * scale - epsilon)) - readY, 1, height - readY);
 
-        SCapture     capture;
-        capture.scale  = scale;
-        capture.region = {boxX + readX / scale, boxY + readY / scale, readW / scale, readH / scale};
-
         // A framebuffer beyond the GPU's limit would abort Hyprland.
         GLint maxSize = 0;
         Render::GL::g_pHyprOpenGL->makeEGLCurrent();
@@ -299,52 +295,87 @@ namespace hyprmasq {
             g_pHyprRenderer->m_renderData.noSimplify = simplify;
         }
 
-        // A smaller image is drawn from the full one on the GPU. Its pixels start at the region's origin, so the region
-        // is exact in whole logical pixels and only its size is widened, to whole image pixels.
-        if (options.maxPixels && std::max(readW, readH) > *options.maxPixels) {
-            const double target  = std::min(scale, *options.maxPixels / sc<double>(std::max(area.width, area.height)));
-            const int    outW    = std::max(1, sc<int>(std::ceil(area.width * target - epsilon)));
-            const int    outH    = std::max(1, sc<int>(std::ceil(area.height * target - epsilon)));
-            double       fbScale = scale;
-            int          fbW = width, fbH = height;
-            // Halving first takes every pixel into the average: one bilinear pass to below half the size skips some.
-            while (target / fbScale < 0.5) {
-                const int halfW = (fbW + 1) / 2, halfH = (fbH + 1) / 2;
-                fb = resample(monitor, fb, halfW, halfH, CBox{0, 0, fbW / 2.0, fbH / 2.0});
-                if (!fb)
+        // Reads the area from the render, fitted within maxPixels: a smaller image is drawn from the full one on the GPU.
+        // Its pixels start at the region's origin, so the region is exact in whole logical pixels and only its size is
+        // widened, to whole image pixels.
+        const auto read = [&](std::optional<int> maxPixels) -> std::expected<SImage, SError> {
+            SImage image;
+            image.scale  = scale;
+            image.region = {boxX + readX / scale, boxY + readY / scale, readW / scale, readH / scale};
+            auto source  = fb;
+            int  x = readX, y = readY, w = readW, h = readH;
+            if (maxPixels && std::max(readW, readH) > *maxPixels) {
+                const double target  = std::min(scale, *maxPixels / sc<double>(std::max(area.width, area.height)));
+                const int    outW    = std::max(1, sc<int>(std::ceil(area.width * target - epsilon)));
+                const int    outH    = std::max(1, sc<int>(std::ceil(area.height * target - epsilon)));
+                double       fbScale = scale;
+                int          fbW = width, fbH = height;
+                // Halving first takes every pixel into the average: one bilinear pass to below half the size skips some.
+                while (target / fbScale < 0.5) {
+                    const int halfW = (fbW + 1) / 2, halfH = (fbH + 1) / 2;
+                    source = resample(monitor, source, halfW, halfH, CBox{0, 0, fbW / 2.0, fbH / 2.0});
+                    if (!source)
+                        return std::unexpected(SError{eErrorCode::INTERNAL, "cannot scale the screenshot"});
+                    fbW = halfW;
+                    fbH = halfH;
+                    fbScale /= 2;
+                }
+                const double factor = target / fbScale;
+                source              = resample(monitor, source, outW, outH, CBox{(boxX - area.x) * target, (boxY - area.y) * target, fbW * factor, fbH * factor});
+                if (!source)
                     return std::unexpected(SError{eErrorCode::INTERNAL, "cannot scale the screenshot"});
-                fbW = halfW;
-                fbH = halfH;
-                fbScale /= 2;
+                x = y           = 0;
+                w               = outW;
+                h               = outH;
+                image.scale     = target;
+                image.region    = {sc<double>(area.x), sc<double>(area.y), outW / target, outH / target};
+                image.maxPixels = maxPixels;
             }
-            const double factor = target / fbScale;
-            fb                  = resample(monitor, fb, outW, outH, CBox{(boxX - area.x) * target, (boxY - area.y) * target, fbW * factor, fbH * factor});
-            if (!fb)
-                return std::unexpected(SError{eErrorCode::INTERNAL, "cannot scale the screenshot"});
-            readX = readY  = 0;
-            readW          = outW;
-            readH          = outH;
-            capture.scale  = target;
-            capture.region = {sc<double>(area.x), sc<double>(area.y), outW / target, outH / target};
-        }
 
-        capture.width  = readW;
-        capture.height = readH;
-        capture.rgba.resize(sc<size_t>(readW) * readH * 4);
-        Render::GL::g_pHyprOpenGL->makeEGLCurrent();
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, dynamic_cast<Render::GL::CGLFramebuffer*>(fb.get())->getFBID());
-        glPixelStorei(GL_PACK_ALIGNMENT, 1);
-        // RPT_EXPORT renders top-down, so framebuffer rows count from the top of the window too.
-        glReadPixels(readX, readY, readW, readH, GL_RGBA, GL_UNSIGNED_BYTE, capture.rgba.data());
-        glPixelStorei(GL_PACK_ALIGNMENT, 4);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+            image.width  = w;
+            image.height = h;
+            image.rgba.resize(sc<size_t>(w) * h * 4);
+            Render::GL::g_pHyprOpenGL->makeEGLCurrent();
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, dynamic_cast<Render::GL::CGLFramebuffer*>(source.get())->getFBID());
+            glPixelStorei(GL_PACK_ALIGNMENT, 1);
+            // RPT_EXPORT renders top-down, so framebuffer rows count from the top of the window too.
+            glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, image.rgba.data());
+            glPixelStorei(GL_PACK_ALIGNMENT, 4);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+            return image;
+        };
+
+        SCapture capture;
+        auto     image = read(options.maxPixels);
+        if (!image)
+            return std::unexpected(image.error());
+        capture.image = std::move(*image);
+        // The detail has a pixel per logical pixel, or the monitor's pixels where they are fewer. At a scale above 1,
+        // the long side of the area in logical pixels is the max that gives scale 1.
+        if (options.detail && capture.image.scale < std::min(scale, 1.0) - epsilon) {
+            auto detail = read(scale > 1 ? std::optional{std::max(area.width, area.height)} : std::nullopt);
+            if (!detail)
+                return std::unexpected(detail.error());
+            capture.detail = std::move(*detail);
+        }
 
         g_pHyprRenderer->m_renderData.pMonitor.reset();
         return capture;
     }
 
-    std::expected<void, std::string> writePNG(SCapture& capture, const std::filesystem::path& output) {
-        unpremultiply(capture.rgba);
-        return encode(output, capture.width, capture.height, capture.rgba);
+    std::expected<void, std::string> writePNG(SImage& image, const std::filesystem::path& output) {
+        unpremultiply(image.rgba);
+        return encode(output, image.width, image.height, image.rgba);
+    }
+
+    std::expected<void, std::string> writeRaw(SImage& image, const std::filesystem::path& output) {
+        unpremultiply(image.rgba);
+        std::unique_ptr<std::FILE, SFileCloser> file{std::fopen(output.c_str(), "wb")};
+        if (!file)
+            return std::unexpected(std::format("cannot open {}", output.string()));
+        const bool written = std::fwrite(image.rgba.data(), 1, image.rgba.size(), file.get()) == image.rgba.size();
+        if (std::fclose(file.release()) != 0 || !written)
+            return std::unexpected(std::format("cannot write {}", output.string()));
+        return {};
     }
 }
