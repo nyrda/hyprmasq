@@ -433,7 +433,10 @@ shot, for any reason found once the window was rendered, the full shot is that
 render: its overview shows the frame that was compared, and the window is not
 captured again. A pixel has changed when the average of the 3×3 pixels around it changed
 by more than 24 of 255 levels in luminance, or by more than 64 in a color
-channel; transparent pixels count as mid grey. Averages ignore Chromium's
+channel; transparent pixels count as mid grey. Only the box of the pixels whose
+bytes differ is compared, with a margin that the averages and the grouping
+below reach across, so that images that are the same cost no more than reading
+them once. Averages ignore Chromium's
 switches between subpixel and grayscale antialiasing, which it makes when it
 draws a layer anew and which move color between neighbouring pixels. The
 color channels catch a change of color that keeps the luminance, such as a red
@@ -517,7 +520,7 @@ and it is the next base:
 | `N% changed since sN` | More than 35% of the pixels changed, or the regions cover more than 35% of the window, as after scrolling or navigating. |
 | `N changed regions since sN` | More than 5 regions, which joined into 5 would cover more than 35% of the window, or more than 128, too many to join. |
 | `the zooms into the changes since sN would be larger` | The zooms, at the monitor's scale, have more pixels than the full shot, as for a large window whose overview is shrunk to half. |
-| `too little time left to compare with sN` | The call's deadline would not leave the full shot the 500 ms it may need after the comparison. The comparison takes about 60 ns a pixel of the detail images, and stops once that time is reached. |
+| `too little time left to compare with sN` | The call's deadline would not leave the full shot the 500 ms it may need after the comparison. The server allows the comparison about 60 ns a pixel of the detail images, and stops it once only those 500 ms are left. |
 | `the window changed while the changes since sN were captured` | A captured zoom failed, or shows another frame than the compared one, as when the window drew, was resized or closed a popup past its edge after the comparison. The zooms made before go with the changes shot. |
 
 `capture: "window"` asks for a full shot, for example when the agent no
