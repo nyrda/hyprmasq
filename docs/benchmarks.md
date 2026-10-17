@@ -820,7 +820,7 @@ run, and comparing two images takes 67 and 123 ms on the host's CPU too.
 The investigation suggested two changes, each worth about 1 to 2 s a run, which overlap:
 
 1. One captured frame for the overview, the detail images, the comparison and the zooms, keeping the compared pixels
-   instead of PNGs. This one is being implemented.
+   instead of PNGs. #33 did this ([below](#2026-10-17-one-render-for-each-moment-33)).
 2. Capturing, and taking the shots of new windows and of the window a dialog came from, during the watch that runs
    anyway, with a check before the result that the window did not draw since.
 
@@ -853,6 +853,84 @@ rest is 0.40 s a call, against 1.03 s by the old measure. The Calc runs type the
 their input. Thunderbird's rest grows with the display, as capturing and comparing do with the pixels.
 The *hyprmasq s* figures in the sections above are the old measure.
 
+## 2026-10-17: one render for each moment (#33)
+
+The first of the [two changes](#hyprmasqs-own-time): `act` renders each moment of a window once, for the overview,
+the detail image, the comparison and the zooms, and keeps the images it uses itself as pixels in memory instead of
+PNGs. In the benchmark VM, with the investigation's timers, capturing and the check of moved targets took 34 ms less
+an `act` on a full-screen `foot` at 1920×1080 and 62 ms less at 2560×1440, 27% each, 47 ms less in a recorded Calc
+run at 1920×1080, and 9 ms less at 2560×1440, where Calc's window is half the width. The check of moved targets went
+from 69 to 28 ms (median) at 1920×1080 and from 122 to 51 ms at 2560×1440. The comparison itself, 80 to 150 ms, is
+unchanged and now the largest part. Checked with one run of gpt-6.1-sol per task at 2560×1440, where captures cost
+the most, on the final head f303b67, merged as 89cecf1, and one per task at 1920×1080 on #34's head 5ad3d3e, which
+has #33 ([below](#2026-10-17-drags-and-drag-and-drop-in-a-hidden-window-31-34)):
+
+| Build | Task | Display | Passed | Wall s | In tools s | Calls | Rest s | Rest per call | User undisturbed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `main` f156ac5, 5 runs | Calc | 2560×1440 at 1 | 5/5 | 95 (80–100) | 28 (22–28) | 18 (16–19) | 2.8 (2.5–2.9) | 0.21 | 5/5 |
+| #33 f303b67 | | | 1/1 | 72 | 21 | 17 | 2.6 | 0.22 | 1/1 |
+| #28 3027b12 | | 1920×1080 at 1 | 1/1 | 102 | 24 | 17 | 3.4 | 0.28 | 1/1 |
+| #34 5ad3d3e | | | 1/1 | 78 | 20 | 16 | 1.6 | 0.15 | 1/1 |
+| #25 c552fb6, 5 runs | Forgejo | 2560×1440 at 1 | 4/5 | 73 (66–145) | 21 (21–24) | 15 (15–15) | 5.1 (4.6–5.5) | 0.43 | 5/5 |
+| #33 f303b67 | | | 1/1 | 67 | 22 | 16 | 5.0 | 0.38 | 1/1 |
+| #28 3027b12 | | 1920×1080 at 1 | 1/1 | 72 | 21 | 15 | 4.1 | 0.34 | 1/1 |
+| #34 5ad3d3e | | | 1/1 | 65 | 19 | 15 | 3.2 | 0.27 | 1/1 |
+| #26 c6b85d6, 5 runs | Thunderbird | 2560×1440 at 1 | 5/5 | 82 (76–84) | 23 (23–24) | 15 (14–15) | 6.1 (5.0–6.3) | 0.49 | 5/5 |
+| #33 f303b67 | | | 1/1 | 72 | 22 | 15 | 3.7 | 0.31 | 1/1 |
+| #28 3027b12 | | 1920×1080 at 1 | 1/1 | 75 | 25 | 16 | 5.1 | 0.36 | 1/1 |
+| #34 5ad3d3e | | | 1/1 | 84 | 25 | 18 | 3.8 | 0.24 | 1/1 |
+
+*Rest s* is `analyze.py`'s rest of the `act` calls ([the measure](#the-measure)), the median per run.
+
+- **Nothing broke**: every run passed, with the user undisturbed.
+- **The rest per call** fell in five of the six single runs, most in Thunderbird at 2560×1440, where `act` captures
+  the whole window; Calc at 2560×1440, two half-width windows, stayed where it was, as in the replay. One run per
+  task measures no speed: the replays above do.
+
+## 2026-10-17: drags, and drag-and-drop in a hidden window (#31, #34)
+
+The fourth task ([bench/README.md](../bench/README.md#board)), added by #31 and merged as 872ab88, is the first with
+drags. Mara's build guide shows her photo of a motherboard in Firefox on a hidden workspace, beside a tray of eight
+labels, and the agent drags each label onto its part: the CPU socket, the memory slots, the 24-pin ATX power, the
+8-pin CPU power, the SATA ports, the first PCIe slot, the USB 3.0 header and the BMC chip. Things beside the parts
+can be mistaken for them: a loose RAM module, the M.2 slots, the lower PCIe slots, a 5-pin header beside the memory
+slots. The page comes in two variants that look and behave alike: `dnd` uses HTML5 drag-and-drop, which Firefox runs
+as Wayland's drag-and-drop, and `pointer` uses pointer events, as a custom widget would. `attribute.py` blames each
+drag that missed on the model or on hyprmasq, from where the agent aimed in its shot and where the page logged the
+press and the drop.
+
+Hyprland runs a drag-and-drop as a grab of the seat, which takes the user's pointer, so the plugin cancelled one that a
+window on a hidden workspace started, and `act` reported `delivered · no redraw`. #34 runs such a drag privately,
+within the window's app: the app gets offers for its own surfaces under the emulated pointer, and the data goes from
+its source to its destination through the app's own file descriptors, without Hyprland's drag, and without the user's
+pointer, keyboard focus or typing. The user's input to the app cancels it. `act` waits through the drags of a batch and
+says how each ended. Drops into another window or app, X11 apps and the ask action are still cancelled, now with the
+reason in the result. Merged as 70b1fe8; its final head, 157d8ab, differs from 5ad3d3e only in how `act` words the
+outcome. gpt-6.1-sol; the pilots ran on `main` at 566dde2, and all runs were graded again with the task's final boxes.
+
+| Build | Variant | Display | Labels right per run | Wall s | In tools s | Calls | Drags failed by hyprmasq | User undisturbed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `main` 566dde2 | `pointer` | 1920×1080 at 1 | 7 | 34 | 12 | 5 | 0 of 8 | 1/1 |
+| `main` 566dde2 | `dnd` | | 0 | 114 | 36 | 18 | 15 of 15 | 1/1 |
+| #34 ca2cfc8 | | | 7, 7, 7, 7, 7 | 29 (27–33) | 12 (11–12) | 4 (3–5) | 0 of 40 | 5/5 |
+| #34 5ad3d3e | | | 7, 7, 7 | 32 (29–40) | 12 (11–12) | 4 (3–5) | 0 of 24 | 3/3 |
+| #34 ca2cfc8 | | 2560×1440 at 1 | 8, 7, 8, 7, 8 | 39 (38–41) | 16 (16–17) | 5 (4–5) | 1 of 41 | 5/5 |
+| #34 5ad3d3e | | | 7, 8 | 32 (31–33) | 14 (13–14) | 3 (3–3) | 0 of 16 | 2/2 |
+
+- **Every drag that got through landed within 0.7 photo pixels of where it was aimed**, in both variants; the photo is
+  2000×1296. Agents sent the drags in one or two `act` calls: all eight at once in 4 runs, one to try and then
+  the other seven in 7, four and four in 4.
+- **Every label that missed on #34 was the model's**: 8-pin CPU power on the 5-pin header in 9 of the 15 runs, and
+  once elsewhere, and SATA ports off the connectors once. All 4 runs that placed all eight were at 2560×1440.
+- **On `main`, nothing landed**: the page saw `dragstart`, then `pointercancel` and `dragend` within 35 ms, and never
+  a `drop`. The agent zoomed the page out and tried again, 16 drags in all.
+- **Frame callbacks during fast input.** One drag on ca2cfc8 and 3 of 11 in one run on a later head did not start:
+  Firefox got the press and never asked for the drag. It draws a drag's image at a frame callback before it starts
+  the drag, and a hidden window got none while input came, since every input frame put off the timer that sends
+  them by another 16 ms, and a drag's motion comes every 10 ms. That holds for any app that waits for a frame during
+  fast input. #34 also sends them from input delivery, at most every 16 ms. The batch of that run, sent again by hand,
+  lost a drag in 9 of 9 tries before and in 0 of 3 after; 5ad3d3e lost none of 40.
+
 ## Open
 
 - **Typing that lands in another field**: in 1 of about 140 browser runs, the text after a click on Forgejo's
@@ -860,8 +938,8 @@ The *hyprmasq s* figures in the sections above are the old measure.
 - **Shortcuts that an app runs more than 250 ms after the key** still fail without a word beside the user's window.
 - **hyprmasq's own time per call**: beyond its waits and the sender's pacing, `act` takes 0.2 to 0.5 s a call at
   1920×1080 and 2560×1440 and 0.8 s at 3840×2160, about 3 to 6 s a run and 10 s at 3840×2160, mostly capturing and
-  comparing; see [its investigation](#hyprmasqs-own-time). One captured frame for all of a call's images is being
-  implemented.
+  comparing; see [its investigation](#hyprmasqs-own-time). #33 renders each moment once
+  ([above](#2026-10-17-one-render-for-each-moment-33)); the comparison is now the largest part.
 - More apps, to settle floating and placement: a Qt app, an Electron app.
 
 Settled, and not for hyprmasq:
