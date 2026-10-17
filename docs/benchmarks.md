@@ -709,24 +709,170 @@ that put motion and a press into one frame or have a keyboard that is not emulat
   typed reached their notes, and their window kept the focus.
 - One run per task checks that nothing broke; it measures no speed.
 
+## 2026-10-17: four open items
+
+Four items of the [open list](#open), each investigated first for whether it is general: in the logs of all runs
+so far, and in the benchmark's VM with its apps, on `main` at 566dde2, which has #28. Two led to changes: #30, and
+a new measure of hyprmasq's own time.
+
+### The shot of the window a dialog came from
+
+The [Calc task](#2026-10-16-the-calc-task) had one click refused after Manage Names closed, because the shot that
+came back showed Calc's toolbar greyed out.
+
+- **Once, in Calc.** The runs have 387 results in which a dialog closed and `act` came back to the window it came
+  from: 279 in Chromium (file choosers and OAuth popups), 105 in Thunderbird and 3 in Calc. 195 of them were
+  followed by a batch of clicks, 89 of those on builds with the check of moved targets (#24), and 1 was refused:
+  Calc's.
+- **hyprmasq closes a dialog differently from a user.** With `WAYLAND_DEBUG` in the VM, a real click or Escape
+  that closes Calc's Manage Names, Thunderbird's Attach File chooser or Chromium's file chooser gives the window
+  behind it the keyboard and its activated state within about 30 ms. When hyprmasq's input closes the dialog on a
+  hidden workspace, that window gets neither.
+- **Without a difference in the shots.** In 12 closes driven by hand, 10 in Calc (Manage Names and Format Cells, on
+  566dde2 and on the plugin before #28), 1 in Thunderbird and 1 in Chromium, the shot matched a later screenshot,
+  in Calc also one taken after a Shift key had given the window the keyboard. The greyed toolbar did not reappear.
+- **Manage Names is a reference dialog.** LibreOffice locks its dispatcher while the dialog is open, which disables
+  the toolbar's commands, and unlocks it and re-enables the toolbar when it closes, through bindings that update on
+  timers. That can redraw the toolbar late; the investigation did not prove that it did in the run.
+- **Not fixed.** The check of moved targets refused the click without sending it and returned a fresh shot, and the
+  next call worked. Giving the window the keyboard back after a close would have to leave alone the user's window
+  on the same Wayland connection, as in the browser task, and no measured case needs it.
+
+### Work that draws nothing
+
+The result of an `act` can show work still going on after the wait and the 0.5 s watch end, such as
+Thunderbird's account lookup.
+
+- **General.** In the 148 runs on #23 to #28 and the first Calc runs, 2,390 calls, 159 results showed work still
+  going on or missed a dialog still to come, and the agent waited for it: Thunderbird's account lookup (56 times),
+  account creation (9) and quick filter (3), Forgejo pages loading in Chromium (10), and the file chooser that maps
+  after its click (81). None in Firefox or Calc. These are 6.7% of the calls and 1.75% of the time in tools.
+- **The agents recover with one short call**: 160 calls for the 159, an `act` without actions or `windows` with
+  `wait_ms` for the chooser, 0.27 s (median) for the chooser and 0.35 to 0.49 s for the others, 60.6 s in all.
+  No recent run added a pause or a wait override.
+- **Longer watches cost more than they catch.** In the 79 calls of [the replay of #18](#how-finding-4-was-measured),
+  a 1 s watch catches 2 more later redraws than 0.5 s for 32 s, 2 s catches 7 for 106 s, and restarting the 0.5 s
+  watch after every redraw 3 for 23 s. No signal the compositor has marks the 159: none reported an animation, and
+  no window title showed it.
+- **Not fixed.** The investigation's one suggestion, to say in the `act` description more prominently that a
+  window that settled may still be working, has no measured benefit: the agents already wait when the shot shows it.
+
+### `interrupted`
+
+`act` flagged Ctrl or Alt chords beside the user's window `interrupted by the user's input`, mostly ones that had
+worked ([larger displays](#2026-10-15-larger-displays-and-windows-that-waits-21)).
+
+- **General**: it comes with every app whose windows share a Wayland connection with the user's focused window,
+  not only Chromium. With two windows of one `foot --server`, the agent's hidden and the user's typing into the
+  other, all 8 shortcuts worked (6 Ctrl+L to a test program and 2 of foot's own Ctrl+Shift+R) and all 8 were
+  flagged. With the user in a separate `foot` process, the agent's window kept the keyboard and nothing was flagged.
+- **Mostly false alarms.** Of the 46 flagged Ctrl+L navigations in the 130 browser runs since #20, 35 reached their
+  page, 9 did not, and 2 asked for the page already open: 35 of 44, about 80%, were false alarms. It also misses
+  late failures: in controlled trials, a Chromium page that handled its keys 350 ms late made the shortcut fail
+  without a flag, at both sizes.
+- **At 1440p, more calls were exposed.** 43 flags in 60 runs against 16 at 1080p, from 145 chords beside the user's
+  window against 83: 29.7% of them against 19.3%. The same 18 controlled cases were flagged 13 times at each size.
+- **Nothing the compositor sees tells success from failure.** In 36 controlled trials, 26 of them flagged, neither a
+  commit before the focus went back, nor a title change, released keys or the time since the key told the 20 flagged
+  successes from the 6 flagged failures better than calling all of them successes.
+- **Fixed in wording and structure** by #30, merged as a9c8f64: the summary says `shared keyboard focus returned for
+  user input`, the hint says to look at the shot before repeating anything, and `actions.shared_focus_returned` has the
+  effect `unknown`. Delivery and the focus handling are unchanged.
+
+### hyprmasq's own time
+
+Timers in a scratch copy of 566dde2, which change no wait, pacing or capture, measured every phase of an `act` call:
+in replays of one recorded run per task at 1920×1080 and 2560×1440, 75 `act` calls, and in 144 calls on a
+full-screen `foot` as controls. Shares of the replays' time in `act`:
+
+| Phase | 1920×1080 | 2560×1440 |
+| --- | --- | --- |
+| Sending, with the sender's pacing and typing | 28.2% | 28.9% |
+| The watch after the wait | 26.5% | 25.7% |
+| The wait for the window to settle | 26.4% | 23.3% |
+| Capture and comparison | 10.9% | 14.1% |
+| The rest of the grace for new windows | 2.5% | 2.3% |
+| The shot of the window a closed dialog came from | 2.1% | 2.4% |
+| The check of moved targets | 2.3% | 2.3% |
+| Shots of new and late windows | 0.4% | 0.4% |
+| Locks, checks, transport and the report | 0.6% | 0.6% |
+
+A call took 1.53 s (median) at 1920×1080 and 1.56 s at 2560×1440. A key that changes nothing takes 0.73 s: 202 ms
+of quiet, 501 ms of watch and 22 to 24 ms of sending. Most of the time is waiting on purpose:
+
+- **The wait**, 200 ms of quiet after the first redraw, at most 1 s for it: the shot shows the window after the
+  input, and a window on a hidden workspace gets the frame callbacks without which it does not draw.
+- **The watch**, 500 ms after a click, key or Enter, longer while the window draws again: second redraws and new
+  windows (#15, #18), which a 200 ms quiet missed in 44 of 80 calls and the watch in 16. In the replays it saw a
+  second redraw in 34 of 75 calls.
+- **The click's settling**: keys come 300 ms after a click, since Spotify took a space typed 200 ms after one as a
+  shortcut (#5), and actions after a click wait for its answer, at least 150 ms, within those 300 ms (#22).
+- **The sender's pacing**: 50 ms between actions, a 50 ms button hold, 15 ms a typed key, so that apps handle
+  motion before a press and tell shortcuts and double clicks apart.
+- **The shot of the window a closed dialog came from** waits for its answer, up to 1.5 s, for a page drawing an
+  upload (#24), and the check of animations (#26) waits only when it can change the result.
+
+What is not waiting is small or not the VM's: the sender starts in about 1 ms and is ready in 2 ms, so a sender that
+stays would save 5 to 10 ms a batch; rendering the captures, which the VM does in software, is 3.4% and 4.6% of the
+time. Encoding and decoding the PNGs that hyprmasq compares internally take 86 and 105 ms a call, 0.6 to 1.7 s a
+run, and comparing two images takes 67 and 123 ms on the host's CPU too.
+
+The investigation suggested two changes, each worth about 1 to 2 s a run, which overlap:
+
+1. One captured frame for the overview, the detail images, the comparison and the zooms, keeping the compared pixels
+   instead of PNGs. This one is being implemented.
+2. Capturing, and taking the shots of new windows and of the window a dialog came from, during the watch that runs
+   anyway, with a check before the result that the window did not draw since.
+
+Dropping the watch would save 4 to 8 s a run, but it is what catches the second redraws.
+
+#### The measure
+
+`analyze.py`'s *hyprmasq s* overstated hyprmasq's work. It was the time of `act` calls beyond their wait, pauses and
+typing at 30 ms a character, so it counted the watch and the sender's pacing as hyprmasq's work, subtracted twice the
+15 ms that a typed character takes, and clamped every call at zero, which hid the time of long typing calls.
+`analyze.py` now splits that time into the wait as each result gives it, the watch, the sender's pacing as its
+constants give it, the pauses, and the rest, unclamped ([bench/README.md](../bench/README.md#measures)). The
+rest, what hyprmasq does beyond waits and pacing, is mostly capturing and comparing. No call in any run has a
+negative rest. The latest runs of each task, medians per run in seconds, gpt-6.1-sol:
+
+| Build | Task | Display | Runs | Old *hyprmasq s* | Wait | Watch | Input | Rest | Rest per call |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `main` f156ac5 | Calc | 1920×1080 at 1 | 5 | 14.4 | 5.4 | 8.4 | 12.6 | 3.5 (2.9–5.0) | 0.24 |
+| | | 2560×1440 at 1 | 5 | 11.8 | 4.8 | 7.1 | 12.5 | 2.8 (2.5–2.9) | 0.21 |
+| #28 3027b12 | | 1920×1080 at 1 | 1 | 12.1 | 4.8 | 7.0 | 7.9 | 3.4 | 0.28 |
+| #25 c552fb6 | Forgejo | 1920×1080 at 1 | 5 | 10.2 | 6.3 | 5.9 | 3.6 | 4.0 (3.5–4.0) | 0.32 |
+| | | 2560×1440 at 1 | 5 | 10.6 | 6.1 | 5.8 | 4.4 | 5.1 (4.6–5.5) | 0.43 |
+| #28 3027b12 | | 1920×1080 at 1 | 1 | 10.6 | 6.7 | 5.7 | 3.6 | 4.1 | 0.34 |
+| #26 c6b85d6 | Thunderbird | 2560×1440 at 1 | 5 | 14.1 | 5.5 | 6.9 | 4.7 | 6.1 (5.0–6.3) | 0.49 |
+| | | 3840×2160 at 1 | 5 | 17.4 | 5.4 | 7.0 | 4.8 | 9.7 (8.3–10.1) | 0.80 |
+| #28 3027b12 | | 1920×1080 at 1 | 1 | 14.9 | 6.0 | 7.8 | 5.9 | 5.1 | 0.36 |
+
+*Rest per call* is the rest of all runs of a row over their `act` calls. Over the 418 `act` calls of these runs, the
+rest is 0.40 s a call, against 1.03 s by the old measure. The Calc runs type their figures, so typing is most of
+their input. Thunderbird's rest grows with the display, as capturing and comparing do with the pixels.
+The *hyprmasq s* figures in the sections above are the old measure.
+
 ## Open
 
 - **Typing that lands in another field**: in 1 of about 140 browser runs, the text after a click on Forgejo's
   commit-message field went into the folder field, with the shot and the click right.
-- **`interrupted` flags shortcuts that worked**, at larger displays in 3 to 6 calls a task, and reads as a failure
-  next to "delivered".
 - **Shortcuts that an app runs more than 250 ms after the key** still fail without a word beside the user's window.
-- **Work that draws nothing for longer than the watch**, such as Thunderbird's account lookup: every Thunderbird
-  run on #23 to #25 got `Looking up configuration` from the `act` that pressed Continue and made an `act` without
-  actions to wait it out, 30 of the 49 new looks after zooms. After the password, the completion page draws about
-  0.5 or 1 s after the wait, and the 0.5 s watch for a second wave misses the later one.
-- **hyprmasq's own time per call**, 19 to 29 s a run.
-- **The shot of the window a dialog came from** can be taken before that window has drawn itself active again,
-  such as Calc's toolbar greyed out after Manage Names, which gets the next click refused.
+- **hyprmasq's own time per call**: beyond its waits and the sender's pacing, `act` takes 0.2 to 0.5 s a call at
+  1920×1080 and 2560×1440 and 0.8 s at 3840×2160, about 3 to 6 s a run and 10 s at 3840×2160, mostly capturing and
+  comparing; see [its investigation](#hyprmasqs-own-time). One captured frame for all of a call's images is being
+  implemented.
 - More apps, to settle floating and placement: a Qt app, an Electron app.
 
 Settled, and not for hyprmasq:
 
+- **Work that draws nothing** for longer than the watch is the app's, and general: lookups, account creation, page
+  loads, late file choosers. Agents wait it out with one short call, 6.7% of the calls and 1.75% of the time in
+  tools, and longer watches cost far more than they catch ([investigation](#work-that-draws-nothing)).
+- **The shot of the window a dialog came from** showed a toolbar that was still to come back once in 195 click batches
+  after 387 closes, in Calc's Manage Names, which re-enables its toolbar itself, and the check of moved targets
+  recovered with a fresh shot. Closes driven by hand in three apps gave no stale shot
+  ([investigation](#the-shot-of-the-window-a-dialog-came-from)).
 - **Small text** is a limit of the images the harness gives the model, not of hyprmasq. A region of `screenshot`
   captures an area again at the monitor's resolution, and agents use it: in Thunderbird since #20, 1.1 region shots
   a run at 2560×1440 and 3.0 at 3840×2160 at scale 1, with no wrong room in 55 runs. The three runs that sent a

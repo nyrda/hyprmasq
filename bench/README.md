@@ -111,8 +111,24 @@ files, so a change to the measures applies to old runs too.
 
 `analyze.py RESULTS-DIR` counts frictions per run: wait-only `act` calls, pauses and wait overrides the agent
 added, new windows and whether the `act` that opened them reported them, follow-up calls, windows on the
-user's workspace, errors from input that closed its window, wait timeouts, and the time hyprmasq added to
-`act` calls beyond waiting, pauses and typing.
+user's workspace, errors from input that closed its window and wait timeouts. It also splits the time of the
+`act` calls into parts:
+
+| Part | What it counts |
+| --- | --- |
+| `wait_s` | The wait for the window to settle, as each result's `wait.elapsed_ms` gives it. |
+| `watch_s` | The watch for a second redraw and new windows after the wait, after a click, drag, key or line break: the 500 ms that the `act` tool's description in the log names, or the watch's own time when the result says `drew again, settled … later`. When a redraw in the watch makes the result one wait, after a first wait without a redraw, `wait_s` holds the watch, and only the grace for new windows that is left over counts here; after a wait that timed out, nothing does. |
+| `input_s` | The sender's pacing of the actions it sent, pauses aside: the gaps, holds and typed keys of `tools/hyprmasq-input.c` (15 ms a typed key), the 300 ms from a click to the keys after it, and from #22 on at least 150 ms for the window's answer to a click that more actions follow. |
+| `pause_s` | The pause actions the agent added. |
+| `rest_s` | The rest of the calls' time, not clamped. |
+
+The rest is what hyprmasq does beyond these waits: capturing and comparing images, checking targets that moved, the
+shots of new windows and of the window that a closed one came from with their own waits, a click's answer beyond its
+least, the sender's start and round trips, the locks and the transport. The results do not time these apart, so the
+rest stays one number. The pacing is the least the sender needs: the logs do not record the keymap, so a key that it
+reaches with Shift lacks its 10 ms, and a character typed through Compose its further keys. Old runs stay readable:
+results without structured content give their wait in the summary, runs from before the watch (#18) get no watch,
+and their grace for new windows (#15) stays in the rest.
 
 ## Files of a run
 
