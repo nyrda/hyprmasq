@@ -4,6 +4,7 @@
 #include "Hooks.hpp"
 #include "Launch.hpp"
 #include "Placement.hpp"
+#include "Selection.hpp"
 #include "Wait.hpp"
 #include "X11.hpp"
 #include <hyprland/src/Compositor.hpp>
@@ -88,10 +89,13 @@ namespace hyprmasq {
         };
         template struct SPressedAccess<&CWLPointerResource::m_pressedButtons>;
 
-        // True if focus is on a surface of the window's Wayland connection.
-        bool sharesConnection(const PHLWINDOW& w, const WP<CWLSurfaceResource>& focus) {
+        // True if focus is on a surface of the client, or of the window's Wayland connection.
+        bool sharesConnection(wl_client* client, const WP<CWLSurfaceResource>& focus) {
             auto surface = focus.lock();
-            return surface && w->resource() && surface->client() == w->resource()->client();
+            return surface && client && surface->client() == client;
+        }
+        bool sharesConnection(const PHLWINDOW& w, const WP<CWLSurfaceResource>& focus) {
+            return w->resource() && sharesConnection(w->resource()->client(), focus);
         }
 
         struct SLease {
@@ -720,6 +724,7 @@ namespace hyprmasq {
                     }
                 wl_array_release(&arr);
                 enteredKeyboard.reset();
+                selection::restore(s->client());
             }
             void mods(const SP<CWLSeatResource>& s, bool toSender = true) {
                 // A sender without a keyboard holds no keys.
@@ -780,6 +785,9 @@ namespace hyprmasq {
                 // A press can start a drag, whose request then tells its serial.
                 if (presses)
                     drag::watchDevices(s->client());
+                // What the app copies or selects now is the agent's, and keys and presses, which can paste, as a click on
+                // a menu's Paste does, find the agent's selections there, before the enters they bring.
+                selection::emulatedInput(s->client(), isKeyboard || presses, presses);
                 // A drag that ended without the release of its button leaves the release nothing to do.
                 if (!isKeyboard && dragButton && !activeDrag()) {
                     buttons.erase(std::exchange(dragButton, 0));
@@ -973,8 +981,13 @@ namespace hyprmasq {
                             }
                         enteredPointer.reset();
                         buttons.clear();
+                        selection::restore(s->client());
                     }
                 }
+                // The user's window on the connection gets the user's clipboard back after a press, which kept the
+                // keyboard focus there.
+                if (!isKeyboard && presses && sharesKeyboardFocus())
+                    selection::restore(s->client());
                 if (stack)
                     x11::lower(*stack);
                 // xwayland-satellite moves X focus once it has handled the batch that entered the window, so keys after
@@ -1351,8 +1364,10 @@ namespace hyprmasq {
         };
         // The user's real input to the client of a private drag cancels the drag before the input arrives.
         void setKeyboardFocus(CSeatManager* self, SP<CWLSurfaceResource> surface) {
-            if (surface)
+            if (surface) {
                 drag::cancelClient(surface->client(), "user_input");
+                selection::userInput(surface->client());
+            }
             CKeptFocus<CWLKeyboardResource> kept(surface, &Session::enteredKeyboard, &CWLSeatResource::m_keyboards, &Session::keepingKeyboard);
             using Fn = void (*)(CSeatManager*, SP<CWLSurfaceResource>);
             reinterpret_cast<Fn>(originalKeyboardFocus)(self, surface);
@@ -1371,6 +1386,7 @@ namespace hyprmasq {
             const auto seat = to.lock();
             if (!seat)
                 return;
+            selection::userInput(seat->client());
             for (auto& [_, session] : sessions) {
                 const auto kept = session->keptSeat.lock();
                 if (session->keyboardKept && kept && kept->client() == seat->client())
@@ -1388,8 +1404,10 @@ namespace hyprmasq {
             reinterpret_cast<Fn>(originalKeyboardMods)(self, depressed, latched, locked, group);
         }
         void sendTouchDown(CSeatManager* self, SP<CWLSurfaceResource> surface, uint32_t timeMs, int32_t id, const Vector2D& local) {
-            if (surface)
+            if (surface) {
                 drag::cancelClient(surface->client(), "user_input");
+                selection::userInput(surface->client());
+            }
             using Fn = void (*)(CSeatManager*, SP<CWLSurfaceResource>, uint32_t, int32_t, const Vector2D&);
             reinterpret_cast<Fn>(originalTouchDown)(self, surface, timeMs, id, local);
         }
@@ -1582,6 +1600,18 @@ namespace hyprmasq {
     bool leaseKeepsPointer(const PHLWINDOW& window) {
         auto* session = sessionOf(window);
         return session && session->leased() && !session->enteredPointer.expired();
+    }
+    bool drivesClient(wl_client* client) {
+        return std::ranges::any_of(sessions, [&](const auto& entry) {
+            const auto w = entry.second->window.lock();
+            return w && w->resource() && w->resource()->client() == client;
+        });
+    }
+    bool emulatedKeyboardOn(wl_client* client) {
+        return std::ranges::any_of(sessions, [&](const auto& entry) { return sharesConnection(client, entry.second->enteredKeyboard); });
+    }
+    bool emulatedPointerOn(wl_client* client) {
+        return std::ranges::any_of(sessions, [&](const auto& entry) { return sharesConnection(client, entry.second->enteredPointer); });
     }
     std::vector<SEisInfo> listEis() {
         std::vector<SEisInfo> result;

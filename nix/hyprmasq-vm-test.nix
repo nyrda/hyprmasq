@@ -26,6 +26,7 @@ let
   };
   focusProbe = pkgs.callPackage ./focus-probe.nix { };
   dndProbe = pkgs.callPackage ./dnd-probe.nix { };
+  clipProbe = pkgs.callPackage ./clip-probe.nix { };
   python = pkgs.python3.withPackages (ps: [ ps.pillow ]);
 
   testConfig = pkgs.writeText "hyprmasq-test.lua" ''
@@ -91,9 +92,13 @@ pkgs.testers.runNixOSTest {
         pkgs.wlrctl
         focusProbe
         dndProbe
+        clipProbe
+        # The user's own clipboard: wl-copy and wl-paste use data-control, as clipboard managers do.
+        pkgs.wl-clipboard
         pkgs.xterm
         pkgs.xev
         pkgs.xdotool
+        pkgs.xclip
         pkgs.xprop
         pkgs.xwayland-satellite
       ];

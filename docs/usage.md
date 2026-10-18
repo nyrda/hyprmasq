@@ -1022,6 +1022,68 @@ runs and once at its end, so that an app that animates its icon does not wait.
 Screenshots do not show the icon; what the app draws in its window during the
 drag, such as a page's drop highlight, they show.
 
+## Clipboard and selections
+
+Hyprland takes the clipboard and the primary selection from any app, and the
+plugin gives a driven window's app the keyboard focus and the serials of its
+input. So a word that the agent double-clicks in a hidden terminal would
+become your primary selection, and its Ctrl+C your clipboard, and your next
+middle click or Ctrl+V would paste the agent's text. The plugin keeps the
+agent's selections apart from yours instead:
+
+- A clipboard or primary selection that an app sets (`wl_data_device` and
+  `zwp_primary_selection_device_v1`) is the agent's while the app has a window
+  with a socket and the agent's input reached the app after your own last
+  input to it, your keys, clicks and touches, and the keyboard focus moving to
+  it. Every other selection, also yours in a
+  driven app, goes to Hyprland as before. The plugin wraps the `set_selection`
+  handlers of an app's data devices and primary selection devices when
+  emulated input first reaches it, keeps Hyprland's handlers, and puts them
+  back when it unloads.
+- The agent's selections never become yours. Your clipboard and primary
+  selection, which your apps, `wl-paste` and clipboard managers see, stay as
+  they are, and do not see the agent's.
+- There is one agent clipboard and one agent primary selection for all the
+  apps that emulated input reaches. An app gets them before each key or
+  button press of emulated input, which can paste, so the agent can copy in
+  one hidden app and paste in another. Until the agent has copied or selected
+  something, a driven app gets no selection: emulated input cannot paste your
+  clipboard into a hidden window, where the agent's next screenshot would
+  show it.
+- When the emulated focus goes back to your window in the same app, also
+  right after a click that left your keyboard focus there, and when your
+  keyboard focus or pointer moves to the app, the app gets your selections
+  again, as Hyprland gives them.
+- A paste goes through Hyprland's own offers, which pass the destination's
+  file descriptor to the source app. The compositor never reads or writes the
+  data, and does not wait for it.
+- An agent selection ends when its app destroys it or exits, and when the
+  agent copies or selects again, which cancels the one before, as Hyprland
+  does. When the plugin unloads, it cancels both, and apps that have them get
+  yours with your next focus. An agent X selection goes back to Hyprland's
+  window manager, which gives X your Wayland selection of that kind.
+- With middle-click paste off (`misc:middle_click_paste`), the agent has no
+  primary selection, as you have none.
+
+X11 apps:
+
+- An xwayland-satellite is a Wayland app with data devices of its own, so the
+  rules above apply to all its X11 apps together.
+- Hyprland's XWayland takes X selections to Wayland itself, while an X11
+  window has your focus, and the X11 apps of one X server share its
+  selections. A selection that emulated input makes in an X11 app of
+  Hyprland's XWayland stays in that X server: it does not become your Wayland
+  selection, and when that app exits, Hyprland does not clear your selection
+  of that kind, as it would for an X selection that it had taken to Wayland.
+  Within the X server it is the X selection, which your own X11 apps of that
+  server paste, until your keyboard focus moves to an X11 window, which gives
+  X your Wayland selections again. A selection of yours that came from an X11
+  app goes when the agent's X11 app takes that selection, since X would then
+  read it from the agent's app.
+- X11 apps of Hyprland's XWayland do not get the agent's Wayland selections.
+  They see X's selections, which Hyprland sets to yours whenever you copy, so
+  a driven X11 app can paste your clipboard.
+
 ## Virtual cursor
 
 Where emulated pointer input lands, the plugin draws a copy of your cursor
@@ -1272,6 +1334,10 @@ loss close once the sender exits. Open them and pick the entry in one run.
   gets your input. Every other drag of such a window is cancelled. The data of
   a drop goes from the app to itself through a file descriptor that the plugin
   passes on without reading. See [Drag-and-drop](#drag-and-drop).
+- Emulated input cannot change your clipboard or primary selection, nor paste
+  them into a Wayland app: what a driven app copies or selects through it is
+  the agent's, offered only to the apps that emulated input reaches. See
+  [Clipboard and selections](#clipboard-and-selections) for X11 apps.
 - An app cannot take your focus by opening a window in response to emulated
   input: the window opens silently on the workspace of the window it came from,
   and is only marked urgent when it asks for activation. See
@@ -1317,6 +1383,18 @@ loss close once the sender exits. Open them and pick the entry in one run.
   while the app's connection shares your focus. A drag without a source is
   ignored in an app whose window is not driven, or is active. Screenshots do
   not show a drag's icon.
+- The agent's selections reach only Wayland apps. X11 apps of one X server
+  share its selections with your X11 apps of that server, and see your
+  clipboard. See [Clipboard and selections](#clipboard-and-selections).
+- An app that sets its selection on its own, without input, while it has a
+  window with a socket and got the agent's input after yours, sets the
+  agent's. An app with a window with a socket that creates a data device or
+  primary selection device while it handles emulated input, and sets a
+  selection on it at once, sets yours.
+- In an app that has your keyboard focus, a paste that an emulated click
+  starts, as on a menu's Paste, gets the agent's clipboard only when the app
+  reads it while it handles the click: right after the click's frame, the app
+  gets your clipboard back.
 - Held keys, key repeat, drags and clicks with modifiers are unreliable when
   the target shares a Wayland connection with the focused window or with the
   window under the real pointer. Shortcuts there may do nothing when you type

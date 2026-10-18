@@ -680,6 +680,19 @@ and reports how it ended:
 cancel or the outcome explains why nothing changed, the hint says so in place
 of the hints that guess at a missed input.
 
+### Copy and paste
+
+Keys and clicks can copy, select and paste in a driven app as the user would,
+with the app's own shortcuts and menus, but with an agent clipboard and agent
+primary selection of their own (see
+[Clipboard and selections in docs/usage.md](usage.md#clipboard-and-selections)):
+what the agent copies or selects never becomes the user's clipboard or primary
+selection, and pastes in the other apps that the agent drives, also of
+another app. Before the agent has copied anything, a paste pastes nothing, not
+the user's clipboard. To bring text into an app, `type` it. X11 apps of
+Hyprland's XWayland share X's selections, which hold the user's clipboard,
+and do not get the agent's.
+
 ### Batching
 
 A batch saves round trips but runs without looking. The `act` description

@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+struct wl_client;
+
 namespace hyprmasq {
     namespace wait {
         class CContentWatch;
@@ -100,4 +102,10 @@ namespace hyprmasq {
         bool x11Focus   = false; // keys follow X input focus, which the plugin moves
     };
     SCapabilities capabilities(const PHLWINDOW& window);
+
+    // True while a socket is open for a window of the Wayland client. Main thread only.
+    bool drivesClient(wl_client* client);
+    // True while emulated input has the keyboard, or the pointer, of a surface of the Wayland client. Main thread only.
+    bool emulatedKeyboardOn(wl_client* client);
+    bool emulatedPointerOn(wl_client* client);
 }

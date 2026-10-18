@@ -44,6 +44,10 @@ together.
 - **Your input stays yours.** A window driven through its socket cannot grab
   your real pointer or keyboard with a popup, start a drag, or begin an
   interactive move or resize.
+- **Your clipboard stays yours.** What a driven Wayland app copies or selects
+  goes to an agent clipboard and primary selection of their own, which paste
+  in the driven apps, never in yours. X11 apps of one X server share its
+  selections; see [Clipboard and selections](docs/usage.md#clipboard-and-selections).
 - **New windows stay out of your way.** A window that an app opens in
   response to emulated input, such as a dialog, a popup or a file chooser,
   opens on the workspace of the window it came from, without your focus. The

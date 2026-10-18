@@ -5,6 +5,7 @@
 #include "Hooks.hpp"
 #include "Launch.hpp"
 #include "Placement.hpp"
+#include "Selection.hpp"
 #include "Wait.hpp"
 #include "X11.hpp"
 
@@ -20,6 +21,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     PHANDLE = handle;
     try {
         hyprmasq::initEis(handle);
+        hyprmasq::selection::init(handle);
         hyprmasq::x11::init(handle);
         hyprmasq::deferred::init(handle);
         hyprmasq::cursor::init(handle);
@@ -30,6 +32,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         hyprmasq::launch::shutdown();
         hyprmasq::wait::shutdown();
         hyprmasq::shutdownEis();
+        hyprmasq::selection::shutdown();
         hyprmasq::cursor::shutdown();
         hyprmasq::deferred::shutdown();
         hyprmasq::x11::shutdown();
@@ -49,6 +52,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
     hyprmasq::wait::shutdown();
     hyprmasq::deferred::shutdown();
     hyprmasq::shutdownEis();
+    hyprmasq::selection::shutdown();
     hyprmasq::cursor::shutdown();
     hyprmasq::x11::shutdown();
     hyprmasq::unhookAll();
