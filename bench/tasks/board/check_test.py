@@ -70,6 +70,13 @@ class Grade(unittest.TestCase):
         result = check.grade({**CORRECT, "SATA ports": centre(check.REGIONS["labels"]["SATA ports"][1])})
         self.assertTrue(result["passed"])
 
+    def test_no_point_is_correct_for_two_labels(self):
+        boxes = [(label, box) for label, label_boxes in check.REGIONS["labels"].items() for box in label_boxes]
+        for i, (a, (ax0, ay0, ax1, ay1)) in enumerate(boxes):
+            for b, (bx0, by0, bx1, by1) in boxes[i + 1:]:
+                if a != b:
+                    self.assertFalse(ax0 <= bx1 and bx0 <= ax1 and ay0 <= by1 and by0 <= ay1, f"{a} and {b} overlap")
+
     def test_milestones(self):
         places = [{"time": 5, "label": "CPU socket", "point": [1, 1]}]  # before the agent started
         places += [{"time": 10 + i, "label": label, "point": point} for i, (label, point) in enumerate(CORRECT.items())]
