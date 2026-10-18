@@ -2,13 +2,13 @@
 """Spreads benchmark runs over several machines, into the results directory that run.py would write.
 
     dispatch.py --host HOST[,slots=N][,lock=FILE][,local-lock=FILE][,cid=N][,dir=DIR][,agents=A+B]... [--source DIR]...
-                [--out DIR]... [--task TASK] [--variant NAME] [--display WxH@S] [--agent HARNESS:MODEL]...
+                [--out DIR]... [--task TASK] [--variant NAME] [--display WxH@S] [--agent HARNESS:MODEL[@EFFORT]]...
                 [--reps N | --rep N...] [--timeout SECONDS] [--no-debrief]
 
 HOST is `local`, this machine, or an SSH destination such as user@machine, which this machine reaches with its
 keys. Each run, one agent's repetition, runs `run.py --rep N` on one host in a fresh VM there, and its directory is
-copied back. agents= limits a host to the agents that match one of its patterns, HARNESS or HARNESS:MODEL with *;
-the harnesses that use this machine's API keys, claude-api and pi, run only on `local`. The commits of this checkout and of each --source are shipped to every host: the checkouts must be
+copied back. agents= limits a host to the agents that match one of its patterns, HARNESS, HARNESS:MODEL or
+HARNESS:MODEL@EFFORT with *, a pattern without @ matching the agent at any effort; the harnesses that use this machine's API keys, claude-api and pi, run only on `local`. The commits of this checkout and of each --source are shipped to every host: the checkouts must be
 clean. Each --source is a build with its own results directory, the --out in the same order; the runs of builds go
 to the same host one after the other. See bench/README.md.
 """
@@ -94,11 +94,14 @@ class Host:
     def __str__(self):
         return self.target
 
-    def takes(self, harness, model):
-        """Whether the host runs this agent: never a harness that uses this machine's API keys on another machine."""
+    def takes(self, harness, model, effort=None):
+        """Whether the host runs this agent: never a harness that uses this machine's API keys on another machine.
+        A pattern with @ matches the agent with its effort, and one without the agent at any effort."""
         if harness in run.LOCAL_ONLY and not self.local:
             return False
-        return self.agents is None or any(fnmatch.fnmatchcase(f"{harness}:{model}", p) for p in self.agents)
+        return self.agents is None or any(
+            fnmatch.fnmatchcase(run.agent_spec(harness, model, effort) if "@" in p else f"{harness}:{model}", p)
+            for p in self.agents)
 
     def sh(self, script, ctl, timeout=None):
         """Runs a shell script on the host in its home directory; returns the CompletedProcess, output as bytes."""
@@ -140,9 +143,9 @@ class Build:
 class Job:
     """One run: a build's agent and repetition."""
 
-    def __init__(self, build, harness, model, rep):
-        self.build, self.harness, self.model, self.rep = build, harness, model, rep
-        self.name = run.run_name(harness, model, rep)
+    def __init__(self, build, harness, model, rep, effort=None):
+        self.build, self.harness, self.model, self.rep, self.effort = build, harness, model, rep, effort
+        self.name = run.run_name(harness, model, rep, effort)
         self.tried = []  # the hosts it failed on before its run started
         self.outcome = "not run"
 
@@ -165,8 +168,9 @@ def plan(builds, agents, reps):
     pending = [set(run.pending_runs(b.out, reps, agents)) for b in builds]
     units = []
     for rep in reps:
-        for harness, model in agents:
-            jobs = [Job(b, harness, model, rep) for b, p in zip(builds, pending) if (rep, harness, model) in p]
+        for harness, model, effort in agents:
+            jobs = [Job(b, harness, model, rep, effort) for b, p in zip(builds, pending)
+                    if (rep, harness, model, effort) in p]
             if not jobs:
                 continue
             if len(units) % 2:
@@ -191,7 +195,7 @@ class Queue:
             while not self.stopping.is_set() and not host.dropped:
                 for unit in self.units:
                     job = unit.jobs[0]  # the jobs of a unit are one agent's
-                    if str(host) not in unit.excluded and host.takes(job.harness, job.model):
+                    if str(host) not in unit.excluded and host.takes(job.harness, job.model, job.effort):
                         self.units.remove(unit)
                         self.active += 1
                         return unit
@@ -331,7 +335,7 @@ class Remote:
             return host.prepared
 
     def _prepare(self, host):
-        harnesses = sorted({run.executable(h) for h, m in self.agents if host.takes(h, m)})
+        harnesses = sorted({run.executable(h) for h, m, e in self.agents if host.takes(h, m, e)})
         say(f"[{host}] preparing")
         info = self.sh(host, f"""
             for tool in git nix-build python3 rsync setsid {' '.join(harnesses)}; do
@@ -372,7 +376,8 @@ class Remote:
         jobs = f"{host.base}/jobs/{hashlib.sha1(b.out.encode()).hexdigest()[:10]}-{job.name}"
         command = [
             "python3", "bench/run.py", "--task", self.args.task, "--display", self.args.display,
-            "--agent", f"{job.harness}:{job.model}", "--rep", str(job.rep), "--timeout", str(self.args.timeout),
+            "--agent", run.agent_spec(job.harness, job.model, job.effort), "--rep", str(job.rep),
+            "--timeout", str(self.args.timeout),
             "--out", f"{jobs}/out", "--cid", str(host.cid + slot), "--source", self.tree(host, b.commit),
         ]
         command += ["--variant", self.args.variant] if self.args.variant else []
@@ -487,12 +492,12 @@ def main():
         parser.error(str(e))
     if len({str(h) for h in hosts}) < len(hosts):
         parser.error("a host is given twice: give it slots=N instead")
-    for harness, model in agents:
-        if not any(h.takes(harness, model) for h in hosts):
-            parser.error(f"no host takes {harness}:{model}"
-                         + (": it runs only on local" if harness in run.LOCAL_ONLY else ": see agents="))
+    for agent in agents:
+        if not any(h.takes(*agent) for h in hosts):
+            parser.error(f"no host takes {run.agent_spec(*agent)}"
+                         + (": it runs only on local" if agent[0] in run.LOCAL_ONLY else ": see agents="))
     for h in hosts:
-        if not any(h.takes(harness, model) for harness, model in agents):
+        if not any(h.takes(*agent) for agent in agents):
             parser.error(f"host {h} takes none of the agents")
 
     harness = checkout_state(None, parser, "this checkout")
@@ -510,7 +515,7 @@ def main():
         parser.error("two builds have the same --out")
     for b in builds:
         os.makedirs(b.out, exist_ok=True)
-        run.check_resume(b.out, b.config, parser)
+        run.check_resume(b.out, b.config, parser, agents)
         with open(os.path.join(b.out, "source.json"), "w") as f:
             json.dump(b.config, f, indent=2)
 

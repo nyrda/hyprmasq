@@ -40,7 +40,7 @@ on the same display. `source.json` records it.
 `--lock FILE` holds an exclusive lock on FILE during each run, for machines where other VMs, such as the VM
 test under `flock FILE`, would not fit into memory next to the benchmark's.
 
-`--agent HARNESS:MODEL` is repeatable. HARNESS is one of:
+`--agent HARNESS:MODEL[@EFFORT]` is repeatable. HARNESS is one of:
 
 - `claude`: Claude Code, with the user's login, a claude.ai subscription included;
 - `codex`: Codex CLI, with the user's login;
@@ -49,7 +49,8 @@ test under `flock FILE`, would not fit into memory next to the benchmark's.
 - `pi`: pi, with MODEL as `PROVIDER/MODEL` of the user's pi setup, such as
   `pi:tensorx/deepseek/deepseek-v4.1-flash-1017`. A run's directory has `_` for every `/` in the model.
 
-The default is `codex:gpt-6.1-sol`, `codex:gpt-6-astra`, `claude:claude-opus-5-5` and `claude:claude-sonnet-5-5`.
+`@EFFORT` sets the reasoning effort, such as `codex:gpt-6.1-sol@high`; see [Effort](#effort). The default is
+`codex:gpt-6.1-sol`, `codex:gpt-6-astra`, `claude:claude-opus-5-5` and `claude:claude-sonnet-5-5`.
 Repetitions go round the agents, so a slow hour of one API does not land on one agent's runs only.
 
 It needs KVM, Nix, and the harnesses of the agents logged in for the user who runs it; it uses those logins as they
@@ -97,8 +98,9 @@ It takes `run.py`'s options, `--source` and `--out` repeatable, and a `--host` f
 - `,local-lock=FILE`: a lock on this machine that the dispatcher holds while that machine's VM is up, for a machine
   whose other VM users take their lock here, such as VM tests that this machine runs on a remote Nix store;
 - `,dir=DIR`: where the machine keeps the dispatcher's files, by default `~/.cache/hyprmasq-bench`;
-- `,agents=PATTERN+PATTERN`: the agents the machine takes, each `HARNESS` or `HARNESS:MODEL` with `*`, such as
-  `agents=codex+claude:*opus*`; by default all.
+- `,agents=PATTERN+PATTERN`: the agents the machine takes, each `HARNESS`, `HARNESS:MODEL` or
+  `HARNESS:MODEL@EFFORT` with `*`, such as `agents=codex+claude:*opus*`; by default all. A pattern without `@` takes
+  the agent at any effort, and one with `@` only at the efforts it matches, such as `codex:*@high`.
 
 A lock is exclusive, so with a lock a machine's slots take turns at the VM.
 
@@ -118,7 +120,7 @@ The dispatcher refuses a checkout with changes, its own or a source's, and ships
 over SSH into a bare repository in DIR, `repo.git`, which needs no access to GitHub, and checks each out in a
 worktree, `trees/COMMIT`. On each machine it then checks the tools, prints its CPU and harness versions, and
 builds the drivers (`drivers/`) with `run.py`'s own code, before the machine takes runs. Each run is
-`run.py --rep N --agent HARNESS:MODEL` from the shipped benchmark with `--source` the shipped source, in
+`run.py --rep N --agent HARNESS:MODEL[@EFFORT]` from the shipped benchmark with `--source` the shipped source, in
 `jobs/` and in a session of its own that survives a dropped connection; the dispatcher prints its progress, copies
 its directory back with rsync when it ends, and removes it there. Ctrl-C interrupts the running runs, which grade
 and stop their VMs, as Ctrl-C does to `run.py`.
@@ -198,9 +200,40 @@ any agent session around it (`CLAUDE*`, `CODEX*`, `T3CODE*`, …).
   alone), `--no-skills --no-context-files --no-prompt-templates --no-themes --no-approve --offline`, and a session
   directory of the run's own. The debrief resumes the session with `--no-tools` and no MCP client.
 
-Effort and reasoning are each harness's default for the model. pi has no default of the model's own: it starts
-at its `medium` and clamps it to what the model's `thinkingLevelMap` in `models.json` supports, `high` for the
-DeepSeek models, which have only `high` and `max`. `run.json` records the level it ran at (`thinking`).
+### Effort
+
+`@EFFORT` after the model gives the harness a reasoning effort, in the harness's own way; the effort follows the
+last `@`, since pi's models have `/` and `:` in them. A level the harness does not take is refused before any run
+starts.
+
+| Harness | Option | Levels |
+| --- | --- | --- |
+| `claude`, `claude-api` | `--effort` | `low`, `medium`, `high`, `xhigh`, `max` |
+| `codex` | `-c model_reasoning_effort=…` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, the levels the OpenAI API takes; a model may take fewer |
+| `pi` | `--thinking` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
+
+The debrief resumes at the same effort. Without `@EFFORT`, the command is the same as before and the harness runs at
+its default for the model: Codex, which ignores the user's config, at its own (`low` for `gpt-6.1-sol`), and Claude
+Code at its own (`medium` for Sonnet 5.5 and Haiku 5.5). pi has no default of the model's own: it starts at its
+`medium`. pi clamps any level, its default or the one given, to what the model's `thinkingLevelMap` in `models.json`
+supports: the DeepSeek models have only `high` and `max`, so a lower level runs at `high`.
+
+`run.json` records `effort`: `requested`, the level given or `null` for the default, `ran_at`, what the harness says
+it ran at, and `reported_by`, where it says so:
+
+- Codex, the `reasoning_effort` in the `x-codex-turn-metadata` of each tool call in `mcp.jsonl`; its JSON events
+  have none;
+- Claude Code, the `output_config.effort` of each request its transcript logs; its stream-json has none, only
+  `per_turn_effort_active` in the init event;
+- pi, the session's `thinking_level_change`, also recorded as `thinking`.
+
+`ran_at` is `null` where the harness says nothing, such as Codex in a run without tool calls, and has the levels
+joined with `/` where they changed during the run. The report shows the effort beside the agent, such as `high` or
+`default, ran low`, for runs from before `run.json` recorded it too, from the same files. The same agent at different
+efforts is a separate agent: each has its own run directories, `codex-gpt-6.1-sol-high-1` for
+`codex:gpt-6.1-sol@high`, and its own row in the report, and a finished run counts only for its effort when a run
+resumes. A model whose name ends in a level shares those names, as `codex:gpt-high` and `codex:gpt@high` do: a
+results directory that holds a run of one refuses the other.
 
 The sessions' transcripts are moved from `~/.claude/projects`, `~/.codex/sessions` and pi's session directory into
 the run's directory after the debrief, and pi's MCP log, if it wrote one, to `pi-mcp.log`.
@@ -211,6 +244,7 @@ the run's directory after the debrief, and pi's MCP log, if it wrote one, to `pi
 
 | Measure | From |
 | --- | --- |
+| `effort` | The effort asked for, `requested`, the one the harness ran at, `ran_at`, and where it says so, `reported_by`, from `run.json` (see [Effort](#effort)). |
 | `passed`, `failures` | The task's checker, from the VM's state. |
 | `wall_seconds` | The agent process, from start to exit, on the host. |
 | `tool_seconds` | The union of the tool calls' intervals in the MCP log: time spent in hyprmasq, the vsock and the VM. |
@@ -257,7 +291,7 @@ partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 | File | Contents |
 | --- | --- |
 | `summary.json` | The measures above. |
-| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. For Claude Code, the credentials its init events named; for pi, the thinking level. |
+| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. The effort asked for and the one the harness ran at (see [Effort](#effort)). For Claude Code, the credentials its init events named; for pi, the thinking level. |
 | `agent.jsonl`, `agent.stderr` | The agent's event stream, timestamped. |
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |

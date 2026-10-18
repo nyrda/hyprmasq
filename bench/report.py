@@ -57,6 +57,59 @@ def tool_calls(tap):
     return calls
 
 
+def distinct(values):
+    return list(dict.fromkeys(v for v in values if v))
+
+
+def codex_efforts(tap):
+    """The reasoning efforts Codex names in the metadata of its tool calls in the MCP log, in order."""
+    return distinct(
+        ((((entry.get("msg") or {}).get("params") or {}).get("_meta") or {}).get("x-codex-turn-metadata") or {})
+        .get("reasoning_effort")
+        for entry in tap if entry.get("dir") == "request" and (entry.get("msg") or {}).get("method") == "tools/call"
+    )
+
+
+def claude_efforts(transcript):
+    """The efforts of the requests that Claude Code's transcript logs, in order."""
+    return distinct(
+        ((e.get("params") or {}).get("output_config") or {}).get("effort")
+        for e in transcript if e.get("type") == "api-request"
+    )
+
+
+# Where each harness says the effort it ran at.
+REPORTED_BY = {
+    "codex": "x-codex-turn-metadata of the tool calls in mcp.jsonl",
+    "claude": "output_config of the requests in Claude Code's transcript",
+    "pi": "thinking_level_change in pi's session",
+}
+
+
+def run_effort(run, run_dir, tap):
+    """The effort a run asked for, None for the harness's default, the one the harness said it ran at, and where it
+    said so. For runs from before run.json recorded it: pi's thinking level, and what Codex's MCP log or Claude Code's
+    transcript says."""
+    if "effort" in run:
+        return {k: run["effort"].get(k) for k in ("requested", "ran_at", "reported_by")}
+    family = "claude" if run["harness"] == "claude-api" else run["harness"]
+    ran_at = run.get("thinking")
+    if family == "codex":
+        ran_at = "/".join(codex_efforts(tap)) or None
+    elif family == "claude" and run.get("session"):
+        transcript = load_jsonl(os.path.join(run_dir, f"transcript-{run['session']}.jsonl"))
+        ran_at = "/".join(claude_efforts(transcript)) or None
+    return {"requested": None, "ran_at": ran_at, "reported_by": REPORTED_BY.get(family) if ran_at else None}
+
+
+def effort_text(efforts):
+    """An effort for the report: the level asked for, or default, and what the harness ran at where that differs."""
+    asked = distinct(e.get("requested") for e in efforts) or ["default"]
+    ran = distinct(e.get("ran_at") for e in efforts)
+    text = "/".join(asked)
+    return text + (f", ran {'/'.join(ran)}" if ran and ran != asked else "")
+
+
 def union_seconds(intervals):
     total, last_end = 0.0, None
     for start, end in sorted(intervals):
@@ -218,6 +271,7 @@ def metrics(run_dir):
     return {
         "harness": run["harness"],
         "model": run["model"],
+        "effort": run_effort(run, run_dir, tap),
         "rep": run["rep"],
         "passed": bool(check.get("passed")),
         "failures": check.get("failures", ["no grading: the VM gave no result"] if not vm else []),
@@ -293,17 +347,19 @@ def host(run):
 
 
 def table(runs, phase_names, group):
-    """The table of the runs' medians, a row per group."""
+    """The table of the runs' medians, a row per group and effort asked for: runs at different efforts never share
+    one."""
     groups = {}
     for r in runs:
-        groups.setdefault(group(r), []).append(r)
-    columns = ["Agent", "Passed", "Wall s", "In tools s", "Outside tools s", "Turn s", "Calls", "Actions",
+        groups.setdefault((group(r), (r.get("effort") or {}).get("requested")), []).append(r)
+    columns = ["Agent", "Effort", "Passed", "Wall s", "In tools s", "Outside tools s", "Turn s", "Calls", "Actions",
                "Images"] + [f"{name.capitalize()} at s" for name in phase_names] + ["User undisturbed"]
     out = ["| " + " | ".join(columns) + " |", "| " + " | ".join("---" for _ in columns) + " |"]
-    for name, rs in groups.items():
+    for (name, _), rs in groups.items():
         passed = [r for r in rs if r["passed"]]
         out.append(
-            f"| {name} | {len(passed)}/{len(rs)} | {fmt([r['wall_seconds'] for r in rs])} | "
+            f"| {name} | {effort_text([r.get('effort') or {} for r in rs])} | {len(passed)}/{len(rs)} | "
+            f"{fmt([r['wall_seconds'] for r in rs])} | "
             f"{fmt([r['tool_seconds'] for r in rs])} | {fmt([r['outside_tool_seconds'] for r in rs])} | "
             f"{fmt([r.get('median_gap_seconds') for r in rs], 1)} | "
             f"{fmt([r['calls'] for r in rs])} | {fmt([r['actions'] for r in rs])} | {fmt([r['images'] for r in rs])} | "
@@ -347,7 +403,8 @@ def report(results_dir):
     for r in runs:
         machine = r.get("machine") or {}
         out.append(
-            f"- {r['harness']} {r['model']} #{r['rep']}: {'passed' if r['passed'] else 'FAILED'} in {r['wall_seconds']} s, "
+            f"- {r['harness']} {r['model']} #{r['rep']}, effort {effort_text([r.get('effort') or {}])}: "
+            f"{'passed' if r['passed'] else 'FAILED'} in {r['wall_seconds']} s, "
             f"{r['calls']} calls"
             + (f", on {machine.get('host')} ({machine.get('cpu')})" if machine else "")
             + (f", {r['harness_version']}" if r.get("harness_version") else "")

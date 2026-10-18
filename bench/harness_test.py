@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Tests run.py's harnesses without their APIs: python3 harness_test.py
 
-pi's isolation, claude-api's key and its check, the names of runs, and report.py's reading of a recorded pi stream.
+pi's isolation, claude-api's key and its check, the names of runs, the efforts agents run at, and report.py's reading
+of a recorded pi stream.
 Fake `pi` and `claude` executables on PATH stand in for the real ones."""
 
 import argparse
@@ -44,12 +45,90 @@ class Names(unittest.TestCase):
                          "pi-tensorx_deepseek_deepseek-v4.1-flash-1017-2")
         self.assertEqual(run.run_name("claude-api", "claude-haiku-5-5", 1), "claude-api-claude-haiku-5-5-1")
         self.assertEqual(self.options("pi:tensorx/deepseek/x", "claude-api:claude-sonnet-5-5"),
-                         [("pi", "tensorx/deepseek/x"), ("claude-api", "claude-sonnet-5-5")])
+                         [("pi", "tensorx/deepseek/x", None), ("claude-api", "claude-sonnet-5-5", None)])
+
+    def test_an_effort_follows_the_last_at_and_names_the_directory(self):
+        self.assertEqual(
+            self.options("codex:gpt-6.1-sol@high", "pi:tensorx/deepseek/m:free@max", "claude:claude-opus-5-5"),
+            [("codex", "gpt-6.1-sol", "high"), ("pi", "tensorx/deepseek/m:free", "max"),
+             ("claude", "claude-opus-5-5", None)])
+        self.assertEqual(run.run_name("codex", "gpt-6.1-sol", 1, "high"), "codex-gpt-6.1-sol-high-1")
+        self.assertEqual(run.run_name("pi", "tensorx/deepseek/m", 2, "max"), "pi-tensorx_deepseek_m-max-2")
+        # The same agent at two efforts is two agents, with a directory each.
+        self.assertEqual(len(self.options("codex:gpt@low", "codex:gpt@high", "codex:gpt")), 3)
 
     def test_agents_that_would_share_a_directory_or_are_not_harness_model_are_refused(self):
-        for agents in (["pi:a/b", "pi:a_b"], ["gemini:pro"], ["pi"], ["pi:"]):
+        for agents in (["pi:a/b", "pi:a_b"], ["gemini:pro"], ["pi"], ["pi:"], ["codex:gpt-high", "codex:gpt@high"],
+                       ["codex:@high"]):
             with self.assertRaises(ValueError, msg=agents):
                 self.options(*agents)
+
+    def test_a_resume_refuses_an_agent_whose_directory_holds_another_agents_run(self):
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "codex-gpt-high-1"))
+            with open(os.path.join(out, "codex-gpt-high-1", "run.json"), "w") as f:
+                json.dump({"harness": "codex", "model": "gpt-high", "rep": 1}, f)
+            parser = argparse.ArgumentParser()
+            parser.error = lambda message: (_ for _ in ()).throw(ValueError(message))
+            config = {"commit": "c", "task": "forgejo", "variant": None, "display": "1920x1080@1"}
+            run.check_resume(out, config, parser, [("codex", "gpt-high", None), ("codex", "gpt", "low")])
+            with self.assertRaisesRegex(ValueError, "holds a run of codex:gpt-high, not of codex:gpt@high"):
+                run.check_resume(out, config, parser, [("codex", "gpt", "high")])
+
+    def test_an_effort_the_harness_does_not_take_is_refused(self):
+        for agent in ("claude:opus@minimal", "claude-api:sonnet@none", "codex:gpt@off", "pi:p/m@extreme", "codex:gpt@"):
+            with self.assertRaisesRegex(ValueError, "takes no effort", msg=agent):
+                self.options(agent)
+
+
+class Effort(unittest.TestCase):
+    def flags(self, harness, effort, **kwargs):
+        command = run.agent_command(harness, "m", "Do it.", ["tap"], sessions="/s", effort=effort, **kwargs)
+        flag = {"codex": "-c", "pi": "--thinking"}.get(harness, "--effort")
+        return [command[i + 1] for i, a in enumerate(command[:-1])
+                if a == flag and (flag != "-c" or command[i + 1].startswith("model_reasoning_effort"))]
+
+    def test_each_harness_gets_the_level_its_own_way_in_the_run_and_the_debrief(self):
+        for harness, given in (("claude", "xhigh"), ("claude-api", "xhigh"),
+                               ("codex", 'model_reasoning_effort="xhigh"'), ("pi", "xhigh")):
+            self.assertEqual(self.flags(harness, "xhigh"), [given], harness)
+            self.assertEqual(self.flags(harness, "xhigh", resume="session"), [given], harness)
+            # Without an effort, the harness's default: no flag at all.
+            self.assertEqual(self.flags(harness, None), [], harness)
+
+    def test_the_effort_codex_and_claude_code_report_is_recorded(self):
+        with tempfile.TemporaryDirectory() as run_dir, tempfile.TemporaryDirectory() as home:
+            meta = {"x-codex-turn-metadata": {"reasoning_effort": "high", "model": "gpt"}}
+            with open(os.path.join(run_dir, "mcp.jsonl"), "w") as f:
+                for i in range(2):
+                    f.write(json.dumps({"t": i, "dir": "request", "msg": {
+                        "id": i, "method": "tools/call", "params": {"_meta": meta, "name": "windows"}}}) + "\n")
+            self.assertEqual(run.ran_effort("codex", run_dir, "/tmp/x", "s", None),
+                             ("high", "x-codex-turn-metadata of the tool calls in mcp.jsonl"))
+            # The summary keeps where the effort came from.
+            recorded = {"requested": "high", "ran_at": "high",
+                        "reported_by": "x-codex-turn-metadata of the tool calls in mcp.jsonl"}
+            self.assertEqual(report.run_effort({"harness": "codex", "effort": recorded}, run_dir, []), recorded)
+            with mock.patch.dict(os.environ, {"HOME": home}):
+                os.makedirs(run.claude_project("/tmp/x"))
+                with open(os.path.join(run.claude_project("/tmp/x"), "s1.jsonl"), "w") as f:
+                    for effort in ("max", "max"):
+                        request = {"type": "api-request", "params": {"output_config": {"effort": effort}}}
+                        f.write(json.dumps(request) + "\n")
+                self.assertEqual(run.ran_effort("claude-api", run_dir, "/tmp/x", "s1", None)[0], "max")
+                # A harness that says nothing records nothing, not a guess.
+                self.assertEqual(run.ran_effort("claude", run_dir, "/tmp/x", "other", None), (None, None))
+            self.assertEqual(run.ran_effort("pi", run_dir, "/tmp/x", "s", "high")[0], "high")
+
+    def test_runs_at_different_efforts_are_rows_of_their_own(self):
+        def summary(requested, ran_at):
+            return {"harness": "codex", "model": "gpt", "effort": {"requested": requested, "ran_at": ran_at},
+                    "passed": True, "wall_seconds": 1, "tool_seconds": 1, "outside_tool_seconds": 0, "calls": 1,
+                    "actions": 1, "images": 1}
+        rows = report.table([summary(None, "low"), summary("high", "high"), summary(None, "low")], [],
+                            lambda r: f"{r['harness']} {r['model']}")[2:]
+        self.assertEqual([row.split(" | ")[:3] for row in rows],
+                         [["| codex gpt", "default, ran low", "2/2"], ["| codex gpt", "high", "1/1"]])
 
 
 class PiIsolation(unittest.TestCase):

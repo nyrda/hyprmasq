@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dispatch  # noqa: E402
 import run  # noqa: E402
 
-AGENTS = [["codex", "gpt"], ["claude", "opus"]]
+AGENTS = [("codex", "gpt", None), ("claude", "opus", None)]
 
 
 def finish(out, name, agent_started=True):
@@ -32,7 +32,7 @@ class Runs(unittest.TestCase):
     def test_rep_selects_repetitions(self):
         self.assertEqual(self.options("--rep", "3", "--rep", "1", "--rep", "3")[1], [1, 3])
         self.assertEqual(self.options("--reps", "2")[1], [1, 2])
-        self.assertEqual(self.options("--agent", "codex:gpt", "--agent", "codex:gpt")[0], [("codex", "gpt")])
+        self.assertEqual(self.options("--agent", "codex:gpt", "--agent", "codex:gpt")[0], [("codex", "gpt", None)])
         with self.assertRaises(ValueError):
             self.options("--rep", "0")
 
@@ -49,6 +49,13 @@ class Runs(unittest.TestCase):
                  [(a, "codex-gpt-2"), (b, "codex-gpt-2")],
                  [(b, "claude-opus-2"), (a, "claude-opus-2")]],
             )
+
+    def test_a_finished_run_counts_only_for_its_own_effort(self):
+        with tempfile.TemporaryDirectory() as a:
+            finish(a, "codex-gpt-1")
+            build = dispatch.Build(a, {"path": "/a", "commit": "a" * 40})
+            units = dispatch.plan([build], [("codex", "gpt", None), ("codex", "gpt", "high")], [1])
+            self.assertEqual([(j.name, j.effort) for u in units for j in u.jobs], [("codex-gpt-high-1", "high")])
 
 
 class Outcome(unittest.TestCase):
@@ -82,6 +89,14 @@ class Hosts(unittest.TestCase):
         self.assertTrue(box.takes("claude", "sonnet"))
         self.assertEqual([codex_box.takes(*a) for a in (("codex", "gpt"), ("claude", "claude-opus-5-5"), ("claude", "sonnet"))],
                          [True, True, False])
+
+    def test_agents_patterns_and_efforts(self):
+        # A pattern without @ takes the agent at any effort; one with @ only at the efforts it matches.
+        box = dispatch.Host("me@box,agents=codex:gpt+claude:*@high")
+        self.assertEqual([box.takes(*a) for a in (("codex", "gpt", None), ("codex", "gpt", "high"),
+                                                  ("claude", "opus", "high"), ("claude", "opus", "low"),
+                                                  ("claude", "opus", None))],
+                         [True, True, True, False, False])
 
 
 class Scheduling(unittest.TestCase):

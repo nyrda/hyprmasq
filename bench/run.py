@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Runs the Thunderbird benchmark: one fresh VM per run, an agent on the host, grading, and a debrief.
 
-    run.py [--agent HARNESS:MODEL]... [--reps N | --rep N...] [--out DIR] [--timeout SECONDS] [--cid CID] [--no-debrief]
+    run.py [--agent HARNESS:MODEL[@EFFORT]]... [--reps N | --rep N...] [--out DIR] [--timeout SECONDS] [--cid CID]
+           [--no-debrief]
 
 HARNESS is claude (Claude Code) or codex (Codex CLI), which use the logins of the user running this; claude-api
 (Claude Code billed to the user's Anthropic API key); or pi, with MODEL as PROVIDER/MODEL of the user's pi setup.
-Each run gets RESULTS/<harness>-<model>-<rep>/, with any / in the model as _, holding the agent's event stream, the
-MCP log, screenshots, the VM's logs, the grade, the debrief and summary.json. RESULTS/report.md compares the runs.
+EFFORT is the reasoning effort the harness runs the model at, one of the harness's levels in EFFORTS; without it,
+the harness's default. Each run gets RESULTS/<harness>-<model>[-<effort>]-<rep>/, with any / in the model as _,
+holding the agent's event stream, the MCP log, screenshots, the VM's logs, the grade, the debrief and summary.json.
+RESULTS/report.md compares the runs.
 See bench/README.md.
 """
 
@@ -35,6 +38,14 @@ DEFAULT_AGENTS = ["codex:gpt-6.1-sol", "codex:gpt-6-astra", "claude:claude-opus-
 HARNESSES = ("claude", "claude-api", "codex", "pi")
 # Harnesses that use API keys of this machine: dispatch.py never sends their runs to another one.
 LOCAL_ONLY = ("claude-api", "pi")
+# The reasoning efforts each harness takes for @EFFORT: Claude Code's --effort, the levels that Codex passes on as
+# model_reasoning_effort and the OpenAI API accepts, and pi's --thinking.
+CLAUDE_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+EFFORTS = {
+    "claude": CLAUDE_EFFORTS, "claude-api": CLAUDE_EFFORTS,
+    "codex": ("none", "minimal", "low", "medium", "high", "xhigh", "max"),
+    "pi": ("off", "minimal", "low", "medium", "high", "xhigh", "max"),
+}
 # Where claude-api's key and request headers come from when the environment does not give them.
 API_KEY_ENV, API_HEADERS_ENV = "HYPRMASQ_BENCH_ANTHROPIC_API_KEY", "HYPRMASQ_BENCH_ANTHROPIC_HEADERS"
 
@@ -81,9 +92,27 @@ def family(harness):
     return "claude" if harness == "claude-api" else harness
 
 
-def run_name(harness, model, rep):
+def parse_agent(spec):
+    """HARNESS:MODEL[@EFFORT] as (harness, model, effort), effort None for the harness's default. The effort follows
+    the last @, since pi's models have / and : in them."""
+    harness, _, rest = spec.partition(":")
+    model, at, effort = rest.rpartition("@") if "@" in rest else (rest, "", None)
+    if harness not in HARNESSES:
+        raise ValueError(f"unknown harness {harness!r} in {spec}: one of {', '.join(HARNESSES)}")
+    if not model:
+        raise ValueError(f"{spec} is not HARNESS:MODEL[@EFFORT]")
+    if at and effort not in EFFORTS[harness]:
+        raise ValueError(f"{harness} takes no effort {effort!r} in {spec}: one of {', '.join(EFFORTS[harness])}")
+    return harness, model, effort
+
+
+def agent_spec(harness, model, effort=None):
+    return f"{harness}:{model}" + (f"@{effort}" if effort else "")
+
+
+def run_name(harness, model, rep, effort=None):
     """The run's directory: a pi model such as tensorx/deepseek/... has slashes, which a name cannot."""
-    return re.sub(r"[^A-Za-z0-9._-]", "_", f"{harness}-{model}-{rep}")
+    return re.sub(r"[^A-Za-z0-9._-]", "_", f"{harness}-{model}-" + (f"{effort}-" if effort else "") + str(rep))
 
 
 def version(command):
@@ -108,12 +137,14 @@ def tap_command(cid, log):
     return [sys.executable, os.path.join(BENCH, "mcp_tap.py"), str(cid), "5000", log]
 
 
-def claude_command(model, prompt, tap, resume=None):
+def claude_command(model, prompt, tap, resume=None, effort=None):
     command = [
         "claude", "-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose",
         # Only hyprmasq's tools, and none of the user's CLAUDE.md, settings, hooks, skills or MCP servers.
         "--tools", "", "--setting-sources", "", "--disable-slash-commands", "--strict-mcp-config",
     ]
+    if effort:
+        command += ["--effort", effort]
     if resume:
         command += ["--resume", resume]
     else:
@@ -122,7 +153,7 @@ def claude_command(model, prompt, tap, resume=None):
     return command
 
 
-def codex_command(model, prompt, tap, resume=None):
+def codex_command(model, prompt, tap, resume=None, effort=None):
     command = ["codex", "exec"]
     if resume:
         command += ["resume", resume]
@@ -132,6 +163,8 @@ def codex_command(model, prompt, tap, resume=None):
         # The user's skills would be listed to the model.
         "-c", "skills.include_instructions=false",
     ]
+    if effort:
+        command += ["-c", f"model_reasoning_effort={json.dumps(effort)}"]
     if not resume:
         command += ["--sandbox", "read-only"]
     for feature in CODEX_DISABLED:
@@ -147,7 +180,7 @@ def codex_command(model, prompt, tap, resume=None):
     return command + [prompt]
 
 
-def pi_command(model, prompt, tap, resume=None, sessions=None):
+def pi_command(model, prompt, tap, resume=None, sessions=None, effort=None):
     """pi with only hyprmasq's tools. Its agent directory, PI_CODING_AGENT_DIR, is the run's own (pi_agent_dir),
     so that none of the user's settings, MCP servers, extensions, skills or instructions load."""
     command = [
@@ -155,6 +188,8 @@ def pi_command(model, prompt, tap, resume=None, sessions=None):
         # The built-in MCP extension alone: --no-extensions drops it with the others, and -e loads it again.
         "--no-extensions", "--no-skills", "--no-context-files", "--no-prompt-templates", "--no-themes",
     ]
+    if effort:
+        command += ["--thinking", effort]
     if resume:
         # The debrief: the session's file, no tools, and no MCP server to give any.
         command += ["--session", resume, "--no-tools"]
@@ -185,12 +220,12 @@ def pi_agent_dir(tap, sessions):
     return agent_dir
 
 
-def agent_command(harness, model, prompt, tap, resume=None, sessions=None):
+def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effort=None):
     if harness == "pi":
-        return pi_command(model, prompt, tap, resume, sessions)
+        return pi_command(model, prompt, tap, resume, sessions, effort)
     if family(harness) == "claude":
-        return claude_command(model, prompt, tap, resume)
-    return codex_command(model, prompt, tap, resume)
+        return claude_command(model, prompt, tap, resume, effort)
+    return codex_command(model, prompt, tap, resume, effort)
 
 
 def agent_env(extra=None):
@@ -310,6 +345,11 @@ def final_text(harness, stream_path):
     return report.agent_usage(harness, report.load_jsonl(stream_path)).get("final")
 
 
+def claude_project(cwd):
+    """Where Claude Code keeps the transcripts of sessions that ran in cwd."""
+    return os.path.expanduser(f"~/.claude/projects/{re.sub(r'[^A-Za-z0-9]', '-', cwd)}")
+
+
 def move_transcript(harness, session, cwd, run_dir, sessions=None):
     """Moves the harness's own transcript of the session into the run's directory."""
     if not session:
@@ -318,7 +358,7 @@ def move_transcript(harness, session, cwd, run_dir, sessions=None):
     if harness == "pi":
         paths = glob.glob(os.path.join(sessions, f"*_{session}.jsonl"))
     elif family(harness) == "claude":
-        project = os.path.expanduser(f"~/.claude/projects/{re.sub(r'[^A-Za-z0-9]', '-', cwd)}")
+        project = claude_project(cwd)
         # The transcript, and a directory of the same name with the session's tool results.
         paths = glob.glob(os.path.join(project, f"{session}*"))
     else:
@@ -347,6 +387,20 @@ def pi_session(sessions, session):
     return path, (levels[0] if levels else None)
 
 
+def ran_effort(harness, run_dir, cwd, session, thinking):
+    """The effort the harness says the agent ran at, and where it says so; None where it says nothing. Codex gives it
+    in the metadata of each MCP tool call, Claude Code in the requests its transcript logs (its stream-json has
+    none), and pi in its session's thinking level."""
+    if harness == "pi":
+        found = [thinking] if thinking else []
+    elif family(harness) == "claude":
+        path = os.path.join(claude_project(cwd), f"{session}.jsonl")
+        found = report.claude_efforts(report.load_jsonl(path)) if session else []
+    else:
+        found = report.codex_efforts(report.load_jsonl(os.path.join(run_dir, "mcp.jsonl")))
+    return "/".join(found) or None, report.REPORTED_BY[family(harness)] if found else None
+
+
 def check_api_key_used(result, what):
     """Fails a claude-api run whose agent or debrief run_agent stopped for naming other credentials than the key."""
     if result["refused"]:
@@ -369,10 +423,10 @@ def files_holding(run_dir, secret):
     return found
 
 
-def run_one(driver, task, variant, harness, model, rep, out, cid, timeout, debrief):
+def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief):
     task_dir = os.path.join(BENCH, "tasks", task)
-    run_dir = os.path.join(out, run_name(harness, model, rep))
-    label = f"[{harness} {model} #{rep}]"
+    run_dir = os.path.join(out, run_name(harness, model, rep, effort))
+    label = f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}]"
     # claude-api: the key and the check that Claude Code bills it, before the VM boots, so that a run never falls
     # back to the subscription.
     api_env = anthropic_api_env() if harness == "claude-api" else None
@@ -406,7 +460,7 @@ def run_one(driver, task, variant, harness, model, rep, out, cid, timeout, debri
                 time.sleep(1)
 
             prompt = open(os.path.join(task_dir, "prompt.md")).read()
-            command = agent_command(harness, model, prompt, tap, sessions=sessions)
+            command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort)
             print(f"{label} agent running", flush=True)
             agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
                               os.path.join(run_dir, "agent.stderr"), timeout, api_env, api_key=harness == "claude-api")
@@ -428,6 +482,9 @@ def run_one(driver, task, variant, harness, model, rep, out, cid, timeout, debri
         session_file = None
         if harness == "pi":
             session_file, run["thinking"] = pi_session(sessions, agent["session"])
+        ran_at, reported_by = ran_effort(harness, run_dir, cwd, agent["session"], run.get("thinking"))
+        # The effort asked for, None for the harness's default, and the one the harness says it ran at.
+        run["effort"] = {"requested": effort, "ran_at": ran_at, "reported_by": reported_by}
         with open(os.path.join(run_dir, "run.json"), "w") as f:
             json.dump(run, f, indent=2)
         check_api_key_used(agent, "agent")
@@ -441,7 +498,7 @@ def run_one(driver, task, variant, harness, model, rep, out, cid, timeout, debri
             with open(os.path.join(run_dir, "debrief-prompt.md"), "w") as f:
                 f.write(text)
             print(f"{label} debrief", flush=True)
-            command = agent_command(harness, model, text, None, resume=resume)
+            command = agent_command(harness, model, text, None, resume=resume, effort=effort)
             told = run_agent(command, cwd, os.path.join(run_dir, "debrief.jsonl"),
                              os.path.join(run_dir, "debrief.stderr"), 900, api_env, api_key=harness == "claude-api")
             answer = None if told["refused"] else final_text(harness, os.path.join(run_dir, "debrief.jsonl"))
@@ -493,9 +550,21 @@ def vm_lock(path):
             fcntl.flock(f, fcntl.LOCK_UN)
 
 
-def check_resume(out, config, parser):
+def check_resume(out, config, parser, agents):
     """Refuse to add runs to a results directory whose finished runs had another commit, task, variant or display,
-    so that one report never mixes them. Keys that an older source.json lacks are not compared."""
+    so that one report never mixes them. Keys that an older source.json lacks are not compared. Refuse also an agent
+    whose run directory holds another agent's run, such as codex:gpt-high's for codex:gpt@high: a resume would count
+    that run as its own, or remove it."""
+    runs = {}
+    for name in os.listdir(out):
+        with contextlib.suppress(OSError, ValueError), open(os.path.join(out, name, "run.json")) as f:
+            runs[name] = json.load(f)
+    for name, before in runs.items():
+        ran = (before.get("harness"), before.get("model"), (before.get("effort") or {}).get("requested"))
+        for harness, model, effort in agents:
+            if (harness, model, effort) != ran and run_name(harness, model, before.get("rep"), effort) == name:
+                parser.error(f"{os.path.join(out, name)} holds a run of {agent_spec(*ran)}, not of "
+                             f"{agent_spec(harness, model, effort)}: use another --out")
     path = os.path.join(out, "source.json")
     finished = any(os.path.exists(os.path.join(out, name, "summary.json")) for name in os.listdir(out))
     if not finished or not os.path.exists(path):
@@ -512,8 +581,8 @@ def pending_runs(out, reps, agents):
     """The runs of the given repetitions that have no summary.json yet, in the order they run: repetitions go round
     the agents, so that a slow hour of an API does not hit one agent's runs only."""
     return [
-        (rep, harness, model) for rep in reps for harness, model in agents
-        if not os.path.exists(os.path.join(out, run_name(harness, model, rep), "summary.json"))
+        (rep, harness, model, effort) for rep in reps for harness, model, effort in agents
+        if not os.path.exists(os.path.join(out, run_name(harness, model, rep, effort), "summary.json"))
     ]
 
 
@@ -522,7 +591,7 @@ def add_run_options(parser):
     parser.add_argument("--task", default="thunderbird", help="a directory under bench/tasks")
     parser.add_argument("--variant", help="the task's variant, for a task that has them (bench/tasks/TASK/variants)")
     parser.add_argument("--display", default="1920x1080@1", help="the VM's monitor, WIDTHxHEIGHT@SCALE")
-    parser.add_argument("--agent", action="append", help="HARNESS:MODEL, repeatable")
+    parser.add_argument("--agent", action="append", help="HARNESS:MODEL[@EFFORT], repeatable")
     reps = parser.add_mutually_exclusive_group()
     reps.add_argument("--reps", type=int, default=3)
     reps.add_argument("--rep", type=int, action="append", help="run only this repetition, repeatable; instead of --reps")
@@ -532,17 +601,15 @@ def add_run_options(parser):
 
 def check_run_options(args, parser):
     """The agents and the repetitions of the runs, after checking the task and its variant."""
-    # Once each: a run of the same name twice would share its directory.
-    agents = [tuple(a.split(":", 1)) for a in dict.fromkeys(args.agent or DEFAULT_AGENTS)]
-    for agent in agents:
-        if len(agent) != 2 or not agent[1]:
-            parser.error(f"{':'.join(agent)} is not HARNESS:MODEL")
-        if agent[0] not in HARNESSES:
-            parser.error(f"unknown harness {agent[0]}: one of {', '.join(HARNESSES)}")
-    names = [run_name(harness, model, 1) for harness, model in agents]
+    try:
+        # Once each: a run of the same name twice would share its directory.
+        agents = list(dict.fromkeys(parse_agent(a) for a in args.agent or DEFAULT_AGENTS))
+    except ValueError as e:
+        parser.error(str(e))
+    names = [run_name(harness, model, 1, effort) for harness, model, effort in agents]
     if len(set(names)) < len(names):
         parser.error("two agents have the same run directory: their names differ only in characters other than "
-                     "letters, digits, ., _ and -")
+                     "letters, digits, ., _ and -, or in the @ of an effort")
     if any(rep < 1 for rep in args.rep or []):
         parser.error("--rep counts from 1")
     if not os.path.isdir(os.path.join(BENCH, "tasks", args.task)):
@@ -574,17 +641,18 @@ def main():
     os.makedirs(out, exist_ok=True)
     source = os.path.abspath(args.source) if args.source else None
     config = {**source_commit(source), "task": args.task, "variant": args.variant, "display": args.display}
-    check_resume(out, config, parser)
+    check_resume(out, config, parser, agents)
     driver = build_driver(out, source, args.task, args.variant, args.display)
     with open(os.path.join(out, "source.json"), "w") as f:
         json.dump(config, f, indent=2)
-    for rep, harness, model in pending_runs(out, reps, agents):
-        shutil.rmtree(os.path.join(out, run_name(harness, model, rep)), ignore_errors=True)
+    for rep, harness, model, effort in pending_runs(out, reps, agents):
+        shutil.rmtree(os.path.join(out, run_name(harness, model, rep, effort)), ignore_errors=True)
         try:
             with vm_lock(args.lock):
-                run_one(driver, args.task, args.variant, harness, model, rep, out, args.cid, args.timeout, not args.no_debrief)
+                run_one(driver, args.task, args.variant, harness, model, effort, rep, out, args.cid, args.timeout,
+                        not args.no_debrief)
         except Exception as e:  # one broken run does not end the benchmark
-            print(f"[{harness} {model} #{rep}] error: {e}", flush=True)
+            print(f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}] error: {e}", flush=True)
     print(report.report(out))
 
 
