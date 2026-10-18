@@ -1013,14 +1013,76 @@ subtest checks only that the wait does not wait for the animation and names it; 
 that what keeps changing is left out and what is drawn is kept. The VM test of `main` at 690b3fd passes on the
 5600X, the laptop and the Deck, and `main` before #43 passed on the 5800X3D.
 
+## 2026-10-18: four models (round 3)
+
+Round 3 ran `main` at ffb1b4a with four agents: gpt-6.1-sol through Codex, Sonnet 5.5 and Haiku 5.5 through Claude
+Code with an API key, and DeepSeek V4.1 Flash through pi (#46). Three runs per agent and task, at 1920×1080 at
+scale 1, without the debrief; the board in the `dnd` variant; 48 runs. `bench/dispatch.py` ran gpt-6.1-sol's three on
+the 5600X, the laptop and the Deck, and the other agents' on the 5800X3D, so wall times compare across agents only
+roughly; most of a run is the model's own time. *Turn s* is the median time between tool calls; the board's *Passed*
+lists the labels right per run:
+
+| Task | Agent | Passed | Wall s | In tools s | Turn s | Calls | Images |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Forgejo | gpt-6.1-sol | 3/3 | 72 (65–77) | 20 (17–24) | 2.7 (2.6–2.7) | 15 (15–17) | 18 (18–27) |
+| | Sonnet 5.5 | 3/3 | 47 (46–52) | 18 (15–25) | 2.2 (2.2–2.2) | 14 (12–15) | 13 (10–13) |
+| | Haiku 5.5 | 3/3 | 40 (36–46) | 18 (17–20) | 1.5 (1.4–1.5) | 13 (12–16) | 13 (11–16) |
+| | DeepSeek V4.1 Flash | 3/3 | 55 (48–74) | 23 (20–27) | 1.6 (1.4–1.8) | 20 (19–24) | 25 (21–38) |
+| Calc | gpt-6.1-sol | 3/3 | 80 (76–92) | 23 (21–25) | 3.1 (3.0–3.6) | 17 (16–18) | 22 (13–37) |
+| | Sonnet 5.5 | 3/3 | 52 (50–57) | 18 (16–18) | 2.2 (2.2–2.3) | 13 (13–14) | 15 (11–15) |
+| | Haiku 5.5 | 3/3 | 63 (60–68) | 21 (20–23) | 1.6 (1.6–1.9) | 19 (16–26) | 17 (14–46) |
+| | DeepSeek V4.1 Flash | 0/3 | 111 (93–262) | 30 (29–31) | 2.3 (1.9–2.7) | 28 (28–31) | 67 (65–67) |
+| Thunderbird | gpt-6.1-sol | 3/3 | 86 (81–105) | 25 (22–33) | 3.0 (2.9–3.5) | 17 (16–22) | 24 (22–24) |
+| | Sonnet 5.5 | 2/3 | 86 (83–89) | 35 (31–45) | 2.4 (2.3–2.6) | 18 (16–18) | 20 (18–20) |
+| | Haiku 5.5 | 3/3 | 77 (74–82) | 35 (33–43) | 1.6 (1.4–1.7) | 22 (21–29) | 26 (24–40) |
+| | DeepSeek V4.1 Flash | 3/3 | 97 (91–108) | 33 (32–39) | 2.3 (2.2–2.4) | 25 (25–26) | 32 (26–35) |
+| Board | gpt-6.1-sol | 0/3: 7, 7, 7 | 35 (33–39) | 12 (11–12) | 4.5 (4.2–4.5) | 4 (4–5) | 6 (6–7) |
+| | Sonnet 5.5 | 3/3: 8, 8, 8 | 27 (26–38) | 12 (11–14) | 3.3 (2.6–3.4) | 4 (4–9) | 11 (8–16) |
+| | Haiku 5.5 | 2/3: 8, 5, 8 | 43 (38–47) | 13 (12–13) | 3.1 (2.0–4.0) | 6 (6–10) | 12 (6–13) |
+| | DeepSeek V4.1 Flash | 2/3: 8, 3, 8 | 222 (145–648) | 19 (16–33) | 4.8 (4.7–7.3) | 41 (25–62) | 51 (37–65) |
+
+- **The user was undisturbed in all 48 runs**, with every agent.
+- **No drag failed on hyprmasq's side.** `attribute.py`, which reads Claude Code's runs since #47, blames none of
+  the drags of the 12 board runs on hyprmasq, and every label that moved landed within 0.7 photo pixels of where it
+  was aimed. 6 of DeepSeek's 26 drags started between two labels of the tray and grabbed none; no other agent's did.
+- **Every failure is the model's:**
+  - gpt-6.1-sol put 8-pin CPU power on the 5-pin header beside the memory slots in two runs, and on no part in the
+    third.
+  - Haiku's failed board run put 8-pin CPU power on the 5-pin header, SATA ports on the memory slots and the BMC
+    chip on no part, each where it aimed.
+  - Sonnet's failed Thunderbird reply named 3.01 (Noether), the design review's room in the week-10 bookings,
+    instead of week 11's 4.12 (Galilei).
+  - DeepSeek's three Calc runs and its failed board run failed on how many images the model took. The other
+    models' runs had medians of 13 to 26 images in Forgejo, Calc and Thunderbird and 6 to 12 on the board.
+    DeepSeek's had 65 to 67 in Calc, most of them the zooms that `act` returns with its changes, and 37, 51 and 65
+    on the board, most of them region screenshots it asked for. pi sends all of a run's images with every request,
+    and the provider takes at most 64, so each of these runs ended at the request that went past 64. The limit is
+    how they ended, not why they failed, and none of it is hyprmasq's.
+  - In Calc, two of those runs ended before saving, with no Ctrl+S among their calls; the third had saved, with the
+    Lisbon and Rotterdam rows swapped.
+  - On the board, the failed run ended after 648 s and 62 calls, with three labels placed and five in the tray. 44
+    of its 47 screenshots zoomed into a region; 3 of its 7 drags started between two labels.
+- **Speed.** Outside the board, a step took Haiku 1.5 to 1.6 s, Sonnet 2.2 to 2.4 s, DeepSeek 1.6 to 2.3 s and
+  gpt-6.1-sol 2.7 to 3.1 s; on the board, where one step plans several drags, 3.1 to 4.8 s. Haiku and Sonnet
+  finished Forgejo 44% and 35% sooner than gpt-6.1-sol, and Calc 21% and 35% sooner. In Thunderbird, Haiku finished
+  10% sooner and Sonnet in the same time: both sent 34 to 35 actions to gpt-6.1-sol's 21, and spent 35 s in tools
+  to its 25 s.
+- **DeepSeek used more calls and images** than the other three: 20 calls and 25 images to their 13 to 15 and 13 to
+  18 in Forgejo, 28 and 67 to 13 to 19 and 15 to 22 in Calc, 25 and 32 to 17 to 22 and 20 to 26 in Thunderbird,
+  and 41 and 51 to 4 to 6 and 6 to 12 on the board.
+
+**The board's boxes were checked by a person.** A model agreeing with boxes that a model may have drawn proves
+nothing, least of all for the label gpt-6.1-sol misses. Over the 53 board runs so far,
+gpt-6.1-sol put 8-pin CPU power on its box 13 times out of 44, on the 5-pin header beside the memory slots 29
+times, and elsewhere twice. The user, who knows the board, checked every box of `regions.json` on the photo by eye
+and confirmed them, so these misses are the model's.
+
 ## Open
 
 - **Shortcuts that an app runs more than 250 ms after the key** still fail without a word beside the user's window.
 - **A native Electron file chooser** opened on the user's workspace the first time it was used: GTK maps it before
   it sets its parent, a few milliseconds later, and hyprmasq places a window when it maps. Once the parent is known
   the chooser stays hidden.
-- **A point in the last pixel of the right or bottom edge** lands on the pixel before, up to a device pixel off at
-  scale 2 and fractional scales.
 - **Unloading the plugin while a screenshot waits for the reader of a pipe** holds Hyprland's main thread until
   something reads the pipe: the unload joins the screenshot's thread. It needs an unload during such a write, and is
   not being fixed for now.
@@ -1029,6 +1091,8 @@ Settled, and not for hyprmasq:
 
 - **hyprmasq's own time per call** is now 0.15 to 0.35 s beyond its waits and the sender's pacing at 1920×1080 and
   2560×1440, after #33 rendered each moment once and #37 made the comparison exact around what differs.
+- **A point in the last pixel of the right or bottom edge** arrives as it is since #45, to 1/256 of a logical
+  pixel; it landed on the pixel before, up to a device pixel off at scale 2 and fractional scales.
 - **A blank first shot of an Electron app** is the app still loading its page, as a browser's is; hyprmasq cannot tell
   an Electron or CEF window from another, and the next call shows the page.
 - **Characters that only an extended key code gives**, such as € on a US keymap, do not arrive in Electron and X11
