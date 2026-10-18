@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Spreads benchmark runs over several machines, into the results directory that run.py would write.
 
-    dispatch.py --host HOST[,slots=N][,lock=FILE][,local-lock=FILE][,cid=N][,dir=DIR]... [--source DIR]...
+    dispatch.py --host HOST[,slots=N][,lock=FILE][,local-lock=FILE][,cid=N][,dir=DIR][,agents=A+B]... [--source DIR]...
                 [--out DIR]... [--task TASK] [--variant NAME] [--display WxH@S] [--agent HARNESS:MODEL]...
                 [--reps N | --rep N...] [--timeout SECONDS] [--no-debrief]
 
 HOST is `local`, this machine, or an SSH destination such as user@machine, which this machine reaches with its
 keys. Each run, one agent's repetition, runs `run.py --rep N` on one host in a fresh VM there, and its directory is
-copied back. The commits of this checkout and of each --source are shipped to every host: the checkouts must be
+copied back. agents= limits a host to the agents that match one of its patterns, HARNESS or HARNESS:MODEL with *;
+the harnesses that use this machine's API keys, claude-api and pi, run only on `local`. The commits of this checkout and of each --source are shipped to every host: the checkouts must be
 clean. Each --source is a build with its own results directory, the --out in the same order; the runs of builds go
 to the same host one after the other. See bench/README.md.
 """
@@ -16,6 +17,7 @@ import argparse
 import collections
 import contextlib
 import fcntl
+import fnmatch
 import hashlib
 import json
 import os
@@ -44,6 +46,12 @@ def say(*parts):
         print(*parts, flush=True)
 
 
+def ssh_env():
+    """The environment for ssh and the tools that run it: without Anthropic keys, such as the one the user set for
+    local claude-api runs, which ssh's SendEnv could pass on."""
+    return run.without_api_keys(os.environ)
+
+
 def ssh_command(ctl):
     """ssh without prompts, sharing one connection per host through a socket in ctl."""
     return ["ssh", "-o", "BatchMode=yes", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=4",
@@ -58,6 +66,7 @@ class Host:
         if not self.target:
             raise ValueError(f"no host in {spec!r}")
         self.slots, self.cid, self.lock, self.local_lock, self.dir = 1, 4242, None, None, ".cache/hyprmasq-bench"
+        self.agents = None  # the patterns of the agents it takes, or None for all
         for option in options:
             key, sep, value = option.partition("=")
             if not sep or not value:
@@ -66,11 +75,15 @@ class Host:
                 setattr(self, key, int(value))
             elif key in ("lock", "local-lock", "dir"):
                 setattr(self, key.replace("-", "_"), value)
+            elif key == "agents":
+                self.agents = [p if ":" in p else f"{p}:*" for p in value.split("+") if p]
             else:
-                raise ValueError(f"unknown option {key} in {spec!r}: slots, lock, local-lock, cid or dir")
+                raise ValueError(f"unknown option {key} in {spec!r}: slots, lock, local-lock, cid, dir or agents")
         if self.slots < 1:
             raise ValueError(f"{spec!r} needs at least one slot")
         self.local = self.target == "local"
+        if not self.local and any(p.split(":", 1)[0] in run.LOCAL_ONLY for p in self.agents or []):
+            raise ValueError(f"{spec!r}: {' and '.join(run.LOCAL_ONLY)} use this machine's API keys and run only on local")
         self.base = None  # the absolute directory on the host, once prepared
         self.prepared = None  # True or False once prepare() ran
         self.failures = 0  # jobs in a row that failed before their run started
@@ -81,11 +94,18 @@ class Host:
     def __str__(self):
         return self.target
 
+    def takes(self, harness, model):
+        """Whether the host runs this agent: never a harness that uses this machine's API keys on another machine."""
+        if harness in run.LOCAL_ONLY and not self.local:
+            return False
+        return self.agents is None or any(fnmatch.fnmatchcase(f"{harness}:{model}", p) for p in self.agents)
+
     def sh(self, script, ctl, timeout=None):
         """Runs a shell script on the host in its home directory; returns the CompletedProcess, output as bytes."""
         script = f'export PATH="$PATH:{":".join(EXTRA_PATH)}"; cd || exit 1\n{script}'
         command = ["bash", "-c", script] if self.local else [*ssh_command(ctl), self.target, "bash -c " + shlex.quote(script)]
-        return subprocess.run(command, capture_output=True, timeout=timeout, stdin=subprocess.DEVNULL)
+        return subprocess.run(command, capture_output=True, timeout=timeout, stdin=subprocess.DEVNULL,
+                              env=None if self.local else ssh_env())
 
     def remote(self, path):
         """A path on the host as git and rsync name it."""
@@ -122,7 +142,7 @@ class Job:
 
     def __init__(self, build, harness, model, rep):
         self.build, self.harness, self.model, self.rep = build, harness, model, rep
-        self.name = f"{harness}-{model}-{rep}"
+        self.name = run.run_name(harness, model, rep)
         self.tried = []  # the hosts it failed on before its run started
         self.outcome = "not run"
 
@@ -170,7 +190,8 @@ class Queue:
         with self.cond:
             while not self.stopping.is_set() and not host.dropped:
                 for unit in self.units:
-                    if str(host) not in unit.excluded:
+                    job = unit.jobs[0]  # the jobs of a unit are one agent's
+                    if str(host) not in unit.excluded and host.takes(job.harness, job.model):
                         self.units.remove(unit)
                         self.active += 1
                         return unit
@@ -284,7 +305,7 @@ class Remote:
 
     def git(self, *args):
         ssh = shlex.join(ssh_command(self.ctl))
-        subprocess.run(["git", *args], check=True, capture_output=True, env=dict(os.environ, GIT_SSH_COMMAND=ssh))
+        subprocess.run(["git", *args], check=True, capture_output=True, env=dict(ssh_env(), GIT_SSH_COMMAND=ssh))
 
     def tree(self, host, commit):
         return f"{host.base}/trees/{commit}"
@@ -310,7 +331,7 @@ class Remote:
             return host.prepared
 
     def _prepare(self, host):
-        harnesses = sorted({h for h, _ in self.agents})
+        harnesses = sorted({run.executable(h) for h, m in self.agents if host.takes(h, m)})
         say(f"[{host}] preparing")
         info = self.sh(host, f"""
             for tool in git nix-build python3 rsync setsid {' '.join(harnesses)}; do
@@ -386,7 +407,7 @@ class Remote:
             ssh = shlex.join(ssh_command(self.ctl))
             for attempt in range(6):
                 copy = subprocess.run(["rsync", "-a", "-e", ssh, host.remote(f"{jobs}/out/{job.name}/"), local_run + "/"],
-                                      capture_output=True)
+                                      capture_output=True, env=ssh_env())
                 if copy.returncode == 0:
                     break
                 time.sleep(POLL_SECONDS)
@@ -454,7 +475,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     run.add_run_options(parser)
     parser.add_argument("--host", action="append", required=True,
-                        help="local or an SSH destination, with ,slots=N ,lock=FILE ,local-lock=FILE ,cid=N ,dir=DIR")
+                        help="local or an SSH destination, with ,slots=N ,lock=FILE ,local-lock=FILE ,cid=N ,dir=DIR "
+                             ",agents=PATTERN+PATTERN")
     parser.add_argument("--source", action="append", help="hyprmasq checkout to run in the VM, repeatable: a build each")
     parser.add_argument("--out", action="append", help="results directory, one per --source in the same order")
     args = parser.parse_args()
@@ -465,6 +487,13 @@ def main():
         parser.error(str(e))
     if len({str(h) for h in hosts}) < len(hosts):
         parser.error("a host is given twice: give it slots=N instead")
+    for harness, model in agents:
+        if not any(h.takes(harness, model) for h in hosts):
+            parser.error(f"no host takes {harness}:{model}"
+                         + (": it runs only on local" if harness in run.LOCAL_ONLY else ": see agents="))
+    for h in hosts:
+        if not any(h.takes(harness, model) for harness, model in agents):
+            parser.error(f"host {h} takes none of the agents")
 
     harness = checkout_state(None, parser, "this checkout")
     sources = [os.path.abspath(s) for s in args.source] if args.source else [None]
@@ -493,7 +522,7 @@ def main():
         dispatch(hosts, queue, remote.prepare, remote.execute)
         for h in hosts:
             if not h.local:
-                subprocess.run([*ssh_command(ctl), "-O", "exit", h.target], capture_output=True)
+                subprocess.run([*ssh_command(ctl), "-O", "exit", h.target], capture_output=True, env=ssh_env())
 
     counts = collections.Counter(job.outcome for u in units for job in u.jobs)
     say("runs: " + ", ".join(f"{n} {outcome}" for outcome, n in counts.items()))

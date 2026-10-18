@@ -70,9 +70,18 @@ class Hosts(unittest.TestCase):
         h = dispatch.Host("me@box,slots=2,lock=/tmp/a,local-lock=/tmp/b,cid=5000")
         self.assertEqual((h.target, h.slots, h.lock, h.local_lock, h.cid, h.local), ("me@box", 2, "/tmp/a", "/tmp/b", 5000, False))
         self.assertTrue(dispatch.Host("local").local)
-        for bad in ("box,slots=0", "box,colour=red", "box,lock", ",slots=1"):
+        for bad in ("box,slots=0", "box,colour=red", "box,lock", ",slots=1", "box,agents=pi", "box,agents=codex+claude-api:x"):
             with self.assertRaises(ValueError, msg=bad):
                 dispatch.Host(bad)
+
+    def test_agents_a_host_takes(self):
+        local, box, codex_box = dispatch.Host("local"), dispatch.Host("me@box"), dispatch.Host("me@nas,agents=codex+claude:*opus*")
+        self.assertTrue(local.takes("pi", "tensorx/deepseek/x") and local.takes("claude-api", "haiku"))
+        # The harnesses that use this machine's API keys run only here, also on a host that takes every agent.
+        self.assertFalse(box.takes("pi", "tensorx/deepseek/x") or box.takes("claude-api", "haiku"))
+        self.assertTrue(box.takes("claude", "sonnet"))
+        self.assertEqual([codex_box.takes(*a) for a in (("codex", "gpt"), ("claude", "claude-opus-5-5"), ("claude", "sonnet"))],
+                         [True, True, False])
 
 
 class Scheduling(unittest.TestCase):
@@ -125,6 +134,21 @@ class Scheduling(unittest.TestCase):
         self.assertEqual({rep: o for rep, o in outcomes.items() if o != "done"},
                          {rep: "failed" for host, rep in ran if host == "a"})
         self.assertEqual(list(left), [])
+
+    def test_local_only_agents_wait_for_the_local_host(self):
+        build = dispatch.Build("/nowhere", {"path": "/a", "commit": "a" * 40})
+        units = [dispatch.Unit([dispatch.Job(build, harness, "m", 1)]) for harness in ("pi", "codex", "claude-api", "codex")]
+        ran, lock = [], threading.Lock()
+
+        def execute(host, slot, job):
+            with lock:
+                ran.append((str(host), job.harness))
+            return "done"
+
+        dispatch.dispatch([dispatch.Host("me@box,slots=2"), dispatch.Host("local")], dispatch.Queue(units),
+                          lambda host: True, execute)
+        self.assertEqual(sorted(host for host, harness in ran if harness in ("pi", "claude-api")), ["local", "local"])
+        self.assertEqual(len(ran), 4)
 
     def test_a_host_that_cannot_be_prepared_takes_no_jobs(self):
         ran, outcomes, _ = self.dispatch(

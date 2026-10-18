@@ -3,9 +3,11 @@
 
     run.py [--agent HARNESS:MODEL]... [--reps N | --rep N...] [--out DIR] [--timeout SECONDS] [--cid CID] [--no-debrief]
 
-HARNESS is claude (Claude Code) or codex (Codex CLI); both use the logins of the user running this. Each run
-gets RESULTS/<harness>-<model>-<rep>/ with the agent's event stream, the MCP log, screenshots, the VM's logs,
-the grade, the debrief and summary.json. RESULTS/report.md compares the runs. See bench/README.md.
+HARNESS is claude (Claude Code) or codex (Codex CLI), which use the logins of the user running this; claude-api
+(Claude Code billed to the user's Anthropic API key); or pi, with MODEL as PROVIDER/MODEL of the user's pi setup.
+Each run gets RESULTS/<harness>-<model>-<rep>/, with any / in the model as _, holding the agent's event stream, the
+MCP log, screenshots, the VM's logs, the grade, the debrief and summary.json. RESULTS/report.md compares the runs.
+See bench/README.md.
 """
 
 import argparse
@@ -29,6 +31,12 @@ import report
 
 BENCH = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_AGENTS = ["codex:gpt-6.1-sol", "codex:gpt-6-astra", "claude:claude-opus-5-5", "claude:claude-sonnet-5-5"]
+
+HARNESSES = ("claude", "claude-api", "codex", "pi")
+# Harnesses that use API keys of this machine: dispatch.py never sends their runs to another one.
+LOCAL_ONLY = ("claude-api", "pi")
+# Where claude-api's key and request headers come from when the environment does not give them.
+API_KEY_ENV, API_HEADERS_ENV = "HYPRMASQ_BENCH_ANTHROPIC_API_KEY", "HYPRMASQ_BENCH_ANTHROPIC_HEADERS"
 
 # Codex features that would give the agent tools besides hyprmasq's, or load the user's own setup.
 CODEX_DISABLED = [
@@ -62,6 +70,20 @@ def source_commit(source):
     checkout = source or os.path.dirname(BENCH)
     run = lambda *args: subprocess.run(["git", "-C", checkout, *args], capture_output=True, text=True).stdout.strip()
     return {"path": checkout, "commit": run("rev-parse", "HEAD"), "dirty": bool(run("status", "--porcelain"))}
+
+
+def executable(harness):
+    return "claude" if harness == "claude-api" else harness
+
+
+def family(harness):
+    """The harness whose event stream and transcripts a harness has: claude-api's are Claude Code's."""
+    return "claude" if harness == "claude-api" else harness
+
+
+def run_name(harness, model, rep):
+    """The run's directory: a pi model such as tensorx/deepseek/... has slashes, which a name cannot."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", f"{harness}-{model}-{rep}")
 
 
 def version(command):
@@ -125,27 +147,137 @@ def codex_command(model, prompt, tap, resume=None):
     return command + [prompt]
 
 
-def agent_env():
-    # Nothing of a surrounding agent session: its effort, session ids and sockets would change the run.
+def pi_command(model, prompt, tap, resume=None, sessions=None):
+    """pi with only hyprmasq's tools. Its agent directory, PI_CODING_AGENT_DIR, is the run's own (pi_agent_dir),
+    so that none of the user's settings, MCP servers, extensions, skills or instructions load."""
+    command = [
+        "pi", "--mode", "json", "-p", "--model", model, "--offline", "--no-approve",
+        # The built-in MCP extension alone: --no-extensions drops it with the others, and -e loads it again.
+        "--no-extensions", "--no-skills", "--no-context-files", "--no-prompt-templates", "--no-themes",
+    ]
+    if resume:
+        # The debrief: the session's file, no tools, and no MCP server to give any.
+        command += ["--session", resume, "--no-tools"]
+    else:
+        command += ["-e", "builtin:mcp", "--tools", "mcp__hyprmasq__*", "--session-dir", sessions]
+    if prompt.startswith("@"):
+        raise ValueError("pi would take a prompt starting with @ for a file")
+    return command + ["--", prompt]
+
+
+def pi_agent_dir(tap, sessions):
+    """A pi agent directory for one run: the user's credentials and models, linked and not copied, and the tap as
+    the only MCP server, its tools declared to the model directly."""
+    agent_dir = tempfile.mkdtemp(prefix="hyprmasq-bench-pi-")
+    user = os.environ.get("PI_CODING_AGENT_DIR") or os.path.expanduser("~/.pi/agent")
+    for name in ("auth.json", "models.json"):
+        if os.path.exists(os.path.join(user, name)):
+            os.symlink(os.path.join(user, name), os.path.join(agent_dir, name))
+    config = {
+        "autoEnableCodemode": False,
+        "mcpServers": {"hyprmasq": {"command": tap[0], "args": tap[1:], "exposure": "direct", "timeout": 600}},
+    }
+    with open(os.path.join(agent_dir, "mcp.json"), "w") as f:
+        json.dump(config, f, indent=2)
+    with open(os.path.join(agent_dir, "settings.json"), "w") as f:
+        json.dump({"defaultProjectTrust": "never"}, f)
+    os.makedirs(sessions)
+    return agent_dir
+
+
+def agent_command(harness, model, prompt, tap, resume=None, sessions=None):
+    if harness == "pi":
+        return pi_command(model, prompt, tap, resume, sessions)
+    if family(harness) == "claude":
+        return claude_command(model, prompt, tap, resume)
+    return codex_command(model, prompt, tap, resume)
+
+
+def agent_env(extra=None):
+    # Nothing of a surrounding agent session: its effort, session ids and sockets would change the run. No API key
+    # either, but the one a claude-api run gives in `extra`: the others use the user's logins.
     env = {
         k: v for k, v in os.environ.items()
-        if not k.startswith(("CLAUDE", "CODEX", "T3CODE", "AUTOREVIEW", "ANTHROPIC_", "OPENAI_"))
+        if not k.startswith(("CLAUDE", "CODEX", "T3CODE", "AUTOREVIEW", "ANTHROPIC_", "OPENAI_", "PI_",
+                             "HYPRMASQ_BENCH_ANTHROPIC_"))
+        and k != "AI_AGENT"
     }
     env.update({"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"})
+    env.update(extra or {})
     return env
 
 
-def run_agent(command, cwd, stream_path, stderr_path, timeout):
-    """Runs the agent, logging each line of its stdout with the host time it arrived."""
+def anthropic_api_env():
+    """The variables that bill Claude Code to an Anthropic API key, for its process alone: the key from
+    $HYPRMASQ_BENCH_ANTHROPIC_API_KEY or else from pi (`pi auth print-api-key --provider anthropic`), and the request
+    headers, such as a workspace id, from $HYPRMASQ_BENCH_ANTHROPIC_HEADERS (`Name: value` lines) or else from pi's
+    models.json. The key is never written anywhere."""
+    key = os.environ.get(API_KEY_ENV)
+    if not key:
+        try:
+            got = subprocess.run(["pi", "auth", "print-api-key", "--provider", "anthropic"], capture_output=True,
+                                 text=True, timeout=60, stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            raise RuntimeError(f"no Anthropic API key: set {API_KEY_ENV}, or give pi one ({e.__class__.__name__})")
+        key = got.stdout.strip() if got.returncode == 0 else ""
+        if not key or len(key.split()) != 1:
+            raise RuntimeError(f"no Anthropic API key: set {API_KEY_ENV}, or give pi one (pi auth exited {got.returncode})")
+    headers = os.environ.get(API_HEADERS_ENV)
+    if headers is None:
+        user = os.environ.get("PI_CODING_AGENT_DIR") or os.path.expanduser("~/.pi/agent")
+        models = {}
+        with contextlib.suppress(OSError, ValueError), open(os.path.join(user, "models.json")) as f:
+            models = json.load(f)
+        given = ((models.get("providers") or {}).get("anthropic") or {}).get("headers") or {}
+        if any(str(v).startswith("!") or "${" in str(v) for v in given.values()):
+            raise RuntimeError(f"pi's anthropic headers run commands or read variables: set {API_HEADERS_ENV} instead")
+        headers = "\n".join(f"{k}: {v}" for k, v in given.items())
+    env = {"ANTHROPIC_API_KEY": key}
+    if headers:
+        env["ANTHROPIC_CUSTOM_HEADERS"] = headers
+    return env
+
+
+def check_api_auth(env):
+    """Fails unless Claude Code, given env, uses the API key and not the user's subscription."""
+    try:
+        got = subprocess.run(["claude", "auth", "status", "--json"], capture_output=True, text=True, timeout=60,
+                             env=agent_env(env), stdin=subprocess.DEVNULL)
+        status = json.loads(got.stdout)
+    except (OSError, subprocess.TimeoutExpired, ValueError) as e:
+        raise RuntimeError(f"claude auth status failed: {e.__class__.__name__}")
+    if status.get("authMethod") != "api_key" or status.get("apiKeySource") != "ANTHROPIC_API_KEY":
+        raise RuntimeError(f"Claude Code would not use the API key: auth method {status.get('authMethod')}, "
+                           f"key source {status.get('apiKeySource')}")
+    return {"auth_method": status["authMethod"], "api_key_source": status["apiKeySource"]}
+
+
+def session_of(line):
+    """The session id in a line of the agent's events: Claude Code's, Codex's thread, or pi's session header."""
+    return line.get("session_id") or line.get("thread_id") or (line.get("id") if line.get("type") == "session" else None)
+
+
+def is_init(line):
+    return line.get("type") == "system" and line.get("subtype") == "init"
+
+
+def without_api_keys(environ):
+    """An environment without Anthropic credentials, for the processes that need none: the VM driver, and ssh."""
+    return {k: v for k, v in environ.items() if not k.startswith(("ANTHROPIC_", "HYPRMASQ_BENCH_ANTHROPIC_"))}
+
+
+def run_agent(command, cwd, stream_path, stderr_path, timeout, env=None, api_key=False):
+    """Runs the agent, logging each line of its stdout with the host time it arrived. With api_key, it stops the
+    agent at Claude Code's init event unless that names the API key as its credentials."""
     start = time.time()
     with open(stream_path, "a") as stream, open(stderr_path, "a") as stderr:
         proc = subprocess.Popen(
-            command, cwd=cwd, env=agent_env(), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=stderr,
+            command, cwd=cwd, env=agent_env(env), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=stderr,
             text=True, start_new_session=True,
         )
         timer = threading.Timer(timeout, lambda: os.killpg(proc.pid, signal.SIGTERM))
         timer.start()
-        session = None
+        session, source, refused = None, None, False
         try:
             for raw in proc.stdout:
                 now = time.time()
@@ -153,7 +285,13 @@ def run_agent(command, cwd, stream_path, stderr_path, timeout):
                     line = json.loads(raw)
                 except ValueError:
                     line = {"raw": raw.rstrip("\n")}
-                session = session or line.get("session_id") or line.get("thread_id")
+                session = session or session_of(line)
+                if is_init(line):
+                    # Where Claude Code says its credentials come from: ANTHROPIC_API_KEY, or none for a login.
+                    source = source or line.get("apiKeySource") or "(not given)"
+                    if api_key and not refused and line.get("apiKeySource") != "ANTHROPIC_API_KEY":
+                        refused = True
+                        os.killpg(proc.pid, signal.SIGKILL)
                 stream.write(json.dumps({"t": now, "line": line}) + "\n")
                 stream.flush()
             proc.wait()
@@ -164,27 +302,22 @@ def run_agent(command, cwd, stream_path, stderr_path, timeout):
             raise
         timed_out = not timer.is_alive() and proc.returncode != 0
         timer.cancel()
-    return {"start": start, "end": time.time(), "exit": proc.returncode, "timed_out": timed_out, "session": session}
+    return {"start": start, "end": time.time(), "exit": proc.returncode, "timed_out": timed_out, "session": session,
+            "api_key_source": source, "refused": refused}
 
 
 def final_text(harness, stream_path):
-    text = None
-    for entry in report.load_jsonl(stream_path):
-        line = entry["line"]
-        if harness == "claude" and line.get("type") == "result":
-            text = line.get("result")
-        item = line.get("item") or {}
-        if harness == "codex" and line.get("type") == "item.completed" and item.get("type") == "agent_message":
-            text = item.get("text")
-    return text
+    return report.agent_usage(harness, report.load_jsonl(stream_path)).get("final")
 
 
-def move_transcript(harness, session, cwd, run_dir):
+def move_transcript(harness, session, cwd, run_dir, sessions=None):
     """Moves the harness's own transcript of the session into the run's directory."""
     if not session:
         return
     project = None
-    if harness == "claude":
+    if harness == "pi":
+        paths = glob.glob(os.path.join(sessions, f"*_{session}.jsonl"))
+    elif family(harness) == "claude":
         project = os.path.expanduser(f"~/.claude/projects/{re.sub(r'[^A-Za-z0-9]', '-', cwd)}")
         # The transcript, and a directory of the same name with the session's tool results.
         paths = glob.glob(os.path.join(project, f"{session}*"))
@@ -207,66 +340,138 @@ def stop_driver(proc, run_dir, timeout=300):
     shutil.rmtree(os.path.join(run_dir, "tmp"), ignore_errors=True)
 
 
+def pi_session(sessions, session):
+    """The session file of a pi session, and the thinking level it ran at: pi clamps its default to the model's."""
+    path = next(iter(glob.glob(os.path.join(sessions, f"*_{session}.jsonl"))), None) if session else None
+    levels = [e.get("thinkingLevel") for e in report.load_jsonl(path) if e.get("type") == "thinking_level_change"] if path else []
+    return path, (levels[0] if levels else None)
+
+
+def check_api_key_used(result, what):
+    """Fails a claude-api run whose agent or debrief run_agent stopped for naming other credentials than the key."""
+    if result["refused"]:
+        raise RuntimeError(f"Claude Code's {what} did not use the API key but {result['api_key_source']}: stopped at "
+                           "its start; the run has no summary.json")
+
+
+def files_holding(run_dir, secret):
+    """The files under run_dir that hold secret."""
+    needle = secret.encode()
+    found = []
+    for root, _, names in os.walk(run_dir):
+        for name in names:
+            path = os.path.join(root, name)
+            with contextlib.suppress(OSError):
+                if not os.path.islink(path):
+                    with open(path, "rb") as f:
+                        if needle in f.read():
+                            found.append(os.path.relpath(path, run_dir))
+    return found
+
+
 def run_one(driver, task, variant, harness, model, rep, out, cid, timeout, debrief):
     task_dir = os.path.join(BENCH, "tasks", task)
-    run_dir = os.path.join(out, f"{harness}-{model}-{rep}")
+    run_dir = os.path.join(out, run_name(harness, model, rep))
+    label = f"[{harness} {model} #{rep}]"
+    # claude-api: the key and the check that Claude Code bills it, before the VM boots, so that a run never falls
+    # back to the subscription.
+    api_env = anthropic_api_env() if harness == "claude-api" else None
+    auth = check_api_auth(api_env) if api_env else None
     os.makedirs(os.path.join(run_dir, "tmp"))
     os.makedirs(os.path.join(run_dir, "driver-out"))
     # A fresh directory outside any project: harnesses load instructions such as AGENTS.md from the directory
     # they run in and its parents, and a run directory inside this checkout would give the agent hyprmasq's.
     cwd = tempfile.mkdtemp(prefix="hyprmasq-bench-agent-")
-    env = dict(os.environ, HYPRMASQ_BENCH_OUT=run_dir, HYPRMASQ_BENCH_CID=str(cid), TMPDIR=os.path.join(run_dir, "tmp"),
-               HYPRMASQ_BENCH_TIMEOUT=str(timeout + 120))
-    log = open(os.path.join(run_dir, "driver.log"), "w")
-    print(f"[{harness} {model} #{rep}] booting the VM", flush=True)
-    driver_proc = subprocess.Popen(
-        [os.path.join(driver, "bin", "nixos-test-driver"), "-o", os.path.join(run_dir, "driver-out")],
-        cwd=run_dir, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
-    )
+    tap = tap_command(cid, os.path.join(run_dir, "mcp.jsonl"))
+    agent_dir = sessions = None
+    if harness == "pi":
+        sessions = os.path.join(tempfile.mkdtemp(prefix="hyprmasq-bench-pi-sessions-"), "sessions")
+        agent_dir = pi_agent_dir(tap, sessions)
+        api_env = {"PI_CODING_AGENT_DIR": agent_dir}
+    agent, leaked = {"session": None}, []
     try:
-        deadline = time.time() + 900
-        while not os.path.exists(os.path.join(run_dir, "ready.json")):
-            if driver_proc.poll() is not None or time.time() > deadline:
-                raise RuntimeError(f"the VM did not get ready, see {run_dir}/driver.log")
-            time.sleep(1)
+        env = dict(without_api_keys(os.environ), HYPRMASQ_BENCH_OUT=run_dir, HYPRMASQ_BENCH_CID=str(cid),
+                   TMPDIR=os.path.join(run_dir, "tmp"), HYPRMASQ_BENCH_TIMEOUT=str(timeout + 120))
+        log = open(os.path.join(run_dir, "driver.log"), "w")
+        print(f"{label} booting the VM", flush=True)
+        driver_proc = subprocess.Popen(
+            [os.path.join(driver, "bin", "nixos-test-driver"), "-o", os.path.join(run_dir, "driver-out")],
+            cwd=run_dir, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+        )
+        try:
+            deadline = time.time() + 900
+            while not os.path.exists(os.path.join(run_dir, "ready.json")):
+                if driver_proc.poll() is not None or time.time() > deadline:
+                    raise RuntimeError(f"the VM did not get ready, see {run_dir}/driver.log")
+                time.sleep(1)
 
-        prompt = open(os.path.join(task_dir, "prompt.md")).read()
-        tap = tap_command(cid, os.path.join(run_dir, "mcp.jsonl"))
-        command = (claude_command if harness == "claude" else codex_command)(model, prompt, tap)
-        print(f"[{harness} {model} #{rep}] agent running", flush=True)
-        agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"), os.path.join(run_dir, "agent.stderr"), timeout)
+            prompt = open(os.path.join(task_dir, "prompt.md")).read()
+            command = agent_command(harness, model, prompt, tap, sessions=sessions)
+            print(f"{label} agent running", flush=True)
+            agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
+                              os.path.join(run_dir, "agent.stderr"), timeout, api_env, api_key=harness == "claude-api")
+        finally:
+            open(os.path.join(run_dir, "agent-done"), "w").close()
+            stop_driver(driver_proc, run_dir)
+
+        run = {
+            "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
+            "agent_start": agent["start"], "agent_end": agent["end"], "agent_exit": agent["exit"],
+            "timed_out": agent["timed_out"], "session": agent["session"],
+            "harness_version": version([executable(harness), "--version"]), "machine": machine(),
+        }
+        if family(harness) == "claude":
+            # Where Claude Code's init event says its credentials came from: ANTHROPIC_API_KEY, or none for a login.
+            run["api_key_source"] = agent["api_key_source"]
+        if auth:
+            run["auth"] = auth
+        session_file = None
+        if harness == "pi":
+            session_file, run["thinking"] = pi_session(sessions, agent["session"])
+        with open(os.path.join(run_dir, "run.json"), "w") as f:
+            json.dump(run, f, indent=2)
+        check_api_key_used(agent, "agent")
+        summary = report.metrics(run_dir)
+
+        resume = session_file if harness == "pi" else agent["session"]
+        if debrief and resume:
+            calls = report.tool_calls(report.load_jsonl(os.path.join(run_dir, "mcp.jsonl")))
+            text = open(os.path.join(task_dir, "debrief.md")).read().replace(
+                "{report}", report.debrief_report(summary, calls))
+            with open(os.path.join(run_dir, "debrief-prompt.md"), "w") as f:
+                f.write(text)
+            print(f"{label} debrief", flush=True)
+            command = agent_command(harness, model, text, None, resume=resume)
+            told = run_agent(command, cwd, os.path.join(run_dir, "debrief.jsonl"),
+                             os.path.join(run_dir, "debrief.stderr"), 900, api_env, api_key=harness == "claude-api")
+            answer = None if told["refused"] else final_text(harness, os.path.join(run_dir, "debrief.jsonl"))
+            with open(os.path.join(run_dir, "debrief.md"), "w") as f:
+                f.write(answer or "(no answer)\n")
+            if family(harness) == "claude":
+                run["debrief_api_key_source"] = told["api_key_source"]
+                with open(os.path.join(run_dir, "run.json"), "w") as f:
+                    json.dump(run, f, indent=2)
+            check_api_key_used(told, "debrief")
     finally:
-        open(os.path.join(run_dir, "agent-done"), "w").close()
-        stop_driver(driver_proc, run_dir)
-
-    run = {
-        "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
-        "agent_start": agent["start"], "agent_end": agent["end"], "agent_exit": agent["exit"],
-        "timed_out": agent["timed_out"], "session": agent["session"],
-        "harness_version": version([harness, "--version"]), "machine": machine(),
-    }
-    with open(os.path.join(run_dir, "run.json"), "w") as f:
-        json.dump(run, f, indent=2)
-    summary = report.metrics(run_dir)
-
-    if debrief and agent["session"]:
-        calls = report.tool_calls(report.load_jsonl(os.path.join(run_dir, "mcp.jsonl")))
-        text = open(os.path.join(task_dir, "debrief.md")).read().replace("{report}", report.debrief_report(summary, calls))
-        with open(os.path.join(run_dir, "debrief-prompt.md"), "w") as f:
-            f.write(text)
-        print(f"[{harness} {model} #{rep}] debrief", flush=True)
-        command = (claude_command if harness == "claude" else codex_command)(model, text, None, resume=agent["session"])
-        run_agent(command, cwd, os.path.join(run_dir, "debrief.jsonl"), os.path.join(run_dir, "debrief.stderr"), 900)
-        answer = final_text(harness, os.path.join(run_dir, "debrief.jsonl"))
-        with open(os.path.join(run_dir, "debrief.md"), "w") as f:
-            f.write(answer or "(no answer)\n")
-    move_transcript(harness, agent["session"], cwd, run_dir)
-    shutil.rmtree(cwd, ignore_errors=True)
+        move_transcript(harness, agent["session"], cwd, run_dir, sessions)
+        shutil.rmtree(cwd, ignore_errors=True)
+        if agent_dir:
+            if os.path.exists(os.path.join(agent_dir, "mcp.log")):
+                shutil.move(os.path.join(agent_dir, "mcp.log"), os.path.join(run_dir, "pi-mcp.log"))
+            # Links to the user's files, which rmtree removes and does not follow.
+            shutil.rmtree(agent_dir, ignore_errors=True)
+            shutil.rmtree(os.path.dirname(sessions), ignore_errors=True)
+        if harness == "claude-api":
+            leaked = files_holding(run_dir, api_env["ANTHROPIC_API_KEY"])
+            if leaked:
+                print(f"{label} error: the API key is in {', '.join(leaked)} of {run_dir}: remove them", flush=True)
+    if leaked:
+        raise RuntimeError("the API key is in the run's files; the run has no summary.json")
 
     with open(os.path.join(run_dir, "summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
     print(
-        f"[{harness} {model} #{rep}] {'passed' if summary['passed'] else 'FAILED'} in {summary['wall_seconds']} s, "
+        f"{label} {'passed' if summary['passed'] else 'FAILED'} in {summary['wall_seconds']} s, "
         f"{summary['calls']} calls, {summary['tool_seconds']} s in tools"
         + (f": {'; '.join(summary['failures'])}" if summary["failures"] else ""),
         flush=True,
@@ -308,7 +513,7 @@ def pending_runs(out, reps, agents):
     the agents, so that a slow hour of an API does not hit one agent's runs only."""
     return [
         (rep, harness, model) for rep in reps for harness, model in agents
-        if not os.path.exists(os.path.join(out, f"{harness}-{model}-{rep}", "summary.json"))
+        if not os.path.exists(os.path.join(out, run_name(harness, model, rep), "summary.json"))
     ]
 
 
@@ -329,9 +534,15 @@ def check_run_options(args, parser):
     """The agents and the repetitions of the runs, after checking the task and its variant."""
     # Once each: a run of the same name twice would share its directory.
     agents = [tuple(a.split(":", 1)) for a in dict.fromkeys(args.agent or DEFAULT_AGENTS)]
-    for harness, _ in agents:
-        if harness not in ("claude", "codex"):
-            parser.error(f"unknown harness {harness}")
+    for agent in agents:
+        if len(agent) != 2 or not agent[1]:
+            parser.error(f"{':'.join(agent)} is not HARNESS:MODEL")
+        if agent[0] not in HARNESSES:
+            parser.error(f"unknown harness {agent[0]}: one of {', '.join(HARNESSES)}")
+    names = [run_name(harness, model, 1) for harness, model in agents]
+    if len(set(names)) < len(names):
+        parser.error("two agents have the same run directory: their names differ only in characters other than "
+                     "letters, digits, ., _ and -")
     if any(rep < 1 for rep in args.rep or []):
         parser.error("--rep counts from 1")
     if not os.path.isdir(os.path.join(BENCH, "tasks", args.task)):
@@ -368,7 +579,7 @@ def main():
     with open(os.path.join(out, "source.json"), "w") as f:
         json.dump(config, f, indent=2)
     for rep, harness, model in pending_runs(out, reps, agents):
-        shutil.rmtree(os.path.join(out, f"{harness}-{model}-{rep}"), ignore_errors=True)
+        shutil.rmtree(os.path.join(out, run_name(harness, model, rep)), ignore_errors=True)
         try:
             with vm_lock(args.lock):
                 run_one(driver, args.task, args.variant, harness, model, rep, out, args.cid, args.timeout, not args.no_debrief)

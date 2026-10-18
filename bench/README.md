@@ -12,6 +12,7 @@ Results of the benchmark runs so far are in [docs/benchmarks.md](../docs/benchma
 ```sh
 python3 bench/run.py                                    # 4 agents × 3 runs, the default
 python3 bench/run.py --agent claude:claude-sonnet-5-5 --reps 1
+python3 bench/run.py --agent pi:tensorx/deepseek/deepseek-v4.1-flash-1017 --agent claude-api:claude-haiku-5-5
 python3 bench/run.py --out bench/results/my-run         # resumes: runs with a summary.json are skipped
 python3 bench/run.py --source ../hyprmasq-feature       # the plugin and server of another worktree
 python3 bench/run.py --task forgejo                     # another task: a directory under bench/tasks
@@ -39,13 +40,39 @@ on the same display. `source.json` records it.
 `--lock FILE` holds an exclusive lock on FILE during each run, for machines where other VMs, such as the VM
 test under `flock FILE`, would not fit into memory next to the benchmark's.
 
-`--agent HARNESS:MODEL` is repeatable; HARNESS is `claude` (Claude Code) or `codex` (Codex CLI). The default
-is `codex:gpt-6.1-sol`, `codex:gpt-6-astra`, `claude:claude-opus-5-5` and `claude:claude-sonnet-5-5`.
+`--agent HARNESS:MODEL` is repeatable. HARNESS is one of:
+
+- `claude`: Claude Code, with the user's login, a claude.ai subscription included;
+- `codex`: Codex CLI, with the user's login;
+- `claude-api`: Claude Code billed to the user's Anthropic API key instead, such as `claude-api:claude-sonnet-5-5`
+  (see [API keys](#api-keys));
+- `pi`: pi, with MODEL as `PROVIDER/MODEL` of the user's pi setup, such as
+  `pi:tensorx/deepseek/deepseek-v4.1-flash-1017`. A run's directory has `_` for every `/` in the model.
+
+The default is `codex:gpt-6.1-sol`, `codex:gpt-6-astra`, `claude:claude-opus-5-5` and `claude:claude-sonnet-5-5`.
 Repetitions go round the agents, so a slow hour of one API does not land on one agent's runs only.
 
-It needs KVM, Nix, and `claude` and `codex` logged in for the user who runs it; it uses those logins as they
+It needs KVM, Nix, and the harnesses of the agents logged in for the user who runs it; it uses those logins as they
 are, subscriptions included, and copies no credentials. A run takes the VM's boot (about a minute), the
 agent, and the debrief; runs are sequential, so that they do not compete for the CPU.
+
+### API keys
+
+`claude-api` and `pi` use API keys of this machine, so `dispatch.py` runs them only here (see below).
+
+- `claude-api` gives Claude Code `ANTHROPIC_API_KEY`, in that process's environment alone, from
+  `$HYPRMASQ_BENCH_ANTHROPIC_API_KEY` if it is set, or else from `pi auth print-api-key --provider anthropic`.
+  The request headers of pi's `anthropic` provider in `~/.pi/agent/models.json`, such as `anthropic-workspace-id`
+  for a key that is not scoped to a workspace, go along as `ANTHROPIC_CUSTOM_HEADERS`; `$HYPRMASQ_BENCH_ANTHROPIC_HEADERS`,
+  `Name: value` lines, replaces them. Before the VM boots, `claude auth status` with that environment must report the
+  API key (`authMethod` `api_key`, `apiKeySource` `ANTHROPIC_API_KEY`), or the run fails; and an agent or debrief whose init
+  event names other credentials, or none, is killed at once and its run fails. `run.json` records the check (`auth`) and
+  what the init events of the run and the debrief said (`api_key_source`, `debrief_api_key_source`). The key goes
+  into no file, argument or log, and not into the VM driver's or the other harnesses' environment, which get no Anthropic
+  variables at all; after the run,
+  a run whose files hold it fails without `summary.json`.
+- `pi` reads its keys itself, from `~/.pi/agent/auth.json` (or `$PI_CODING_AGENT_DIR`), which a run links to and does
+  not copy.
 
 ## On several machines
 
@@ -69,9 +96,23 @@ It takes `run.py`'s options, `--source` and `--out` repeatable, and a `--host` f
 - `,lock=FILE`: `run.py --lock FILE` on that machine, a lock that its other VM users take there;
 - `,local-lock=FILE`: a lock on this machine that the dispatcher holds while that machine's VM is up, for a machine
   whose other VM users take their lock here, such as VM tests that this machine runs on a remote Nix store;
-- `,dir=DIR`: where the machine keeps the dispatcher's files, by default `~/.cache/hyprmasq-bench`.
+- `,dir=DIR`: where the machine keeps the dispatcher's files, by default `~/.cache/hyprmasq-bench`;
+- `,agents=PATTERN+PATTERN`: the agents the machine takes, each `HARNESS` or `HARNESS:MODEL` with `*`, such as
+  `agents=codex+claude:*opus*`; by default all.
 
 A lock is exclusive, so with a lock a machine's slots take turns at the VM.
+
+`claude-api` and `pi` runs go only to `local`, since they use this machine's API keys: another machine never takes
+them, whatever its `agents=`, and naming them in an SSH host's `agents=` is an error, as is an agent that no host
+takes. The dispatcher drops Anthropic keys (`ANTHROPIC_*`, `HYPRMASQ_BENCH_ANTHROPIC_*`) from the environment of ssh, git
+and rsync. For
+example, Codex runs on two machines and the API runs here:
+
+```sh
+python3 bench/dispatch.py --host local,lock=/tmp/vm.lock --host me@box,agents=codex \
+    --agent codex:gpt-6.1-sol --agent claude-api:claude-sonnet-5-5 --agent pi:tensorx/deepseek/deepseek-v4.1-flash-1017 \
+    --task forgejo --reps 3 --source ../hyprmasq-main --out bench/results/my-run
+```
 
 The dispatcher refuses a checkout with changes, its own or a source's, and ships their commits: it pushes them
 over SSH into a bare repository in DIR, `repo.git`, which needs no access to GitHub, and checks each out in a
@@ -89,7 +130,7 @@ resumes, as `run.py` does, with the runs that have no `summary.json`. A machine 
 with its local lock held, until it answers and its run has ended.
 
 A machine needs Nix with KVM (`/dev/kvm`) and vsock (`/dev/vhost-vsock`), `git`, `rsync`, `python3`, `setsid`,
-and `claude` and `codex` logged in for its user, as for `run.py`, and the memory for the VM, 6 GiB, and the agent.
+and the harnesses of the agents it takes logged in for its user, as for `run.py`, and the memory for the VM, 6 GiB, and the agent.
 Its user need not be trusted by Nix. A non-interactive SSH session may lack the user's PATH: the dispatcher adds
 `~/.local/bin`, mise's shims, and Nix's profiles at the end of it.
 
@@ -105,7 +146,9 @@ can land on another machine than they did; the report's table per machine shows 
 harness versions as well: machines that update their CLIs apart can run different versions of one harness, and
 `run.json` and the report's runs list show which.
 
-`dispatch_test.py` tests the planning and scheduling without machines: `python3 bench/dispatch_test.py`.
+`dispatch_test.py` tests the planning, the scheduling and the hosts' agents without machines:
+`python3 bench/dispatch_test.py`. `harness_test.py` tests pi's isolation, claude-api's key and its check, the names
+of runs and the reading of a recorded pi stream, with fake `pi` and `claude`: `python3 bench/harness_test.py`.
 
 ## What a run is
 
@@ -113,7 +156,7 @@ harness versions as well: machines that update their CLIs apart can run differen
 host                                              VM (no network)
 run.py ─ starts ─▶ nixos-test-driver ─ boots ──▶  Hyprland + hyprmasq, a terminal on the visible workspace,
    │                                               Thunderbird on a hidden one, Dovecot, fake SMTP
-   └─ starts ─▶ claude -p / codex exec
+   └─ starts ─▶ claude -p / codex exec / pi -p
                   └─ MCP stdio ─▶ mcp_tap.py ── vsock ──▶ socat ─▶ hyprmasq-mcp
 ```
 
@@ -147,11 +190,20 @@ any agent session around it (`CLAUDE*`, `CODEX*`, `T3CODE*`, …).
   `CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` and `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.
 - Codex: `--ignore-user-config --ignore-rules`, the shell, computer use, browser, apps, plugins, multi-agent,
   image generation, memories and web search disabled, a read-only sandbox, and only the tap as MCP server.
+- pi: an agent directory of the run's own (`PI_CODING_AGENT_DIR`), with links to the user's `auth.json` and
+  `models.json` and nothing else of theirs: an `mcp.json` with only the tap, its tools declared to the model
+  directly (`exposure: direct`, without codemode), and a `settings.json` that trusts no project. So none of the
+  user's MCP servers, settings, packages, extensions, skills, prompts or `AGENTS.md` load. The command adds
+  `--tools 'mcp__hyprmasq__*'` (no read, bash, edit or write), `--no-extensions -e builtin:mcp` (the MCP client
+  alone), `--no-skills --no-context-files --no-prompt-templates --no-themes --no-approve --offline`, and a session
+  directory of the run's own. The debrief resumes the session with `--no-tools` and no MCP client.
 
-Effort and reasoning are each harness's default for the model.
+Effort and reasoning are each harness's default for the model. pi has no default of the model's own: it starts
+at its `medium` and clamps it to what the model's `thinkingLevelMap` in `models.json` supports, `high` for the
+DeepSeek models, which have only `high` and `max`. `run.json` records the level it ran at (`thinking`).
 
-The sessions' transcripts are moved from `~/.claude/projects` and `~/.codex/sessions` into the run's
-directory after the debrief.
+The sessions' transcripts are moved from `~/.claude/projects`, `~/.codex/sessions` and pi's session directory into
+the run's directory after the debrief, and pi's MCP log, if it wrote one, to `pi-mcp.log`.
 
 ## Measures
 
@@ -170,7 +222,7 @@ directory after the debrief.
 | `phases` | The task's milestones from the VM's state, in seconds after the agent's start, such as `account verified` and `reply sent` for Thunderbird. |
 | `checks` | The checker's details, such as the user's notes for the Forgejo task. |
 | `user` | From Hyprland's events in the VM: windows that opened on the user's visible workspace, the seconds the keyboard focus was away from the user's window, and switches of the visible workspace. `undisturbed` when there were none. |
-| `usage` | Tokens, and turns for Claude Code, from the agent's event stream. |
+| `usage` | Tokens, and turns for Claude Code and pi (whose tokens and cost include its compaction requests), and the cost in USD that Claude Code and pi compute, from the agent's event stream, with its final answer. |
 
 The per-call log is `mcp.jsonl`; `report.tool_calls()` pairs its requests and responses. The agent's events
 are in `agent.jsonl`, each with the host time it arrived. `report.py` computes the summaries again from these
@@ -202,7 +254,7 @@ and their grace for new windows (#15) stays in the rest.
 | File | Contents |
 | --- | --- |
 | `summary.json` | The measures above. |
-| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. |
+| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. For Claude Code, the credentials its init events named; for pi, the thinking level. |
 | `agent.jsonl`, `agent.stderr` | The agent's event stream, timestamped. |
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |

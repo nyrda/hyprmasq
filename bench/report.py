@@ -69,10 +69,14 @@ def union_seconds(intervals):
     return total
 
 
+def pi_text(message):
+    return "".join(c.get("text", "") for c in message.get("content") or [] if c.get("type") == "text") or None
+
+
 def agent_usage(harness, stream):
-    """Tokens and turns from the agent's own event stream."""
+    """Tokens and turns from the agent's own event stream, and its final answer."""
     usage = {}
-    if harness == "claude":
+    if harness in ("claude", "claude-api"):
         for e in stream:
             line = e["line"]
             if line.get("type") == "result":
@@ -84,8 +88,28 @@ def agent_usage(harness, stream):
                     "output_tokens": u.get("output_tokens"),
                     "thinking_tokens": (u.get("output_tokens_details") or {}).get("thinking_tokens"),
                     "api_seconds": (line.get("duration_api_ms") or 0) / 1000,
+                    "cost_usd": line.get("total_cost_usd"),
                     "final": line.get("result"),
                 }
+    elif harness == "pi":
+        # Each assistant message's message_end carries the usage of its request; a turn is one of them.
+        replies = [e["line"]["message"] for e in stream
+                   if e["line"].get("type") == "message_end" and (e["line"].get("message") or {}).get("role") == "assistant"]
+        # Compaction summarizes the session with requests of its own, outside the turns.
+        compactions = [(e["line"].get("result") or {}).get("usage") or {} for e in stream
+                       if e["line"].get("type") == "compaction_end"]
+        usages = [m.get("usage") or {} for m in replies] + compactions
+        usage = {
+            "turns": len(replies),
+            "input_tokens": sum(u.get("input", 0) + u.get("cacheRead", 0) + u.get("cacheWrite", 0) for u in usages),
+            "output_tokens": sum(u.get("output", 0) for u in usages),
+            "thinking_tokens": sum(u.get("reasoning", 0) for u in usages),
+            "cost_usd": round(sum((u.get("cost") or {}).get("total", 0) for u in usages), 6),
+            "final": next((pi_text(m) for m in reversed(replies) if pi_text(m)), None),
+        }
+        errors = [m.get("errorMessage") for m in replies if m.get("stopReason") == "error"]
+        if errors:
+            usage["error"] = errors[-1]
     else:
         final = None
         for e in stream:
