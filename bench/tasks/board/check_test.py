@@ -99,7 +99,8 @@ class Run:
     def page_event(self, host, kind, **fields):
         self.page.append({"t": (host - VM_TO_HOST) * 1000, "type": kind, **fields})
 
-    def act(self, actions, shot="s1", done=None, result_shot=None):
+    def act(self, actions, shot="s1", done=None, result_shot=None, text=None):
+        """An act call. With text, its result has only that text, as hyprmasq-mcp answers Claude Code."""
         self.id += 1
         start, end = self.t, self.t + 1
         self.tap.append({"t": start, "dir": "request", "msg": {"id": self.id, "method": "tools/call", "params": {
@@ -107,10 +108,20 @@ class Run:
         sc = {"actions": {"done": len(actions) if done is None else done, "total": len(actions)}}
         if result_shot:
             sc["shot"] = result_shot
-        self.tap.append({"t": end, "dir": "response", "msg": {"id": self.id, "result": {
-            "content": [{"type": "text", "text": "1/1 delivered"}], "structuredContent": sc}}})
+        result = {"content": [{"type": "text", "text": text}]} if text else {
+            "content": [{"type": "text", "text": "1/1 delivered"}], "structuredContent": sc}
+        self.tap.append({"t": end, "dir": "response", "msg": {"id": self.id, "result": result}})
         self.t += 3
         return start
+
+    def call(self, name, arguments, text):
+        """A call of another tool whose result has only text."""
+        self.id += 1
+        self.tap.append({"t": self.t, "dir": "request", "msg": {"id": self.id, "method": "tools/call", "params": {
+            "name": name, "arguments": arguments}}})
+        self.tap.append({"t": self.t + 0.2, "dir": "response", "msg": {"id": self.id, "result": {
+            "content": [{"type": "text", "text": text}, {"type": "image", "bytes": 1}]}}})
+        self.t += 1
 
     def screenshot(self):
         self.id += 1
@@ -122,14 +133,14 @@ class Run:
         self.t += 1
 
     def drag(self, label, to_photo=None, to_client=None, landed=None, seen=True, dropped=True, done=None,
-             result_shot=None, shot="s1", via_shot=None):
+             result_shot=None, shot="s1", via_shot=None, text=None):
         """An act drag from LABEL's chip to a point, and what the page logs for it."""
         chip = CHIPS[label]
         start_client = [(chip[0] + chip[2]) / 2, (chip[1] + chip[3]) / 2]
         to_client = to_client or client_of_photo(to_photo)
         from_shot, to_shot = (via_shot or shot_of_client)(start_client), (via_shot or shot_of_client)(to_client)
         start = self.act([{"action": "drag", "from": from_shot, "to": to_shot}], shot=shot, done=done,
-                         result_shot=result_shot)
+                         result_shot=result_shot, text=text)
         if not seen or done == 0:
             return
         self.page_event(start + 0.1, "pointerdown", x=start_client[0], y=start_client[1], label=label)
@@ -159,9 +170,9 @@ class Run:
 
 
 class Attribute(unittest.TestCase):
-    def run_of(self, build, final):
+    def run_of(self, build, final, first=Run.screenshot):
         run = Run()
-        run.screenshot()
+        first(run)
         build(run)
         with tempfile.TemporaryDirectory(prefix="board-attribution-") as d:
             return attribute.attribute(run.write(d, final))
@@ -277,6 +288,93 @@ class Attribute(unittest.TestCase):
         out = self.run_of(build, {"BMC chip": CORRECT["BMC chip"], "CPU socket": CORRECT["CPU socket"]})
         self.assertEqual([d["outcome"] for d in out["drags"]], ["correct", "correct"])
         self.assertEqual(out["drags"][1]["aim_point"], [round(v, 1) for v in CORRECT["CPU socket"]])
+
+
+# The texts of results without structured content, which hyprmasq-mcp gives Claude Code, in the forms of
+# mcp/internal/server/result.go, windows.go and capture.go.
+WINDOWS_TEXT = (f'{WINDOW} · firefox "Figure 3: The motherboard · Build guide — Mozilla Firefox" · workspace web '
+                f"(hidden) · 1920×1080 · lease 60 s (this session)\nshot s1 1280×720 of window {WINDOW}")
+DELIVERED = "1/1 delivered · drag-and-drop finished · redraw observed · quiet 200 ms · 220 ms"
+
+
+class AttributeText(unittest.TestCase):
+    """The attribution of results that have only text: the drags they delivered, mapped through frames that the text
+    leaves to the shots they came from."""
+
+    def run_of(self, build, final):
+        return Attribute.run_of(self, build, final, first=lambda r: r.call("windows", {"match": "firefox"},
+                                                                           WINDOWS_TEXT))
+
+    def test_drags_in_a_windows_shot_and_in_a_zoom_into_a_change(self):
+        # The zoom s3 of Attribute.test_zoom_into_a_change, as its line names it.
+        def in_zoom(client):
+            return [client[0] + OFFSET[0] - 450, client[1] + OFFSET[1] - 300]
+
+        def build(r):
+            r.drag("BMC chip", CORRECT["BMC chip"], text=f"{DELIVERED} · shot s2 = s1 + 1 change · lease 60 s\n"
+                                                          "zoom s3 1230×300 of s2 at 300,200 820×200")
+            r.drag("CPU socket", CORRECT["CPU socket"], shot="s3", via_shot=in_zoom,
+                   text=f"{DELIVERED} · shot s4 = s2, no change outside animations · lease 60 s")
+            r.drag("SATA ports", CORRECT["SATA ports"], shot="s4", text=f"{DELIVERED} · shot s5 1280×720")
+        out = self.run_of(build, {"BMC chip": CORRECT["BMC chip"], "CPU socket": CORRECT["CPU socket"],
+                                  "SATA ports": CORRECT["SATA ports"]})
+        self.assertEqual(out["calibration"]["offset"], [0, 85.5])
+        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct", "correct", "correct"])
+        self.assertEqual(out["drags"][1]["aim_point"], [round(v, 1) for v in CORRECT["CPU socket"]])
+
+    def test_refused_and_partly_sent_batches(self):
+        def build(r):
+            r.drag("CPU socket", CORRECT["CPU socket"], text=f"{DELIVERED} · shot s2 1280×720 · lease 60 s")
+            r.drag("BMC chip", CORRECT["BMC chip"], done=0, shot="s9",
+                   text="error stale_shot: there is no shot s9; this server keeps the last 64 shots of each window\n"
+                        "Take a screenshot and read the coordinates from the new shot.")
+            # Of two drags, the first went out before the sender lost its connection.
+            moves = [("SATA ports", CORRECT["SATA ports"]), ("USB 3.0 header", CORRECT["USB 3.0 header"])]
+            start = r.act([{"action": "drag", "from": shot_of_client(centre(CHIPS[label])),
+                            "to": shot_of_client(client_of_photo(point))} for label, point in moves], shot="s2",
+                          text="error internal: the sender stopped\n1/2 delivered, delivery uncertain from actions[1] "
+                               "(drag) on · shot s5 1280×720 · lease 60 s")
+            chip, to = CHIPS["SATA ports"], client_of_photo(CORRECT["SATA ports"])
+            r.page_event(start + 0.1, "pointerdown", x=centre(chip)[0], y=centre(chip)[1], label="SATA ports")
+            r.page_event(start + 0.3, "place", label="SATA ports", x=to[0], y=to[1], to="photo",
+                         point=CORRECT["SATA ports"])
+        out = self.run_of(build, {"CPU socket": CORRECT["CPU socket"], "SATA ports": CORRECT["SATA ports"]})
+        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct", "not sent", "correct", "not sent"])
+        self.assertTrue(out["drags"][1]["why"].startswith("error stale_shot"))
+
+    def test_drag_in_a_region_screenshot(self):
+        # A region of s1 from 200,100, 1000×600 of its pixels: the logical pixels 300,150 to 1800,1050, at half a
+        # pixel each.
+        def in_region(client):
+            return [(client[0] + OFFSET[0] - 300) / 2, (client[1] + OFFSET[1] - 150) / 2]
+
+        def build(r):
+            r.call("screenshot", {"window": WINDOW, "region": {"shot": "s1", "x": 200, "y": 100, "width": 1000,
+                                                               "height": 600}},
+                   f"shot s2 750×450 · zoom of s1 at 200,100 1000×600 · window {WINDOW} 1920×1080")
+            r.drag("CPU socket", CORRECT["CPU socket"], shot="s2", via_shot=in_region,
+                   text=f"{DELIVERED} · shot s3 1280×720 · lease 60 s")
+        out = self.run_of(build, {"CPU socket": CORRECT["CPU socket"]})
+        self.assertEqual(out["drags"][0]["outcome"], "correct")
+        self.assertEqual(out["drags"][0]["aim_point"], [round(v, 1) for v in CORRECT["CPU socket"]])
+
+    def test_shots_whose_frames_the_text_does_not_tell(self):
+        def build(r):
+            # act's shot of the whole window has another image size than s1, as after a resize that no text named.
+            r.drag("CPU socket", CORRECT["CPU socket"], text=f"{DELIVERED} · shot s2 960×540 · lease 60 s")
+            # Then s1's image size again, which a window of another size can have too.
+            r.drag("BMC chip", CORRECT["BMC chip"], shot="s2", text=f"{DELIVERED} · shot s3 1280×720")
+            r.drag("USB 3.0 header", CORRECT["USB 3.0 header"], shot="s3",
+                   text=f"{DELIVERED} · shot s4 = s3, no change")
+            # An image taller than the window's aspect ratio: popups reach outside the window.
+            r.call("screenshot", {"window": WINDOW}, f"shot s5 1280×800 · window {WINDOW} 1920×1080")
+            r.drag("SATA ports", CORRECT["SATA ports"], shot="s5", text=f"{DELIVERED} · shot s6 = s5, no change")
+        out = self.run_of(build, {"CPU socket": CORRECT["CPU socket"]})
+        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct", "unmapped", "unmapped", "unmapped"])
+        self.assertIn("may have been resized", out["drags"][1]["why"])
+        self.assertIn("gives no size of its window", out["drags"][2]["why"])
+        self.assertIn("popups reach outside the window", out["drags"][3]["why"])
+
 
 if __name__ == "__main__":
     unittest.main()

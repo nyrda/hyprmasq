@@ -247,7 +247,10 @@ least, the sender's start and round trips, the locks and the transport. The resu
 rest stays one number. The pacing is the least the sender needs: the logs do not record the keymap, so a key that it
 reaches with Shift lacks its 10 ms, and a character typed through Compose its further keys. Old runs stay readable:
 results without structured content give their wait in the summary, runs from before the watch (#18) get no watch,
-and their grace for new windows (#15) stays in the rest.
+and their grace for new windows (#15) stays in the rest. Results for Claude Code have no structured content either,
+and their text gives no time for a wait that the window's closing ended, so that time stays in the rest.
+`analyze_test.py` checks that a result's text gives the same split as its structured content for the keys of a
+partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 
 ## Files of a run
 
@@ -431,11 +434,18 @@ Both look and behave the same. A press that moves less than 4 CSS pixels is a cl
   the photo and the tray), `hyprmasq` (the page saw no press, the press or the drop came more than 6 CSS pixels
   from where the agent aimed, or the drag started on a label and the label did not move), `tray`, or `not sent`
   (`act` refused the batch). Per label, it names whose the final placement is. It prints a table per run and
-  writes `attribution.json`.
+  writes `attribution.json`. Results for Claude Code have no structured content, so it reads their text, which
+  gives no frames: a shot of the whole window gets the size from the last `windows` or `screenshot` text that
+  named the window, if its image has the size of that text's shot, a zoom the region of its shot, and a changes
+  shot the frame of the shot it was compared with.
+  It agrees with the structured content within a logical pixel, which a window's fractional size takes. A
+  drag in a shot whose frame the text does not tell, such as one with popups outside the window or of a new
+  window, is `unmapped`, with why.
 - `check_test.py`: `python3 bench/tasks/board/check_test.py` checks the grade and the attribution on constructed
   states and logs: a correct board, a label on the RAM module, one on another label's part and one in the tray,
   the milestones, a drop far from where the drag aimed, a drag the page never saw, a cancelled drag-and-drop, a
-  drag back to the tray, a refused batch, a drag in a zoom's pixels, and a page zoomed out.
+  drag back to the tray, a refused batch, a drag in a zoom's pixels, a page zoomed out, and the same drags from
+  results with only their text, as Claude Code gets them.
 - `setup.py`: the profile, Firefox's window and its workspace, and the grade with the page's logs in `collect()`.
   With `HYPRMASQ_BENCH_WAYLAND_DEBUG` set in the driver's environment, Firefox logs its Wayland protocol to
   `vm-firefox.log`.

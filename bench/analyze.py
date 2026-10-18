@@ -40,6 +40,11 @@ import report
 
 WAIT = re.compile(r"quiet \d+ ms(?: except [^·]*)? · (\d+) ms|no redraw within (\d+) ms|timeout after (\d+) ms")
 DELIVERED = re.compile(r"(\d+)/\d+ delivered")
+# Input that was sent though the sender could not confirm all of it, and the keys of the action it stopped in.
+PARTIAL = re.compile(r"\d+/\d+ delivered, delivery (?:partial|uncertain)")
+KEYS = re.compile(r"may be partly applied \((\d+) keys sent\)")
+# A wait that the client's cancellation ended, which act watches nothing after.
+CANCELLED = re.compile(r"(?:^| · )cancelled(?: · |$)", re.M)
 AGAIN = re.compile(r"drew again, settled (\d+) ms later")
 WATCH = re.compile(r"starts within (\d+) ms after it settled")
 
@@ -175,21 +180,26 @@ def split(call, a, structured, watch_ms, answers):
         # confirm it.
         applied = done.get("delivery", "complete") != "none"
         sent = actions[:delivered]
-        # The keys that an interrupted type or key action sent before it stopped.
         keys = (done.get("progress") or {}).get("keys", 0)
-        if keys and delivered < len(actions):
-            partial = actions[delivered]
-            if partial.get("action") == "type":
-                sent = sent + [{**partial, "text": partial.get("text", "")[:keys]}]
-            elif partial.get("action") == "key":
-                # Modifiers do not count, so a key is a press of the chord.
-                sent = sent + [{**partial, "repeat": keys}]
     else:
-        # Older results only say it in their text, and errors name the actions delivered on their second line.
-        m = DELIVERED.search(call["summary"] + "\n" + call["hint"])
+        # Results for Claude Code and older ones say it only in their text, and errors name the actions delivered on
+        # their second line.
+        text = call["summary"] + "\n" + call["hint"]
+        m = DELIVERED.search(text)
         delivered = int(m.group(1)) if m else 0 if call["summary"].startswith("error") else len(actions)
         sent = actions[:delivered]
-        applied = bool(sent)
+        applied = bool(sent) or bool(PARTIAL.search(text))
+        keys = int(m.group(1)) if (m := KEYS.search(text)) else 0
+        if CANCELLED.search(text):
+            wait = {"ended": "cancelled"}
+    # The keys that an interrupted type or key action sent before it stopped.
+    if keys and delivered < len(actions):
+        partial = actions[delivered]
+        if partial.get("action") == "type":
+            sent = sent + [{**partial, "text": partial.get("text", "")[:keys]}]
+        elif partial.get("action") == "key":
+            # Modifiers do not count, so a key is a press of the chord.
+            sent = sent + [{**partial, "repeat": keys}]
     # Pauses left when the input closed its window during the send count as delivered (#16), but the sender did not
     # wait them out. A window that closed during the wait or later had them. Older results do not tell when it closed,
     # and in all of them the call was shorter than its pauses.
