@@ -70,6 +70,11 @@ class Grade(unittest.TestCase):
         result = check.grade({**CORRECT, "SATA ports": centre(check.REGIONS["labels"]["SATA ports"][1])})
         self.assertTrue(result["passed"])
 
+    def test_m2_slots_from_the_drive_bay_to_the_sockets(self):
+        # gpt-6.1-sol's drops where the SSD would be installed, and one on the sockets.
+        for point in ([1373.8, 490.8], [1375.2, 507.8], [1399.2, 493.7], [1324.4, 662.9]):
+            self.assertTrue(check.grade({**CORRECT, "M.2 slots": point})["passed"], point)
+
     def test_no_point_is_correct_for_two_labels(self):
         boxes = [(label, box) for label, label_boxes in check.REGIONS["labels"].items() for box in label_boxes]
         for i, (a, (ax0, ay0, ax1, ay1)) in enumerate(boxes):
