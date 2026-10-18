@@ -17,6 +17,7 @@ python3 bench/run.py --source ../hyprmasq-feature       # the plugin and server 
 python3 bench/run.py --task forgejo                     # another task: a directory under bench/tasks
 python3 bench/run.py --display 2560x1440@1              # another monitor: WIDTHxHEIGHT@SCALE
 python3 bench/run.py --task board --variant pointer     # a task's variant: one of tasks/TASK/variants
+python3 bench/run.py --rep 2 --rep 3                    # only these repetitions, instead of --reps
 python3 bench/report.py bench/results/my-run            # the report again
 ```
 
@@ -45,6 +46,66 @@ Repetitions go round the agents, so a slow hour of one API does not land on one 
 It needs KVM, Nix, and `claude` and `codex` logged in for the user who runs it; it uses those logins as they
 are, subscriptions included, and copies no credentials. A run takes the VM's boot (about a minute), the
 agent, and the debrief; runs are sequential, so that they do not compete for the CPU.
+
+## On several machines
+
+Runs are independent, so `bench/dispatch.py` spreads them over several machines, one fresh VM per run as before,
+and copies each run's directory back into one results directory, laid out as `run.py` lays it out, with its
+`source.json` and `report.md`. `report.py`, `analyze.py` and the tasks' scripts read it as they read `run.py`'s.
+
+```sh
+python3 bench/dispatch.py --host local,lock=/tmp/vm.lock --host me@box --host me@nas,local-lock=/tmp/nas.lock \
+    --task forgejo --agent codex:gpt-6.1-sol --reps 6 --source ../hyprmasq-main --out bench/results/my-run
+python3 bench/dispatch.py --host ... --source ../hyprmasq-main --source ../hyprmasq-feature \
+    --out bench/results/main --out bench/results/feature   # two builds, each into its own directory
+python3 bench/dispatch.py --host ... --reps 0              # only ship the commits and build the drivers
+```
+
+It takes `run.py`'s options, `--source` and `--out` repeatable, and a `--host` for each machine:
+
+- `local`, this machine, or an SSH destination such as `user@machine`, which this machine reaches with its keys
+  and without a prompt; `,slots=N` runs N VMs there at once (by default one, as runs on one machine compete for
+  its CPU, see below); `,cid=N` is the vsock CID of the first slot's VM, by default 4242, the next slot's one more;
+- `,lock=FILE`: `run.py --lock FILE` on that machine, a lock that its other VM users take there;
+- `,local-lock=FILE`: a lock on this machine that the dispatcher holds while that machine's VM is up, for a machine
+  whose other VM users take their lock here, such as VM tests that this machine runs on a remote Nix store;
+- `,dir=DIR`: where the machine keeps the dispatcher's files, by default `~/.cache/hyprmasq-bench`.
+
+A lock is exclusive, so with a lock a machine's slots take turns at the VM.
+
+The dispatcher refuses a checkout with changes, its own or a source's, and ships their commits: it pushes them
+over SSH into a bare repository in DIR, `repo.git`, which needs no access to GitHub, and checks each out in a
+worktree, `trees/COMMIT`. On each machine it then checks the tools, prints its CPU and harness versions, and
+builds the drivers (`drivers/`) with `run.py`'s own code, before the machine takes runs. Each run is
+`run.py --rep N --agent HARNESS:MODEL` from the shipped benchmark with `--source` the shipped source, in
+`jobs/` and in a session of its own that survives a dropped connection; the dispatcher prints its progress, copies
+its directory back with rsync when it ends, and removes it there. Ctrl-C interrupts the running runs, which grade
+and stop their VMs, as Ctrl-C does to `run.py`.
+
+A run that fails before its agent starts, such as a VM that does not boot, goes once to another machine; a machine
+where two runs in a row fail so, or that cannot be prepared, takes no more. A run that fails after its agent
+started stays as `run.py` leaves it, without `summary.json`, and is not tried again: running the same command again
+resumes, as `run.py` does, with the runs that have no `summary.json`. A machine that stops answering is waited for,
+with its local lock held, until it answers and its run has ended.
+
+A machine needs Nix with KVM (`/dev/kvm`) and vsock (`/dev/vhost-vsock`), `git`, `rsync`, `python3`, `setsid`,
+and `claude` and `codex` logged in for its user, as for `run.py`, and the memory for the VM, 6 GiB, and the agent.
+Its user need not be trusted by Nix. A non-interactive SSH session may lack the user's PATH: the dispatcher adds
+`~/.local/bin`, mise's shims, and Nix's profiles at the end of it.
+
+Each `run.json` records the machine, and the report adds a table per agent and machine when the runs come from
+more than one, and names the machine and the harness's version of every run. The wall time, the time in tools and
+hyprmasq's own time in `analyze.py` depend on the machine's CPU, since the VM draws in software. So compare two
+builds only over the same machines, with the same runs on each, interleaved in time, or machine by machine. Given
+several `--source`, the dispatcher does the first: each agent's repetition of every build is one unit that one
+machine runs, the builds one after the other, their order alternating from unit to unit. Units go to whichever
+machine is free, so a faster machine runs more of them; read agents against each other per machine too. A run
+that goes to another machine after a failure, or that a resume runs again while its unit's other builds finished,
+can land on another machine than they did; the report's table per machine shows where each ran. Check the
+harness versions as well: machines that update their CLIs apart can run different versions of one harness, and
+`run.json` and the report's runs list show which.
+
+`dispatch_test.py` tests the planning and scheduling without machines: `python3 bench/dispatch_test.py`.
 
 ## What a run is
 
@@ -141,7 +202,7 @@ and their grace for new windows (#15) stays in the rest.
 | File | Contents |
 | --- | --- |
 | `summary.json` | The measures above. |
-| `run.json` | Harness, model, version, the agent's start, end, exit status and session id. |
+| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. |
 | `agent.jsonl`, `agent.stderr` | The agent's event stream, timestamped. |
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |

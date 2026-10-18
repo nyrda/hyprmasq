@@ -220,6 +220,7 @@ def metrics(run_dir):
         "user": user_disturbance(run_dir, ready, start, end, offset),
         "usage": agent_usage(run["harness"], stream),
         "harness_version": run.get("harness_version"),
+        "machine": run.get("machine"),
     }
 
 
@@ -263,6 +264,31 @@ def fmt(values, digits=0):
     return text
 
 
+def host(run):
+    return (run.get("machine") or {}).get("host") or "an unrecorded machine"
+
+
+def table(runs, phase_names, group):
+    """The table of the runs' medians, a row per group."""
+    groups = {}
+    for r in runs:
+        groups.setdefault(group(r), []).append(r)
+    columns = ["Agent", "Passed", "Wall s", "In tools s", "Outside tools s", "Turn s", "Calls", "Actions",
+               "Images"] + [f"{name.capitalize()} at s" for name in phase_names] + ["User undisturbed"]
+    out = ["| " + " | ".join(columns) + " |", "| " + " | ".join("---" for _ in columns) + " |"]
+    for name, rs in groups.items():
+        passed = [r for r in rs if r["passed"]]
+        out.append(
+            f"| {name} | {len(passed)}/{len(rs)} | {fmt([r['wall_seconds'] for r in rs])} | "
+            f"{fmt([r['tool_seconds'] for r in rs])} | {fmt([r['outside_tool_seconds'] for r in rs])} | "
+            f"{fmt([r.get('median_gap_seconds') for r in rs], 1)} | "
+            f"{fmt([r['calls'] for r in rs])} | {fmt([r['actions'] for r in rs])} | {fmt([r['images'] for r in rs])} | "
+            + "".join(f"{fmt([r.get('phases', {}).get(name) for r in rs])} | " for name in phase_names)
+            + f"{sum(1 for r in rs if (r.get('user') or {}).get('undisturbed'))}/{len(rs)} |"
+        )
+    return out
+
+
 def report(results_dir):
     runs = []
     for name in sorted(os.listdir(results_dir)):
@@ -276,35 +302,32 @@ def report(results_dir):
     with open(os.path.join(results_dir, "runs.json"), "w") as f:
         json.dump(runs, f, indent=2)
 
-    groups = {}
-    for r in runs:
-        groups.setdefault((r["harness"], r["model"]), []).append(r)
     phase_names = list(dict.fromkeys(name for r in runs for name in r.get("phases", {})))
-    columns = ["Agent", "Passed", "Wall s", "In tools s", "Outside tools s", "Turn s", "Calls", "Actions",
-               "Images"] + [f"{name.capitalize()} at s" for name in phase_names] + ["User undisturbed"]
-    out = ["| " + " | ".join(columns) + " |", "| " + " | ".join("---" for _ in columns) + " |"]
-    for (harness, model), rs in groups.items():
-        passed = [r for r in rs if r["passed"]]
-        out.append(
-            f"| {harness} {model} | {len(passed)}/{len(rs)} | {fmt([r['wall_seconds'] for r in rs])} | "
-            f"{fmt([r['tool_seconds'] for r in rs])} | {fmt([r['outside_tool_seconds'] for r in rs])} | "
-            f"{fmt([r.get('median_gap_seconds') for r in rs], 1)} | "
-            f"{fmt([r['calls'] for r in rs])} | {fmt([r['actions'] for r in rs])} | {fmt([r['images'] for r in rs])} | "
-            + "".join(f"{fmt([r.get('phases', {}).get(name) for r in rs])} | " for name in phase_names)
-            + f"{sum(1 for r in rs if (r.get('user') or {}).get('undisturbed'))}/{len(rs)} |"
-        )
+    out = table(runs, phase_names, lambda r: f"{r['harness']} {r['model']}")
     out += [
         "",
         "Medians, with the range over the runs in brackets. Turn s is the median time between tool calls: the "
         "model's and the harness's time per step. The milestones are the task's, in seconds after the agent's start.",
         "",
-        "## Runs",
-        "",
     ]
+    if len({host(r) for r in runs}) > 1:
+        out += [
+            "## By machine",
+            "",
+            "Wall times and the time in tools depend on the machine: compare builds on the same machines, or here.",
+            "",
+            *table(runs, phase_names, lambda r: f"{r['harness']} {r['model']} on {host(r)}"),
+            "",
+        ]
+    out += ["## Runs", ""]
     for r in runs:
+        machine = r.get("machine") or {}
         out.append(
             f"- {r['harness']} {r['model']} #{r['rep']}: {'passed' if r['passed'] else 'FAILED'} in {r['wall_seconds']} s, "
-            f"{r['calls']} calls" + (f" — {'; '.join(r['failures'])}" if r["failures"] else "")
+            f"{r['calls']} calls"
+            + (f", on {machine.get('host')} ({machine.get('cpu')})" if machine else "")
+            + (f", {r['harness_version']}" if r.get("harness_version") else "")
+            + (f" — {'; '.join(r['failures'])}" if r["failures"] else "")
         )
     with open(os.path.join(results_dir, "report.md"), "w") as f:
         f.write("# Benchmark report\n\n" + "\n".join(out) + "\n")

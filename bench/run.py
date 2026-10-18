@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Runs the Thunderbird benchmark: one fresh VM per run, an agent on the host, grading, and a debrief.
 
-    run.py [--agent HARNESS:MODEL]... [--reps N] [--out DIR] [--timeout SECONDS] [--cid CID] [--no-debrief]
+    run.py [--agent HARNESS:MODEL]... [--reps N | --rep N...] [--out DIR] [--timeout SECONDS] [--cid CID] [--no-debrief]
 
 HARNESS is claude (Claude Code) or codex (Codex CLI); both use the logins of the user running this. Each run
 gets RESULTS/<harness>-<model>-<rep>/ with the agent's event stream, the MCP log, screenshots, the VM's logs,
@@ -18,6 +18,7 @@ import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -68,6 +69,17 @@ def version(command):
         return subprocess.run(command, capture_output=True, text=True, timeout=30).stdout.strip()
     except OSError:
         return None
+
+
+def machine():
+    """The machine a run ran on: wall times and hyprmasq's own time depend on it."""
+    cpu = None
+    with contextlib.suppress(OSError), open("/proc/cpuinfo") as f:
+        cpu = next((line.split(":", 1)[1].strip() for line in f if line.startswith("model name")), None)
+    memory = None
+    with contextlib.suppress(OSError, ValueError), open("/proc/meminfo") as f:
+        memory = round(int(f.readline().split()[1]) / 1024 ** 2)
+    return {"host": socket.gethostname(), "cpu": cpu, "threads": os.cpu_count(), "memory_gib": memory}
 
 
 def tap_command(cid, log):
@@ -134,16 +146,22 @@ def run_agent(command, cwd, stream_path, stderr_path, timeout):
         timer = threading.Timer(timeout, lambda: os.killpg(proc.pid, signal.SIGTERM))
         timer.start()
         session = None
-        for raw in proc.stdout:
-            now = time.time()
-            try:
-                line = json.loads(raw)
-            except ValueError:
-                line = {"raw": raw.rstrip("\n")}
-            session = session or line.get("session_id") or line.get("thread_id")
-            stream.write(json.dumps({"t": now, "line": line}) + "\n")
-            stream.flush()
-        proc.wait()
+        try:
+            for raw in proc.stdout:
+                now = time.time()
+                try:
+                    line = json.loads(raw)
+                except ValueError:
+                    line = {"raw": raw.rstrip("\n")}
+                session = session or line.get("session_id") or line.get("thread_id")
+                stream.write(json.dumps({"t": now, "line": line}) + "\n")
+                stream.flush()
+            proc.wait()
+        except BaseException:  # interrupted, as by dispatch.py: the agent does not go on without its VM
+            timer.cancel()
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, signal.SIGTERM)
+            raise
         timed_out = not timer.is_alive() and proc.returncode != 0
         timer.cancel()
     return {"start": start, "end": time.time(), "exit": proc.returncode, "timed_out": timed_out, "session": session}
@@ -225,7 +243,7 @@ def run_one(driver, task, variant, harness, model, rep, out, cid, timeout, debri
         "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
         "agent_start": agent["start"], "agent_end": agent["end"], "agent_exit": agent["exit"],
         "timed_out": agent["timed_out"], "session": agent["session"],
-        "harness_version": version([harness, "--version"]),
+        "harness_version": version([harness, "--version"]), "machine": machine(),
     }
     with open(os.path.join(run_dir, "run.json"), "w") as f:
         json.dump(run, f, indent=2)
@@ -285,25 +303,37 @@ def check_resume(out, config, parser):
                      + ", ".join(f"{k} {before[k]} against {config[k]}" for k in differ) + "; use another --out")
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--task", default="thunderbird", help="a directory under bench/tasks")
-    parser.add_argument("--agent", action="append", help="HARNESS:MODEL, repeatable")
-    parser.add_argument("--reps", type=int, default=3)
-    parser.add_argument("--out")
-    parser.add_argument("--timeout", type=int, default=1800, help="seconds an agent may take")
-    parser.add_argument("--cid", type=int, default=4242)
-    parser.add_argument("--no-debrief", action="store_true")
-    parser.add_argument("--source", help="hyprmasq checkout to run in the VM, by default this one")
-    parser.add_argument("--lock", help="lock file to hold during each run, shared with other VM users")
-    parser.add_argument("--display", default="1920x1080@1", help="the VM's monitor, WIDTHxHEIGHT@SCALE")
-    parser.add_argument("--variant", help="the task's variant, for a task that has them (bench/tasks/TASK/variants)")
-    args = parser.parse_args()
+def pending_runs(out, reps, agents):
+    """The runs of the given repetitions that have no summary.json yet, in the order they run: repetitions go round
+    the agents, so that a slow hour of an API does not hit one agent's runs only."""
+    return [
+        (rep, harness, model) for rep in reps for harness, model in agents
+        if not os.path.exists(os.path.join(out, f"{harness}-{model}-{rep}", "summary.json"))
+    ]
 
-    agents = [a.split(":", 1) for a in (args.agent or DEFAULT_AGENTS)]
+
+def add_run_options(parser):
+    """The options that say which runs to make, shared with dispatch.py."""
+    parser.add_argument("--task", default="thunderbird", help="a directory under bench/tasks")
+    parser.add_argument("--variant", help="the task's variant, for a task that has them (bench/tasks/TASK/variants)")
+    parser.add_argument("--display", default="1920x1080@1", help="the VM's monitor, WIDTHxHEIGHT@SCALE")
+    parser.add_argument("--agent", action="append", help="HARNESS:MODEL, repeatable")
+    reps = parser.add_mutually_exclusive_group()
+    reps.add_argument("--reps", type=int, default=3)
+    reps.add_argument("--rep", type=int, action="append", help="run only this repetition, repeatable; instead of --reps")
+    parser.add_argument("--timeout", type=int, default=1800, help="seconds an agent may take")
+    parser.add_argument("--no-debrief", action="store_true")
+
+
+def check_run_options(args, parser):
+    """The agents and the repetitions of the runs, after checking the task and its variant."""
+    # Once each: a run of the same name twice would share its directory.
+    agents = [tuple(a.split(":", 1)) for a in dict.fromkeys(args.agent or DEFAULT_AGENTS)]
     for harness, _ in agents:
         if harness not in ("claude", "codex"):
             parser.error(f"unknown harness {harness}")
+    if any(rep < 1 for rep in args.rep or []):
+        parser.error("--rep counts from 1")
     if not os.path.isdir(os.path.join(BENCH, "tasks", args.task)):
         parser.error(f"no task {args.task} in {os.path.join(BENCH, 'tasks')}")
     variants = task_variants(args.task)
@@ -311,9 +341,25 @@ def main():
         parser.error(f"task {args.task} needs --variant, one of {', '.join(variants)}")
     if not variants and args.variant:
         parser.error(f"task {args.task} has no variants")
-    name = args.task + (f"-{args.variant}" if args.variant else "")
-    out = os.path.abspath(args.out or os.path.join(
-        BENCH, "results", f"{datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{name}"))
+    reps = sorted(set(args.rep)) if args.rep else list(range(1, args.reps + 1))
+    return agents, reps
+
+
+def default_out(task, variant, suffix=""):
+    name = task + (f"-{variant}" if variant else "")
+    return os.path.join(BENCH, "results", f"{datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{name}{suffix}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    add_run_options(parser)
+    parser.add_argument("--out")
+    parser.add_argument("--cid", type=int, default=4242)
+    parser.add_argument("--source", help="hyprmasq checkout to run in the VM, by default this one")
+    parser.add_argument("--lock", help="lock file to hold during each run, shared with other VM users")
+    args = parser.parse_args()
+    agents, reps = check_run_options(args, parser)
+    out = os.path.abspath(args.out or default_out(args.task, args.variant))
     os.makedirs(out, exist_ok=True)
     source = os.path.abspath(args.source) if args.source else None
     config = {**source_commit(source), "task": args.task, "variant": args.variant, "display": args.display}
@@ -321,17 +367,13 @@ def main():
     driver = build_driver(out, source, args.task, args.variant, args.display)
     with open(os.path.join(out, "source.json"), "w") as f:
         json.dump(config, f, indent=2)
-    # Repetitions go round the agents, so that a slow hour of an API does not hit one agent's runs only.
-    for rep in range(1, args.reps + 1):
-        for harness, model in agents:
-            if os.path.exists(os.path.join(out, f"{harness}-{model}-{rep}", "summary.json")):
-                continue
-            shutil.rmtree(os.path.join(out, f"{harness}-{model}-{rep}"), ignore_errors=True)
-            try:
-                with vm_lock(args.lock):
-                    run_one(driver, args.task, args.variant, harness, model, rep, out, args.cid, args.timeout, not args.no_debrief)
-            except Exception as e:  # one broken run does not end the benchmark
-                print(f"[{harness} {model} #{rep}] error: {e}", flush=True)
+    for rep, harness, model in pending_runs(out, reps, agents):
+        shutil.rmtree(os.path.join(out, f"{harness}-{model}-{rep}"), ignore_errors=True)
+        try:
+            with vm_lock(args.lock):
+                run_one(driver, args.task, args.variant, harness, model, rep, out, args.cid, args.timeout, not args.no_debrief)
+        except Exception as e:  # one broken run does not end the benchmark
+            print(f"[{harness} {model} #{rep}] error: {e}", flush=True)
     print(report.report(out))
 
 
