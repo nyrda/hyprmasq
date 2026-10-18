@@ -1,6 +1,6 @@
 """Mara's build guide, where she labels the figures: guide.py STATE-DIR VARIANT
 
-It listens on guide.example.test:80 and serves one figure, the photo of her motherboard, with a tray of eight
+It listens on guide.example.test:80 and serves one figure, the photo of her motherboard, with a tray of nine
 labels to drag onto it. VARIANT is how the page drags:
 
 - dnd: HTML5 drag-and-drop (draggable, dragstart, dragover, drop), which Firefox does with Wayland's DnD;
@@ -25,7 +25,7 @@ REGIONS = json.load(open(os.path.join(HERE, "regions.json")))
 WIDTH, HEIGHT = REGIONS["size"]
 # The tray's order, the same on every load.
 LABELS = ["First PCIe slot", "Memory slots", "BMC chip", "24-pin ATX power", "SATA ports", "CPU socket",
-          "USB 3.0 header", "8-pin CPU power"]
+          "M.2 slots", "USB 3.0 header", "CPU power headers"]
 assert sorted(LABELS) == sorted(REGIONS["labels"])
 PAGE_PATH = "/figures/motherboard"
 PHOTO_PATH = "/figures/motherboard.jpg"

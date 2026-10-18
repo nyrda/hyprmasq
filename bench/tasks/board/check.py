@@ -1,7 +1,7 @@
 """Grades the board task from the guide's saved state, run as root in the VM. Prints one JSON object with passed,
 failures, checks and events.
 
-The task passes when each of the eight labels lies inside one of its boxes in regions.json. For each label, the grade
+The task passes when each of the nine labels lies inside one of its boxes in regions.json. For each label, the grade
 tells where it lies, in photo pixels, and what that is: its part (correct), another label's part, a distractor of
 regions.json, elsewhere on the photo, or still in the tray. The milestones come from the guide's log of saves.
 
@@ -15,6 +15,19 @@ import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 REGIONS = json.load(open(os.path.join(HERE, "regions.json")))
 LABELS = list(REGIONS["labels"])
+# Runs from before the M.2 slots label had eight labels, and called the CPU power headers "8-pin CPU power". Their
+# results grade on the labels they had, under the names they had: by the old name, a run is one of them.
+OLD_NAMES = {"8-pin CPU power": "CPU power headers"}
+ADDED = ["M.2 slots"]
+
+
+def run_labels(names):
+    """The labels of a run, under its names, from names it used: the eight of an earlier run if they include an old
+    name."""
+    if not any(old in names for old in OLD_NAMES):
+        return LABELS
+    new = {v: k for k, v in OLD_NAMES.items()}
+    return [new.get(label, label) for label in LABELS if label not in ADDED]
 
 
 def inside(box, point):
@@ -24,12 +37,13 @@ def inside(box, point):
 
 def classify(label, point):
     """Where a label lies: {"verdict": correct, other label, distractor, elsewhere or tray, "on": the part's name}."""
+    part = OLD_NAMES.get(label, label)
     if point is None:
         return {"verdict": "tray", "on": None}
-    if any(inside(box, point) for box in REGIONS["labels"][label]):
+    if any(inside(box, point) for box in REGIONS["labels"][part]):
         return {"verdict": "correct", "on": label}
     for other, boxes in REGIONS["labels"].items():
-        if other != label and any(inside(box, point) for box in boxes):
+        if other != part and any(inside(box, point) for box in boxes):
             return {"verdict": "other label", "on": other}
     for name, boxes in REGIONS["distractors"].items():
         if any(inside(box, point) for box in boxes):
@@ -52,7 +66,7 @@ def grade(labels):
     """passed, failures and checks for the labels' points: {label: [x, y] or None}."""
     checks = {"labels": {}}
     failures = []
-    for label in LABELS:
+    for label in run_labels(labels):
         point = labels.get(label)
         verdict = classify(label, point)
         checks["labels"][label] = {"point": point, **verdict}
@@ -65,7 +79,7 @@ def grade(labels):
 def events(places, since=0):
     """The milestones, in VM time: the first label placed, all labels placed and the last change."""
     first = complete = last = None
-    labels = {label: None for label in LABELS}
+    labels = {label: None for label in run_labels({place["label"] for place in places})}
     for place in places:
         if place["time"] < since:
             continue

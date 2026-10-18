@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import attribute  # noqa: E402
@@ -18,6 +19,9 @@ def centre(box):
 
 CORRECT = {label: centre(boxes[0]) for label, boxes in check.REGIONS["labels"].items()}
 RAM = centre(check.REGIONS["distractors"]["loose RAM module"][0])
+# A correct board of a run from before the M.2 slots label, under the names it had.
+OLD_CORRECT = {("8-pin CPU power" if label == "CPU power headers" else label): point
+               for label, point in CORRECT.items() if label != "M.2 slots"}
 
 
 class Grade(unittest.TestCase):
@@ -25,19 +29,27 @@ class Grade(unittest.TestCase):
         result = check.grade(CORRECT)
         self.assertTrue(result["passed"])
         self.assertEqual(result["failures"], [])
+        self.assertEqual(result["checks"]["correct"], 9)
+
+    def test_run_from_before_the_m2_slots_label_grades_on_its_eight_labels(self):
+        result = check.grade(OLD_CORRECT)
+        self.assertTrue(result["passed"])
+        self.assertEqual(sorted(result["checks"]["labels"]), sorted(OLD_CORRECT))
         self.assertEqual(result["checks"]["correct"], 8)
+        result = check.grade({**OLD_CORRECT, "8-pin CPU power": None})
+        self.assertEqual(result["failures"], ["8-pin CPU power is still in the tray"])
 
     def test_label_on_the_ram_module(self):
         result = check.grade({**CORRECT, "Memory slots": RAM})
         self.assertFalse(result["passed"])
-        self.assertEqual(result["checks"]["correct"], 7)
+        self.assertEqual(result["checks"]["correct"], 8)
         self.assertEqual(result["checks"]["labels"]["Memory slots"]["verdict"], "distractor")
         self.assertEqual(result["failures"], [f"Memory slots is on the loose RAM module, at ({RAM[0]:g}, {RAM[1]:g})"])
 
     def test_label_in_the_tray(self):
         result = check.grade({**CORRECT, "BMC chip": None})
         self.assertEqual(result["failures"], ["BMC chip is still in the tray"])
-        self.assertEqual(result["checks"]["correct"], 7)
+        self.assertEqual(result["checks"]["correct"], 8)
 
     def test_label_missing_from_the_state_is_in_the_tray(self):
         labels = dict(CORRECT)
@@ -63,8 +75,10 @@ class Grade(unittest.TestCase):
         places += [{"time": 10 + i, "label": label, "point": point} for i, (label, point) in enumerate(CORRECT.items())]
         places += [{"time": 30, "label": "BMC chip", "point": None}, {"time": 31, "label": "BMC chip", "point": [2, 2]}]
         self.assertEqual(list(check.events(places, since=8).items()),
-                         [("first label placed", 10), ("all labels placed", 17), ("last change", 31)])
+                         [("first label placed", 10), ("all labels placed", 18), ("last change", 31)])
         self.assertEqual(check.events([], since=8), {})
+        old = [{"time": 10 + i, "label": label, "point": point} for i, (label, point) in enumerate(OLD_CORRECT.items())]
+        self.assertEqual(check.events(old)["all labels placed"], 17)
 
 
 # A page laid out as in the VM at 1920×1080: the content 85.5 logical pixels below the window's top, the photo at
@@ -73,8 +87,8 @@ OFFSET = (0, 85.5)
 PHOTO = [16, 60, 1434, 979]
 SCALE = (PHOTO[2] - PHOTO[0]) / 2000
 CHIPS = {label: [1464, 175 + 42 * i, 1656, 207 + 42 * i] for i, label in enumerate(
-    ["First PCIe slot", "Memory slots", "BMC chip", "24-pin ATX power", "SATA ports", "CPU socket", "USB 3.0 header",
-     "8-pin CPU power"])}
+    ["First PCIe slot", "Memory slots", "BMC chip", "24-pin ATX power", "SATA ports", "CPU socket", "M.2 slots",
+     "USB 3.0 header", "CPU power headers"])}
 WINDOW = "0x1234"
 VM_TO_HOST = 4000.0
 
@@ -93,7 +107,7 @@ class Run:
 
     def __init__(self):
         self.tap, self.page, self.id, self.t = [], [], 1, 5000.0
-        self.page_event(4999, "layout", screen=list(OFFSET), photo=PHOTO, tray=[1450, 60, 1670, 521], labels={
+        self.page_event(4999, "layout", screen=list(OFFSET), photo=PHOTO, tray=[1450, 60, 1670, 563], labels={
             label: [chip] for label, chip in CHIPS.items()}, dpr=1)
 
     def page_event(self, host, kind, **fields):
@@ -180,8 +194,14 @@ class Attribute(unittest.TestCase):
     def test_correct_drags_and_calibration(self):
         out = self.run_of(lambda r: [r.drag(label, point) for label, point in CORRECT.items()], CORRECT)
         self.assertEqual(out["calibration"]["offset"], [0, 85.5])
-        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct"] * 8)
+        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct"] * 9)
         self.assertTrue(all(v["blame"] is None for v in out["labels"].values()))
+
+    def test_run_from_before_the_m2_slots_label(self):
+        with mock.patch.dict(CHIPS, {"8-pin CPU power": CHIPS["CPU power headers"]}):
+            out = self.run_of(lambda r: [r.drag(label, point) for label, point in OLD_CORRECT.items()], OLD_CORRECT)
+        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct"] * 8)
+        self.assertEqual(sorted(out["labels"]), sorted(OLD_CORRECT))
 
     def test_label_dropped_on_the_ram_module_is_the_models(self):
         def build(r):
@@ -266,7 +286,7 @@ class Attribute(unittest.TestCase):
 
         def build(r):
             r.drag("CPU socket", CORRECT["CPU socket"])
-            r.page_event(r.t - 0.5, "layout", photo=PHOTO, tray=[1450, 60, 1670, 521], labels={}, dpr=0.9)
+            r.page_event(r.t - 0.5, "layout", photo=PHOTO, tray=[1450, 60, 1670, 563], labels={}, dpr=0.9)
             r.drag("BMC chip", CORRECT["BMC chip"], via_shot=zoomed)
         out = self.run_of(build, {"CPU socket": CORRECT["CPU socket"], "BMC chip": CORRECT["BMC chip"]})
         self.assertEqual(out["calibration"]["spread"], 0)

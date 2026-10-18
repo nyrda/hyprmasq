@@ -385,17 +385,17 @@ Calc does not get it: its External Data import (Sheet ▸ External Links) of a r
 ### board
 
 Mara is writing a guide to building a PC. Her Firefox 157 shows the guide's figure of her motherboard, an AM4
-micro-ATX server board on a blue mat with a RAM module, a USB stick, thermal paste and tweezers around it, and a tray
-of eight labels: CPU socket, Memory slots, 24-pin ATX power, 8-pin CPU power, SATA ports, First PCIe slot,
-USB 3.0 header and BMC chip. Firefox is started like a user would, on the visible workspace, and moved to the hidden
-workspace `web`; the user stays on workspace 1 with the terminal. The prompt asks the agent to put each label on its
-part of the board. It names no tools and gives no coordinates.
+micro-ATX server board on a blue mat with a RAM module, a USB stick, an AA battery, thermal paste and tweezers around
+it, and a tray of nine labels: CPU socket, Memory slots, 24-pin ATX power, CPU power headers, SATA ports, First PCIe
+slot, USB 3.0 header, BMC chip and M.2 slots. Firefox is started like a user would, on the visible workspace, and
+moved to the hidden workspace `web`; the user stays on workspace 1 with the terminal. The prompt asks the agent to put
+each label on its part of the board. It names no tools and gives no coordinates.
 
 The task exercises what the others do not: drags, and a target that only the image shows. Parts of the board look
-alike: the loose RAM module is the trap for the memory slots, the M.2 slots for the SATA ports, the lower PCIe slots
-for the first, and the heatsinks and connectors around them for the rest. A label lands where it is dropped, the pointer's position at
-the drop; dragging it again moves it, and dragging it back to the tray takes it off. The photo is scaled to fit the
-window, the same on every load, and the page does not scroll.
+alike: the loose RAM module is the trap for the memory slots, the M.2 slots and the SATA ports beside them for
+each other, the lower PCIe slots for the first, and the heatsinks and connectors around them for the rest. A label
+lands where it is dropped, the pointer's position at the drop; dragging it again moves it, and dragging it back to
+the tray takes it off. The photo is scaled to fit the window, the same on every load, and the page does not scroll.
 
 The page drags in one of two ways, the task's variants, so that each has its own results directory:
 
@@ -420,8 +420,10 @@ Both look and behave the same. A press that moves less than 4 CSS pixels is a cl
   and `distractors`, the parts and objects a careless placement lands on.
 - `check.py`: per label, where it lies and whether that is inside one of its boxes (correct), on another label's
   part, on a distractor (named), elsewhere, or still in the tray: `Memory slots is on the loose RAM module, at
-  (1654.4, 679.8)`. It passes when all eight are correct, and reports the number correct for partial credit, the
+  (1654.4, 679.8)`. It passes when all nine are correct, and reports the number correct for partial credit, the
   variant and the number of saves. Its milestones are `first label placed`, `all labels placed` and `last change`.
+  Runs from before the M.2 slots label had eight labels, with the CPU power headers as `8-pin CPU power`: by that
+  name, `check.py` and `attribute.py` grade them on the eight they had, under the names they had.
 - `attribute.py RUN-DIR | RESULTS-DIR`: who each drag's outcome is due to, from `mcp.jsonl` and the page's events.
   It maps each `act` drag's start and end from shot pixels to window-local logical pixels through the shot's frame,
   zooms included, as hyprmasq does, and to the page's coordinates with the content's offset in the window, which
