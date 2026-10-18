@@ -438,7 +438,9 @@ The page drags in one of two ways, the task's variants, so that each has its own
 - `pointer`: `pointerdown`, `pointermove` and `pointerup` with pointer capture, as a custom widget or a canvas would
   do, which needs only pointer input.
 
-Both look and behave the same. A press that moves less than 4 CSS pixels is a click, not a drag, in both.
+Both look and behave the same. A press that moves less than 4 CSS pixels is a click, not a drag, in `pointer`; in
+`dnd`, Firefox starts a drag-and-drop only once the pointer has moved more than 8 device pixels along an axis, GTK's
+default `gtk-dnd-drag-threshold`.
 
 - `vm.nix`: the guide on `guide.example.test:80`, with the variant from `default.nix`, and Firefox with policies
   against first-run pages.
@@ -466,9 +468,11 @@ Both look and behave the same. A press that moves less than 4 CSS pixels is a cl
   (ctrl+minus) from its `devicePixelRatio`. In the VM, it agrees within a shot pixel with Firefox's
   `mozInnerScreenY`. It then finds the press the page logged for the drag and
   what followed, and classifies the outcome: `correct` (the label landed where the agent dropped it, on its part),
-  `model` (where the agent dropped it, but on another part or none; or the drag grabbed no label, or dropped it off
-  the photo and the tray), `hyprmasq` (the page saw no press, the press or the drop came more than 6 CSS pixels
-  from where the agent aimed, or the drag started on a label and the label did not move), `tray`, or `not sent`
+  `model` (where the agent dropped it, but on another part or none; or the drag grabbed no label, dropped it off
+  the photo and the tray, or was too short to be a drag: aimed shorter than 4 CSS pixels in `pointer`, or in `dnd`
+  aimed and seen within Firefox's drag threshold, with the release where aimed and no `dragstart`), `hyprmasq` (the
+  page saw no press, the press or the drop came more than 6 CSS pixels from where the agent aimed, or the drag
+  started on a label and the label did not move), `tray`, or `not sent`
   (`act` refused the batch). Per label, it names whose the final placement is. It prints a table per run and
   writes `attribution.json`. Results for Claude Code have no structured content, so it reads their text, which
   gives no frames: a shot of the whole window gets the size from the last `windows` or `screenshot` text that
@@ -480,7 +484,7 @@ Both look and behave the same. A press that moves less than 4 CSS pixels is a cl
 - `check_test.py`: `python3 bench/tasks/board/check_test.py` checks the grade and the attribution on constructed
   states and logs: a correct board, a label on the RAM module, one on another label's part and one in the tray,
   the milestones, a drop far from where the drag aimed, a drag the page never saw, a cancelled drag-and-drop, a
-  drag back to the tray, a refused batch, a drag in a zoom's pixels, a page zoomed out, and the same drags from
+  drag too short to start one, a drag back to the tray, a refused batch, a drag in a zoom's pixels, a page zoomed out, and the same drags from
   results with only their text, as Claude Code gets them.
 - `setup.py`: the profile, Firefox's window and its workspace, and the grade with the page's logs in `collect()`.
   With `HYPRMASQ_BENCH_WAYLAND_DEBUG` set in the driver's environment, Firefox logs its Wayland protocol to

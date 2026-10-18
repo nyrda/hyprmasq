@@ -6,7 +6,7 @@ page's coordinates, finds the drag the page logged for it (vm-board-events.jsonl
 
 - correct: the label landed where the agent dropped it, on its part;
 - model: it landed where the agent dropped it, on another part or none; or the drag grabbed no label, or dropped it
-  off the photo and the tray, where the page keeps it where it was;
+  off the photo and the tray, where the page keeps it where it was; or it was too short to start a drag-and-drop;
 - hyprmasq: the page saw no press, the press or the drop came more than TOLERANCE CSS pixels from where the agent
   aimed, or the page saw the drag start on a label and the label did not move;
 - tray: the label went back to the tray where the agent dropped it; not sent: act refused the batch before the drag.
@@ -38,6 +38,10 @@ from check import classify  # noqa: E402
 TOLERANCE = 6
 # A pointer drag shorter than this is a click to the page (guide.py's SLOP).
 SLOP = 4
+# Firefox starts a drag-and-drop only once the pointer has moved more than this many device pixels from the press
+# along either axis (EventStateManager::IsEventOutsideDragThreshold). On GTK it is gtk-dnd-drag-threshold, whose
+# default of 8 the VM leaves.
+DND_THRESHOLD = 8
 PHOTO_WIDTH = 2000
 
 
@@ -312,6 +316,25 @@ def photo_point(layout, client):
     return [round((client[0] - r[0]) / scale, 1), round((client[1] - r[1]) / scale, 1)]
 
 
+def device_move(layout, a, b):
+    """How far b is from a along the axis it is furthest, in device pixels, as Firefox measures a drag."""
+    return max(abs(b[0] - a[0]), abs(b[1] - a[1])) * layout.get("dpr", 1)
+
+
+def too_short_for_dnd(layout, down, gesture, aim_from, aim_to):
+    """Whether a drag of the dnd variant was too short for Firefox to start a drag-and-drop, and hyprmasq delivered it
+    as aimed: the agent aimed it within DND_THRESHOLD, the page saw the pointer stay within it until the release, saw
+    the release where the agent aimed, and saw no dragstart. guide.py's SLOP is the pointer variant's."""
+    up = next((e for e in gesture if e["type"] == "pointerup"), None)
+    if up is None or any(e["type"] == "dragstart" for e in gesture):
+        return False
+    moves = [e for e in gesture[:gesture.index(up) + 1] if e["type"] in ("pointermove", "pointerup")]
+    press = (down["x"], down["y"])
+    return (math.hypot(up["x"] - aim_to[0], up["y"] - aim_to[1]) <= TOLERANCE
+            and device_move(layout, aim_from, aim_to) <= DND_THRESHOLD
+            and all(device_move(layout, press, (e["x"], e["y"])) <= DND_THRESHOLD for e in moves))
+
+
 def presses(call, window):
     """The presses of an act call's delivered actions, in order: (index, window-local point)."""
     args, out = call["args"], []
@@ -437,9 +460,12 @@ def attribute(run_dir):
                 drag.update(outcome="model", blame="model", why="the drag started on no label")
             elif place is None:
                 end = where(layout, aim_to) if layout else None
+                dnd = bool(layout) and layout.get("variant") == "dnd"
                 if end == "page":
                     drag.update(outcome="model", blame="model", why="dropped off the photo and the tray")
-                elif math.hypot(aim_to[0] - aim_from[0], aim_to[1] - aim_from[1]) < SLOP:
+                elif dnd and too_short_for_dnd(layout, down, gesture, aim_from, aim_to):
+                    drag.update(outcome="model", blame="model", why="too short to start a drag-and-drop")
+                elif not dnd and math.hypot(aim_to[0] - aim_from[0], aim_to[1] - aim_from[1]) < SLOP:
                     drag.update(outcome="model", blame="model", why=f"moved less than {SLOP} px")
                 else:
                     seen = ", ".join(dict.fromkeys(drag["page"])) or "only the press"

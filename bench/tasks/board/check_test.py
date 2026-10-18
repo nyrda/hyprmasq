@@ -117,10 +117,10 @@ def shot_of_client(point):
 class Run:
     """A run directory under construction: act calls in mcp.jsonl, and the page's events."""
 
-    def __init__(self):
+    def __init__(self, variant="dnd"):
         self.tap, self.page, self.id, self.t = [], [], 1, 5000.0
-        self.page_event(4999, "layout", screen=list(OFFSET), photo=PHOTO, tray=[1450, 60, 1670, 563], labels={
-            label: [chip] for label, chip in CHIPS.items()}, dpr=1)
+        self.page_event(4999, "layout", variant=variant, screen=list(OFFSET), photo=PHOTO, tray=[1450, 60, 1670, 563],
+                        labels={label: [chip] for label, chip in CHIPS.items()}, dpr=1)
 
     def page_event(self, host, kind, **fields):
         self.page.append({"t": (host - VM_TO_HOST) * 1000, "type": kind, **fields})
@@ -196,8 +196,8 @@ class Run:
 
 
 class Attribute(unittest.TestCase):
-    def run_of(self, build, final, first=Run.screenshot):
-        run = Run()
+    def run_of(self, build, final, first=Run.screenshot, variant="dnd"):
+        run = Run(variant)
         first(run)
         build(run)
         with tempfile.TemporaryDirectory(prefix="board-attribution-") as d:
@@ -282,6 +282,36 @@ class Attribute(unittest.TestCase):
         self.assertEqual(drag["blame"], "hyprmasq")
         self.assertEqual(drag["why"], "the label did not move; the page saw dragstart, pointercancel, dragend, pointerup")
         self.assertEqual(out["labels"]["CPU socket"]["failed_drags"], 1)
+
+    def test_drag_too_short_to_start_a_drag_and_drop_is_the_models(self):
+        # Haiku's nudge of the SATA ports label by (3, 6) CSS pixels: the page saw the press and the release where it
+        # aimed, and the moves between, but Firefox starts a drag-and-drop only past 8 device pixels along an axis.
+        def nudge(by, released=True):
+            def build(r):
+                press = centre(CHIPS["SATA ports"])
+                end = [press[0] + by[0], press[1] + by[1]]
+                start = r.act([{"action": "drag", "from": shot_of_client(press), "to": shot_of_client(end)}])
+                r.page_event(start + 0.1, "pointerdown", x=press[0], y=press[1], label="SATA ports")
+                for n in range(1, 4):
+                    r.page_event(start + 0.1 + n * 0.02, "pointermove", x=press[0] + by[0] * n / 3,
+                                 y=press[1] + by[1] * n / 3, label="SATA ports")
+                if released:
+                    r.page_event(start + 0.2, "pointerup", x=end[0], y=end[1], label="SATA ports")
+            return build
+
+        drag = self.run_of(nudge((3, 6)), {})["drags"][0]
+        self.assertEqual((drag["outcome"], drag["why"]), ("model", "too short to start a drag-and-drop"))
+        self.assertEqual(drag["page"], ["pointerup"])
+        # Past the threshold, Firefox should have started one: the label not moving is hyprmasq's.
+        drag = self.run_of(nudge((3, 12)), {})["drags"][0]
+        self.assertEqual((drag["outcome"], drag["why"]), ("hyprmasq", "the label did not move; the page saw pointerup"))
+        # Shorter than SLOP, but the page never saw the release.
+        drag = self.run_of(nudge((2, 1), released=False), {})["drags"][0]
+        self.assertEqual((drag["outcome"], drag["why"]),
+                         ("hyprmasq", "the label did not move; the page saw only the press"))
+        # The pointer variant moves a label once it is dragged SLOP pixels, so there it is hyprmasq's too.
+        drag = self.run_of(nudge((3, 6)), {}, variant="pointer")["drags"][0]
+        self.assertEqual(drag["outcome"], "hyprmasq")
 
     def test_back_to_the_tray_and_refused_batches(self):
         def build(r):
