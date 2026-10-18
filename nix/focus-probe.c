@@ -35,7 +35,9 @@
 // frame callback, then green, and logs "content", D or a right click one with
 // that toplevel as its parent, TITLE-dialogK, L a toplevel without a parent 300 ms
 // later, TITLE-lateK, K one 1500 ms later, TITLE-laterK, and a middle click a dialog
-// 1500 ms later, TITLE-late-dialogK.
+// 1500 ms later, TITLE-late-dialogK. G opens a toplevel without a parent 1500 ms
+// later on a second Wayland connection of the process, TITLE-otherK, as Electron
+// opens GTK's file chooser beside the connection that Chromium draws on.
 // F starts another process, `imported HANDLE TITLE-foreignK`, which opens a
 // toplevel and names the toplevel that got the key as its parent through
 // xdg-foreign, after its initial commit, as a portal's file chooser does; a
@@ -109,6 +111,7 @@ struct window {
     bool drawn;
     bool hungry; // draws its content only in answer to a frame callback
     bool                 held;   // draws its first frame only when browser mode lets it
+    struct wl_shm       *shm;    // of its connection, if not the first
 };
 static struct wl_display *display;
 static struct wl_compositor *compositor;
@@ -150,7 +153,12 @@ static struct window opened[16];
 static int opened_count, foreign_count, late_timer = -1, close_timer = -1;
 static struct window *late_from, *closing; // closing: the toplevel that close_timer closes
 static const char *late_kind;
-static bool late_parented;
+static bool late_parented, late_other;
+// The second connection of opener mode, once G opened it, and its globals.
+static struct wl_display *other_display;
+static struct wl_compositor *other_compositor;
+static struct wl_shm *other_shm;
+static struct xdg_wm_base *other_wm;
 static char *late_after; // the name of the toplevel to open, when a toplevel closed for an S
 static char *handles[2];
 // The dialog whose close its parent answers, its parent, and the timer of the answer, which starts at the parent's
@@ -305,7 +313,7 @@ static void draw(struct window *w) {
     if (resize_mode && w == &windows[0])
         for (int y = 0; y < height; ++y)
             for (int x = width > 8 ? width - 8 : 0; x < width; ++x) pixels[(size_t)y * width + x] = 0xff22cc22;
-    struct wl_shm_pool *pool = wl_shm_create_pool(shm, fd, size);
+    struct wl_shm_pool *pool = wl_shm_create_pool(w->shm ? w->shm : shm, fd, size);
     struct wl_buffer *buffer = wl_shm_pool_create_buffer(pool, 0, width, height, width * 4, WL_SHM_FORMAT_XRGB8888);
     wl_buffer_add_listener(buffer, &buffer_listener, NULL);
     wl_shm_pool_destroy(pool);
@@ -494,8 +502,8 @@ static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial, ui
     if (shortcut_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED) shortcut_key_pressed(key);
     if (menu_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_DOWN || key == KEY_ENTER))
         menu_key(key);
-    if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_N || key == KEY_D || key == KEY_L || key == KEY_K || key == KEY_F || key == KEY_A))
-        opener_input(keyboard_surface, key == KEY_N ? 'n' : key == KEY_D ? 'd' : key == KEY_L ? 'l' : key == KEY_K ? 'k' : key == KEY_A ? 'a' : 'f');
+    if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && (key == KEY_N || key == KEY_D || key == KEY_L || key == KEY_K || key == KEY_F || key == KEY_A || key == KEY_G))
+        opener_input(keyboard_surface, key == KEY_N ? 'n' : key == KEY_D ? 'd' : key == KEY_L ? 'l' : key == KEY_K ? 'k' : key == KEY_A ? 'a' : key == KEY_G ? 'g' : 'f');
     if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && key == KEY_S) close_and_follow(keyboard_surface);
     if (opener_mode && state == WL_KEYBOARD_KEY_STATE_PRESSED && key == KEY_ENTER) close_opened(keyboard_surface, true);
     if (key == KEY_ESC && state == WL_KEYBOARD_KEY_STATE_PRESSED)
@@ -567,6 +575,38 @@ static void open_toplevel(struct window *from, const char *kind, bool parented) 
     struct window *w = &opened[opened_count++];
     create_toplevel_with(w, name, parented ? from->toplevel : NULL, parented ? 0xff22aa44 : 0xff224466);
     w->hungry = !parented;
+    say("opened %s", name);
+}
+static void other_global(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version) {
+    if (!strcmp(interface, "wl_compositor")) other_compositor = wl_registry_bind(registry, name, &wl_compositor_interface, 1);
+    else if (!strcmp(interface, "wl_shm")) other_shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
+    else if (!strcmp(interface, "xdg_wm_base")) {
+        other_wm = wl_registry_bind(registry, name, &xdg_wm_base_interface, 1);
+        xdg_wm_base_add_listener(other_wm, &wm_listener, NULL);
+    }
+}
+static const struct wl_registry_listener other_registry_listener = {.global = other_global, .global_remove = global_remove};
+// Opens a green toplevel without a parent on the second connection, which it connects first.
+static void open_other(struct window *from) {
+    if (opened_count == (int)(sizeof(opened) / sizeof(opened[0]))) return;
+    if (!other_display) {
+        other_display = wl_display_connect(NULL);
+        assert(other_display);
+        wl_registry_add_listener(wl_display_get_registry(other_display), &other_registry_listener, NULL);
+        assert(wl_display_roundtrip(other_display) >= 0);
+        assert(other_compositor && other_shm && other_wm);
+    }
+    char *name;
+    assert(asprintf(&name, "%s-other%d", from->name, opened_count + 1) > 0);
+    struct window *w = &opened[opened_count++];
+    *w = (struct window){.width = 250, .height = 200, .name = name, .color = 0xff22aa44, .shm = other_shm};
+    w->surface = wl_compositor_create_surface(other_compositor);
+    w->xdg = xdg_wm_base_get_xdg_surface(other_wm, w->surface);
+    xdg_surface_add_listener(w->xdg, &surface_listener, w);
+    w->toplevel = xdg_surface_get_toplevel(w->xdg);
+    xdg_toplevel_add_listener(w->toplevel, &toplevel_listener, w);
+    xdg_toplevel_set_title(w->toplevel, w->name);
+    wl_surface_commit(w->surface);
     say("opened %s", name);
 }
 static void exported_handle(void *data, struct zxdg_exported_v2 *exported, const char *handle) { *(char **)data = strdup(handle); }
@@ -691,10 +731,11 @@ static void opener_input(struct wl_surface *s, char action) {
     if (!from) return;
     from->color = from->color == 0xff224466 ? 0xff664422 : 0xff224466;
     draw(from);
-    if (action == 'l' || action == 'k' || action == 'm') {
+    if (action == 'l' || action == 'k' || action == 'm' || action == 'g') {
         late_from = from;
         late_kind = action == 'l' ? "late" : action == 'k' ? "later" : "late-dialog";
         late_parented = action == 'm';
+        late_other = action == 'g';
         struct itimerspec in = {.it_value = {.tv_sec = action == 'l' ? 0 : 1, .tv_nsec = (action == 'l' ? 300 : 500) * 1000000}};
         assert(timerfd_settime(late_timer, 0, &in, NULL) == 0);
     } else if (action == 'p')
@@ -864,15 +905,24 @@ static int run_opener(void) {
     assert(sigprocmask(SIG_BLOCK, &mask, NULL) == 0);
     int signals = signalfd(-1, &mask, SFD_CLOEXEC);
     assert(signals >= 0);
-    struct pollfd fds[6] = {{.fd = wl_display_get_fd(display), .events = POLLIN},
+    struct pollfd fds[7] = {{.fd = wl_display_get_fd(display), .events = POLLIN},
                             {.fd = late_timer, .events = POLLIN},
                             {.fd = signals, .events = POLLIN},
                             {.fd = close_timer, .events = POLLIN},
                             {.fd = answer_close_timer, .events = POLLIN},
-                            {.fd = browser_timer, .events = POLLIN}};
+                            {.fd = browser_timer, .events = POLLIN},
+                            {.fd = -1, .events = POLLIN}};
     for (;;) {
         while (wl_display_prepare_read(display) != 0) wl_display_dispatch_pending(display);
-        if (wl_display_flush(display) < 0 || poll(fds, 6, -1) < 0) {
+        // The second connection's events are read and dispatched at once, so only the first waits in a read.
+        if (other_display) {
+            fds[6].fd = wl_display_get_fd(other_display);
+            if (wl_display_dispatch_pending(other_display) < 0 || wl_display_flush(other_display) < 0) {
+                wl_display_cancel_read(display);
+                return 1;
+            }
+        }
+        if (wl_display_flush(display) < 0 || poll(fds, 7, -1) < 0) {
             wl_display_cancel_read(display);
             return 1;
         }
@@ -888,7 +938,9 @@ static int run_opener(void) {
                 create_toplevel_with(&opened[opened_count++], late_after, NULL, 0xff22aa44);
                 say("opened %s", late_after);
                 late_after = NULL;
-            } else
+            } else if (late_other)
+                open_other(late_from);
+            else
                 open_toplevel(late_from, late_kind, late_parented);
         }
         if (fds[2].revents & POLLIN) {
@@ -917,6 +969,7 @@ static int run_opener(void) {
             assert(read(browser_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
             browser_step();
         }
+        if ((fds[6].revents & POLLIN) && wl_display_dispatch(other_display) < 0) return 1;
     }
 }
 // Shift mode: the button and its label, moved down by shift_offset, and the block elsewhere.

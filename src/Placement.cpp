@@ -1,6 +1,7 @@
 #include "Placement.hpp"
 #include "Hooks.hpp"
 #include "Launch.hpp"
+#include "Process.hpp"
 #include "X11.hpp"
 
 #include <hyprland/src/Compositor.hpp>
@@ -38,12 +39,22 @@ namespace hyprmasq::placement {
 
         // An app as input reaches it: its Wayland connection and process, and for a window of Hyprland's XWayland, which
         // serves every X11 app on one connection, the process of the X11 window. The process tells the connection from a
-        // later one at the same address, once the first has gone, which a closed window's record can outlive.
+        // later one at the same address, once the first has gone, which a closed window's record can outlive. A process
+        // on Wayland connections of its own is one app on all of them: Electron draws its windows on one and opens GTK's
+        // file chooser on another. For those, when the process started tells it from a later process with its pid, which
+        // the record can outlive too. An X server's connection has none, since one process serves many apps there.
         struct SApp {
-            wl_client* client                        = nullptr;
-            pid_t      pid                           = 0;
-            bool       operator==(const SApp&) const = default;
+            wl_client*                        client                        = nullptr;
+            pid_t                             pid                           = 0;
+            std::optional<unsigned long long> started                       = {};
+            bool                              operator==(const SApp&) const = default;
         };
+
+        // The same process, by when it started where both are on connections of their own, and otherwise on the same
+        // connection.
+        bool sameApp(const SApp& a, const SApp& b) {
+            return a.pid == b.pid && (a.started && b.started ? a.started == b.started : a.client == b.client);
+        }
 
         // A window the agent works in: one that got emulated input, or that the plugin placed. What the last emulated
         // input reached is kept for RECENT after the window closes: a dialog that input closes can make its app open
@@ -112,13 +123,24 @@ namespace hyprmasq::placement {
             return it == driven.end() ? nullptr : &*it;
         }
 
-        std::optional<SApp> appOf(const PHLWINDOW& w) {
+        // When the process of a connection of its own started, or none for an X server's connection, from known when
+        // it is for the same connection and process.
+        std::optional<unsigned long long> startedOf(const SApp& app, const std::optional<SApp>& known = std::nullopt) {
+            if (known && known->client == app.client && known->pid == app.pid)
+                return known->started;
+            if (app.pid <= 0 || x11::serves(app.client))
+                return std::nullopt;
+            return process::started(app.pid);
+        }
+
+        std::optional<SApp> appOf(const PHLWINDOW& w, const std::optional<SApp>& known = std::nullopt) {
             const auto surface = w->resource();
             if (!surface)
                 return std::nullopt;
             SApp app{.client = surface->client(), .pid = w->getPID()};
             if (w->m_isX11 && app.pid <= 0)
                 return std::nullopt;
+            app.started = startedOf(app, known);
             return app;
         }
 
@@ -140,6 +162,8 @@ namespace hyprmasq::placement {
                     break;
                 }
             }
+            if (trigger)
+                app.started = startedOf(app);
             std::erase_if(userInput, [&](const auto& entry) { return (trigger && entry.first == app) || now - entry.second >= RECENT; });
             if (trigger)
                 userInput.emplace_back(app, now);
@@ -284,7 +308,7 @@ namespace hyprmasq::placement {
             std::optional<Time::steady_tp> trigger; // the agent's last input to the app that can open a window
             for (const auto& d : inputs.driven) {
                 const auto source = d.window.lock();
-                if (source == w || !d.input || inputs.at - *d.input >= RECENT || d.app != app)
+                if (source == w || !d.input || inputs.at - *d.input >= RECENT || !d.app || !sameApp(*d.app, *app))
                     continue;
                 if (d.trigger && inputs.at - *d.trigger < RECENT && (!trigger || *d.trigger > *trigger))
                     trigger = d.trigger;
@@ -306,8 +330,11 @@ namespace hyprmasq::placement {
             // The user's input of any kind to that window, or a trigger of theirs to the app, against the agent's: so
             // their typing into another window of the app does not take a window that the agent's click opened, while
             // their click there takes one that the agent's typing came after.
-            const auto user  = std::ranges::find_if(inputs.userInput, [&](const auto& entry) { return entry.first == *app; });
-            const bool yours = (best->user && *best->user >= *best->input) || (user != inputs.userInput.end() && user->second >= trigger.value_or(*best->input));
+            std::optional<Time::steady_tp> user;
+            for (const auto& [from, at] : inputs.userInput)
+                if (sameApp(from, *app) && (!user || at > *user))
+                    user = at;
+            const bool yours = (best->user && *best->user >= *best->input) || (user && *user >= trigger.value_or(*best->input));
             return SCandidate{.address = best->address, .window = best->window, .workspace = workspace, .yours = yours};
         }
 
@@ -431,7 +458,7 @@ namespace hyprmasq::placement {
             d->trigger = now;
         d->input     = now;
         d->agent     = now;
-        d->app       = appOf(window);
+        d->app       = appOf(window, d->app);
         d->address   = windowAddress(window);
         d->workspace = window->m_workspace;
         d->parent    = window->parent();

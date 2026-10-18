@@ -15,6 +15,8 @@ namespace hyprmasq::x11 {
 
     // The Wayland client acting as the window's X server: Hyprland's XWayland, an xwayland-satellite, or null.
     wl_client* server(const PHLWINDOW& window);
+    // Whether a Wayland client is an X server: Hyprland's XWayland or an xwayland-satellite.
+    bool serves(wl_client* client);
 
     // Moves X input focus to an XWayland window until release(). False if the X server cannot be reached.
     bool focus(const PHLWINDOW& window);

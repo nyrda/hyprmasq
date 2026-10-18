@@ -1164,15 +1164,16 @@ across agents only roughly, since gpt-6.1-sol ran on the slower machines; Haiku'
 ## Open
 
 - **Shortcuts that an app runs more than 250 ms after the key** still fail without a word beside the user's window.
-- **A native Electron file chooser** opened on the user's workspace the first time it was used: GTK maps it before
-  it sets its parent, a few milliseconds later, and hyprmasq places a window when it maps. Once the parent is known
-  the chooser stays hidden.
 - **Unloading the plugin while a screenshot waits for the reader of a pipe** holds Hyprland's main thread until
   something reads the pipe: the unload joins the screenshot's thread. It needs an unload during such a write, and is
   not being fixed for now.
 
 Settled, and not for hyprmasq:
 
+- **A native Electron file chooser** opened on the user's workspace the first time it was used: GTK maps it on a
+  Wayland connection of its own, beside Chromium's, and sets its parent a few milliseconds later. Since #55 a window
+  without a parent counts input to a window of the same process on another Wayland connection, so the chooser opens
+  next to the agent's window.
 - **hyprmasq's own time per call** is now 0.15 to 0.35 s beyond its waits and the sender's pacing at 1920×1080 and
   2560×1440, after #33 rendered each moment once and #37 made the comparison exact around what differs.
 - **A point in the last pixel of the right or bottom edge** arrives as it is since #45, to 1/256 of a logical

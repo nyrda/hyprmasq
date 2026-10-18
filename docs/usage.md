@@ -1167,11 +1167,14 @@ and again when it maps; for an X11 window when it maps. A new window comes from
   app is older. That window may have
   closed since, as a dialog whose Send button made the app open a progress
   window: the new window then opens on the workspace the closed window was on,
-  or if that is gone, on that of its parent. An app is a Wayland
-  connection, and for Hyprland's XWayland, which serves every X11 app on one
-  connection, an X11 process. The apps of an xwayland-satellite share its
-  connection and report its process, so they cannot be told apart, and its
-  windows without a parent open as usual.
+  or if that is gone, on that of its parent. An app is a process with its
+  Wayland connections: Electron draws its windows on one and opens GTK's file
+  chooser on another, which names its parent only after it has mapped the
+  first time. The time the process started tells it from a later process with
+  the same pid. For Hyprland's XWayland, which serves every X11 app on one
+  connection, an app is an X11 process on that connection. The apps of an
+  xwayland-satellite share its connection and report its process, so they
+  cannot be told apart, and its windows without a parent open as usual.
 
 Your input is a key, pressed or released, or a mouse button, to the window and
 app with the real keyboard or pointer focus, and a touch or a tablet tip, to the

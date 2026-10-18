@@ -216,14 +216,20 @@ namespace hyprmasq::x11 {
         if (!resource)
             return nullptr;
         auto* client = resource->client();
-        if (window->m_isX11)
-            return client;
+        return window->m_isX11 || serves(client) ? client : nullptr;
+    }
+
+    bool serves(wl_client* client) {
+        if (!client)
+            return false;
+        if (g_pXWayland && g_pXWayland->m_server && client == g_pXWayland->m_server->m_xwaylandClient)
+            return true;
         pid_t pid = 0;
         wl_client_get_credentials(client, &pid, nullptr, nullptr);
         std::error_code error;
         const auto      exe = std::filesystem::read_symlink(std::format("/proc/{}/exe", pid), error);
         // Nix wraps it as .xwayland-satellite-wrapped.
-        return !error && exe.filename().string().contains("xwayland-satellite") ? client : nullptr;
+        return !error && exe.filename().string().contains("xwayland-satellite");
     }
 
     bool focus(const PHLWINDOW& window) {

@@ -5165,6 +5165,69 @@ print(longest)
         machine.execute("pkill -f 'hyprmasq-focus-probe [i]mported'")
         wait_for("launched probe closed", lambda: client("hm-o-launched") is None and client("hm-o-launched-foreign1") is None and client("hm-o-launched-new1") is None)
 
+    with subtest("a window that an app opens on another Wayland connection of its process opens next to the agent's window"):
+        # As Electron opens GTK's file chooser on a connection of its own, which names its parent only after the window has
+        # mapped: G opens a toplevel without a parent 1.5 s later on a second connection of the probe's process. A window
+        # of another process that opens meanwhile is not the agent's.
+        focus_workspace(74)
+        spawn("hyprmasq-focus-probe opener hm-c-user hm-c-agent", "c-electron")
+        user, agent = opened_window("hm-c-user")["address"], opened_window("hm-c-agent")["address"]
+        dispatch(f'hl.dsp.window.move({{ window = "address:{agent}", workspace = "75", follow = false }})')
+        dispatch(f'hl.dsp.focus({{ window = "address:{user}" }})')
+        wait_for("user window focus", lambda: snapshot() == (74, user))
+        electron = Mcp("s")
+        electron.initialize()
+        start = len(probe_events("c-electron"))
+        pressed = electron.call("act", {"window": agent, "actions": [{"action": "key", "keys": ["g"]}], "wait": {"quiet_ms": 100}})
+        assert not pressed.is_error and pressed.data["actions"]["delivery"] == "complete", pressed
+        spawn("hyprmasq-focus-probe focus hm-c-stranger", "c-stranger")
+        stranger = opened_window("hm-c-stranger")
+        key_at = next(t for t, e in probe_events("c-electron", start) if e == "key hm-c-agent 34 1")
+        assert vm_now() - key_at < 5000, key_at
+        assert stranger["workspace"]["id"] == 74 and window_state(stranger["address"])["source"] is None, stranger
+        wait_for("stranger focus", lambda: snapshot() == (74, stranger["address"]))
+        other = opened_since("c-electron", start, r"hm-c-agent-other\d+")
+        assert other["pid"] == client("hm-c-agent")["pid"] == client("hm-c-user")["pid"] != stranger["pid"], (other, stranger)
+        assert other["workspace"]["id"] == 75 and other["floating"] and snapshot() == (74, stranger["address"]), other
+        assert window_state(other["address"])["source"] == {"window": agent, "stableId": window_state(agent)["stableId"], "placed": True}, window_state(other["address"])
+        # The act usually returns before the window maps, and then the next windows call reports it.
+        reported = [w for w in pressed.data["new_windows"] if w["window"] == other["address"]]
+        listing = electron.call("windows")
+        assert not listing.is_error, listing
+        if not reported:
+            reported = [w for w in listing.data["late_windows"] if w["window"] == other["address"]]
+            assert next(w for w in listing.data["windows"] if w["window"] == other["address"])["opened_by_input"] == agent, listing
+        assert len(reported) == 1, (pressed, listing)
+        entry = reported[0]
+        assert (entry["workspace"], entry["visible"], entry["focused"], entry["placed"], entry["source"], entry["same_pid"]) == ("75", False, False, True, agent, True), entry
+        assert "opened_by_input" not in next(w for w in listing.data["windows"] if w["window"] == stranger["address"]), listing
+        assert electron.stop() == 0
+        close_titled(other["title"], "hm-c-stranger")
+        dispatch(f'hl.dsp.focus({{ window = "address:{user}" }})')
+        wait_for("user window focus", lambda: snapshot() == (74, user))
+
+        # The user's shortcut in their window of the app, on the first connection, after the agent's G and before the app
+        # created the window takes it.
+        agent_path = open_socket(agent)
+        start = len(probe_events("c-electron"))
+        send(agent_path, "key", 34)
+        machine.send_key("ctrl-x")
+        taken = opened_since("c-electron", start, r"hm-c-agent-other\d+")
+        events = probe_events("c-electron", start)
+        driven = next(t for t, e in events if e == "key hm-c-agent 34 1")
+        shortcut = next(t for t, e in events if e == "key hm-c-user 45 1")
+        created = next(t for t, e in events if e == f"opened {taken['title']}")
+        assert driven < shortcut < created, events
+        assert taken["workspace"]["id"] == 74, taken
+        assert window_state(taken["address"])["source"] == {
+            "window": agent, "stableId": window_state(agent)["stableId"], "placed": False, "reason": "user_input",
+        }, window_state(taken["address"])
+        wait_for("taken window focus", lambda: snapshot() == (74, taken["address"]))
+        machine.execute("pkill -f 'hyprmasq-focus-probe [o]pener hm-c-user'")
+        wait_for("electron probe closed", lambda: client("hm-c-user") is None and client(taken["title"]) is None)
+        focus_workspace(4)
+        wait_for("focus back", lambda: snapshot() == (4, visible))
+
     with subtest("two hyprmasq-mcp servers take turns on one window"):
         other = Mcp("c")
         other.initialize()
