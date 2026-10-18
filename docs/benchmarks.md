@@ -932,17 +932,107 @@ outcome. gpt-6.1-sol; the pilots ran on `main` at 566dde2, and all runs were gra
   fast input. #34 also sends them from input delivery, at most every 16 ms. The batch of that run, sent again by hand,
   lost a drag in 9 of 9 tries before and in 0 of 3 after; 5ad3d3e lost none of 40.
 
+## 2026-10-17: a faster comparison (#37)
+
+The comparison of a capture with the agent's last shot, the largest part of [hyprmasq's own
+time](#hyprmasqs-own-time) after #33, took 76 to 91 ms a call at 1920×1080, 133 to 167 ms at 2560×1440 and 306 to
+399 ms at 3840×2160 in the benchmark VM. It loaded and averaged every pixel of both whole images, each image apart,
+and walked the mask several times. #37 compares rows of bytes first, returns at once when nothing differs and runs
+the comparison only around what differs, with a margin that keeps the result exact; and it subtracts the two images
+once before summing. On 60 pairs of real captures (Firefox, Chromium, Thunderbird, Calc, foot; three sizes; no
+change, a key, a menu, a whole page) the results equal the old comparison's exactly, as do 3,000 generated cases in
+the tests. Medians in ms on the host, old → new:
+
+| Display | No change | A key | A menu | A whole page |
+| --- | --- | --- | --- | --- |
+| 1920×1080 | 69 → 0.2 | 82 → 1.7 | 85 → 7.7 | 74 → 25 |
+| 2560×1440 | 124 → 0.3 | 153 → 1.2 | 152 → 6.4 | 133 → 46 |
+| 3840×2160 | 277 → 1.2 | 343 → 2.6 | 342 → 17 | 295 → 103 |
+
+One run per task of gpt-6.1-sol at 2560×1440 on its head f65258b, merged as 5e65c53, passed with the user
+undisturbed: Calc in 79 s, Forgejo in 70 s, Thunderbird in 119 s (97 s of it the model's own time), and the board
+with all 8 labels. hyprmasq's own time per `act` call was 0.15, 0.33 and 0.34 s, against 0.22, 0.38 and 0.31 s on
+#33's runs; one run per task measures no speed.
+
+## 2026-10-18: audits, and the fixes from them (#38 to #42)
+
+Four investigations went through what the benchmarks do not exercise: the plugin's code and the MCP server's and
+sender's, each for defects with a reproduction in the VM or a failing test; apps of other toolkits (Kate and
+Dolphin with Qt 6, VSCodium with Electron on Wayland and X11, GNOME Text Editor with GTK 4, xterm), driven through
+`hyprmasq-mcp` beside a user typing; and fractional scales, scale 2, rotated outputs and two monitors. What was
+general and could disturb the user or mislead the agent was fixed:
+
+| PR | Found | Now |
+| --- | --- | --- |
+| #38 | A window that took a closed window's address got the agent's input and was returned as the window of its shot; a late plugin kept a cancelled call running 13 to 18 s; "Nothing was drawn since the shot" without a shot | `window_gone` naming what has the address now, with nothing sent; cancel and `deadline_ms` bound every call; true wording |
+| #39 | Apps whose launcher forks the window away and exits (Kate, `codium` without `--wait`) opened on the user's workspace and took their typing | launches run under `hyprmasq-reaper`, which adopts what the launcher leaves, so the window opens hidden |
+| #40 | The agent's selection and copy replaced the user's primary selection and clipboard | a driven app's selections are the agent's, shared by the driven apps; the user's stay untouched |
+| #42 | The agent's input to a window of the user's app released the button or key the user held there; keys typed through an input method left the keyboard with the agent's window; a driven window's activation request took the user's focus | input waits while the user holds what it would release, and pauses with that reason; the user's keys return the keyboard on every path; activation only marks a driven window urgent |
+
+The scaling investigation found one small error of hyprmasq's, a point in the last logical pixel of the right or
+bottom edge clamped to the pixel before; the rest was correct to 1/256 of a logical pixel on every configuration.
+
+### Three machines
+
+`bench/dispatch.py` (#41) runs the benchmark on several machines into one results directory. With several builds,
+each repetition of every build runs on one machine in a row, so builds are compared machine by machine. The
+machines: a Ryzen 7 5800X3D, a Ryzen 5 5600X and a Ryzen 7 PRO 4750U laptop. The VM draws in software, so times
+depend on the machine.
+
+Round 1 compared `main` at 5e65c53 with the heads of #38, #39, #40 and #42; round 2, #42 after its rebase (328d34f)
+with `main` at df828f6. gpt-6.1-sol at 1920×1080, three runs a build and task, one on each machine; 84 runs. *Tools
+s* is the time in tools of each machine's run; *own s a call* is `analyze.py`'s rest over the `act` calls:
+
+| Round | Build | Calc | Forgejo | Thunderbird | Board labels | Own s a call (Calc, Forgejo, Thunderbird) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | `main` 5e65c53 | 21.0 / 21.9 / 20.2 | 18.4 / 17.3 / 20.7 | 25.3 / 22.6 / 24.5 | 8, 7, 8 | 0.18, 0.22, 0.20 |
+| | #38 dbda078 | 20.7 / 21.6 / 22.3 | 18.5 / 17.2 / 19.9 | 23.6 / 26.3 / 26.5 | 7, 7, 7 | 0.17, 0.24, 0.21 |
+| | #39 09f233f | 19.8 / 21.7 / 23.8 | 17.7 / 17.1 / 21.8 | 31.1 / 23.1 / 25.2 | 7, 7, 7 | 0.20, 0.22, 0.22 |
+| | #40 3a6a6b7 | 22.7 / 22.3 / 22.3 | 18.0 / 17.8 / 19.9 | 21.0 / 27.4 / 25.2 | 7, 7, 8 | 0.18, 0.22, 0.20 |
+| | #42 5757404 | 20.1 / 23.6 / 22.8 | 18.3 / 16.9 / 19.9 | 23.8 / 22.7 / 25.3 | 7, 7, 7 | 0.19, 0.24, 0.22 |
+| 2 | `main` df828f6 | 19.0 / 18.0 / 19.6 | 19.8 / 18.1 / 20.2 | 21.1 / 23.7 / 27.7 | 7, 7, 8 | 0.15, 0.23, 0.19 |
+| | #42 328d34f | 22.8 / 21.8 / 24.3 | 18.7 / 17.4 / 22.7 | 23.4 / 23.8 / 24.9 | 7, 7, 7 | 0.23, 0.22, 0.19 |
+
+- **Every Calc, Forgejo and Thunderbird run passed, and the user was undisturbed in all 84.**
+- **No drag failed on hyprmasq's side** in the 21 board runs. Every label that missed was where the agent aimed
+  it: the 8-pin CPU power label on the 5-pin header 16 times, the USB label beside its header once.
+- **The differences are the agents'.** The time in tools follows the calls, at the same time a call: #39's
+  Thunderbird run on the first machine, 31 s, had 21 calls, the runs of `main` 17 to 20. #42's Calc in round 2 formatted the growth as a
+  percentage through Format Cells in 2 of 3 runs, one or two calls more; agents do that at random, in 1 to 2 of 3
+  runs of `main`, #39 and #42's first head too. No run of #42 paused or waited on the user's input.
+
+### Slower machines
+
+The VM test (#43) failed or hung on the laptop and on a Steam Deck (Zen 2 APU), which take 16 minutes for it
+against 13 on the 5600X. The windows that the first subtest opened closed themselves after 15 minutes, before the
+last subtests used them, so a screenshot to a pipe found no window and the read of the pipe waited for ever; and the
+digit of one animation subtest changed between its two evidence images by a difference that counts as tiny, so the
+change was rightly kept, which the subtest did not expect (2 of 16 trials on the laptop at df828f6, 5 of 16 at
+5e65c53). The windows now stay, the reads of pipes wait for what they check with a time limit, and the digit
+subtest checks only that the wait does not wait for the animation and names it; the spinner subtest still checks
+that what keeps changing is left out and what is drawn is kept. The VM test of `main` at 690b3fd passes on the
+5600X, the laptop and the Deck, and `main` before #43 passed on the 5800X3D.
+
 ## Open
 
 - **Shortcuts that an app runs more than 250 ms after the key** still fail without a word beside the user's window.
-- **hyprmasq's own time per call**: beyond its waits and the sender's pacing, `act` takes 0.2 to 0.5 s a call at
-  1920×1080 and 2560×1440 and 0.8 s at 3840×2160, about 3 to 6 s a run and 10 s at 3840×2160, mostly capturing and
-  comparing; see [its investigation](#hyprmasqs-own-time). #33 renders each moment once
-  ([above](#2026-10-17-one-render-for-each-moment-33)); the comparison is now the largest part.
-- More apps, to settle floating and placement: a Qt app, an Electron app.
+- **A native Electron file chooser** opened on the user's workspace the first time it was used: GTK maps it before
+  it sets its parent, a few milliseconds later, and hyprmasq places a window when it maps. Once the parent is known
+  the chooser stays hidden.
+- **A point in the last pixel of the right or bottom edge** lands on the pixel before, up to a device pixel off at
+  scale 2 and fractional scales.
+- **Unloading the plugin while a screenshot waits for the reader of a pipe** holds Hyprland's main thread until
+  something reads the pipe: the unload joins the screenshot's thread. It needs an unload during such a write, and is
+  not being fixed for now.
 
 Settled, and not for hyprmasq:
 
+- **hyprmasq's own time per call** is now 0.15 to 0.35 s beyond its waits and the sender's pacing at 1920×1080 and
+  2560×1440, after #33 rendered each moment once and #37 made the comparison exact around what differs.
+- **A blank first shot of an Electron app** is the app still loading its page, as a browser's is; hyprmasq cannot tell
+  an Electron or CEF window from another, and the next call shows the page.
+- **Characters that only an extended key code gives**, such as € on a US keymap, do not arrive in Electron and X11
+  apps, which drop key codes above 255.
 - **Work that draws nothing** for longer than the watch is the app's, and general: lookups, account creation, page
   loads, late file choosers. Agents wait it out with one short call, 6.7% of the calls and 1.75% of the time in
   tools, and longer watches cost far more than they catch ([investigation](#work-that-draws-nothing)).
