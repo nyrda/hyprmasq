@@ -10,10 +10,14 @@
 #include <vector>
 
 // Applications that hyprmasq-mcp's launch starts, and their windows. The plugin starts the command itself, through
-// Hyprland's executor and /bin/sh, and remembers the process. When Hyprland creates a window, before it maps it, the
-// plugin follows the parents of the window's process, which /proc/<pid>/stat gives without waiting for any process,
+// Hyprland's executor and /bin/sh, under hyprmasq-reaper, and remembers the process. As the subreaper of the command's
+// processes, hyprmasq-reaper becomes the parent of those whose parents exit, as the GUI of an app whose launcher forks
+// it away and exits, and stays until the last of them has exited. When Hyprland creates a window, before it maps it,
+// the plugin follows the parents of the window's process, which /proc/<pid>/stat gives without waiting for any process,
 // up to a launched one. Such a window belongs to the launch, also one of a child process, as a browser that its
-// launcher script starts without exec. Within a minute of the launch, the plugin tags the window and registers a window
+// launcher script starts without exec, or of a process that the launch's processes left behind. Without
+// hyprmasq-reaper next to the plugin, in ../libexec of its directory or on PATH, the command runs on its own, and the
+// windows of such a process are lost. Within a minute of the launch, the plugin tags the window and registers a window
 // rule for that tag, which puts the window silently on the launch's workspace as it maps, and removes both once it has
 // mapped or is destroyed. A window that emulated input opened, see placement.hpp, it puts on the workspace of the window
 // it came from the same way, also when no launch started its app. Main thread only.

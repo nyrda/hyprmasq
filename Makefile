@@ -1,5 +1,6 @@
 PLUGIN := hyprmasq.so
 TOOL := hyprmasq-input
+REAPER := hyprmasq-reaper
 BUILD_DIR := build
 
 SRC := $(wildcard src/*.cpp)
@@ -19,7 +20,7 @@ CPPFLAGS += -DWLR_USE_UNSTABLE $(shell pkg-config --cflags $(PLUGIN_PKGS))
 
 .PHONY: all clean
 
-all: $(PLUGIN) $(TOOL)
+all: $(PLUGIN) $(TOOL) $(REAPER)
 
 $(PLUGIN): $(OBJ)
 	$(CXX) -shared -fPIC -o $@ $(OBJ) $(shell pkg-config --libs egl glesv2 libpng libeis-1.0 xkbcommon xcb)
@@ -31,7 +32,10 @@ $(BUILD_DIR)/%.o: src/%.cpp
 $(TOOL): tools/hyprmasq-input.c
 	$(CC) $(CFLAGS) $(shell pkg-config --cflags $(TOOL_PKGS)) -o $@ $< $(shell pkg-config --libs $(TOOL_PKGS))
 
+$(REAPER): tools/hyprmasq-reaper.c
+	$(CC) $(CFLAGS) -o $@ $<
+
 clean:
-	rm -rf $(BUILD_DIR) $(PLUGIN) $(TOOL)
+	rm -rf $(BUILD_DIR) $(PLUGIN) $(TOOL) $(REAPER)
 
 -include $(DEP)

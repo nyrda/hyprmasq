@@ -3457,6 +3457,36 @@ print(longest)
         # user's pointer.
         assert entry["visible"] and not entry["launched"] and entry["capabilities"] == {"lease": False, "hold": False, "dnd": False, "keyboard": "yes"}, entry
 
+    with subtest("hyprmasq-mcp launches an app whose launcher forks it away and exits"):
+        # As kate without -b and codium without --wait: the launched shell starts foot in a new session from a shell
+        # that exits at once, and exits itself, so foot has lost its parent before its window maps. The window is still
+        # the launch's, and opens hidden, while the user types into their terminal.
+        typist = foot("hm-m-detach-typist", "sh -c 'cat > /tmp/hm-m-detach-typed.txt'")
+        dispatch(f'hl.dsp.focus({{ window = "address:{typist}" }})')
+        wait_for("typist focused", lambda: snapshot() == (4, typist))
+        launcher = (
+            "echo $$ > /tmp/hm-m-detach-pids; "
+            "sh -c 'echo $$ >> /tmp/hm-m-detach-pids; setsid sh -c \"sleep 1; exec foot -T hm-m-detached sleep 600\" < /dev/null > /dev/null 2>&1 &'"
+        )
+        call = mcp.start("launch", {"command": ["sh", "-c", launcher], "workspace": "hm-m-detach", "timeout_s": 20})
+        lines = [f"user line {n} typed during the launch" for n in range(3)]
+        machine.send_chars("".join(line + "\n" for line in lines), delay=0.04)
+        detached = mcp.result(call)
+        assert not detached.is_error, detached
+        keep(detached, "launched-detached")
+        assert (detached.data["window"]["title"], detached.data["window"]["workspace"]) == ("hm-m-detached", "hm-m-detach"), detached
+        assert client("hm-m-detached")["workspace"]["name"] == "hm-m-detach" and snapshot() == (4, typist), client("hm-m-detached")
+        # Both shells of the launcher exited.
+        for pid in machine.succeed("cat /tmp/hm-m-detach-pids").split():
+            machine.fail(f"kill -0 {pid}")
+        wait_for("the typing", lambda: machine.succeed("cat /tmp/hm-m-detach-typed.txt") == "".join(line + "\n" for line in lines), timeout=20)
+        closed = mcp.call("close", {"window": detached.data["window"]["window"]})
+        assert not closed.is_error and closed.data["closed"], closed
+        dispatch(f'hl.dsp.window.close({{ window = "address:{typist}" }})')
+        wait_for("typist closed", lambda: client("hm-m-detach-typist") is None)
+        dispatch(f'hl.dsp.focus({{ window = "address:{visible}" }})')
+        wait_for("focus back", lambda: snapshot() == (4, visible))
+
     with subtest("hyprmasq-mcp gives Claude Code the text in place of structured content"):
         # Claude Code passes the model a result's structured content in place of its text, so it gets none.
         claude = Mcp("claude")

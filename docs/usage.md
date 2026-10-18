@@ -479,6 +479,16 @@ launch, and `hyprmasq-launch` prints the first one that
 that starts the application as a child instead of with `exec`, such as
 Chromium's and so Brave's, and every window of the application.
 
+The command runs under `hyprmasq-reaper`, a small helper that the plugin finds
+next to `hyprmasq.so`, in `../libexec` of its directory, as the Nix package
+installs it, or on `PATH`. It becomes the parent of the command's processes
+whose own parent exits, and stays until the last of them has exited. So the
+windows of an application whose launcher forks it away and exits, as `kate`
+without `-b` and the `codium` command without `--wait` do, belong to the launch
+too. Without `hyprmasq-reaper`, such windows open on your visible workspace
+with the focus, and the launch times out; Hyprland's log then has a warning
+from the plugin.
+
 For a window created within a minute of the launch, the plugin tags the window
 and registers a window rule for that tag, so it opens silently on the
 workspace: the visible workspace and the focus stay as they are. Registered
@@ -491,9 +501,10 @@ Hyprland and your rules put them, unless emulated input opened them
 
 Applications that hand the request to an instance that is already running,
 such as a `footclient` of a `foot --server` or a browser that is already open,
-open the window from a process outside the launch. The launch then times out,
-and the window opens wherever that instance puts it. Start such applications
-with an option for a separate instance.
+or that D-Bus or a service manager starts, open the window from a process
+outside the launch. The launch then times out, and the window opens wherever
+that instance puts it. Start such applications with an option for a separate
+instance.
 
 `hyprmasq-launch` needs `hyprctl` and `jq`. The Nix package brings `jq`.
 
@@ -1327,7 +1338,7 @@ loss close once the sender exits. Open them and pick the entry in one run.
 - A leased window keeps its emulated focus while the session is locked. Your
   real keys still go to the lock screen.
 - `hyprmasq-launch` cannot find windows that an already running instance
-  opens.
+  opens, or a process that D-Bus or a service manager starts for the launch.
 - Placing [new windows](#new-windows) does not count scrolling or pointer
   motion as your input, so that hovering over your own window of a driven app
   does not take the agent's windows. A window that an app creates without a

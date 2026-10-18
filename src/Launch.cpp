@@ -3,6 +3,7 @@
 #include "Windows.hpp"
 
 #include <hyprland/src/config/supplementary/executor/Executor.hpp>
+#include <hyprland/src/debug/log/Logger.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
 #include <hyprland/src/desktop/rule/Engine.hpp>
 #include <hyprland/src/desktop/rule/windowRule/WindowRule.hpp>
@@ -12,8 +13,12 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
+#include <dlfcn.h>
+#include <filesystem>
 #include <format>
 #include <optional>
+#include <ranges>
 #include <unistd.h>
 
 namespace hyprmasq::launch {
@@ -49,6 +54,42 @@ namespace hyprmasq::launch {
         unsigned              serial = 0;
 
         CHyprSignalListener   created, mapped, destroyed;
+
+        // hyprmasq-reaper, which the command of a launch runs under, or empty when there is none.
+        std::string reaper;
+
+        bool        executable(const std::filesystem::path& path) {
+            return path.is_absolute() && access(path.c_str(), X_OK) == 0;
+        }
+
+        // Next to the plugin, as make builds both, in ../libexec of the plugin's directory, as the Nix package installs
+        // it, or on PATH.
+        std::string findReaper() {
+            Dl_info info;
+            if (dladdr(reinterpret_cast<void*>(&findReaper), &info) && info.dli_fname) {
+                const auto dir = std::filesystem::path(info.dli_fname).parent_path();
+                for (const auto& candidate : {dir / "hyprmasq-reaper", dir.parent_path() / "libexec" / "hyprmasq-reaper"})
+                    if (executable(candidate))
+                        return candidate.string();
+            }
+            const char* path = std::getenv("PATH");
+            for (const auto& dir : std::string_view(path ? path : "") | std::views::split(':'))
+                if (const auto candidate = std::filesystem::path(std::string_view(dir)) / "hyprmasq-reaper"; executable(candidate))
+                    return candidate.string();
+            return "";
+        }
+
+        // One argument for /bin/sh.
+        std::string shellQuoted(std::string_view arg) {
+            std::string out = "'";
+            for (const char c : arg) {
+                if (c == '\'')
+                    out += "'\\''";
+                else
+                    out += c;
+            }
+            return out + "'";
+        }
 
         // Names that came from a hyprctl request must not reach a rule as anything but a workspace name or a token.
         bool validToken(std::string_view token) {
@@ -147,6 +188,11 @@ namespace hyprmasq::launch {
     }
 
     void init() {
+        reaper = findReaper();
+        if (reaper.empty())
+            Log::logger->log(Log::WARN, "[hyprmasq] hyprmasq-reaper not found next to the plugin or on PATH: a launch loses the windows of an app whose launcher exits");
+        else
+            Log::logger->log(Log::DEBUG, "[hyprmasq] launching through {}", reaper);
         created   = Event::bus()->m_events.window.create.listen([](PHLWINDOW window) { onCreate(window); });
         mapped    = Event::bus()->m_events.window.openEarly.listen([](PHLWINDOW window) { onMapped(window); });
         destroyed = Event::bus()->m_events.window.destroy.listen([](PHLWINDOWREF window) { onDestroyed(window); });
@@ -172,7 +218,10 @@ namespace hyprmasq::launch {
         std::erase_if(launches, [](const auto& l) { return !alive(l); });
         if (launches.size() >= MAX_LAUNCHES)
             launches.erase(launches.begin());
-        const auto pid = Config::Supplementary::executor()->spawnRaw(command);
+        // Under hyprmasq-reaper, the started process stays, as the parent of the command's processes whose parents exit, as
+        // the GUI of an app whose launcher forks it away and exits, until the last of them has exited, so launchOf finds
+        // it from their windows too.
+        const auto pid = Config::Supplementary::executor()->spawnRaw(reaper.empty() ? command : std::format("exec {} /bin/sh -c {}", shellQuoted(reaper), shellQuoted(command)));
         if (!pid || *pid <= 1)
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot start the command"});
         // A process that has already exited has no windows to find.

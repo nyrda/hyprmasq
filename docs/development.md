@@ -4,7 +4,7 @@ Run `./dev.sh` from the repository root.
 
 | Command | Purpose |
 | --- | --- |
-| `./dev.sh build` | Build `hyprmasq.so` and `hyprmasq-input` inside the flake's dev shell. This is the default command. |
+| `./dev.sh build` | Build `hyprmasq.so`, `hyprmasq-reaper` and `hyprmasq-input` inside the flake's dev shell. This is the default command. |
 | `./dev.sh vm-test` | Run the headless NixOS VM integration test. |
 | `./dev.sh vm-test-interactive` | Open the test's interactive driver. |
 
@@ -151,6 +151,7 @@ output, installs the plugin through the NixOS module, and runs
 | Virtual cursor | A moved pointer shows a light blue cursor on the monitor, a click a ripple beside it; both fade out, and input during the fade restores the cursor. A shorter `virtual_cursor_timeout` makes it fade sooner. Nothing is drawn for a window on a hidden workspace. Changing `virtual_cursor_color` recolors it, `virtual_cursor = false` hides it. |
 | MCP tools | `hyprmasq-mcp`, driven over stdio by a JSON-RPC client in the test: the instructions start with a summary line; `tools/list` has `windows`, `launch`, `screenshot`, `act`, `release` and `close` with input schemas, `windows` with `match` and `wait_ms` up to 10000, none is read-only, and `windows`, `screenshot`, `launch` and `release` are not destructive. In every subtest, the structured content of each result carries all of its text: the error, the summary and the hint. |
 | MCP launch | `launch` starts foot on a hidden workspace and returns its shot and summary line, and `windows` lists it as launched, not resizing, with its capabilities; its line leaves out the pid and the capabilities, which it has all of. |
+| MCP launch of a detaching app | The launched shell starts `foot` in a new session from a shell that exits at once, and exits too, as `kate` without `-b` does; `launch` returns the window on its hidden workspace while the user types into a terminal, both shells have exited, and the focus and every typed line stay with the user. |
 | MCP for Claude Code | A server whose client introduces itself as `claude-code` gives results no structured content, so Claude Code passes the text: `windows` with `match` in another case lists only the launched shell, with its shot and image, a `match` without windows says so, a screenshot has its summary and image, and an error its error line. Another client gets the structured content, with the same `match` and the shell's `shot`, whose line is in its `summary`, and a `match` without windows says so in its `summary`. |
 | MCP typing | One `act` types a command and presses Enter, waits until the shell has redrawn, returns what changed since the shot that `windows` returned for the shell, the session's last of it, a zoom into the lines of the command and its output, and holds a lease; the command ran. |
 | MCP coordinates | A click at a shot pixel reaches focus-probe at the matching window-local point, also at scale 2 and in a zoom shot of a region. The first click draws nothing, so its result has no image, names the shot the window still shows, and says that the click may also have opened a window that maps later. A screenshot of the window's address in upper case and with leading zeros is of that window, and names it in lower case. |
@@ -242,6 +243,7 @@ gate for PRs.
 | `src/Process.cpp` | Reads of `/proc/<pid>/stat`: a process's parent and start time, which never wait for the process. |
 | `src/Windows.cpp` | Window address formatting and lookup, the walk over a window's surfaces, and whether a window has caught up with a resize. |
 | `tools/hyprmasq-input.c` | The libei sender command: parsing and checks, pacing, per-frame confirmation, JSON results. |
+| `tools/hyprmasq-reaper.c` | The helper that a launch's command runs under, as the subreaper of its processes. |
 | `tools/hyprmasq-launch` | Starts an application on a hidden workspace and prints its window's address. |
 | `mcp/cmd/hyprmasq-mcp` | The MCP server's command: options, signals and the session's end. |
 | `mcp/internal/hypr` | Requests to Hyprland's socket, the plugin's replies, and Hyprland's events. |

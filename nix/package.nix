@@ -7,7 +7,7 @@
 #
 # Besides the plugin, $out/bin/hyprmasq-input is a small libei client for driving a window's socket,
 # $out/bin/hyprmasq-launch starts an application on a hidden workspace, and $out/bin/hyprmasq-mcp is the MCP
-# server for coding agents.
+# server for coding agents. $out/libexec/hyprmasq-reaper is the plugin's helper that a launch's command runs under.
 {
   lib,
   stdenv,
@@ -52,6 +52,7 @@
         "bench"
         # Left by make in the work tree; a copy would keep make from building it.
         "hyprmasq-input"
+        "hyprmasq-reaper"
       ])
       && !(lib.hasSuffix ".so" base);
   },
@@ -101,6 +102,8 @@ stdenv.mkDerivation {
     runHook preInstall
     install -Dm755 hyprmasq.so "$out/lib/hyprmasq.so"
     install -Dm755 hyprmasq-input "$out/bin/hyprmasq-input"
+    # The plugin finds it next to itself, in ../libexec.
+    install -Dm755 hyprmasq-reaper "$out/libexec/hyprmasq-reaper"
     install -Dm755 tools/hyprmasq-launch "$out/bin/hyprmasq-launch"
     # hyprctl comes from the user's PATH, so it matches the running Hyprland.
     wrapProgram "$out/bin/hyprmasq-launch" --prefix PATH : ${lib.makeBinPath [ jq ]}

@@ -1850,13 +1850,18 @@ The server refuses to run against another interface (`plugin_version`).
   from a later one at its address. Plain text prints a `source:` line.
 
 **`launch <workspace> <token> <command line>`** starts the command line with
-`/bin/sh -c` through Hyprland's executor, and answers `{"ok":true,"pid":N}`.
+`/bin/sh -c` under `hyprmasq-reaper` through Hyprland's executor, and answers
+`{"ok":true,"pid":N}`, the pid of `hyprmasq-reaper`.
 The workspace and the command line are written in hex, two digits a byte,
 since `hyprctl` and Hyprland look for words such as `--batch`, `/instances`
 and `rollinglog` anywhere in a request. The workspace is a name of letters, digits,
 `_`, `.` and `-`, the token 1 to 64 hex digits. The plugin remembers the
 process with its start time, which tells it from a later process with the same
-pid.
+pid. `hyprmasq-reaper`, which the plugin finds next to itself, in `../libexec`
+of its directory or on `PATH`, makes itself the subreaper of the command's
+processes: one whose parent exits gets it for its parent, and it exits once the
+last of them has. Without it, the plugin runs the command line on its own and
+logs a warning when it loads.
 
 **`launched`** lists the mapped windows of launches:
 `{"ok":true,"windows":[{"address":"0x55d1c0a3e4b0","stableId":"1a","token":"9c1f0e4ab27d3365"}]}`,
@@ -1866,7 +1871,8 @@ parents of the window's process in `/proc/<pid>/stat`, which the kernel answers
 without waiting for the process, up to 32 of them and up to Hyprland itself. A
 window whose process is a launched one or descends from it belongs to that
 launch, also one of a child that a launcher script starts without `exec`, as
-Chromium's does. Within a minute of the launch, the plugin tags the window
+Chromium's does, and one of a process whose parent exited, as an application's
+that its launcher forks away, since `hyprmasq-reaper` is then its parent. Within a minute of the launch, the plugin tags the window
 `hyprmasq-<n>` and registers a window rule, `workspace name:<workspace>
 silent;no_initial_focus 1`, that matches that tag. Hyprland ignores a workspace
 rule, `silent` included, that names the workspace the window would open on

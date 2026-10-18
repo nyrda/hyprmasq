@@ -13,8 +13,9 @@ rebuild the plugin whenever Hyprland changes.
 
 After installing, [register the MCP server](#mcp-server) with your coding agents.
 
-Every method produces the plugin `hyprmasq.so` and the `hyprmasq-input`
-command-line client. The shell script `tools/hyprmasq-launch`, which starts
+Every method produces the plugin `hyprmasq.so`, its helper `hyprmasq-reaper`,
+which a launched command runs under, and the `hyprmasq-input` command-line
+client. The shell script `tools/hyprmasq-launch`, which starts
 applications on a hidden workspace, needs no build. The Nix package also
 contains `hyprmasq-mcp`, the [MCP server](#mcp-server) for coding agents;
 other methods build it with Go.
@@ -106,8 +107,9 @@ cd hyprmasq
 ./dev.sh build
 ```
 
-This runs `make` inside the flake's dev shell and produces `hyprmasq.so` and
-`hyprmasq-input` in the repository root. Build the MCP server with the Go of
+This runs `make` inside the flake's dev shell and produces `hyprmasq.so`,
+`hyprmasq-reaper` and `hyprmasq-input` in the repository root. The plugin finds
+`hyprmasq-reaper` next to itself. Build the MCP server with the Go of
 the same shell:
 
 ```sh
@@ -152,9 +154,11 @@ hl.on("hyprland.start", function()
 end)
 ```
 
-hyprpm installs only the plugin. Build `hyprmasq-input` from a clone with
-`make hyprmasq-input` and copy it onto your `PATH`, or use any other libei
-sender. Copy `tools/hyprmasq-launch` onto your `PATH` too, and install `jq`
+hyprpm installs only the plugin. Build `hyprmasq-reaper` from a clone with
+`make hyprmasq-reaper` and copy it onto the `PATH` that Hyprland starts with,
+so that launches keep the windows of applications whose launcher exits. Build
+`hyprmasq-input` with `make hyprmasq-input` and copy it onto your `PATH`, or
+use any other libei sender. Copy `tools/hyprmasq-launch` onto your `PATH` too, and install `jq`
 for it. For agents, build `hyprmasq-mcp` from the same clone as in the manual
 build and copy it onto your `PATH`. Run `hyprpm update` after every Hyprland update. The repository has no
 compatibility pins for older Hyprland releases.
