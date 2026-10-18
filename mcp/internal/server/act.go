@@ -1365,6 +1365,41 @@ func (s *Server) windowGone(ctx context.Context, window string) bool {
 	return errors.As(err, &pe) && pe.Code == "window_gone"
 }
 
+// pauseReason asks the plugin why it last paused the window's input, or "" when it cannot tell.
+func (s *Server) pauseReason(ctx context.Context, window string) string {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
+	st, err := s.hypr.State(ctx, window)
+	if err != nil || st.LastPause == nil {
+		return ""
+	}
+	return *st.LastPause
+}
+
+// pausedError explains an input_paused by the plugin's reason for the pause. With some of the batch delivered, the hint
+// does not invite a retry, which would send that part again.
+func pausedError(message, reason string, delivered bool) *toolError {
+	why, retry, goOn := "", "Retry later, or ask the user.", "Go on once the user has left it, or ask the user."
+	switch reason {
+	case "user_button", "user_key":
+		held := map[string]string{"user_button": "a mouse button", "user_key": "a key"}[reason]
+		why = fmt.Sprintf("the user is holding %s in a window of the same app, which the input would have released", held)
+		retry = "The plugin held the input back for a second, then paused it. Retry once the user has let go, or ask the user."
+		goOn = "The plugin held the input back for a second, then paused it and dropped the rest. Go on once the user has let go, or ask the user."
+	case "x11_unresponsive":
+		why = "the window's X server did not answer in time"
+		retry = "The plugin paused the input for half a second. Retry; if it happens again, tell the user."
+		goOn = "The plugin paused the input for half a second and dropped the rest. Look at the window, then go on from what it shows."
+	default:
+		why = "the user is working in another window of the same X server"
+	}
+	hint := retry
+	if delivered {
+		hint = goOn
+	}
+	return &toolError{Code: "input_paused", Message: message + ": " + why, Hint: hint}
+}
+
 // closedWhileSent reports a window that closed while the batch was sent, after some of its input was applied. It names
 // the actions before failed, which were delivered, so that they are not sent again.
 func closedWhileSent(window string, batch []action, done, failed int) *toolError {
@@ -1466,12 +1501,7 @@ func (s *Server) senderError(clientCtx, sendCtx context.Context, reply senderRep
 	case "cannot_type":
 		return &toolError{Code: code, Message: where + ": " + message, Hint: hintCannotType}
 	case "input_paused":
-		hint := "The user is working in another window of the same X server. Retry later, or ask the user."
-		if delivery != "none" {
-			// Retrying would type again what the window already got.
-			hint = "The user is working in another window of the same X server, so the plugin paused the input and dropped the rest. Go on once the user has left it, or ask the user."
-		}
-		return &toolError{Code: code, Message: message, Hint: hint}
+		return pausedError(message, s.pauseReason(clientCtx, r.window), delivery != "none")
 	case "cancelled":
 		// Neither the client nor the deadline stopped it.
 		hint := "Retry; if it happens again, tell the user that something stops hyprmasq-input."

@@ -333,7 +333,7 @@ hyprctl -j hyprmasq state "$addr"
 {"ok":true,"address":"0x55d1c0a3e4b0","stableId":"1a","xwayland":false,
  "size":{"width":640,"height":400},"resizing":false,"starved":false,"scale":2,
  "socket":"/run/user/1000/hyprmasq/<instance>/0x55d1c0a3e4b0.eis","socketId":"9f3a61c2-3",
- "commits":123,"interrupted":0,
+ "commits":123,"interrupted":0,"lastPause":null,
  "drag":{"id":0,"phase":"none","private":false,"reason":null,"started":0,"finished":0,"cancelled":0,"unconfirmed":0,"ended":[]},
  "lease":{"held":true,"remainingMs":58210,"owner":"mcp-4242-a1b2c3d4"},
  "capabilities":{"lease":true,"hold":true,"dnd":false,"privateDnd":true,"keyboard":"yes"}}
@@ -362,8 +362,8 @@ hyprctl -j hyprmasq state "$addr"
   window is not starved, also when it waits for a frame callback again. An
   application with nothing new to draw is starved too, and a
   `wait … since` with `expect` ends `no_redraw` for it.
-- `socket`, `socketId`, `commits`, `interrupted` and `drag` are `null`
-  without an open socket. `socketId` names the socket that `commits` counts for; see
+- `socket`, `socketId`, `commits`, `interrupted`, `lastPause` and `drag` are
+  `null` without an open socket. `socketId` names the socket that `commits` counts for; see
   [The commit counter](#the-commit-counter). `lease` is `null` when none is
   held.
 - `interrupted` counts the times your own input to the window's Wayland
@@ -372,6 +372,14 @@ hyprctl -j hyprmasq state "$addr"
   that failed: the app may have run the shortcut before, or may run one so late
   that it misses the focus without being counted. See
   [How input is delivered](#how-input-is-delivered).
+- `lastPause` tells why the plugin last paused the socket's devices, which
+  stops `hyprmasq-input` with `input_paused`, or is `null` before the first
+  pause: `user_button` or `user_key` when you held a button or a key in a
+  window of the same Wayland connection for longer than the plugin held the
+  input back (see [How input is delivered](#how-input-is-delivered)),
+  `x11_focus` when you were in another window of the same X server, and
+  `x11_unresponsive` when the X server did not answer in time (see
+  [X11 windows](#x11-windows)).
 - `drag` records the drag-and-drop operations that the window's app started
   while the window was not the active window and the socket was open, see
   [Drag-and-drop](#drag-and-drop). `id` counts them, and the rest is about the
@@ -702,7 +710,7 @@ its last line, after the lines of its syncs:
 
 | `delivery` | Meaning |
 | --- | --- |
-| `none` | Nothing was sent. |
+| `none` | Nothing was sent, or the plugin paused the input before it delivered any of it: after a pause it drops every frame that it has not confirmed. |
 | `complete` | The plugin processed every event, apart from releases left unsent when it closed the connection. |
 | `partial` | The actions before `failedIndex` were processed. The failed action may be processed in part, for example some keys of a text, and later actions were not sent. The plugin took every frame that was sent, so `progress.keys` counts exactly the keys it processed. |
 | `uncertain` | The connection ended, or the plugin stopped answering, before it took everything that was sent, for example frames sent after the plugin closed the socket. Any action from `failedIndex` on may or may not have been processed. |
@@ -714,7 +722,7 @@ its last line, after the lines of its syncs:
 | `too_long` | The actions take longer at their pace than what is left of `--budget`, which `paceMs` and the message tell. `failedIndex` is `null`. Exit status 2. |
 | `connect_failed` | The socket cannot be reached. |
 | `no_devices` | The plugin offered no pointer and keyboard within 5 seconds, removed the pointer without offering a new one within a second, removed the keyboard, or sent no usable keymap. |
-| `input_paused` | The plugin paused the devices: an X11 window's input is refused while another window of its X server has the focus. See [X11 windows](#x11-windows). |
+| `input_paused` | The plugin paused the devices: an X11 window's input is refused while another window of its X server has the focus, see [X11 windows](#x11-windows), or you held a button or key for more than a second in a window of the target's Wayland connection, see [How input is delivered](#how-input-is-delivered). `state`'s `lastPause` tells which. |
 | `unconfirmed` | The plugin closed the connection, replaced the pointer while events on it were unconfirmed, or did not answer within 5 seconds. |
 | `cancelled` | SIGINT or SIGTERM stopped the run. It reports within about a second, see [Releasing held input](#releasing-held-input). |
 
@@ -917,7 +925,9 @@ brought it would take it from your window. The target gets it with its first
 key instead.
 Your own keys, modifiers and clicks to that connection take the keyboard
 focus back first, before Hyprland sends them, so they reach your window, never
-the target. A shortcut or function key of the target that the app had not run
+the target. That includes keys that an input method's keyboard grab takes, as
+fcitx5 and ibus do: the plugin sees them before Hyprland passes them to the
+input method, which then commits its text to your window. A shortcut or function key of the target that the app had not run
 by then may do nothing. `state` counts in `interrupted` each return of the
 focus within a quarter of a second of such a key, whether or not the app had
 run it. Drags do not carry
@@ -929,6 +939,19 @@ modifiers with the modifiers of your keyboard. `state` reports this as a
 missing `hold` capability. Each time the keyboard focus moves between the two
 windows, the app sees one of them lose focus: a browser fires `blur` and
 `focus` in your page.
+
+Moving the connection's focus to the target and back would also let go of what
+you hold in your window: the pointer's leave releases your held mouse button,
+which ends your selection, slider or a page's drag, and your window takes the
+keyboard's leave for the release of a key you hold, which then stops
+repeating. So while you hold a button in a window of the target's connection,
+the plugin holds the target's pointer frames back, and while you hold a key
+there, also through an input method's grab, the keyboard frames that would
+take the keyboard focus from your window. They go on once you let go. A frame that waits for more than a second
+is dropped, and the devices pause as for [X11 windows](#x11-windows):
+`hyprmasq-input` stops with `input_paused`, and `state`'s `lastPause` says
+`user_button` or `user_key`. The frames behind the one that waits wait too, so
+input keeps its order.
 
 Hidden windows normally stop receiving frame callbacks, so many applications
 stop redrawing. The plugin sends a hidden target frame callbacks every 16 ms
@@ -1197,6 +1220,16 @@ next to the window it came from, is only marked urgent when it asks for
 activation, also with `misc:focus_on_activate`, for as long as it lives; an
 activation that you force, for example through a taskbar, still focuses it.
 
+The same holds for a Wayland app with a driven window, a window with an open
+socket, also one that the plugin did not place: apps ask for activation in
+answer to input, as a terminal does for its bell or a page through
+`window.focus()`, which with `misc:focus_on_activate` would take your focus
+and switch your workspace. The driven window itself is only marked urgent, and
+so are the other windows of its Wayland connection while you are in another
+app, as for [X11 apps](#security-model). So while an agent drives a window of
+your browser, a link that you open from another app marks the browser's window
+urgent instead of focusing it.
+
 For now, such a window floats at the size the app asks for, centered on its
 workspace, while a launch's windows tile as usual. A window that input opens in
 a launch's first minute, which the launch places, floats on the launch's
@@ -1291,7 +1324,8 @@ tells how many keys of a text got through. The devices resume
 when the focus changes to a window that allows input, at the earliest half a
 second after the pause. The plugin also pauses them for half a second when
 XWayland does not answer within 100 ms, so a stuck X server cannot freeze
-Hyprland.
+Hyprland. `state`'s `lastPause` says `x11_focus` or `x11_unresponsive`. Frames
+that the sender sent before it saw the pause are dropped too.
 
 `eis open <addr> force` skips this check. The plugin then switches X focus
 to the target and back within each input frame, as it does for two windows
@@ -1342,6 +1376,12 @@ loss close once the sender exits. Open them and pick the entry in one run.
   input: the window opens silently on the workspace of the window it came from,
   and is only marked urgent when it asks for activation. See
   [New windows](#new-windows).
+- A Wayland app with a driven window cannot take your focus or workspace by
+  asking for activation: the driven window is only marked urgent, and so are
+  the app's other windows while you are in another app.
+- Emulated input never releases a button or key that you hold in a window of
+  the target's app: it waits until you let go, or pauses. See
+  [How input is delivered](#how-input-is-delivered).
 - An X11 app with a driven window cannot take focus while you are in another
   app: the plugin ignores its activation requests and does not focus the
   windows it maps. For xwayland-satellite, and for XWayland apps that do not
@@ -1397,7 +1437,9 @@ loss close once the sender exits. Open them and pick the entry in one run.
   gets your clipboard back.
 - Held keys, key repeat, drags and clicks with modifiers are unreliable when
   the target shares a Wayland connection with the focused window or with the
-  window under the real pointer. Shortcuts there may do nothing when you type
+  window under the real pointer. There, a button or key that you hold in your
+  window holds the input back, for up to a second, after which it stops with
+  `input_paused`. Shortcuts there may do nothing when you type
   or click in the same app while they settle, or when the app takes longer
   than a quarter of a second to run them.
 - Screenshot paths cannot contain whitespace.

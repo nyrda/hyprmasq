@@ -2268,6 +2268,19 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
         assert snapshot() == before_focus
         machine.succeed("test ! -s /tmp/hyprmasq-visible-input")
 
+    def watch_events(log):
+        """Logs Hyprland's IPC events, one per line, to /tmp/hyprmasq-{log}.log until the test ends."""
+        machine.succeed(
+            "cat > /tmp/hm-events.py <<'EOF'\nimport socket, sys\ns = socket.socket(socket.AF_UNIX)\ns.connect(sys.argv[1])\n"
+            "for line in s.makefile():\n    print(line.strip(), flush=True)\nEOF"
+        )
+        spawn(f"python3 /tmp/hm-events.py {runtime}/hypr/{instance}/.socket2.sock", log)
+
+    def urgent(log, address):
+        return f"urgent>>{address.removeprefix('0x')}" in machine.succeed(f"cat /tmp/hyprmasq-{log}.log").splitlines()
+
+    watch_events("ipc-events")
+
     with subtest("a window that emulated input opens opens silently next to the driven window"):
         # The foot server opens the windows of footclients that the hidden shell starts: windows of the driven window's
         # process, as a browser's popups are, in an app that no launch started.
@@ -2308,10 +2321,13 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
         late = open_from_hidden("hm-opened-late", delay=6, bell=3)
         assert late["workspace"]["id"] == 60, late
         wait_for("late window focused", lambda: snapshot() == (60, late["address"]))
-        # Its activation request takes the focus back, as that of a window the plugin did not place does.
+        # Its activation request only marks it urgent, although the plugin did not place it: its app has a driven
+        # window, and the user is in another app.
         dispatch(f'hl.dsp.focus({{ window = "address:{other}" }})')
         wait_for("other app focused", lambda: snapshot() == (60, other))
-        wait_for("late window activated", lambda: snapshot() == (60, late["address"]), timeout=10)
+        wait_for("late window's activation request", lambda: urgent("ipc-events", late["address"]), timeout=10)
+        time.sleep(1)
+        assert snapshot() == (60, other)
         # With the user's focus in the same app and no key of theirs since the input, the input opened it.
         focus_workspace(8)
         wait_for("shared visible focus", lambda: snapshot() == (8, shared_visible))
@@ -2529,6 +2545,184 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
         for title in ["hm-cfs-agent", "hm-cfs-user"]:
             dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
         wait_for("shared click focus probe closed", lambda: client("hm-cfs-agent") is None and client("hm-cfs-user") is None)
+
+    def hold_probe(log, user_title, agent_title, user_workspace, agent_workspace):
+        """A focus probe as a browser of the user's: their window focused on user_workspace, and the agent's on
+        agent_workspace, hidden, with a socket. Returns the addresses, the socket and the center of the user's window."""
+        focus_workspace(user_workspace)
+        spawn(f"hyprmasq-focus-probe focus {user_title} {agent_title}", log)
+        wait_for("hold probe", lambda: client(user_title) and client(agent_title))
+        dispatch(f'hl.dsp.window.move({{ window = "title:^{agent_title}$", workspace = "{agent_workspace}", follow = false }})')
+        user, agent = client(user_title)["address"], client(agent_title)["address"]
+        dispatch(f'hl.dsp.focus({{ window = "address:{user}" }})')
+        wait_for("user window focus", lambda: snapshot() == (user_workspace, user))
+        (x, y), (width, height) = client(user_title)["at"], client(user_title)["size"]
+        return user, agent, open_socket(agent), (x + width // 2, y + height // 2)
+
+    def index_of(events, predicate):
+        return next((i for i, (_, e) in enumerate(events) if predicate(e)), None)
+
+    with subtest("the user's held button in a window of the agent's connection survives the agent's pointer input"):
+        # Pointer input to the agent's window moves the connection's pointer away from the user's window and back,
+        # and the leave would release the button the user holds there, in a selection or a slider. The agent's frame
+        # waits until the user lets go, and a hold longer than a second pauses the input instead, which tells why.
+        hb_user, hb_agent, hb_path, (cx, cy) = hold_probe("hb", "hm-hb-user", "hm-hb-agent", 72, 73)
+
+        def hold_button(ms, log):
+            alice(f"{client_env} nohup hyprmasq-user-input button {cx} {cy} {ms} > /tmp/hyprmasq-{log}.log 2>&1 &")
+            wait_for("the user's press", lambda: "pressed" in machine.succeed(f"cat /tmp/hyprmasq-{log}.log"), timeout=10)
+
+        def released(log):
+            machine.wait_until_succeeds(f"grep -q released /tmp/hyprmasq-{log}.log", timeout=15)
+
+        start = len(probe_events("hb"))
+        hold_button(700, "hb-short")
+        wait_for("the press in the user's window", lambda: index_of(probe_events("hb", start), lambda e: e == "button hm-hb-user 1") is not None, timeout=10)
+        run_input_background("hb-move", hb_path, "move", 30, 30)
+        status, result = input_result("hb-move")
+        assert status == 0 and result["ok"], result
+        released("hb-short")
+        events = probe_events("hb", start)
+        press, release = index_of(events, lambda e: e == "button hm-hb-user 1"), index_of(events, lambda e: e == "button hm-hb-user 0")
+        motion = index_of(events, lambda e: e.startswith("motion hm-hb-agent "))
+        assert press is not None and release is not None and motion is not None, events
+        # The user's own release ends their hold, and only then does the agent's motion arrive.
+        assert events[release][0] - events[press][0] >= 600, events
+        assert release < motion and not any(e == "pointer leave hm-hb-user" for _, e in events[press:release]), events
+        assert [e for _, e in events].count("button hm-hb-user 0") == 1, events
+
+        start = len(probe_events("hb"))
+        hold_button(2500, "hb-long")
+        wait_for("the press in the user's window", lambda: index_of(probe_events("hb", start), lambda e: e == "button hm-hb-user 1") is not None, timeout=10)
+        run_input_background("hb-paused", hb_path, "move", 30, 30)
+        status, result = input_result("hb-paused")
+        # The plugin dropped the frame that waited, the first one, so nothing arrived.
+        assert status != 0 and result["error"]["code"] == "input_paused" and result["delivery"] == "none", result
+        assert window_state(hb_agent)["lastPause"] == "user_button"
+        released("hb-long")
+        wait_for("the user's release", lambda: index_of(probe_events("hb", start), lambda e: e == "button hm-hb-user 0") is not None, timeout=10)
+        events = probe_events("hb", start)
+        press, release = index_of(events, lambda e: e == "button hm-hb-user 1"), index_of(events, lambda e: e == "button hm-hb-user 0")
+        assert events[release][0] - events[press][0] >= 2400, events
+        assert not any(e.startswith(("pointer leave hm-hb-user", "motion hm-hb-agent ")) for _, e in events), events
+        # Once the user has let go, the agent's input goes through again.
+        start = len(probe_events("hb"))
+        send(hb_path, "move", 40, 40)
+        wait_for("the agent's motion", lambda: index_of(probe_events("hb", start), lambda e: e.startswith("motion hm-hb-agent ")) is not None, timeout=10)
+        assert snapshot() == (72, hb_user)
+
+    with subtest("the user's held key in a window of the agent's connection survives the agent's keys"):
+        # A key to the agent's window moves the connection's keyboard focus away from the user's window and back, and
+        # the user's window would take the leave for the release of the key they hold, which then stops repeating.
+        start = len(probe_events("hb"))
+        machine.send_monitor_command("sendkey a 700")
+        wait_for("the user's key", lambda: keys_of(probe_events("hb", start), "hm-hb-user") == [letter_codes["a"]], timeout=10)
+        run_input_background("hb-key", hb_path, "key", letter_codes["b"])
+        status, result = input_result("hb-key")
+        assert status == 0 and result["ok"], result
+        events = probe_events("hb", start)
+        down, up = index_of(events, lambda e: e == "key hm-hb-user 30 1"), index_of(events, lambda e: e == "key hm-hb-user 30 0")
+        agent_key = index_of(events, lambda e: e == "key hm-hb-agent 48 1")
+        assert down is not None and up is not None and agent_key is not None, events
+        assert events[up][0] - events[down][0] >= 600, events
+        assert up < agent_key and not any(e == "keyboard leave hm-hb-user" for _, e in events[down:up]), events
+
+        start = len(probe_events("hb"))
+        machine.send_monitor_command("sendkey a 2500")
+        wait_for("the user's key", lambda: keys_of(probe_events("hb", start), "hm-hb-user") == [letter_codes["a"]], timeout=10)
+        run_input_background("hb-key-paused", hb_path, "key", letter_codes["b"])
+        status, result = input_result("hb-key-paused")
+        # The plugin dropped the frame that waited, the first one, so nothing arrived.
+        assert status != 0 and result["error"]["code"] == "input_paused" and result["delivery"] == "none", result
+        assert window_state(hb_agent)["lastPause"] == "user_key"
+        wait_for("the user's release", lambda: index_of(probe_events("hb", start), lambda e: e == "key hm-hb-user 30 0") is not None, timeout=10)
+        events = probe_events("hb", start)
+        down, up = index_of(events, lambda e: e == "key hm-hb-user 30 1"), index_of(events, lambda e: e == "key hm-hb-user 30 0")
+        assert events[up][0] - events[down][0] >= 2400, events
+        assert not any(e == "keyboard leave hm-hb-user" or e.startswith("key hm-hb-agent ") for _, e in events), events
+        assert snapshot() == (72, hb_user)
+        for title in ["hm-hb-agent", "hm-hb-user"]:
+            dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
+        wait_for("hold probe closed", lambda: client("hm-hb-agent") is None and client("hm-hb-user") is None)
+
+    with subtest("the user's keys take the keyboard back from a window that keeps it also through an input method"):
+        # With an input method's keyboard grab, as fcitx5 or ibus have, Hyprland sends the user's keys to the input
+        # method instead of the seat, which then commits text to the window with the real focus. The keys still take
+        # the connection's keyboard focus back from the agent's window while its shortcut settles, so the shortcut
+        # does not take effect if the user's key comes within its 150 ms, and the plugin counts it.
+        ime_user, ime_agent = shortcut_probe("ime", "hm-ime-user", "hm-ime-agent", 74, 75)
+        ime_path = open_socket(ime_agent)
+        spawn("hyprmasq-user-input ime", "ime-grab")
+        wait_for("the input method's grab", lambda: "grabbed" in machine.succeed("cat /tmp/hyprmasq-ime-grab.log"), timeout=10)
+        user_text = "qwertyuioplzxcvbnm"
+        for attempt in range(5):
+            before = window_state(ime_agent)["interrupted"]
+            start, grabbed = len(probe_events("ime")), len(machine.succeed("cat /tmp/hyprmasq-ime-grab.log").splitlines())
+            spawn("sh -c " + shlex.quote(f"sleep 0.3; hyprmasq-input --socket {ime_path} keys ctrl+l"), "ime-sender")
+            machine.send_chars(user_text, delay=0.03)
+            wait_for("the shortcut", lambda: any(e.startswith("shortcut ") for _, e in probe_events("ime", start)), timeout=10)
+            got = lambda: [line for line in machine.succeed("cat /tmp/hyprmasq-ime-grab.log").splitlines()[grabbed:] if line.startswith("key ") and line.endswith(" 1")]
+            wait_for("the user's keys at the input method", lambda: len(got()) == len(user_text), timeout=10)
+            events = probe_events("ime", start)
+            # The input method took the user's keys, and the agent's reached its window.
+            assert keys_of(events, "hm-ime-user") == [] and keys_of(events, "hm-ime-agent") == [29, 38], events
+            shortcuts = [e for _, e in events if e.startswith("shortcut ")]
+            assert shortcuts in (["shortcut hm-ime-agent 4 38"], ["shortcut hm-ime-agent 4 38 inactive"]), events
+            if shortcuts[0].endswith(" inactive"):
+                wait_for("the count", lambda: window_state(ime_agent)["interrupted"] > before, timeout=5)
+                break
+        else:
+            raise AssertionError("the user's keys through the input method never took the keyboard back")
+        assert snapshot() == (74, ime_user)
+        # A key that the user holds through the input method holds the agent's keys back too: the toolkit of the
+        # user's window may tie its input method context to the keyboard focus, which the agent's key would move.
+        time.sleep(1)
+        start, grabbed = len(probe_events("ime")), len(machine.succeed("cat /tmp/hyprmasq-ime-grab.log").splitlines())
+        ime_keys = lambda: [line.split() for line in machine.succeed("cat /tmp/hyprmasq-ime-grab.log").splitlines()[grabbed:] if line.startswith("key ")]
+        machine.send_monitor_command("sendkey a 700")
+        wait_for("the held key at the input method", lambda: any(k[2:] == ["30", "1"] for k in ime_keys()), timeout=10)
+        run_input_background("ime-key", ime_path, "key", letter_codes["b"])
+        status, result = input_result("ime-key")
+        assert status == 0 and result["ok"], result
+        wait_for("the release at the input method", lambda: any(k[2:] == ["30", "0"] for k in ime_keys()), timeout=10)
+        down = next(int(k[1]) for k in ime_keys() if k[2:] == ["30", "1"])
+        up = next(int(k[1]) for k in ime_keys() if k[2:] == ["30", "0"])
+        events = probe_events("ime", start)
+        agent_key = next((t for t, e in events if e == "key hm-ime-agent 48 1"), -1)
+        # Stamps of two processes: the agent's key comes at the earliest with the release, 700 ms after the press.
+        assert up - down >= 600 and agent_key >= down + 600, (down, up, events)
+        assert not any(e == "keyboard leave hm-ime-user" for t, e in events if t < down + 600), events
+        machine.succeed("pkill -f '[h]yprmasq-user-input ime'")
+        # Without the grab, the user's keys reach their window again.
+        start = len(probe_events("ime"))
+        wait_for("keys without the input method", lambda: machine.send_chars("x") or keys_of(probe_events("ime", start), "hm-ime-user"), timeout=10)
+        for title in ["hm-ime-agent", "hm-ime-user"]:
+            dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
+        wait_for("input method probe closed", lambda: client("hm-ime-agent") is None and client("hm-ime-user") is None)
+
+    with subtest("a driven Wayland window that asks for activation is marked urgent and leaves the user's focus alone"):
+        # As a terminal does for its bell, or a page through window.focus(), after the agent's input, in a window that
+        # no launch started and the plugin did not place. The test's focus_on_activate would focus it and switch the
+        # user's workspace.
+        focus_workspace(76)
+        act_bell = foot("hm-act-bell", options="-o bell.urgent=yes")
+        focus_workspace(77)
+        act_user = foot("hm-act-user")
+        wait_for("user window focus", lambda: snapshot() == (77, act_user))
+        act_path = open_socket(act_bell)
+        send(act_path, "type", "sleep 3; printf '\\a'", "key", 28)
+        wait_for("the bell's activation request", lambda: urgent("ipc-events", act_bell), timeout=15)
+        time.sleep(1)
+        assert snapshot() == (77, act_user)
+        # Once nothing drives the window, its request focuses it, as without the plugin.
+        assert hypr(f"hyprmasq eis close {act_bell}") == "ok"
+        act_path = open_socket(act_bell)
+        send(act_path, "type", "sleep 2; printf '\\a'", "key", 28)
+        assert hypr(f"hyprmasq eis close {act_bell}") == "ok"
+        wait_for("bell window activated", lambda: snapshot() == (76, act_bell), timeout=15)
+        for title in ["hm-act-bell", "hm-act-user"]:
+            dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
+        wait_for("activation windows closed", lambda: client("hm-act-bell") is None and client("hm-act-user") is None)
 
     with subtest("same-client popup, move, resize and drag protections"):
         focus_workspace(10)

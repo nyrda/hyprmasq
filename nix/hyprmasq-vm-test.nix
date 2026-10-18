@@ -27,6 +27,7 @@ let
   focusProbe = pkgs.callPackage ./focus-probe.nix { };
   dndProbe = pkgs.callPackage ./dnd-probe.nix { };
   clipProbe = pkgs.callPackage ./clip-probe.nix { };
+  userInput = pkgs.callPackage ./user-input.nix { inherit hyprland; };
   python = pkgs.python3.withPackages (ps: [ ps.pillow ]);
 
   testConfig = pkgs.writeText "hyprmasq-test.lua" ''
@@ -95,6 +96,8 @@ pkgs.testers.runNixOSTest {
         clipProbe
         # The user's own clipboard: wl-copy and wl-paste use data-control, as clipboard managers do.
         pkgs.wl-clipboard
+        # The user's held button and input method, as real input to Hyprland.
+        userInput
         pkgs.xterm
         pkgs.xev
         pkgs.xdotool

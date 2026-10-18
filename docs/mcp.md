@@ -1139,7 +1139,8 @@ does, can still handle that key first.
 
 The user's own key, modifier or button to the connection takes the keyboard
 focus back first, before Hyprland sends it: it reaches the user's window,
-never the agent's. A shortcut that has not run by then may do nothing, and the
+never the agent's. Keys that an input method such as fcitx5 or ibus grabs do
+too. A shortcut that has not run by then may do nothing, and the
 URL typed after it go into the page. The plugin counts each such return of the
 focus within a quarter of a second of a key pressed with Ctrl, Alt or Super
 held, a function key, Escape or a media key, in `state`'s `interrupted`. The
@@ -1162,6 +1163,14 @@ needs no round trip in the app and is not counted.
 Each move of the keyboard focus between the two windows makes the browser
 deactivate one of them: the user's page gets `blur` and `focus` around each
 key that the agent types, and around a shortcut while it settles.
+
+While the user holds a mouse button in their window, as in a selection or a
+slider, the plugin holds the agent's pointer input back, and while they hold a
+key there, the agent's keys that would take the keyboard focus: moving the
+connection's focus would release what the user holds. The input goes on once
+they let go, so an `act` may take longer. After a second, the plugin drops it
+and pauses, and `act` fails with `input_paused` and a message that says the
+user is holding a button or a key.
 
 ## Results
 
@@ -1508,7 +1517,7 @@ input opened are new windows, as before.
 
 | `delivery` | Meaning |
 | --- | --- |
-| `none` | Nothing was sent. Safe to fix and retry. |
+| `none` | Nothing was sent, or the plugin paused the input before any of it arrived. Safe to fix and retry. |
 | `complete` | Every action was delivered: the plugin passed every event to the window's application. Whether the application acted on them as meant, only the shot can show. When the input closed the window and the plugin had confirmed every event sent, what needs no window counts as delivered too: the releases still to come of the action that closed it, which the plugin sends itself when the sender goes away, and the pauses after it, which end there. |
 | `partial` | Actions before `failed_index` were applied; the action at `failed_index` may be partly applied, for example some characters of a `type`. The plugin took everything that was sent. Where known, `progress` says how much: the keys the plugin processed, not the characters the application inserted. |
 | `uncertain` | The connection ended, or the plugin stopped answering, before the plugin had taken everything that was sent. Any action from `failed_index` on may or may not have been applied. |
@@ -1565,7 +1574,7 @@ hint. The structured content has `error`
 | `out_of_bounds` | none or partial | A coordinate lies outside the shot, left of or above the window, or outside the pointer regions, which end at the monitor's edges. Names the action. With `partial`, the window moved during the batch and a later point no longer lies in the new regions. |
 | `cannot_type` | none | The keymap cannot produce a character. Names it, for example U+00E9. |
 | `unsupported` | none | The window lacks a capability the batch needs: `hold` for a `drag`, a `click` with modifiers, or a `key` chord that holds a key other than a modifier. Says why and suggests the keyboard or a click without modifiers, or for a chord, holding only modifiers or separate `key` actions. |
-| `input_paused` | none or partial | X11: the user is in another window of the same X server. With nothing sent: retry later, or ask the user. Otherwise: go on once the user has left it, or ask the user. |
+| `input_paused` | none or partial | The plugin paused the input, and the message says why, from `state`'s `lastPause`: the user held a mouse button or a key for more than a second in a window of the same Wayland connection, which the input would have released; or, X11, the user is in another window of the same X server, or the X server did not answer in time. With nothing sent: retry once the user has let go, or later, or ask the user. Otherwise: go on once the user has let go or left it, or ask the user. |
 | `deadline` | none, partial or uncertain | The deadline arrived before the input was sent, for example while waiting for a lock, or too little time was left after the locks to send the batch, or it arrived while the input was being sent. After a partial send, the hint says to send the rest with a larger `deadline_ms` or in parts. For `launch`, no window appeared within `timeout_s`. |
 | `cancelled` | none, partial or uncertain | The server is shutting down, a `launch` or `close` was cancelled, or another process stopped the sender with a signal. A client's cancellation of an `act` is no error; see [Cancellation](#cancellation). |
 | `unconfirmed` | partial or uncertain | From the sender: input stopped before the plugin confirmed it, because the window moved or was resized while it was sent, another sender took over the socket, or the plugin stopped answering. |
@@ -1979,7 +1988,10 @@ focused when it asks for activation, also with `misc:focus_on_activate`, for as
 long as it lives; a forced activation, such as one through a taskbar, still
 focuses it. This also covers apps that no launch started, such as the user's own
 browser, and the windows of a launch after its first minute. `launched` lists
-such a window only when it belongs to a launch.
+such a window only when it belongs to a launch. A driven window, one with an
+open socket, is marked urgent but not focused when it asks for activation too,
+also when the plugin did not place it, and so are the other windows of its
+Wayland connection while the user is in another app.
 
 **Commit counter.** From `eis open` until the socket closes, the plugin counts
 the window's commits as defined in [Waiting](#definitions). It never falls

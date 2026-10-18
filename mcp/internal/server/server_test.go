@@ -2510,6 +2510,45 @@ func TestSenderFailures(t *testing.T) {
 	}
 }
 
+// An input_paused says why the plugin paused the input, from its state, and its hint invites a retry only when nothing
+// was delivered.
+func TestPauseReasons(t *testing.T) {
+	cases := []struct {
+		reason, message, retry, goOn string
+	}{
+		{"user_button", "the user is holding a mouse button in a window of the same app", "Retry once the user has let go", "Go on once the user has let go"},
+		{"user_key", "the user is holding a key in a window of the same app", "Retry once the user has let go", "Go on once the user has let go"},
+		{"x11_unresponsive", "the window's X server did not answer in time", "Retry; if it happens again", "go on from what it shows"},
+		{"x11_focus", "the user is working in another window of the same X server", "Retry later", "Go on once the user has left it"},
+		// A plugin that does not tell.
+		{"", "the user is working in another window of the same X server", "Retry later", "Go on once the user has left it"},
+	}
+	for _, c := range cases {
+		for _, mode := range []string{"fail:input_paused:0:none:0", "fail:input_paused:1:partial:3"} {
+			t.Run(c.reason+" "+mode, func(t *testing.T) {
+				e := newTestEnv(t)
+				e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.LastPause = c.reason })
+				e.screenshot(`{"window":"0xa1"}`)
+				t.Setenv("FAKE_INPUT_MODE", mode)
+				res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"key","keys":["a"]},{"action":"type","text":"hello"}],"capture":"window"}`)
+				if code := errorCode(t, res); code != "input_paused" {
+					t.Fatalf("code %q: %s", code, text(res))
+				}
+				if !strings.Contains(text(res), c.message) {
+					t.Errorf("text %q", text(res))
+				}
+				want := c.retry
+				if strings.Contains(mode, "partial") {
+					want = c.goOn
+				}
+				if hint := get(t, res, "hint").(string); !strings.Contains(hint, want) {
+					t.Errorf("hint %q", hint)
+				}
+			})
+		}
+	}
+}
+
 func TestCaptureErrorAfterInput(t *testing.T) {
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)

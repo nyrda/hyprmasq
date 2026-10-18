@@ -181,6 +181,11 @@ type State struct {
 	// function key had not settled, which may have kept it from taking effect. Nil without a socket, and from a plugin
 	// that does not count them.
 	Interrupted *int64 `json:"interrupted"`
+	// Why the plugin last paused the socket's devices, which stops the sender with input_paused: x11_focus (the user is in
+	// another window of the window's X server), x11_unresponsive (the X server did not answer in time), user_button or
+	// user_key (the user held a button or key in a window of the same Wayland connection for longer than the plugin
+	// held the input back). Nil without a socket, before the first pause, and from a plugin that does not tell.
+	LastPause *string `json:"lastPause"`
 	// The drag-and-drop operations that the window's app started while the socket was open. Nil without a socket, and
 	// from a plugin that does not count them.
 	Drag         *Drag        `json:"drag"`

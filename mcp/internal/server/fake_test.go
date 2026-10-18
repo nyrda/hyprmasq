@@ -238,6 +238,8 @@ type fakeWindow struct {
 	Source *hypr.Source
 	// The plugin's count of the user's input that took the keyboard back before a shortcut had settled.
 	Interrupted int64
+	// Why the plugin last paused the socket's devices, which state reports with a socket, or "" for none.
+	LastPause string
 	// The plugin's record of the drag-and-drop operations of the window's app, which state reports with a socket, or
 	// nil as from a plugin that keeps none.
 	Drag *hypr.Drag
@@ -540,6 +542,9 @@ func (f *fakeHyprland) state(w *fakeWindow) map[string]any {
 		st["socketId"] = w.socketID()
 		st["commits"] = w.Commits
 		st["interrupted"] = w.Interrupted
+		if w.LastPause != "" {
+			st["lastPause"] = w.LastPause
+		}
 		if w.Drag != nil {
 			st["drag"] = *w.Drag
 		}

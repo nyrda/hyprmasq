@@ -79,6 +79,9 @@ namespace hyprmasq {
         // before a shortcut or function key had settled, which may have kept it from taking effect.
         uint64_t                     interrupted = 0;
         std::shared_ptr<SDragRecord> drags; // kept while the socket is open
+        // Why the plugin last paused the socket's devices, which stops the sender with input_paused, or empty if it never
+        // did: x11_focus, x11_unresponsive, user_button or user_key, see `state` in docs/usage.md.
+        std::string lastPause;
     };
     // For a window with a socket. Main thread only.
     std::optional<SSocketState> socketState(const PHLWINDOW& window);

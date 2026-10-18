@@ -55,11 +55,14 @@ namespace hyprmasq {
         void*                                           originalKeyboardMods  = nullptr;
         void*                                           originalPointerButton = nullptr;
         void*                                           originalTouchDown     = nullptr;
-        CHyprSignalListener                             monitorLayout;
+        CHyprSignalListener                             monitorLayout, realKey;
 
         // How long a window of the connection with the real keyboard focus keeps the emulated focus after a command key,
         // see Session::keepKeyboard. Chromium answers a shortcut 10 to 90 ms after the key on a hidden workspace.
         constexpr auto KEYS_SETTLE = std::chrono::milliseconds(250);
+        // How long a frame waits for the user to let go of the buttons or keys that it would release, see
+        // Session::userHolds, before it is dropped with a pause.
+        constexpr auto USER_HOLD_WAIT = std::chrono::milliseconds(1000);
 
         // Socket ids: random for each load of the plugin, then counting.
         uint64_t socketNonce = 0, socketCount = 0;
@@ -88,6 +91,18 @@ namespace hyprmasq {
             }
         };
         template struct SPressedAccess<&CWLPointerResource::m_pressedButtons>;
+        // The keys that a keyboard device holds. Hyprland updates them for every key, before it sends the key to the seat
+        // or to an input method's keyboard grab, and drops them with the device. Its getKeysFromAllKBs() leaves out keys
+        // held through a grab, and keeps a key pressed before a grab started and released during it. Hyprland drops the keys
+        // of a keyboard that is disabled or lacks input permission, so those do not count.
+        std::vector<uint32_t>& keysOf(IKeyboard& keyboard);
+        template <std::vector<uint32_t> IKeyboard::* Keys>
+        struct SKeysAccess {
+            friend std::vector<uint32_t>& keysOf(IKeyboard& keyboard) {
+                return keyboard.*Keys;
+            }
+        };
+        template struct SKeysAccess<&IKeyboard::m_pressed>;
 
         // True if focus is on a surface of the client, or of the window's Wayland connection.
         bool sharesConnection(wl_client* client, const WP<CWLSurfaceResource>& focus) {
@@ -211,12 +226,16 @@ namespace hyprmasq {
             bool                                 force = false, paused = false, deferredKeys = false, restoreDue = false;
             bool                                 keyboardEmulating = false; // between the keyboard's start and stop of emulation
             Time::steady_tp                      pausedAt, holdUntil = Time::steadyNow(), lastKeys = Time::steadyNow(), lastPing;
-            eis_event*                           stashed     = nullptr; // taken from libeis, waiting for a hold to end
-            wl_client*                           server      = nullptr; // the window's X server, looked up once
-            bool                                 serverKnown = false;
-            std::vector<SPointerRegion>          regions; // of the pointer device, as announced
-            wl_event_source*                     regionCheck = nullptr;
-            std::optional<SLease>                lease;
+            eis_event*                           stashed = nullptr; // taken from libeis, waiting for a hold to end
+            // The device of a frame that waits for the user to let go, see userHolds, and since when it waits.
+            eis_device*                    deferred = nullptr;
+            std::optional<Time::steady_tp> deferredSince;
+            std::string_view               lastPause;             // why the devices were last paused, see SSocketState
+            wl_client*                     server      = nullptr; // the window's X server, looked up once
+            bool                           serverKnown = false;
+            std::vector<SPointerRegion>    regions; // of the pointer device, as announced
+            wl_event_source*               regionCheck = nullptr;
+            std::optional<SLease>          lease;
             // Set while Hyprland changes the real focus and a lease keeps this window's emulated focus, see CKeptFocus.
             bool keepingKeyboard = false, keepingPointer = false;
             // While the window keeps the emulated keyboard focus on the connection of the real focus, see keepKeyboard:
@@ -259,6 +278,8 @@ namespace hyprmasq {
                 if (!d)
                     return;
                 drop(d);
+                if (d == deferred)
+                    deferred = nullptr;
                 if (d == pointer)
                     releasePointer();
                 if (d == keyboard) {
@@ -297,7 +318,9 @@ namespace hyprmasq {
                 holdUntil                 = Time::steadyNow();
                 if (stashed)
                     eis_event_unref(stashed);
-                stashed = nullptr;
+                stashed  = nullptr;
+                deferred = nullptr;
+                deferredSince.reset();
                 scheduleIdle();
             }
             // tick() stops while keys or buttons are held. Once they are let go without further input, it has to run
@@ -596,6 +619,10 @@ namespace hyprmasq {
                 if (p)
                     wl_event_source_timer_update(timer, 500);
             }
+            void pause(std::string_view reason) {
+                lastPause = reason;
+                setPaused(true);
+            }
             // libeis disconnects a sender whose events reach a resumed device before it saw the pause, so a sender still
             // busy sending when it was paused gets time to notice first.
             void maybeResume() {
@@ -635,13 +662,16 @@ namespace hyprmasq {
                     (type == EIS_EVENT_CLIENT_DISCONNECT && eis_event_get_client(e) == client);
                 return leaves && enteredKeyboard && w && !w->m_isX11 && xServer() && Time::steadyNow() < lastKeys + std::chrono::milliseconds(50);
             }
+            // Also while a frame waits for the user, so that the frames after it wait too.
             bool holding() const {
-                return Time::steadyNow() < holdUntil;
+                return deferred || Time::steadyNow() < holdUntil;
             }
             void resumeHeld() {
-                if (holding())
+                if (Time::steadyNow() < holdUntil)
                     return;
-                if (deferredKeys) {
+                if (auto* d = std::exchange(deferred, nullptr))
+                    deliver(d);
+                else if (deferredKeys) {
                     deferredKeys = false;
                     if (keyboard)
                         deliver(keyboard);
@@ -749,6 +779,27 @@ namespace hyprmasq {
                     pressSerials.erase(pressSerials.begin());
                 pressSerials.push_back({.serial = serial, .button = button});
             }
+            // Input to a window of the connection with the real focus first takes that focus from the user's window, and
+            // gives it back after the frame. A pointer's leave releases every button that it holds, as Hyprland's
+            // sendLeave does, and a keyboard's leave makes apps let go of its keys, so a key the user holds stops
+            // repeating. The reason for the pause, see SSocketState, while the user holds what the frame would release.
+            std::optional<std::string_view> userHolds(eis_device* device, const SP<CWLSeatResource>& s) {
+                if (device == keyboard) {
+                    // A keyboard that the window already has sends the user's window nothing.
+                    const auto real = g_pSeatManager->m_state.keyboardFocus.lock();
+                    if (enteredKeyboard || !real || real->client() != s->client() ||
+                        std::ranges::none_of(g_pInputManager->m_keyboards, [](const SP<IKeyboard>& k) { return k && k->m_enabled && k->m_allowed && !keysOf(*k).empty(); }))
+                        return std::nullopt;
+                    return "user_key";
+                }
+                const auto real = g_pSeatManager->m_state.pointerFocus.lock();
+                if (!real || real->client() != s->client())
+                    return std::nullopt;
+                for (auto& p : s->m_pointers)
+                    if (p && surfaceOf(*p) == real && !pressedOf(*p).empty())
+                        return "user_button";
+                return std::nullopt;
+            }
             void deliver(eis_device* device) {
                 auto w = window.lock();
                 auto s = wlSeat();
@@ -758,11 +809,34 @@ namespace hyprmasq {
                 }
                 if (std::ranges::none_of(pending, [device](eis_event* e) { return eis_event_get_device(e) == device; }))
                     return;
-                if (blocked()) {
+                // libeis may have queued frames before the sender saw the pause. The sender counts none of them as
+                // delivered, so they are dropped.
+                if (paused) {
                     drop(device);
-                    setPaused(true);
                     return;
                 }
+                if (blocked()) {
+                    drop(device);
+                    pause("x11_focus");
+                    return;
+                }
+                // The frame waits while the user holds what it would release, and is dropped with a pause if they hold
+                // it longer, so that the sender learns that its input did not arrive.
+                if (const auto held = userHolds(device, s)) {
+                    const auto now = Time::steadyNow();
+                    if (!deferredSince)
+                        deferredSince = now;
+                    if (now - *deferredSince < USER_HOLD_WAIT) {
+                        deferred = device;
+                        wl_event_source_timer_update(timer, 16);
+                        return;
+                    }
+                    deferredSince.reset();
+                    drop(device);
+                    pause(*held);
+                    return;
+                }
+                deferredSince.reset();
                 // Another socket may address a second window on this same Wayland client. The client's keyboard and
                 // pointer are on one surface at a time, so that window loses its emulated focus and its lease.
                 for (auto& [_, other] : sessions) {
@@ -796,7 +870,7 @@ namespace hyprmasq {
                 std::optional<x11::SStack> stack;
                 if (w->m_isX11 && ((takesFocus && !x11::focus(w)) || (!isKeyboard && !(stack = x11::raise(w))))) {
                     drop(device);
-                    setPaused(true);
+                    pause("x11_unresponsive");
                     return;
                 }
                 auto       real    = (isKeyboard ? g_pSeatManager->m_state.keyboardFocus : g_pSeatManager->m_state.pointerFocus).lock();
@@ -1289,15 +1363,30 @@ namespace hyprmasq {
             using Fn = void (*)(Desktop::View::CWindow*);
             reinterpret_cast<Fn>(originalActivateX11)(self);
         }
+        // As for X11 apps, a Wayland app with a driven window cannot take the focus by asking for activation, which apps do
+        // in answer to input, as a terminal does for its bell or a page through window.focus(): the driven window itself
+        // never, and its app's other windows while the user is in another app. The app is the window's connection.
+        bool drivenWaylandApp(const PHLWINDOW& w) {
+            if (!w || w->m_isX11 || !w->resource())
+                return false;
+            const auto* client  = w->resource()->client();
+            const auto  focused = Desktop::focusState()->window();
+            const bool  inApp   = focused && focused->resource() && focused->resource()->client() == client;
+            return std::ranges::any_of(sessions, [&](const auto& entry) {
+                const auto driven = entry.second->window.lock();
+                return driven && !driven->m_isX11 && driven->resource() && driven->resource()->client() == client && (driven == w || !inApp);
+            });
+        }
         // xwayland-satellite forwards activation requests as xdg-activation. A forced activation comes from the user,
-        // for example through a taskbar. A window that the plugin placed silently is marked urgent but not focused, also
-        // with focus_on_activate, so that a popup put next to its driven window cannot follow up by taking the focus.
+        // for example through a taskbar. A window that the plugin placed silently, or of a Wayland app with a driven
+        // window, is marked urgent but not focused, also with focus_on_activate, so that a popup put next to its driven
+        // window cannot follow up by taking the focus, and the agent's input cannot move the user's focus or workspace.
         void activate(Desktop::View::CWindow* self, bool force) {
             if (!force && drivenX11App(self->m_self.lock(), false))
                 return;
             using Fn              = void (*)(Desktop::View::CWindow*, bool);
             const auto suppressed = self->m_suppressedEvents;
-            if (!force && launch::placed(self->m_self.lock()))
+            if (!force && (launch::placed(self->m_self.lock()) || drivenWaylandApp(self->m_self.lock())))
                 self->m_suppressedEvents |= Desktop::View::SUPPRESS_ACTIVATE_FOCUSONLY;
             reinterpret_cast<Fn>(originalActivate)(self, force);
             self->m_suppressedEvents = suppressed;
@@ -1381,7 +1470,9 @@ namespace hyprmasq {
         }
 
         // The user's own keys, modifiers and buttons take the keyboard focus of their connection back from a window that
-        // keeps it while its keys settle, before Hyprland sends them, so that they reach the user's window.
+        // keeps it while its keys settle, before Hyprland sends them, so that they reach the user's window. Keys also
+        // through the event bus, which sees them before Hyprland passes them to an input method's keyboard grab instead of
+        // the seat: the input method then commits its text to the user's window.
         void returnKeyboards(const WP<CWLSeatResource>& to) {
             const auto seat = to.lock();
             if (!seat)
@@ -1455,6 +1546,8 @@ namespace hyprmasq {
         originalPointerButton = hook(handle, "CSeatManager::sendPointerButton", reinterpret_cast<void*>(&sendPointerButton));
         originalTouchDown     = hook(handle, "CSeatManager::sendTouchDown", reinterpret_cast<void*>(&sendTouchDown));
         drag::onSourceless(&sourcelessDrag);
+        realKey = Event::bus()->m_events.input.keyboard.key.listen(
+            [](const IKeyboard::SKeyEvent&, Event::SCallbackInfo&) { returnKeyboards(g_pSeatManager->m_state.keyboardFocusResource); });
         monitorLayout = Event::bus()->m_events.monitor.layoutChanged.listen([] {
             for (auto& [_, session] : sessions)
                 session->checkRegionsLater();
@@ -1462,6 +1555,7 @@ namespace hyprmasq {
     }
     void shutdownEis() {
         monitorLayout.reset();
+        realKey.reset();
         for (auto& [_, session] : sessions)
             session->closing = "unloaded";
         sessions.clear();
@@ -1550,7 +1644,8 @@ namespace hyprmasq {
                             .content          = session->content,
                             .lease            = session->leaseState(),
                             .interrupted      = session->interrupted,
-                            .drags            = session->drags};
+                            .drags            = session->drags,
+                            .lastPause        = std::string{session->lastPause}};
     }
     bool starved(const PHLWINDOW& window) {
         if (g_pHyprRenderer->shouldRenderWindow(window))

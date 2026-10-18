@@ -1765,7 +1765,8 @@ int main(int argc, char** argv) {
         else if (cancelled)
             fail("cancelled", "stopped by a signal");
         else if (s.paused)
-            // hyprmasq pauses an X11 window's devices while another window of its X server has the focus.
+            // hyprmasq pauses an X11 window's devices while another window of its X server has the focus, and a window's
+            // devices while the user holds a button or key in a window of the same Wayland connection for over a second.
             fail("input_paused", "the server paused input, so some events were dropped");
         else if (s.lost && !s.disconnected && !s.stalled)
             fail("unconfirmed", "the plugin replaced a device, so some events were lost");
@@ -1780,7 +1781,8 @@ int main(int argc, char** argv) {
         failedIndex = failure.code ? done : -1;
         if (!failure.code)
             delivery = "complete";
-        else if (s.sent.frames == 0)
+        // After a pause, the plugin dropped every frame it had not confirmed, so with none confirmed nothing arrived.
+        else if (s.sent.frames == 0 || (s.paused && !s.lost && !s.disconnected && s.confirmed.frames == 0))
             delivery = "none";
         // Without an answer to the last ping, the plugin may still have processed what the sender had sent before it.
         else if ((s.disconnected || s.stalled) && s.sent.frames != s.taken.frames)
