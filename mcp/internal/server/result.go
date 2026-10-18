@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -236,6 +237,64 @@ func lookAt(s *shotOut) string {
 func focusReturnedHint(s *shotOut) string {
 	return "The user's input took this app's shared keyboard focus back from this window shortly after a shortcut or function key of the batch, so it may or may not have taken effect. " +
 		lookAt(s) + ": if it shows the result, go on; if it is unclear, verify the window's state before repeating the action."
+}
+
+// hintLateShortcut explains a shortcut that changed nothing in a window that shares its app's keyboard focus with the
+// user's window, see lateShortcutHint.
+const hintLateShortcut = "This app shares its keyboard focus between this window and the user's, which gets it back about 250 ms after a shortcut or function key, so one that the app handles later may not have run. " +
+	"Use a menu or a button instead, or launch a separate instance of the app with launch."
+
+// lateShortcutHint says that a shortcut may have come too late for the keyboard focus, or "". A window that shares its
+// Wayland connection with the user's focused window keeps the connection's keyboard focus for a quarter of a second
+// after a shortcut, and an app that runs it later finds the focus back on the user's window. So the hint comes after a
+// batch delivered whole with a shortcut key to such a window, when the window did not redraw, or a changes shot found no
+// change, and nothing else explains that: the focus that the user's input took back, or a window that the input opened.
+func lateShortcutHint(out *actOut, batch []action, st hypr.State) string {
+	if out.Actions == nil || out.Actions.Delivery != "complete" || out.Actions.SharedFocusReturned != nil || out.WindowClosed || openedHint(out.NewWindows) != "" ||
+		!sharesUsersKeyboard(st) || !slices.ContainsFunc(batch, shortcutKey) || out.Wait == nil {
+		return ""
+	}
+	if out.Wait.Ended == "no_redraw" || out.Wait.Ended == "quiet" && unchanged(out.Shot) {
+		return hintLateShortcut
+	}
+	return ""
+}
+
+// sharesUsersKeyboard tells whether the window shares its Wayland connection with the window that has the user's
+// keyboard focus, without being that window, from its capabilities: the plugin refuses a lease to a Wayland window only
+// for that connection, and gives dnd to the window with the focus alone. An X11 window, which never has a lease, gets
+// no input at all while the user is in another window of its X server.
+func sharesUsersKeyboard(st hypr.State) bool {
+	return !st.XWayland && st.Capabilities.Keyboard != "x11-focus" && !st.Capabilities.Lease && !st.Capabilities.DnD
+}
+
+// The keysyms of keys that hold Ctrl, Alt or Super in the default keymaps, in lower case.
+var commandModifierKeysyms = map[string]bool{
+	"control_l": true, "control_r": true, "alt_l": true, "alt_r": true, "meta_l": true, "meta_r": true,
+	"super_l": true, "super_r": true, "hyper_l": true, "hyper_r": true,
+}
+
+// shortcutKey tells whether the action presses a key that the plugin keeps the shared keyboard focus for until it has
+// settled, and that it counts as input that can open a window: a key other than a modifier pressed with Ctrl, Alt or
+// Super held, a function key or a media key. The plugin keeps the focus after Escape too, and gives it back at once
+// after Enter, which are left out.
+func shortcutKey(a action) bool {
+	if a.Kind != "key" || len(a.Keys) == 0 {
+		return false
+	}
+	last := strings.ToLower(a.Keys[len(a.Keys)-1])
+	if slices.Contains(modifierNames, last) || modifierKeysyms[last] {
+		return false
+	}
+	for _, key := range a.Keys[:len(a.Keys)-1] {
+		if key == "ctrl" || key == "alt" || key == "super" || commandModifierKeysyms[strings.ToLower(key)] {
+			return true
+		}
+	}
+	if n, err := strconv.Atoi(strings.TrimPrefix(last, "f")); err == nil && strings.HasPrefix(last, "f") && n >= 1 && n <= 35 {
+		return true
+	}
+	return strings.HasPrefix(last, "xf86")
 }
 
 // resizingHint explains a shot of a window that had not caught up with a resize, or "".

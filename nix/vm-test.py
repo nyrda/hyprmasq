@@ -2488,12 +2488,12 @@ print(json.dumps([min(x for x, _ in found), min(y for _, y in found), max(x for 
         """The keys that a focus probe's toplevel got pressed, in order."""
         return [int(e.split()[2]) for _, e in events if e.startswith(f"key {title} ") and e.endswith(" 1")]
 
-    def shortcut_probe(log, user_title, agent_title, user_workspace, agent_workspace):
+    def shortcut_probe(log, user_title, agent_title, user_workspace, agent_workspace, ms=150):
         """A shortcuts probe as a browser of the user's: their window focused on user_workspace, and the agent's on
-        agent_workspace, hidden, with a socket. Its shortcuts run 150 ms after their key, as Chromium's do once the page has
-        let the key go by."""
+        agent_workspace, hidden, with a socket. Its shortcuts run ms, by default 150 ms, after their key, as Chromium's do
+        once the page has let the key go by."""
         focus_workspace(user_workspace)
-        spawn(f"hyprmasq-focus-probe shortcuts {user_title} {agent_title} 150", log)
+        spawn(f"hyprmasq-focus-probe shortcuts {user_title} {agent_title} {ms}", log)
         wait_for("shortcut probe", lambda: client(user_title) and client(agent_title))
         dispatch(f'hl.dsp.window.move({{ window = "title:^{agent_title}$", workspace = "{agent_workspace}", follow = false }})')
         user, agent = client(user_title)["address"], client(agent_title)["address"]
@@ -4166,7 +4166,7 @@ print(longest)
         start = len(probe_events("m-sc"))
         alone = mcp.call("act", {"window": m_agent, "actions": [{"action": "key", "keys": ["ctrl", "l"]}]})
         assert not alone.is_error and "interrupted" not in alone.data["actions"] and "shared_focus_returned" not in alone.data["actions"], alone
-        assert alone.text.startswith("1/1 delivered · redraw observed"), alone
+        assert alone.text.startswith("1/1 delivered · redraw observed") and "may not have run" not in alone.text, alone
         assert [e for _, e in probe_events("m-sc", start) if e.startswith("shortcut ")] == ["shortcut hm-m-sc-agent 4 38"]
         user_text = "asdfghjklasdfghjkl"
         for attempt in range(5):
@@ -4196,6 +4196,51 @@ print(longest)
             dispatch(f'hl.dsp.window.close({{ window = "address:{address}" }})')
         wait_for("shortcut probe closed", lambda: all(c["address"] not in (m_agent, m_user) for c in clients()))
         focus_workspace(4)
+        assert snapshot() == before_focus
+
+    with subtest("hyprmasq-mcp says that a shortcut beside the user's window may have run too late, and only there"):
+        # The shortcuts probe as a browser of the user's whose shortcuts run 500 ms after their key, later than the quarter
+        # of a second for which the agent's window keeps the connection's keyboard focus. The shortcut then finds the
+        # user's window active and does nothing, so the agent's window draws nothing, and act says why the shortcut may
+        # not have run. The user's focus and typing stay theirs.
+        late_hint = ("This app shares its keyboard focus between this window and the user's, which gets it back about 250 ms after a shortcut or function key,"
+                     " so one that the app handles later may not have run. Use a menu or a button instead, or launch a separate instance of the app with launch.")
+        late_user, late_agent = shortcut_probe("m-late", "hm-m-late-user", "hm-m-late-agent", 78, 79, ms=500)
+        entry, _ = listed(mcp, late_agent)
+        assert entry["capabilities"] == {"lease": False, "hold": False, "dnd": False, "keyboard": "yes"}, entry
+        start = len(probe_events("m-late"))
+        late = mcp.call("act", {"window": late_agent, "actions": [{"action": "key", "keys": ["ctrl", "l"]}]})
+        assert not late.is_error and late.data["actions"] == {"done": 1, "total": 1, "delivery": "complete"}, late
+        assert late.data["wait"]["ended"] == "no_redraw" and late.data["hint"].endswith(" " + late_hint) and late_hint in late.text, late
+        wait_for("the late shortcut", lambda: any(e.startswith("shortcut ") for _, e in probe_events("m-late", start)), timeout=10)
+        machine.send_chars("ab", delay=0.05)
+        wait_for("the user's keys", lambda: keys_of(probe_events("m-late", start), "hm-m-late-user") == [30, 48], timeout=10)
+        events = probe_events("m-late", start)
+        assert [e for _, e in events if e.startswith("shortcut ")] == ["shortcut hm-m-late-agent 4 38 inactive"], events
+        assert keys_of(events, "hm-m-late-agent") == [29, 38], events
+        assert snapshot() == (78, late_user)
+        # With the user's focus in another app, the window gets a lease, which keeps the keyboard focus until the shortcut
+        # has run: it redraws, and there is no such hint.
+        focus_workspace(4)
+        start = len(probe_events("m-late"))
+        alone = mcp.call("act", {"window": late_agent, "actions": [{"action": "key", "keys": ["ctrl", "l"]}]})
+        assert not alone.is_error and alone.data["wait"]["redraw_observed"] and late_hint not in alone.text, alone
+        assert [e for _, e in probe_events("m-late", start) if e.startswith("shortcut ")] == ["shortcut hm-m-late-agent 4 38"]
+        assert snapshot() == before_focus
+        for address in (late_agent, late_user):
+            dispatch(f'hl.dsp.window.close({{ window = "address:{address}" }})')
+        wait_for("shortcut probe closed", lambda: all(c["address"] not in (late_agent, late_user) for c in clients()))
+        # A window of its own connection that a shortcut leaves as it was gets only the hint about the missing redraw.
+        focus_workspace(80)
+        spawn("hyprmasq-focus-probe focus hm-m-own", "m-own")
+        wait_for("own probe", lambda: client("hm-m-own") is not None)
+        focus_workspace(4)
+        own = client("hm-m-own")["address"]
+        unseen = mcp.call("act", {"window": own, "actions": [{"action": "key", "keys": ["ctrl", "l"]}]})
+        assert not unseen.is_error and unseen.data["wait"]["ended"] == "no_redraw", unseen
+        assert unseen.data["hint"].startswith("The keys may have gone to another widget") and late_hint not in unseen.text, unseen
+        dispatch(f'hl.dsp.window.close({{ window = "address:{own}" }})')
+        wait_for("own probe closed", lambda: client("hm-m-own") is None)
         assert snapshot() == before_focus
 
     with subtest("hyprmasq-mcp drags in a hidden app's own drag-and-drop, and says how it ended"):

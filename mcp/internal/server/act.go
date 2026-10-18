@@ -699,7 +699,8 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		}
 		wait = joinHints(wait, closedHint(out.Source))
 	}
-	out.Hint = joinHints(focus, drag, wait, unchanged, out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows),
+	// A shortcut beside the user's window that changed nothing may have come too late for the shared keyboard focus.
+	out.Hint = joinHints(focus, drag, wait, unchanged, lateShortcutHint(out, r.batch, st), out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows),
 		lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
 	if out.Actions != nil {
 		out.Hint = joinHints(out.Hint, out.Actions.composeNote)

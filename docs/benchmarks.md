@@ -1163,9 +1163,14 @@ across agents only roughly, since gpt-6.1-sol ran on the slower machines; Haiku'
 
 ## Open
 
-- **Shortcuts that an app runs more than 250 ms after the key** still fail without a word beside the user's window.
+None.
 
 Settled, and not for hyprmasq:
+
+- **Shortcuts that an app runs more than 250 ms after the key** still fail beside the user's window: the agent's window
+  keeps its app's shared keyboard focus that long, and keeping it longer would send the user's typing to the agent's
+  window or hold it back. Since #57 `act` says so when such a shortcut left the window as it was, and points to a menu,
+  a button or a separate instance of the app through `launch`.
 
 - **A native Electron file chooser** opened on the user's workspace the first time it was used: GTK maps it on a
   Wayland connection of its own, beside Chromium's, and sets its parent a few milliseconds later. Since #55 a window

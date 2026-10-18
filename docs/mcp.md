@@ -1160,6 +1160,24 @@ taken effect: look at the shot, go on if it shows the result, and verify the
 window's state before repeating the action if it is unclear. Typing alone
 needs no round trip in the app and is not counted.
 
+An app that runs a shortcut later than that quarter of a second, as a page
+busy with a script may, finds the focus back on the user's window, so the
+shortcut runs there or not at all. Keeping the focus longer would send the
+user's typing to the agent's window, or hold it back. So when a batch to a
+window of the connection with the user's focus, other than that window
+itself, presses a key with Ctrl, Alt or Super held, a function key or a
+media key, and the window then does not redraw, or a changes shot finds no
+change, the hint adds: `This app shares its keyboard focus between this
+window and the user's, which gets it back about 250 ms after a shortcut or
+function key, so one that the app handles later may not have run. Use a menu
+or a button instead, or launch a separate instance of the app with launch.`
+`windows` shows such a window as lacking `lease`, and a separate instance,
+such as a browser with its own profile, has a connection of its own. The hint
+does not come for a window of its own connection, for the window with the
+user's focus, after a redraw or a change, nor with the returned focus or a
+window that the input opened, which say more. An X11 window gets no input
+while the user is in another window of its X server.
+
 Each move of the keyboard focus between the two windows makes the browser
 deactivate one of them: the user's page gets `blur` and `focus` around each
 key that the agent types, and around a shortcut while it settles.
@@ -2348,7 +2366,8 @@ Compose table of the window's locale and the hint without a table for it,
 a drag, a click with modifiers and a chord that holds a letter on a shared
 connection, where a chord of Shift and a letter still types a capital, a
 shortcut there after which the user's typing took the shared keyboard focus
-back, partial
+back, the hint after one that the app ran too late there, and none after one
+in a window of its own connection, partial
 delivery when X11 input is paused, the wait outcomes, the lease across calls and on exit, new
 windows that the input opens, placed beside the target with a shot each, also
 one that maps after the wait, and with placement off one that has the user's
@@ -2410,7 +2429,9 @@ window came from, once also when it is a late window, and none for one that is
 gone, replaced or the user's, no note about a capture region's shot of a window
 that closed during the grace,
 argument errors of every tool through an SDK client, `null` among
-them, the hints, also the one after input that can open a window, the length of every tool description, structured content by
+them, the hints, also the one after input that can open a window and the one
+after a shortcut beside the user's window, with the keys and results it comes
+for, the length of every tool description, structured content by
 client and `--structured-content`, `windows` with `match`, the sleep in
 front of keys that follow a click or drag too soon, and changes shots: one
 region and several, merged regions, regions joined until 5 are left and
@@ -2503,7 +2524,10 @@ timeouts.
   app closes on focus loss may already be gone in the act's own shot.
 - A shortcut in a window that shares its connection with the user's focused
   window does nothing when the app takes more than a quarter of a second to
-  run it, as a page busy with a script may, and the result does not say so.
+  run it, as a page busy with a script may. The result says that it may not
+  have run when the window did not change, and nothing when the shortcut
+  changed something else (see
+  [Shortcuts beside the user's window](#shortcuts-beside-the-users-window)).
 - Leased windows keep their emulated focus while the session is locked. The
   user's real keys never reach them.
 - Plugin arguments are split at whitespace, so an `XDG_RUNTIME_DIR` with

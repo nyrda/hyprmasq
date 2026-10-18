@@ -938,7 +938,13 @@ fcitx5 and ibus do: the plugin sees them before Hyprland passes them to the
 input method, which then commits its text to your window. A shortcut or function key of the target that the app had not run
 by then may do nothing. `state` counts in `interrupted` each return of the
 focus within a quarter of a second of such a key, whether or not the app had
-run it. Drags do not carry
+run it. One that the app runs later than that quarter of a second, as a page
+busy with a script may, finds the focus back on your window, and runs there or
+not at all: keeping the focus longer would take or hold back your typing.
+`hyprmasq-mcp`'s `act` says so in its hint when the target then did not
+change. To run such a shortcut, use the app's menu or a button, or a separate
+instance of the app, such as a browser with its own profile, which has a
+connection of its own. Drags do not carry
 across the frames, and neither do held keys and key repeat once your input has
 taken the keyboard back. Only the modifier state of the sender's keys does:
 each keyboard frame enters the target again with it, so `keys ctrl+shift+t`
@@ -1452,7 +1458,8 @@ loss close once the sender exits. Open them and pick the entry in one run.
   window holds the input back, for up to a second, after which it stops with
   `input_paused`. Shortcuts there may do nothing when you type
   or click in the same app while they settle, or when the app takes longer
-  than a quarter of a second to run them.
+  than a quarter of a second to run them; a separate instance of the app
+  avoids both.
 - Screenshot paths cannot contain whitespace.
 - Applications that ignore frame callbacks while hidden, or redraw slowly, may
   show stale content in screenshots. A wait cannot tell a redraw that has not
