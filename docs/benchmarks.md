@@ -1077,6 +1077,90 @@ gpt-6.1-sol put 8-pin CPU power on its box 13 times out of 44, on the 5-pin head
 times, and elsewhere twice. The user, who knows the board, checked every box of `regions.json` on the photo by eye
 and confirmed them, so these misses are the model's.
 
+## 2026-10-18: nine labels, and the models' effort (rounds 4 to 6)
+
+#49 renamed "8-pin CPU power" to "CPU power headers", on the same box: the board's CPU power comes as 4-pin headers,
+and an 8-pin is two of them. The M.2 slots, a distractor until then, became a ninth label, and the distractor "M.2
+heatsink" became the AA battery it is.
+
+Round 4 ran `main` at 5df27fa with the nine labels, each harness at its default effort: three board runs each of
+gpt-6.1-sol through Codex, on the 5600X, the laptop and the Deck, and of Sonnet 5.5 and Haiku 5.5 through Claude Code
+with an API key and DeepSeek V4.1 Flash through pi, on the 5800X3D. The rename did not stop the CPU power misses:
+gpt-6.1-sol put the label on the 5-pin header in two of its three runs.
+
+### Effort
+
+Until #50, each harness ran at its own default, and only pi's was recorded. Codex ran gpt-6.1-sol at `low`: the
+benchmark starts it with `--ignore-user-config`, which skips the user's config and the effort set there. Claude Code
+ran Sonnet and Haiku at `medium`, and pi ran DeepSeek at `high`. The runs' requests say so: `low` in the turn
+metadata of every Codex run of gpt-6.1-sol in `bench/results/` up to round 4, and `medium` in Claude Code's requests in
+rounds 3 and 4. **Every earlier round in this document ran gpt-6.1-sol at `low`**, so round 3's four models were
+compared at uneven efforts: gpt-6.1-sol at `low`, Sonnet and Haiku at `medium`, DeepSeek at `high`.
+
+#50 lets an agent name its effort as `HARNESS:MODEL@EFFORT`, such as `codex:gpt-6.1-sol@high`, passes it to each
+harness in that harness's own way, and records in `run.json` the effort asked for and the one the harness says it ran
+at ([Effort](../bench/README.md#effort)).
+
+### The M.2 box
+
+Round 4 graded M.2 slots on the two tight boxes drawn when the slots were a distractor, one on each socket. #51
+merged them into one generous box over both sockets: the agent places a label, not a pointer, and a label just beside
+a slot, or between and just above the two, names them. #52 extended it over the drive bay, from the standoff screws
+down to the sockets, where an M.2 SSD sits, after gpt-6.1-sol had put the label there in one run of round 4 and two of
+round 5. The user decided both boxes by eye.
+
+Round 5 ran `main` at 82457fd, with #51's box, on the same machines: gpt-6.1-sol, Sonnet and Haiku at `@high`.
+DeepSeek was left out: each run costs money, and rounds 3 and 4 already show its trend. Round 6, at the same commit,
+ran Haiku at `@xhigh` and `@max`.
+
+Every run is graded again here from its `vm-board.json` with the current `check.py`. *Passed* lists the labels right
+per run with the final boxes; *When run*, with the boxes of the run's commit, where that differs. Wall times compare
+across agents only roughly, since gpt-6.1-sol ran on the slower machines; Haiku's efforts all ran on the 5800X3D.
+
+| Round | Agent | Effort | Passed | When run | Wall s | In tools s | Turn s | Calls | Images |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 4 | gpt-6.1-sol | low | 1/3: 8, 8, 9 | 1/3: 7, 7, 9 | 46 (42–53) | 12 (12–13) | 6.4 (5.1–6.8) | 5 (4–5) | 7 (3–7) |
+| | Sonnet 5.5 | medium | 3/3: 9, 9, 9 | 1/3: 9, 8, 8 | 30 (28–32) | 13 (12–13) | 3.1 (2.7–3.6) | 4 (4–5) | 9 (7–12) |
+| | Haiku 5.5 | medium | 2/3: 9, 9, 8 | 2/3: 9, 9, 7 | 87 (40–95) | 24 (13–27) | 3.4 (1.9–4.5) | 18 (5–20) | 27 (5–29) |
+| | DeepSeek V4.1 Flash | high | 1/3: 9, 6, 8 | | 268 (248–288) | 20 (14–23) | 6.0 (5.5–7.0) | 41 (39–43) | 51 (40–52) |
+| 5 | gpt-6.1-sol | high | 3/3: 9, 9, 9 | 1/3: 8, 9, 8 | 55 (54–67) | 13 (12–14) | 7.1 (5.2–8.0) | 5 (5–6) | 7 (4–8) |
+| | Sonnet 5.5 | high | 3/3: 9, 9, 9 | | 39 (37–47) | 14 (13–15) | 3.2 (3.1–3.7) | 7 (6–8) | 13 (11–14) |
+| | Haiku 5.5 | high | 1/3: 8, 9, 8 | | 74 (56–82) | 16 (13–18) | 4.2 (3.3–4.8) | 10 (9–10) | 10 (9–13) |
+| 6 | Haiku 5.5 | xhigh | 1/3: 9, 8, 8 | | 123 (119–144) | 14 (14–18) | 5.4 (3.7–6.2) | 15 (15–16) | 15 (15–16) |
+| | Haiku 5.5 | max | 1/3: 9, 8, 8 | | 249 (224–261) | 14 (14–14) | 11.0 (7.2–11.2) | 19 (17–20) | 18 (17–20) |
+
+- **With the final boxes**, gpt-6.1-sol passed 1/3 at `low` and 3/3 at `high`; Sonnet 3/3 at either effort; Haiku
+  2/3 at `medium` and 1/3 at `high`, `xhigh` and `max`. Haiku took twice as long at `max` as at `xhigh`, 249 s to
+  123 s, nearly all of it the model's: 11.0 s a turn to 5.4 s.
+- **The regrade moves only M.2 slots.** #51's box takes the labels of Sonnet's two failed runs and Haiku's failed
+  run in round 4, and of gpt-6.1-sol's first run there; #52's takes gpt-6.1-sol's second run in round 4 and its two
+  failed runs in round 5, all three in the drive bay. DeepSeek's, on the second and third PCIe slots, stays a miss.
+- **gpt-6.1-sol's CPU power misses come from its effort, not the label's name.** At `high` it put CPU power headers
+  on their box in all 3 runs. At `low`, over all 47 of its board runs from #34 to round 4, it put the label on its
+  box 14 times, on the 5-pin header beside the memory slots 31 times and elsewhere twice, under either name. Three
+  runs are few, but at its `low` rate three right in a row would come about once in 38 tries.
+- **Haiku's misses are its own, and effort does not remove them.** From round 3 to round 6 it put:
+  - CPU power headers on the 5-pin header, in round 3, round 4 and at `high`;
+  - the BMC chip on the board's serial port, four times on the same spot, (443–460, 202–219) in photo pixels: in
+    round 3, twice at `xhigh` and once at `max`. The user identified the part there: the serial port, with the BMC's
+    VGA port below it. The BMC chip's box is at (500–590, 860–945);
+  - SATA ports on the memory slots, in round 3 and at `max`;
+  - the USB 3.0 header on no part, about 360 photo pixels below its header, at `high`.
+
+  Each of its failed runs in rounds 4 to 6 missed one label, each where it aimed.
+- **No drag in rounds 4 to 6 is hyprmasq's.** `attribute.py`, rerun on `main` after #53, blames none of the 278 drags
+  of the 27 runs on hyprmasq, and every label that moved landed within 0.7 photo pixels of where it was aimed. Before
+  #53 it blamed one: in Haiku's second `xhigh` run, a drag of SATA ports moved 6.7 px from its press, under the 8 px
+  of GTK's `gtk-dnd-drag-threshold`, which Firefox reads, so the page saw no drag-and-drop start and the label stayed;
+  Haiku dragged it again. #53 counts a drag that short as the model's, and changed nothing else. Of the other drags
+  that left a label wrong, 9 started on no label (5 of them DeepSeek's), 3 dropped one off the photo and the tray and
+  5 took one back to the tray; the rest landed where aimed, on another part or none.
+- **The user was undisturbed in all 27 runs.**
+- **DeepSeek in round 4** passed 1/3, in 248 to 288 s and 39 to 43 calls a run. Its second run put CPU power headers
+  on the 5-pin header, SATA ports on no part and M.2 slots on the second and third PCIe slots; its third put CPU power
+  headers on no part, half a photo pixel below the 5-pin header's box. Its runs took 40 to 52 images, under the
+  provider's 64, and each ended on its own.
+
 ## Open
 
 - **Shortcuts that an app runs more than 250 ms after the key** still fail without a word beside the user's window.
