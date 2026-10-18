@@ -142,6 +142,41 @@ def fifo(path):
     alice(f"mkfifo {path}")
 
 
+def held_encoder(reply):
+    """Waits until a screenshot's encoder is held opening a FIFO, as it is until the FIFO is read, and returns its
+    thread: the one thread of Hyprland in openat for writing. A fixed sleep can end before a slow guest gets there."""
+    pid = machine.succeed(f"sed -n 1p {runtime}/hypr/{instance}/hyprland.lock").strip()
+    writing = f"for t in /proc/{pid}/task/*; do read -r nr _ _ flags _ < $t/syscall && [ \"$nr\" = 257 ] && [ $((flags & 3)) = 1 ] && echo ${{t##*/}}; done; true"
+    deadline = time.monotonic() + 30
+    while len(threads := machine.succeed(writing).split()) != 1:
+        if time.monotonic() > deadline:
+            # Without a writer, a read of the FIFO would never return. hyprctl gets a bound, in case Hyprland is stuck.
+            answers = shlex.quote(f"{ipc} hyprctl version")
+            state = machine.succeed(f"cat {reply}; cat /proc/{pid}/task/{pid}/syscall; timeout 5 su - alice -c {answers} | head -1 || echo hyprctl got no answer")
+            raise AssertionError(f"Timed out: no encoder opens the FIFO ({threads}): {state}")
+        time.sleep(0.25)
+    return pid, threads[0]
+
+
+def joining(pid, thread):
+    """Waits until Hyprland's main thread waits in pthread_join for the thread: in futex, on an address in the thread's
+    struct pthread, which lies at the top of the mapping of its stack."""
+    deadline, call = time.monotonic() + 30, [""]
+    while time.monotonic() < deadline:
+        held, main, maps = machine.succeed(f"cat /proc/{pid}/task/{thread}/syscall /proc/{pid}/task/{pid}/syscall /proc/{pid}/maps").split("\n", 2)
+        call = main.split()
+        if call[0] == "202":
+            sp, address = int(held.split()[7], 16), int(call[1], 16)
+            for line in maps.splitlines():
+                start, end = (int(n, 16) for n in line.split()[0].split("-"))
+                if start <= sp < end:
+                    if start <= address < end:
+                        return
+                    break
+        time.sleep(0.25)
+    raise AssertionError(f"Timed out: the unload does not wait for the encoder: {call}")
+
+
 def eis_entry(address):
     return next(e for e in json.loads(hypr("-j hyprmasq eis list")) if e["address"] == address)
 
@@ -246,8 +281,9 @@ try:
         windows = []
         for n, (name, color, rgb) in enumerate(colors, 1):
             focus_workspace(n)
+            # Later subtests use these windows until the end, which a slow host reaches more than 15 minutes later.
             command = "sh -c " + shlex.quote(
-                "printf '\\033[?25lTOP OF WINDOW\\n'; sleep 900"
+                "printf '\\033[?25lTOP OF WINDOW\\n'; sleep infinity"
             )
             address = foot(
                 "hm-" + name,
@@ -269,10 +305,10 @@ try:
         hypr_background(
             f"-j hyprmasq screenshot {red} /tmp/hm-fifo.png", "/tmp/hm-fifo-reply"
         )
-        time.sleep(1)
+        held_encoder("/tmp/hm-fifo-reply")
         assert json.loads(hypr("-j activeworkspace"))["id"] == 4
         machine.succeed("test ! -s /tmp/hm-fifo-reply")
-        machine.succeed("cat /tmp/hm-fifo.png > /tmp/hm-fifo-copy.png")
+        machine.succeed("timeout 30 cat /tmp/hm-fifo.png > /tmp/hm-fifo-copy.png", timeout=60)
         machine.wait_until_succeeds("test -s /tmp/hm-fifo-reply", timeout=30)
         reply = json.loads(machine.succeed("cat /tmp/hm-fifo-reply"))
         assert reply["ok"] and reply["path"] == "/tmp/hm-fifo.png", reply
@@ -4267,10 +4303,12 @@ print(longest)
         ), timed
         assert snapshot() == before_focus
 
-    with subtest("hyprmasq-mcp does not wait for an animation, names it, and leaves its changes out"):
+    with subtest("hyprmasq-mcp does not wait for an animation, and names it"):
         # A digit at the top left of a foot window counts ten times a second, a small box that keeps redrawing. The
         # plugin takes it for an animation once it has redrawn for a second, so the wait settles long before the
-        # deadline. The digit's changes since the shot are left out of the zooms.
+        # deadline. Whether the digit's changes are left out depends on the digits that the second capture sees: two of
+        # them can differ by too little to show that the box goes on changing, so the result may keep them. That an
+        # animation's changes are left out is the next subtest's.
         machine.succeed("printf '%s\\n' 'printf \"\\033[?25l\"; i=0' 'while :; do printf \"\\033[1;1H%d\" $((i % 10)); i=$((i + 1)); sleep 0.1; done' > /tmp/hm-tick.sh")
         focus_workspace(55)
         ticking = foot("hm-m-ticking", "sh /tmp/hm-tick.sh")
@@ -4283,7 +4321,6 @@ print(longest)
         box = wait["animated"][0]
         assert box["x"] <= 2 and box["y"] <= 2 and box["height"] < 60, settled
         assert re.search(r"· quiet \d+ ms except animation at \d+,\d+ \d+×\d+ · ", settled.text), settled
-        assert settled.data["shot"]["changes"]["regions"] == [], settled
         # The plugin's wait with ignore animations, as act's watch after input runs it, waits for a commit that is not
         # part of an animation, so the digit does not end its change phase, as it ends one without.
         ignoring = json.loads(hypr(f"-j hyprmasq wait {ticking} since {window_state(ticking)['commits']} expect 1000 quiet 100 deadline 3000 ignore animations"))
@@ -5863,10 +5900,12 @@ print(longest)
         hypr_background(
             f"hyprmasq screenshot {green} /tmp/hm-fifo.png", "/tmp/hm-fifo-reply"
         )
-        time.sleep(1)
+        pid, encoder = held_encoder("/tmp/hm-fifo-reply")
         hypr_background(f"plugin unload {plugin}", "/tmp/hm-unload-reply")
-        time.sleep(1)
-        machine.succeed("cat /tmp/hm-fifo.png > /tmp/hm-fifo-copy.png")
+        # The unload waits for the encoder, which waits for the FIFO to be read.
+        joining(pid, encoder)
+        machine.succeed("test ! -s /tmp/hm-unload-reply && test ! -s /tmp/hm-fifo-reply")
+        machine.succeed("timeout 30 cat /tmp/hm-fifo.png > /tmp/hm-fifo-copy.png", timeout=60)
         machine.wait_until_succeeds("grep -qx ok /tmp/hm-unload-reply", timeout=30)
         machine.wait_until_succeeds("grep -qx ok /tmp/hm-fifo-reply", timeout=30)
         assert_png("/tmp/hm-fifo-copy.png", (0, 255, 0))
