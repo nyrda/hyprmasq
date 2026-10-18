@@ -16,11 +16,16 @@
 #include <GLES3/gl32.h>
 #include <png.h>
 
+#include <fcntl.h>
+#include <poll.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <array>
+#include <cerrno>
 #include <cmath>
 #include <cstdint>
-#include <cstdio>
 #include <format>
-#include <memory>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -34,30 +39,117 @@ namespace hyprmasq {
             static constexpr auto RENDER_WINDOW = &SRendererAccess::renderWindow;
         };
 
-        struct SFileCloser {
-            void operator()(std::FILE* file) const {
-                std::fclose(file);
+        SError stopped(const std::filesystem::path& path) {
+            return SError{eErrorCode::UNLOADED, std::format("hyprmasq was unloaded before {} was written", path.string())};
+        }
+
+        SError failed(std::string_view what, const std::filesystem::path& path) {
+            return SError{eErrorCode::INTERNAL, std::format("cannot {} {}", what, path.string())};
+        }
+
+        // Whether stop, an eventfd or -1, is readable within timeout ms.
+        bool stopping(int stop, int timeout) {
+            pollfd fd{.fd = stop, .events = POLLIN, .revents = 0};
+            return poll(&fd, 1, timeout) > 0 && (fd.revents & POLLIN);
+        }
+
+        // A file opened for writing, as by fopen(path, "wb"), without waiting in open() for a FIFO's reader: a reader
+        // that opens it later still gets the file, and stop ends the wait. The descriptor does not block.
+        class COutput {
+          public:
+            COutput(const COutput&)            = delete;
+            COutput& operator=(const COutput&) = delete;
+            ~COutput() {
+                if (m_fd >= 0)
+                    close(m_fd);
             }
+
+            // How long a write to a FIFO without a reader waits before it opens it again. Nothing tells a writer that a
+            // reader opened a FIFO, so it tries until one has, where fopen() would wait in open().
+            static constexpr int                  READER_RETRY_MS = 20;
+
+            static std::expected<COutput, SError> open(const std::filesystem::path& path, int stop) {
+                while (true) {
+                    const int fd = ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_NONBLOCK | O_CLOEXEC, 0666);
+                    if (fd >= 0)
+                        return COutput{fd, path, stop};
+                    if (errno == EINTR)
+                        continue;
+                    // ENXIO is also the answer for a socket or an absent device, which no wait opens.
+                    struct stat st{};
+                    if (errno != ENXIO || stat(path.c_str(), &st) != 0 || !S_ISFIFO(st.st_mode))
+                        return std::unexpected(failed("open", path));
+                    if (stopping(stop, READER_RETRY_MS))
+                        return std::unexpected(stopped(path));
+                }
+            }
+
+            COutput(COutput&& other) noexcept : m_fd(std::exchange(other.m_fd, -1)), m_path(std::move(other.m_path)), m_stop(other.m_stop) {}
+
+            // Writes all of data, waiting for room in a pipe until stop.
+            std::expected<void, SError> write(std::span<const uint8_t> data) {
+                while (!data.empty()) {
+                    const auto written = ::write(m_fd, data.data(), data.size());
+                    if (written > 0) {
+                        data = data.subspan(sc<size_t>(written));
+                        continue;
+                    }
+                    if (written < 0 && errno == EINTR)
+                        continue;
+                    if (written == 0 || errno != EAGAIN)
+                        return std::unexpected(failed("write", m_path));
+                    std::array<pollfd, 2> fds{pollfd{.fd = m_fd, .events = POLLOUT, .revents = 0}, pollfd{.fd = m_stop, .events = POLLIN, .revents = 0}};
+                    // An error or a reader that left shows up in the next write.
+                    if (poll(fds.data(), fds.size(), -1) < 0 && errno != EINTR)
+                        return std::unexpected(failed("write", m_path));
+                    if (fds[1].revents & POLLIN)
+                        return std::unexpected(stopped(m_path));
+                }
+                return {};
+            }
+
+            // Some file systems report a failed write only here.
+            std::expected<void, SError> finish() {
+                if (close(std::exchange(m_fd, -1)) != 0)
+                    return std::unexpected(failed("write", m_path));
+                return {};
+            }
+
+          private:
+            COutput(int fd, const std::filesystem::path& path, int stop) : m_fd(fd), m_path(path), m_stop(stop) {}
+
+            int                   m_fd = -1;
+            std::filesystem::path m_path;
+            int                   m_stop = -1;
         };
 
-        std::expected<void, std::string> encode(const std::filesystem::path& path, int width, int height, std::vector<uint8_t>& rgba) {
-            std::unique_ptr<std::FILE, SFileCloser> file{std::fopen(path.c_str(), "wb")};
-            if (!file)
-                return std::unexpected(std::format("cannot open {}", path.string()));
+        void appendPNG(png_structp png, png_bytep data, png_size_t size) {
+            auto* out  = sc<std::vector<uint8_t>*>(png_get_io_ptr(png));
+            bool  full = false;
+            try {
+                out->insert(out->end(), data, data + size);
+            } catch (const std::bad_alloc&) { full = true; }
+            // Exceptions cannot cross libpng's C frames, and png_error leaves by longjmp, so outside the handler.
+            if (full)
+                png_error(png, "out of memory");
+        }
 
-            png_structp png  = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
-            png_infop   info = png ? png_create_info_struct(png) : nullptr;
+        // Encodes into memory, so that only the write to the file waits, and stop can end it.
+        std::expected<std::vector<uint8_t>, SError> encode(const std::filesystem::path& path, int width, int height, std::vector<uint8_t>& rgba) {
+            std::vector<uint8_t> out;
+            png_structp          png  = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+            png_infop            info = png ? png_create_info_struct(png) : nullptr;
             if (!png || !info) {
                 png_destroy_write_struct(&png, &info);
-                return std::unexpected("cannot create png writer");
+                return std::unexpected(SError{eErrorCode::INTERNAL, "cannot create png writer"});
             }
 
             if (setjmp(png_jmpbuf(png))) {
                 png_destroy_write_struct(&png, &info);
-                return std::unexpected(std::format("cannot write {}", path.string()));
+                return std::unexpected(failed("write", path));
             }
 
-            png_init_io(png, file.get());
+            png_set_write_fn(png, &out, appendPNG, nullptr);
             // hyprctl answers once the file is written. libpng's defaults, zlib level 6 and every row filter tried, take
             // up to a second for a large window; level 1 with the Sub filter is 4 to 7 times faster, for files about a
             // fifth larger.
@@ -74,10 +166,7 @@ namespace hyprmasq {
             png_write_image(png, rows.data());
             png_write_end(png, nullptr);
             png_destroy_write_struct(&png, &info);
-            // The last buffered bytes reach the file only here, so a full disk can show up only here.
-            if (std::fclose(file.release()) != 0)
-                return std::unexpected(std::format("cannot write {}", path.string()));
-            return {};
+            return out;
         }
 
         // Every framebuffer holds the colors of the monitor's work buffer, as a screenshot always has, so drawing one
@@ -363,19 +452,26 @@ namespace hyprmasq {
         return capture;
     }
 
-    std::expected<void, std::string> writePNG(SImage& image, const std::filesystem::path& output) {
+    std::expected<void, SError> writePNG(SImage& image, const std::filesystem::path& output, int stop) {
+        auto file = COutput::open(output, stop);
+        if (!file)
+            return std::unexpected(file.error());
         unpremultiply(image.rgba);
-        return encode(output, image.width, image.height, image.rgba);
+        const auto png = encode(output, image.width, image.height, image.rgba);
+        if (!png)
+            return std::unexpected(png.error());
+        if (auto written = file->write(*png); !written)
+            return written;
+        return file->finish();
     }
 
-    std::expected<void, std::string> writeRaw(SImage& image, const std::filesystem::path& output) {
-        unpremultiply(image.rgba);
-        std::unique_ptr<std::FILE, SFileCloser> file{std::fopen(output.c_str(), "wb")};
+    std::expected<void, SError> writeRaw(SImage& image, const std::filesystem::path& output, int stop) {
+        auto file = COutput::open(output, stop);
         if (!file)
-            return std::unexpected(std::format("cannot open {}", output.string()));
-        const bool written = std::fwrite(image.rgba.data(), 1, image.rgba.size(), file.get()) == image.rgba.size();
-        if (std::fclose(file.release()) != 0 || !written)
-            return std::unexpected(std::format("cannot write {}", output.string()));
-        return {};
+            return std::unexpected(file.error());
+        unpremultiply(image.rgba);
+        if (auto written = file->write(image.rgba); !written)
+            return written;
+        return file->finish();
     }
 }

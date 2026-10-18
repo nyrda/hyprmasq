@@ -167,13 +167,14 @@ namespace hyprmasq {
             // The image then shows a frame of another size than the window's.
             const bool behind = resizing(window);
 
-            // Rendering needs the compositor, encoding does not.
-            return defer(format, [format, path, raw, detailPath, commits, socketId, behind, hungry, capture = std::move(*capture)] mutable -> std::string {
-                if (auto written = raw ? writeRaw(capture.image, path) : writePNG(capture.image, path); !written)
-                    return error(format, eErrorCode::INTERNAL, written.error());
+            // Rendering needs the compositor, encoding does not. An unload ends a write that waits for a pipe.
+            const int stop = deferred::stopFd();
+            return defer(format, [format, path, raw, detailPath, stop, commits, socketId, behind, hungry, capture = std::move(*capture)] mutable -> std::string {
+                if (auto written = raw ? writeRaw(capture.image, path, stop) : writePNG(capture.image, path, stop); !written)
+                    return error(format, written.error());
                 if (capture.detail)
-                    if (auto written = writeRaw(*capture.detail, detailPath); !written)
-                        return error(format, eErrorCode::INTERNAL, written.error());
+                    if (auto written = writeRaw(*capture.detail, detailPath, stop); !written)
+                        return error(format, written.error());
                 if (format == FORMAT_JSON) {
                     const auto& r = capture.image.region;
                     // Without a detail image, the image has as many pixels as one would.

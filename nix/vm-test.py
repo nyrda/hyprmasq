@@ -142,39 +142,21 @@ def fifo(path):
     alice(f"mkfifo {path}")
 
 
-def held_encoder(reply):
-    """Waits until a screenshot's encoder is held opening a FIFO, as it is until the FIFO is read, and returns its
-    thread: the one thread of Hyprland in openat for writing. A fixed sleep can end before a slow guest gets there."""
+def waiting_writers(count):
+    """Waits until count screenshot writers wait for their pipes, and returns Hyprland's pid. A writer waits for a FIFO's
+    reader, or for room in a pipe, in poll, on a thread of Hyprland named hyprmasq-job; waits on such threads are in
+    futex. A fixed sleep can end before a slow guest gets there."""
     pid = machine.succeed(f"sed -n 1p {runtime}/hypr/{instance}/hyprland.lock").strip()
-    writing = f"for t in /proc/{pid}/task/*; do read -r nr _ _ flags _ < $t/syscall && [ \"$nr\" = 257 ] && [ $((flags & 3)) = 1 ] && echo ${{t##*/}}; done; true"
+    polling = f"for t in /proc/{pid}/task/*; do [ \"$(cat $t/comm)\" = hyprmasq-job ] && read -r nr _ < $t/syscall && case $nr in 7|271) echo ${{t##*/}};; esac; done; true"
     deadline = time.monotonic() + 30
-    while len(threads := machine.succeed(writing).split()) != 1:
+    while len(threads := machine.succeed(polling).split()) != count:
         if time.monotonic() > deadline:
-            # Without a writer, a read of the FIFO would never return. hyprctl gets a bound, in case Hyprland is stuck.
+            # hyprctl gets a bound, in case Hyprland is stuck.
             answers = shlex.quote(f"{ipc} hyprctl version")
-            state = machine.succeed(f"cat {reply}; cat /proc/{pid}/task/{pid}/syscall; timeout 5 su - alice -c {answers} | head -1 || echo hyprctl got no answer")
-            raise AssertionError(f"Timed out: no encoder opens the FIFO ({threads}): {state}")
+            state = machine.succeed(f"grep . /proc/{pid}/task/*/comm; timeout 5 su - alice -c {answers} | head -1 || echo hyprctl got no answer")
+            raise AssertionError(f"Timed out: {len(threads)} writers wait for a pipe, not {count}: {state}")
         time.sleep(0.25)
-    return pid, threads[0]
-
-
-def joining(pid, thread):
-    """Waits until Hyprland's main thread waits in pthread_join for the thread: in futex, on an address in the thread's
-    struct pthread, which lies at the top of the mapping of its stack."""
-    deadline, call = time.monotonic() + 30, [""]
-    while time.monotonic() < deadline:
-        held, main, maps = machine.succeed(f"cat /proc/{pid}/task/{thread}/syscall /proc/{pid}/task/{pid}/syscall /proc/{pid}/maps").split("\n", 2)
-        call = main.split()
-        if call[0] == "202":
-            sp, address = int(held.split()[7], 16), int(call[1], 16)
-            for line in maps.splitlines():
-                start, end = (int(n, 16) for n in line.split()[0].split("-"))
-                if start <= sp < end:
-                    if start <= address < end:
-                        return
-                    break
-        time.sleep(0.25)
-    raise AssertionError(f"Timed out: the unload does not wait for the encoder: {call}")
+    return pid
 
 
 def eis_entry(address):
@@ -300,12 +282,12 @@ try:
 
     with subtest("screenshots are encoded while Hyprland keeps running"):
         red, green = windows[0][1], windows[1][1]
-        # Writing to a FIFO holds the encoder until the FIFO is read.
+        # A screenshot to a FIFO waits until the FIFO is read.
         fifo("/tmp/hm-fifo.png")
         hypr_background(
             f"-j hyprmasq screenshot {red} /tmp/hm-fifo.png", "/tmp/hm-fifo-reply"
         )
-        held_encoder("/tmp/hm-fifo-reply")
+        waiting_writers(1)
         assert json.loads(hypr("-j activeworkspace"))["id"] == 4
         machine.succeed("test ! -s /tmp/hm-fifo-reply")
         machine.succeed("timeout 30 cat /tmp/hm-fifo.png > /tmp/hm-fifo-copy.png", timeout=60)
@@ -6025,28 +6007,69 @@ print(longest)
         machine.succeed("pkill -f '[h]yprmasq-clip-probe' || true")
         wait_for("the clipboard probe closed", lambda: client("hm-clip-unload") is None)
 
-    with subtest("unloading answers screenshots still being encoded"):
+    with subtest("unloading ends screenshot writes that wait for a pipe at once, and Hyprland keeps answering"):
         # The red window was closed by the socket lifecycle subtest.
         green = windows[1][1]
-        fifo("/tmp/hm-fifo.png")
-        hypr_background(
-            f"hyprmasq screenshot {green} /tmp/hm-fifo.png", "/tmp/hm-fifo-reply"
-        )
-        pid, encoder = held_encoder("/tmp/hm-fifo-reply")
-        hypr_background(f"plugin unload {plugin}", "/tmp/hm-unload-reply")
-        # The unload waits for the encoder, which waits for the FIFO to be read.
-        joining(pid, encoder)
-        machine.succeed("test ! -s /tmp/hm-unload-reply && test ! -s /tmp/hm-fifo-reply")
-        machine.succeed("timeout 30 cat /tmp/hm-fifo.png > /tmp/hm-fifo-copy.png", timeout=60)
-        machine.wait_until_succeeds("grep -qx ok /tmp/hm-unload-reply", timeout=30)
-        machine.wait_until_succeeds("grep -qx ok /tmp/hm-fifo-reply", timeout=30)
-        assert_png("/tmp/hm-fifo-copy.png", (0, 255, 0))
-        # The batch command works without the plugin, and the plugin can be unloaded from within a batch.
+        size = json.loads(hypr(f"-j hyprmasq screenshot {green} /tmp/hm-unload-size.raw raw"))
+        assert size["width"] * size["height"] * 4 > 1 << 20, size
+        # How long hyprctl takes to answer, every 100 ms, throughout.
+        machine.succeed("rm -f /tmp/hm-unload-probe-stop")
+        probe = f"while [ ! -e /tmp/hm-unload-probe-stop ]; do s=$(date +%s%N); timeout 10 env {ipc} hyprctl version > /dev/null; echo $((($(date +%s%N) - s) / 1000000)); sleep 0.1; done"
+        alice(f"nohup sh -c {shlex.quote(probe)} > /tmp/hm-unload-latency 2>&1 &")
+        # One FIFO has no reader. The other has a reader that never reads, and the raw pixels, over a MiB, fill its pipe.
+        fifo("/tmp/hm-unread.png")
+        fifo("/tmp/hm-stuck.raw")
+        hypr_background(f"-j hyprmasq screenshot {green} /tmp/hm-unread.png", "/tmp/hm-unread-reply")
+        alice("nohup sh -c 'exec sleep 6001 < /tmp/hm-stuck.raw' > /dev/null 2>&1 &")
+        hypr_background(f"-j hyprmasq screenshot {green} /tmp/hm-stuck.raw raw", "/tmp/hm-stuck-reply")
+        pid = waiting_writers(2)
+        machine.succeed("test ! -s /tmp/hm-unread-reply && test ! -s /tmp/hm-stuck-reply")
+        machine.wait_until_succeeds("[ $(wc -l < /tmp/hm-unload-latency) -ge 2 ]", timeout=30)
+        ms = int(alice(f"s=$(date +%s%N); {ipc} hyprctl plugin unload {plugin} > /tmp/hm-unload-reply; echo $((($(date +%s%N) - s) / 1000000))"))
+        machine.log(f"the unload took {ms} ms")
+        assert machine.succeed("cat /tmp/hm-unload-reply").strip() == "ok"
+        assert ms < 2000, ms
+        # Both get an answer that says why, and no thread of the plugin is left.
+        for name, path in (("unread", "/tmp/hm-unread.png"), ("stuck", "/tmp/hm-stuck.raw")):
+            reply = background_reply(f"/tmp/hm-{name}-reply", timeout=10)
+            assert not reply["ok"] and reply["code"] == "unloaded" and path in reply["error"], reply
+        machine.succeed(f"! grep -qx hyprmasq-job /proc/{pid}/task/*/comm")
+        machine.wait_until_succeeds(f"! grep -q hyprmasq.so /proc/{pid}/maps", timeout=10)
+        # The batch command works without the plugin.
         assert (
             hypr("--batch 'activeworkspace; activeworkspace'").count("workspace ID")
             == 2
         )
+        # Two more answers, so that the probe spans the unload.
+        after = int(machine.succeed("wc -l < /tmp/hm-unload-latency")) + 2
+        machine.wait_until_succeeds(f"[ $(wc -l < /tmp/hm-unload-latency) -ge {after} ]", timeout=30)
+        machine.succeed("pkill -f '^sleep 6001$'")
+        machine.succeed("touch /tmp/hm-unload-probe-stop")
+        machine.wait_until_fails("pgrep -f '^sh -c while \\[ ! -e /tmp/hm-unload-probe-stop'", timeout=30)
+        latencies = [int(line) for line in machine.succeed("cat /tmp/hm-unload-latency").split()]
+        machine.log(f"hyprctl answered in {latencies} ms")
+        assert len(latencies) >= 4 and max(latencies) < 1000, latencies
+
+        # Loaded again, screenshots reach a file, a FIFO that a reader opens later, and a pipe that is read.
         assert hypr(f"plugin load {plugin}") == "ok"
+        assert_png(screenshot(green, "after-unload"), (0, 255, 0))
+        fifo("/tmp/hm-late.png")
+        hypr_background(f"-j hyprmasq screenshot {green} /tmp/hm-late.png", "/tmp/hm-late-reply")
+        waiting_writers(1)
+        machine.succeed("timeout 30 cat /tmp/hm-late.png > /tmp/hm-late-copy.png", timeout=60)
+        reply = background_reply("/tmp/hm-late-reply")
+        assert reply["ok"] and reply["path"] == "/tmp/hm-late.png", reply
+        assert_png("/tmp/hm-late-copy.png", (0, 255, 0))
+        fifo("/tmp/hm-read.raw")
+        alice("nohup sh -c 'cat /tmp/hm-read.raw > /tmp/hm-read-copy.raw' > /dev/null 2>&1 &")
+        reply = json.loads(hypr(f"-j hyprmasq screenshot {green} /tmp/hm-read.raw raw"))
+        assert reply["ok"], reply
+        machine.wait_until_fails("pgrep -f '^cat /tmp/hm-read.raw$'", timeout=30)
+        width, height = reply["width"], reply["height"]
+        assert near(raw_pixels("/tmp/hm-read-copy.raw", width, height, (width // 2, height // 2))[0], (0, 255, 0))
+
+    with subtest("the plugin can be unloaded from within a batch"):
+        green = windows[1][1]
         batch(f"plugin unload {plugin}; activeworkspace")
         assert "hyprmasq" not in hypr("plugin list")
         # Once the batch has returned, the library is released and the batch command restored.

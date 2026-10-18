@@ -5,6 +5,7 @@
 #include <hyprland/src/debug/HyprCtl.hpp>
 
 #include <dlfcn.h>
+#include <pthread.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
 #include <algorithm>
@@ -52,8 +53,8 @@ namespace hyprmasq::deferred {
         };
 
         bool                                      active  = false;
-        int                                       eventFd = -1;
-        wl_event_source*                          source  = nullptr;
+        int                                       eventFd = -1, stopEvent = -1;
+        wl_event_source*                          source = nullptr;
         uint64_t                                  nonce = 0, nextId = 1;
         std::map<uint64_t, std::unique_ptr<SJob>> jobs;
         std::vector<SRequest>                     requests;
@@ -114,7 +115,10 @@ namespace hyprmasq::deferred {
                 complete(job, std::move(reply));
             };
             try {
-                job->thread = std::thread(execute);
+                job->thread = std::thread([execute] {
+                    pthread_setname_np(pthread_self(), "hyprmasq-job");
+                    execute();
+                });
             } catch (const std::system_error&) {
                 // No thread to spare. Work that waits for the main thread would wait for itself here.
                 if (job->refuse)
@@ -261,7 +265,9 @@ namespace hyprmasq::deferred {
         originalInvoke = hook(handle, "invokeHyprctlCommand", reinterpret_cast<void*>(&invokeHyprctlCommand));
         eventFd        = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
         source         = eventFd < 0 ? nullptr : wl_event_loop_add_fd(g_pCompositor->m_wlEventLoop, eventFd, WL_EVENT_READABLE, onEvent, nullptr);
-        if (!source)
+        // Wakes the jobs at the unload, as eventFd wakes the main thread when one is done.
+        stopEvent = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        if (!source || stopEvent < 0)
             throw std::runtime_error("hyprmasq: cannot watch background work");
         // Still wrapped when reloaded before a batch that unloaded it has finished.
         if (!batch->fn.target<SBatch>())
@@ -281,11 +287,17 @@ namespace hyprmasq::deferred {
             restoreBatch();
         active = false;
 
-        // wait::shutdown() has answered every wait, so every job ends.
+        // wait::shutdown() has answered every wait, and the stop event ends every write that waits for a pipe, so every
+        // job ends soon.
+        if (stopEvent >= 0)
+            eventfd_write(stopEvent, 1);
         for (auto& [_, job] : jobs) {
             if (job->thread.joinable())
                 job->thread.join();
         }
+        if (stopEvent >= 0)
+            close(stopEvent);
+        stopEvent = -1;
         for (auto& request : std::exchange(requests, {}))
             request.resolver->resolve(collect(std::move(request.reply), request.jobs));
         // Jobs of a running batch stay until the batch collects them.
@@ -297,6 +309,10 @@ namespace hyprmasq::deferred {
         if (eventFd >= 0)
             close(eventFd);
         eventFd = -1;
+    }
+
+    int stopFd() {
+        return stopEvent;
     }
 
     bool canDefer() {

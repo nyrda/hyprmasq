@@ -125,6 +125,11 @@ file is complete, also within `hyprctl --batch`. The plugin compresses for speed
 rather than size: a 2560×1440 window takes roughly 30 to 130 ms, depending on
 the content.
 
+The path can be a FIFO: the screenshot is written once a reader opens it, and
+the reply comes once it is read. An unload of the plugin ends a screenshot that
+still waits for its reader, or for a reader to take more of the image, with code
+`unloaded`.
+
 ### Regions
 
 `X Y WIDTH HEIGHT` limits the screenshot to a rectangle of the window, in the

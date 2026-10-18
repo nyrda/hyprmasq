@@ -51,7 +51,8 @@ namespace hyprmasq {
     // window. Main thread only.
     std::expected<SCapture, SError> captureWindow(const PHLWINDOW& window, const SCaptureOptions& options = {});
     // Encodes the image as a PNG, or writes its pixels as they are: straight-alpha RGBA, top row first, without a header.
-    // Safe on any thread.
-    std::expected<void, std::string> writePNG(SImage& image, const std::filesystem::path& output);
-    std::expected<void, std::string> writeRaw(SImage& image, const std::filesystem::path& output);
+    // A FIFO is written once a reader has opened it. Once stop, an eventfd or -1, is readable, a write that waits for a
+    // FIFO's reader or for room in a pipe ends with code UNLOADED. Safe on any thread.
+    std::expected<void, SError> writePNG(SImage& image, const std::filesystem::path& output, int stop = -1);
+    std::expected<void, SError> writeRaw(SImage& image, const std::filesystem::path& output, int stop = -1);
 }

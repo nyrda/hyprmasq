@@ -1164,9 +1164,6 @@ across agents only roughly, since gpt-6.1-sol ran on the slower machines; Haiku'
 ## Open
 
 - **Shortcuts that an app runs more than 250 ms after the key** still fail without a word beside the user's window.
-- **Unloading the plugin while a screenshot waits for the reader of a pipe** holds Hyprland's main thread until
-  something reads the pipe: the unload joins the screenshot's thread. It needs an unload during such a write, and is
-  not being fixed for now.
 
 Settled, and not for hyprmasq:
 
@@ -1176,6 +1173,8 @@ Settled, and not for hyprmasq:
   next to the agent's window.
 - **hyprmasq's own time per call** is now 0.15 to 0.35 s beyond its waits and the sender's pacing at 1920×1080 and
   2560×1440, after #33 rendered each moment once and #37 made the comparison exact around what differs.
+- **Unloading the plugin while a screenshot waits for the reader of a pipe** returns at once since #56, and the
+  screenshot answers with code `unloaded`; the unload held Hyprland's main thread until something read the pipe.
 - **A point in the last pixel of the right or bottom edge** arrives as it is since #45, to 1/256 of a logical
   pixel; it landed on the pixel before, up to a device pixel off at scale 2 and fractional scales.
 - **A blank first shot of an Electron app** is the app still loading its page, as a browser's is; hyprmasq cannot tell

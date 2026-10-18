@@ -6,7 +6,7 @@
 // hyprctl replies that are computed on a background thread, so Hyprland keeps running while they are.
 namespace hyprmasq::deferred {
     void init(void* handle);
-    // Waits for all running work and answers every client that is still waiting.
+    // Signals stopFd(), waits for all running work and answers every client that is still waiting.
     void shutdown();
 
     // Runs work on its own thread. Returns the string for the command handler to return: a placeholder when the reply
@@ -18,4 +18,8 @@ namespace hyprmasq::deferred {
     // Whether run() sends the reply later rather than running work at once on the calling thread. Work that waits for
     // the main thread may only start when this is true.
     bool canDefer();
+    // An eventfd that becomes readable when the plugin unloads, or -1 while it is not loaded. shutdown() waits for every
+    // job, so work that waits for something outside Hyprland, such as a pipe's reader, watches it and ends early. It
+    // stays open until every job that may have read it has ended.
+    int stopFd();
 }
