@@ -159,6 +159,12 @@ namespace hyprmasq {
             return popup && popup->wlSurface() && popup->wlSurface()->resource() ? popup : nullptr;
         }
 
+        // The last coordinate of a window's extent that still arrives inside it. Wayland sends pointer positions in
+        // wl_fixed, rounded to the nearest 1/256 logical pixel, so a point closer to the edge would arrive on it.
+        double lastInside(double extent) {
+            return std::max(0.0, (std::ceil(extent * 256) - 1) / 256);
+        }
+
         // The surface at a window-local point, and the point in that surface's coordinates.
         SP<CWLSurfaceResource> surfaceAt(const PHLWINDOW& w, const Vector2D& point, Vector2D& local) {
             // Like Hyprland, address X11 windows through their one surface, in XWayland's scale.
@@ -918,10 +924,10 @@ namespace hyprmasq {
                             if (!std::isfinite(x) || !std::isfinite(y))
                                 continue;
                             // A point over one of the window's popups reaches the popup, also outside the window. Any
-                            // other point is clamped to the window.
+                            // other point is clamped to the window, keeping the fractions of its last pixel.
                             const auto size = w->size(Desktop::View::IGeometric::GEOMETRIC_GOAL);
-                            position = popupAt(w, {x, y}) ? Vector2D{x, y} : Vector2D{std::clamp(x, 0.0, std::max(0.0, size.x - 1)), std::clamp(y, 0.0, std::max(0.0, size.y - 1))};
-                            pointerAt = {x, y};
+                            position        = popupAt(w, {x, y}) ? Vector2D{x, y} : Vector2D{std::clamp(x, 0.0, lastInside(size.x)), std::clamp(y, 0.0, lastInside(size.y))};
+                            pointerAt       = {x, y};
                         }
                         if (type == EIS_EVENT_BUTTON_BUTTON) {
                             const auto button = eis_event_button_get_button(e);

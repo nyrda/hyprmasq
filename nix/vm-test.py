@@ -1558,12 +1558,81 @@ print(json.dumps([im.getpixel(p) for p in {list(points)!r}]))
         # The press gives the keyboard focus to the window's own surface, where keys go, before the button.
         assert events.splitlines().index("keyboard enter hm-p-popout") < events.splitlines().index("button popup 1"), events
         assert "button hm-p-popout" not in events, events
-        # A point outside the window and its popups is clamped to the window.
+        # A point outside the window and its popups is clamped to the window, to the last 1/256 of a pixel before its edge.
         offset = log_size("p-popout")
         send(popout_path, "move", 500, 50, "click")
         machine.wait_until_succeeds(f"tail -c +{offset + 1} /tmp/hyprmasq-p-popout.log | grep -q 'button hm-p-popout 0'", timeout=10)
         events = log_since("p-popout", offset)
-        assert "motion hm-p-popout 299 50" in events.splitlines() and "button popup" not in events, events
+        assert "motion hm-p-popout 299.996 50" in events.splitlines() and "button popup" not in events, events
+
+    with subtest("a point in the last pixel of the right and bottom edges keeps its fraction"):
+        # The last column and row of a native shot at scales 2 and 1.5 lie inside the window's last logical pixel, for an
+        # even and an odd size, and so does the last of the 1280-pixel overview that hyprmasq-mcp takes by default of the
+        # odd window at scale 2. Their points, region origin + shot pixel / scale, arrive to wl_fixed's 1/256 of a logical
+        # pixel. A point beyond the window arrives on the last 1/256 before its edges, and one on a popup beyond the window
+        # at the popup. A 1920x1080 monitor fits the window at both scales.
+        def edge_monitor(scale):
+            hypr("eval " + shlex.quote(
+                f'hl.monitor({{ output = "HYPRMASQ-TEST", mode = "1920x1080@60", position = "0x0", scale = "{scale}" }})'
+            ))
+            wait_for(f"1920x1080 at scale {scale}", lambda: any(
+                m["name"] == "HYPRMASQ-TEST" and m["width"] == 1920 and abs(m["scale"] - scale) < 1e-6 for m in json.loads(hypr("-j monitors"))
+            ))
+            time.sleep(0.5)
+
+        def placed(address, width, height):
+            float_window(address, 10, 10, width, height)
+            wait_for(f"{address} drawn at {width}x{height}", lambda: not window_state(address)["resizing"])
+
+        def received(log, offset, surface):
+            """The last point that surface got in the log since offset, once a button went up there."""
+            machine.wait_until_succeeds(f"tail -c +{offset + 1} /tmp/hyprmasq-{log}.log | grep -q 'button {surface} 0$'", timeout=10)
+            events = log_since(log, offset)
+            motions = [line.split()[-2:] for line in events.splitlines() if f"motion {surface} " in line]
+            assert motions, events
+            return tuple(float(v) for v in motions[-1])
+
+        def arrives(got, expected):
+            assert all(abs(g - e) <= 1 / 256 for g, e in zip(got, expected)), (got, expected)
+
+        # focus-probe's focus mode requests nothing on a click, so each click only moves and presses.
+        focus_workspace(96)
+        spawn("hyprmasq-focus-probe focus hm-p-edge", "p-edge")
+        wait_for("hm-p-edge", lambda: client("hm-p-edge") is not None)
+        edge = client("hm-p-edge")["address"]
+        # The popup covers 320,20 to 420,60 of the 300x200 window, past its right edge.
+        edgepop = popup_probe("hm-p-edgepop", 97, 320, 20, 100, 40)
+        edge_path, edgepop_path = open_socket(edge), open_socket(edgepop)
+        for scale in [2, 1.5]:
+            edge_monitor(scale)
+            for width, height in [(640, 480), (641, 481)]:
+                placed(edge, width, height)
+                _, native = shot(edge, f"edge-{scale}-{width}")
+                assert native["scale"] == scale, native
+                replies = [native]
+                if (scale, width) == (2, 641):
+                    _, overview = shot(edge, "edge-overview", "max 1280")
+                    assert overview["width"] == 1280 and overview["scale"] == 1280 / 641, overview
+                    replies.append(overview)
+                for reply in replies:
+                    origin = reply["region"]
+                    point = (origin["x"] + (reply["width"] - 1) / reply["scale"], origin["y"] + (reply["height"] - 1) / reply["scale"])
+                    assert width - 1 < point[0] < width and height - 1 < point[1] < height, (point, reply)
+                    offset = log_size("p-edge")
+                    send(edge_path, "move", repr(point[0]), repr(point[1]), "click")
+                    arrives(received("p-edge", offset, "hm-p-edge"), point)
+                offset = log_size("p-edge")
+                send(edge_path, "move", width + 30, height + 20, "click")
+                got = received("p-edge", offset, "hm-p-edge")
+                arrives(got, (width - 1 / 256, height - 1 / 256))
+                assert got[0] < width and got[1] < height, got
+            offset = log_size("p-edgepop")
+            send(edgepop_path, "move", 330.5, 30.25, "click")
+            arrives(received("p-edgepop", offset, "popup"), (10.5, 10.25))
+            assert "button hm-p-edgepop" not in log_since("p-edgepop", offset)
+        machine.succeed("pkill -f 'hyprmasq-focus-probe [f]ocus hm-p-edge'; pkill -f 'hyprmasq-focus-probe [p]opup hm-p-edgepop'")
+        wait_for("edge probes closed", lambda: client("hm-p-edge") is None and client("hm-p-edgepop") is None)
+        monitor_scale(1, 640)
 
     with subtest("a region with popups can start above and left of the window"):
         # The popup covers -40,-30 to 20,20 of the window.

@@ -668,7 +668,10 @@ the edges of the bounding box of the window and its monitor. A point over one
 of the window's popups reaches the popup at the place where screenshots show
 it, also for a window whose xdg geometry has an offset, such as a GTK window
 with client-side shadows, and while Hyprland animates the window's position.
-Any other point in the regions is clamped to the window.
+Any other point in the regions is clamped to the window: a point inside it,
+also in its last logical pixel at the right or bottom edge, arrives as it is,
+to Wayland's 1/256 of a logical pixel, and one beyond an edge arrives on the
+last 1/256 before it.
 
 libei region offsets are unsigned, so no region can lie left of or above the
 window, and pointer input cannot reach negative coordinates. `hyprmasq-input`

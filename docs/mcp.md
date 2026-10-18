@@ -2144,9 +2144,11 @@ Hyprland's own popup hit testing differs from where its renderer draws the
 popups by that offset; the plugin follows the renderer. Hyprland's hit testing
 places popups at the window's animated position, so while the window moves the
 plugin tests a point there too, and the point still reaches the popup that
-shots show at it. Any other point is clamped to the window. The device is
-replaced when its regions change: after a resize, a move or a change of the
-monitor layout. The keyboard is never replaced.
+shots show at it. Any other point is clamped to the window: one in its last
+logical pixel at the right or bottom edge keeps its fraction, to Wayland's
+1/256 of a logical pixel, and one beyond an edge arrives on the last 1/256
+before it. The device is replaced when its regions change: after a resize, a
+move or a change of the monitor layout. The keyboard is never replaced.
 
 **Disconnect.** When a sender disconnects or stops emulating, the plugin
 releases every button, then every key and modifier it held, so the
