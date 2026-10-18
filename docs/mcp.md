@@ -215,7 +215,14 @@ again is not starved; see [Known limits](#known-limits).
 **Checks** before any input is sent:
 
 - the shot exists in this server and belongs to the given window (same address
-  and `stable_id`);
+  and `stable_id`). A window that closed since the shot, also one whose
+  address another window has now, fails the call with `window_gone` before
+  anything opens a socket, sends input or captures: `window 0xa1 that s1
+  shows closed; another window, CLASS "TITLE", has its address now`. The
+  same holds for the shot of a capture region, and for that of a
+  `screenshot` region. An `act` whose shot shows the window that has the
+  address now, with a capture region of an earlier one, names that window,
+  and fails with `stale_shot`;
 - the window still has the shot's logical size, and the shot does not show an
   older frame, if the batch has coordinates;
 - every coordinate lies inside the shot's image;
@@ -265,7 +272,11 @@ images are in files, compressed when they leave memory, or the shot's own PNG
 when that is its detail image. It forgets the shots of a window that it saw close, and,
 whenever a tool lists the windows, those of windows that the list no longer has
 or whose address now has another `stable_id`; with them it forgets which shot
-of the window a result gave last. Image files live under
+of the window a result gave last. It remembers which window each shot of the
+session was of, also after it dropped the shot, so that a call with one fails
+as the checks above say, and a call that names another window with a shot of
+a closed window says that the window has closed (`stale_shot`), not that there
+is no such shot. Image files live under
 `$XDG_RUNTIME_DIR/hyprmasq/<instance>/mcp/<pid>/`, in the plugin's directory
 for the Hyprland instance, whose name is `$HYPRLAND_INSTANCE_SIGNATURE`
 without the commit hash in front (see
@@ -580,7 +591,7 @@ switched the antialiasing on Wayland, not on XWayland.
 | `actions` | `[]` | Run in order, at most 1000. An empty list only waits and captures. |
 | `wait` | see [Waiting](#waiting) | `expect_change` (true), `expect_ms` (1000, 1 to 29000), `quiet_ms` (200, 1 to 10000). An `expect_ms` given above `deadline_ms` − 1000, with `expect_change` true, is refused, naming the `deadline_ms` it needs. |
 | `capture` | `"changes"` | `"changes"` for what changed since the base, as a changes shot and zooms, or a full shot that says why (see [Changes](#changes)); `"window"` for an overview shot; `"none"`; or a region `{shot, x, y, width, height}` as for `screenshot`, also accepted as `{"region": {...}}`. When the window was resized during the call, for example by its own input, the region would show another part of the window, so the call captures the whole window instead and the hint says why. |
-| `deadline_ms` | 15000, 1000 to 30000 | Covers everything: waiting for locks, validation, sending, waiting and capture. The last 1000 ms are reserved for the capture, and input ends 1250 ms before them. A batch whose input takes longer than that leaves is refused, see [Pacing](#pacing). |
+| `deadline_ms` | 15000, 1000 to 30000 | Covers everything: waiting for locks, validation, sending, waiting and capture. The last 1000 ms are reserved for the capture, and input ends 1250 ms before them. A batch whose input takes longer than that leaves is refused, see [Pacing](#pacing). A plugin that answers a wait late or not at all makes the call end at most 500 ms after it, see [Waiting](#waiting). |
 
 Unknown arguments and fields are refused. Errors name the field by its path,
 down to an element of an array, and say in JSON's terms what it takes, for
@@ -974,6 +985,12 @@ window that is already drawing ends the change phase at once, after which
 page to load: `{"window": "…", "shot": "s7", "wait": {"expect_ms": 20000},
 "deadline_ms": 30000}`. When sending or waiting for the locks left no time,
 the wait does not run, and the summary says `no time left to wait`.
+
+The server reads a wait's reply until 500 ms after the wait's deadline, then
+gives the request up and fails the call with `internal`: `the plugin did not
+answer a wait within 500 ms of its deadline`. The capture after it keeps its
+reserve, so a plugin that answers late or not at all, as when Hyprland's main
+thread stalls, makes the call end at most 500 ms after its deadline.
 
 `ended` is one of:
 
@@ -1530,8 +1547,8 @@ hint. The structured content has `error`
 | Code | Delivery | Meaning and hint |
 | --- | --- | --- |
 | `invalid_arguments` | none | Names the field by its path, for example `actions[0].count must be 1 to 3, not 5`, `actions[0].from must be [x, y] in shot pixels, not [100]` or `actions[0].x must be a number, not null`, or the key name the sender did not know. Also a batch that its `deadline_ms` cannot fit, also once the sender has resolved its keys with the keymap, or a `wait.expect_ms` that does not fit in it, naming the `deadline_ms` needed. |
-| `window_gone` | none, partial or uncertain | The window closed or its `stable_id` changed. Call `windows`. When it closed while the input was sent, maybe because of it, `wait.ended` is `window_closed`, no shot is taken, and the message names the actions delivered before it closed: `window 0x… closed after actions[0] (key) was delivered, while actions[1] (type) was sent`. When only pauses were left once the plugin had confirmed the input, as after a click on the button that closes a dialog, the result is no error: it reports `complete` and `wait.ended` `window_closed`. Events in flight when it closed, such as a release sent as it closed, are not counted as delivered, and the delivery stays `partial` or `uncertain`. Either way the result names the window it came from, if it has one, with a shot, as [A window that closes](#a-window-that-closes) describes. |
-| `stale_shot` | none, partial or uncertain | Unknown shot, another window's shot, a shot of an older frame, a resize since the shot, while the call waited for the locks, or during the batch, a zoom into a popup that has closed or into a window that was resized since the zoom's shot, or a [target that moved](#targets-that-moved-since-the-shot) since the shot, which names the action and sends nothing. Read the coordinates from the attached shot, or take a screenshot. |
+| `window_gone` | none, partial or uncertain | The window closed or its `stable_id` changed. Call `windows`. With a shot of a window that closed before the call, the message names the shot, and the window that has its address now, if any, and nothing of the call reaches that window. When it closed while the input was sent, maybe because of it, `wait.ended` is `window_closed`, no shot is taken, and the message names the actions delivered before it closed: `window 0x… closed after actions[0] (key) was delivered, while actions[1] (type) was sent`. When only pauses were left once the plugin had confirmed the input, as after a click on the button that closes a dialog, the result is no error: it reports `complete` and `wait.ended` `window_closed`. Events in flight when it closed, such as a release sent as it closed, are not counted as delivered, and the delivery stays `partial` or `uncertain`. Either way the result names the window it came from, if it has one, with a shot, as [A window that closes](#a-window-that-closes) describes. |
+| `stale_shot` | none, partial or uncertain | Unknown shot, another window's shot, also one of a window that has closed, a shot of an older frame, a resize since the shot, while the call waited for the locks, or during the batch, a zoom into a popup that has closed or into a window that was resized since the zoom's shot, or a [target that moved](#targets-that-moved-since-the-shot) since the shot, which names the action and sends nothing. Read the coordinates from the attached shot, or take a screenshot. |
 | `out_of_bounds` | none or partial | A coordinate lies outside the shot, left of or above the window, or outside the pointer regions, which end at the monitor's edges. Names the action. With `partial`, the window moved during the batch and a later point no longer lies in the new regions. |
 | `cannot_type` | none | The keymap cannot produce a character. Names it, for example U+00E9. |
 | `unsupported` | none | The window lacks a capability the batch needs: `hold` for a `drag`, a `click` with modifiers, or a `key` chord that holds a key other than a modifier. Says why and suggests the keyboard or a click without modifiers, or for a chord, holding only modifiers or separate `key` actions. |
@@ -1541,16 +1558,18 @@ hint. The structured content has `error`
 | `unconfirmed` | partial or uncertain | From the sender: input stopped before the plugin confirmed it, because the window moved or was resized while it was sent, another sender took over the socket, or the plugin stopped answering. |
 | `connect_failed`, `no_devices` | none | From the sender: the window's socket did not take input. Retry once, then tell the user. |
 | `plugin_missing`, `plugin_version` | none | The plugin is not loaded, was unloaded, Hyprland's socket cannot be reached, or the plugin has another interface than this server. Tell the user. |
-| `internal` | any | Anything else, such as a sender that cannot be started or gave no result, or a window that was resized during each of 3 capture attempts. |
+| `internal` | any | Anything else, such as a sender that cannot be started or gave no result, a plugin that did not answer a wait within 500 ms of its deadline, or a window that was resized during each of 3 capture attempts. |
 
 A request to Hyprland that fails because the call's own deadline or
 cancellation ended it reports `deadline` or `cancelled`, not
-`plugin_missing`. A sender that the server stopped before it connected
+`plugin_missing` or `internal`, also when Hyprland was reading or writing the
+request at the time. A sender that the server stopped before it connected
 reports delivery `none`.
 
 `no_redraw` and `timeout` are not errors. They are wait outcomes with a
 screenshot and a hint: for `no_redraw`, what may have happened to the last
-action, or for an empty batch, to wait again with a larger `expect_ms` and a
+action, or for an empty batch, that nothing was drawn since the shot, or
+during this call without one, and to wait again with a larger `expect_ms` and a
 `deadline_ms` at least 1000 above it; for `timeout`, whether the window kept
 drawing or drew nothing, to look at the shot, and to wait longer with an empty
 batch and a larger `deadline_ms`, or, for a window that had not caught up with
@@ -1566,10 +1585,16 @@ what it is doing:
 - sending: it stops the sender with SIGTERM, which releases every button, key
   and modifier it pressed and reports how far it got, within about a second;
 - waiting: it sends the plugin `cancel` with the wait's id, which ends the
-  wait and its frame callbacks.
+  wait and its frame callbacks. It reads the wait's reply for 250 ms after the
+  first `cancel` and then gives the request up, and repeats `cancel` for up to
+  a second while the plugin has not found the wait, which may not have
+  reached it yet.
 
 It then still captures, within at least the capture's reserve, and answers
-with `wait.ended: cancelled`, the delivery so far and the shot. The SDK sends
+with `wait.ended: cancelled`, also when a late reply ended otherwise, the
+delivery so far and the shot. A plugin that answers late or not at all, as
+when Hyprland's main thread stalls, makes a cancelled wait end within 250 ms
+and the capture's reserve, and the call releases the window's lock. The SDK sends
 that answer, which a client that cancelled may ignore. The focus lease stays,
 since it holds no pressed input.
 
@@ -2326,8 +2351,12 @@ closes its window, with text or a pause after it, SIGTERM to the server,
 sender, including resizes during a batch, windows that do not catch up with a
 resize, starved windows that draw and do not draw before the capture, and
 one that `act` had no time to let draw, cancellation while sending and
-waiting, lock contention, the checks after the locks, also of an `act`
-without actions whose window another one replaced while it waited, capture regions of a window resized during the call,
+waiting, also with a plugin that does not end the wait or answers nothing, a
+wait's reply that comes after its deadline, a request to Hyprland that its
+deadline ends, lock contention, the checks after the locks, also of an `act`
+without actions whose window another one replaced while it waited, and of a
+shot, a capture region or a `screenshot` region of a window that closed, also
+one whose address another window has now, capture regions of a window resized during the call,
 socket ids, lost lease answers, session ends and exit
 statuses, new windows with their workspace, focus, source and shots, also
 one that maps after the wait, late windows in the next screenshot, act,

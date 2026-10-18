@@ -153,17 +153,18 @@ func TestMaxImageSize(t *testing.T) {
 
 func TestStaleShots(t *testing.T) {
 	cases := []struct {
-		name   string
-		change func(e *testEnv)
-		shot   string
+		name, target string
+		change       func(e *testEnv)
+		shot         string
+		message      string
 	}{
-		{"resize", func(e *testEnv) { e.fake.with(func() { e.fake.find("0xa1").Width = 400 }) }, "s1"},
-		{"stable id", func(e *testEnv) {
+		{"resize", "0xa1", func(e *testEnv) { e.fake.with(func() { e.fake.find("0xa1").Width = 400 }) }, "s1", "the window was resized from 320×200 to 400×200 since shot s1"},
+		{"unknown", "0xa1", func(e *testEnv) {}, "s99", "there is no shot s99; this server keeps the last 64 shots of each window"},
+		{"other window", "0xb2", func(e *testEnv) { e.window("0xb2", "3c", 320, 200) }, "s1", "shot s1 is of window 0xa1, not 0xb2"},
+		{"closed window", "0xb2", func(e *testEnv) {
 			e.fake.removeWindow("0xa1")
-			e.window("0xa1", "2b", 320, 200)
-		}, "s1"},
-		{"unknown", func(e *testEnv) {}, "s99"},
-		{"other window", func(e *testEnv) { e.window("0xb2", "3c", 320, 200) }, "s1"},
+			e.window("0xb2", "3c", 320, 200)
+		}, "s1", "shot s1 is of window 0xa1 (stable_id 1a), which has closed"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -173,13 +174,13 @@ func TestStaleShots(t *testing.T) {
 				t.Fatal(text(res))
 			}
 			c.change(e)
-			target := "0xa1"
-			if c.name == "other window" {
-				target = "0xb2"
-			}
+			target := c.target
 			res := e.act(fmt.Sprintf(`{"window":%q,"shot":%q,"actions":[{"action":"click","x":10,"y":10}]}`, target, c.shot))
 			if code := errorCode(t, res); code != "stale_shot" {
 				t.Fatalf("code %q: %s", code, text(res))
+			}
+			if msg := get(t, res, "error.message"); msg != c.message {
+				t.Errorf("message %q", msg)
 			}
 			if got := get(t, res, "actions.delivery"); got != "none" {
 				t.Errorf("delivery %v", got)
@@ -197,6 +198,92 @@ func TestStaleShots(t *testing.T) {
 			res = e.act(fmt.Sprintf(`{"window":%q,"shot":%q,"actions":[{"action":"click","x":10,"y":10}],"capture":"none"}`, target, c.shot))
 			if errorCode(t, res) != "stale_shot" || hasImage(res) || !strings.Contains(text(res), "Take a screenshot") {
 				t.Errorf("without capture: %q", text(res))
+			}
+		})
+	}
+}
+
+// A shot names its window by its stable_id too. When the window has closed and another window has its address, a call
+// with the shot, or with a region of it, fails with window_gone and nothing of it reaches the other window: no socket,
+// no input, no wait and no capture. Also when an earlier listing has forgotten the shot.
+func TestShotOfAWindowWhoseAddressAnotherWindowHasNow(t *testing.T) {
+	const region = `{"shot":"s1","x":0,"y":0,"width":10,"height":10}`
+	replaced := `window 0xa1 that s1 shows closed; another window, user.passwords "Unlock vault", has its address now`
+	cases := []struct {
+		name, args string
+		screenshot bool
+		listed     bool
+		replace    bool
+		// Later shots of the window push the shot out of the store before it closes.
+		evicted bool
+		message string
+	}{
+		{"act", `{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":10,"y":10}]}`, false, false, true, false, replaced},
+		{"act after windows", `{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":10,"y":10}]}`, false, true, true, false, replaced},
+		{"act with an evicted shot", `{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":10,"y":10}]}`, false, false, true, true, replaced},
+		{"act with a capture region", `{"window":"0xa1","capture":` + region + `}`, false, false, true, false, replaced},
+		{"screenshot of a region", `{"window":"0xa1","region":` + region + `}`, true, false, true, false, replaced},
+		{"closed", `{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":10,"y":10}]}`, false, false, false, false, "window 0xa1 that s1 shows closed"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.window("0xa1", "1a", 320, 200)
+			e.screenshot(`{"window":"0xa1"}`)
+			if c.evicted {
+				for range shotsPerWindow {
+					e.screenshot(`{"window":"0xa1"}`)
+				}
+				if e.server.shots.get("s1") != nil {
+					t.Fatal("s1 is still in the store")
+				}
+			}
+			e.fake.removeWindow("0xa1")
+			var other *fakeWindow
+			if c.replace {
+				other = e.window("0xa1", "2b", 500, 300, func(w *fakeWindow) { w.Class, w.Title = "user.passwords", "Unlock vault" })
+			}
+			if c.listed {
+				// With a second window, the listing comes without a shot of the one at the address.
+				e.window("0xb2", "3c", 320, 200)
+				if res := e.windows(); res.IsError || hasImage(res) {
+					t.Fatalf("windows: %s", text(res))
+				}
+			}
+			prefixes := []string{"j/hyprmasq eis", "j/hyprmasq wait", "j/hyprmasq screenshot", "j/hyprmasq lease"}
+			counts := map[string]int{}
+			for _, prefix := range prefixes {
+				counts[prefix] = len(e.fake.requestsMatching(prefix))
+			}
+			var res *mcp.CallToolResult
+			if c.screenshot {
+				res = e.screenshot(c.args)
+			} else {
+				res = e.act(c.args)
+			}
+			if code := errorCode(t, res); code != "window_gone" || hasImage(res) || get(t, res, "shot") != nil {
+				t.Fatalf("code %q: %s", code, text(res))
+			}
+			if msg := get(t, res, "error.message"); msg != c.message {
+				t.Errorf("message %q", msg)
+			}
+			if !strings.Contains(text(res), "Call windows to find the window again.") {
+				t.Errorf("text %q", text(res))
+			}
+			for _, prefix := range prefixes {
+				if got := e.fake.requestsMatching(prefix); len(got) != counts[prefix] {
+					t.Errorf("requested %q", got[counts[prefix]:])
+				}
+			}
+			if got := e.inputs(); got != nil {
+				t.Errorf("sent %q", got)
+			}
+			if other != nil {
+				e.fake.with(func() {
+					if other.Socket {
+						t.Error("the socket of the window that has the address now was opened")
+					}
+				})
 			}
 		})
 	}
@@ -1133,6 +1220,25 @@ func TestWaitWithinTheDeadline(t *testing.T) {
 	}
 }
 
+// Without a shot, an act without actions measures a change from the call's start, so its no_redraw hint speaks of the
+// call: the window may have drawn after the agent's last shot, as the result's own shot then shows.
+func TestNoRedrawWithoutAShot(t *testing.T) {
+	e := newTestEnv(t)
+	w := e.window("0xa1", "1a", 320, 200)
+	e.screenshot(`{"window":"0xa1"}`)
+	e.fake.with(func() {
+		w.Commits += 5
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			return jsonReply(map[string]any{"ok": true, "ended": "no_redraw", "commits": w.Commits, "socketId": w.socketID(), "redrawObserved": false,
+				"commitsSince": 0, "quietMs": 1000, "elapsedMs": 1000, "resizing": false})
+		}
+	})
+	res := e.act(`{"window":"0xa1","actions":[],"capture":"window"}`)
+	if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, "Nothing was drawn during this call. If the window is still loading, wait again") {
+		t.Errorf("%s", text(res))
+	}
+}
+
 func waitArgsOf(t *testing.T, request string) map[string]string {
 	t.Helper()
 	words := strings.Fields(request)
@@ -1470,6 +1576,126 @@ func TestCancelWhileWaiting(t *testing.T) {
 	wait := e.fake.requestsMatching("j/hyprmasq wait")[0]
 	if len(cancels) == 0 || !strings.HasSuffix(wait, " id "+strings.TrimPrefix(cancels[0], "j/hyprmasq cancel ")) {
 		t.Errorf("cancel %q for wait %q", cancels, wait)
+	}
+}
+
+// stalledPlugin makes the fake answer no plugin request once a wait has started, as when Hyprland's main thread stalls,
+// until release is closed.
+func stalledPlugin(e *testEnv, release <-chan struct{}) {
+	stalled := make(chan struct{})
+	var once sync.Once
+	e.fake.with(func() {
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			once.Do(func() { close(stalled) })
+			<-release
+			return quietReply(w)
+		}
+		e.fake.onPlugin = func(words []string) (string, bool) {
+			select {
+			case <-stalled:
+				<-release
+			default:
+			}
+			return "", false
+		}
+	})
+}
+
+// A cancelled call ends within cancelGrace of the cancel and the capture's reserve, and releases the window's lock, also
+// when the plugin takes the cancel but its wait goes on, or answers nothing at all. A reply that comes after the cancel
+// reports the cancellation, not how the wait ended.
+func TestCancelWithAPluginThatDoesNotEndTheWait(t *testing.T) {
+	for _, plugin := range []string{"wait goes on", "late reply", "no answers"} {
+		t.Run(plugin, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.window("0xa1", "1a", 320, 200)
+			e.screenshot(`{"window":"0xa1"}`)
+			release := make(chan struct{})
+			t.Cleanup(func() { close(release) })
+			timeout := func(w *fakeWindow) string {
+				return jsonReply(map[string]any{"ok": true, "ended": "timeout", "commits": w.Commits, "socketId": w.socketID(), "redrawObserved": false,
+					"commitsSince": 0, "quietMs": 0, "elapsedMs": 14000, "resizing": false})
+			}
+			switch plugin {
+			case "wait goes on":
+				e.fake.with(func() {
+					e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+						<-release
+						return timeout(w)
+					}
+				})
+			case "late reply":
+				e.fake.with(func() {
+					e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+						<-cancel
+						time.Sleep(cancelGrace / 2)
+						return timeout(w)
+					}
+				})
+			case "no answers":
+				stalledPlugin(e, release)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			cancelled := make(chan time.Time, 1)
+			go func() {
+				e.waitFor(func() bool { return e.fake.requestsMatching("j/hyprmasq wait") != nil })
+				cancelled <- time.Now()
+				cancel()
+			}()
+			res := callTool(e.server, ctx, actOn, `{"window":"0xa1","shot":"s1","actions":[{"action":"key","keys":["a"]}],"deadline_ms":15000}`)
+			if after := time.Since(<-cancelled); after > cancelGrace+captureReserve+300*time.Millisecond {
+				t.Errorf("the call returned %v after the cancel", after)
+			}
+			if res.IsError || get(t, res, "wait.ended") != "cancelled" {
+				t.Errorf("%s", text(res))
+			}
+			lockCtx, lockCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer lockCancel()
+			lock, err := acquireLock(lockCtx, e.server.lockPath("1a"))
+			if err != nil {
+				t.Fatalf("the window lock is still held: %v", err)
+			}
+			lock.release()
+		})
+	}
+}
+
+// deadline_ms bounds a call within waitSlack also when the plugin answers its wait late or not at all: the server gives
+// the reply up waitSlack after the wait's deadline, and reports that the plugin did not answer.
+func TestDeadlineWithAPluginThatAnswersAWaitLate(t *testing.T) {
+	for _, c := range []struct{ plugin, args string }{
+		{"late reply", `{"window":"0xa1","shot":"s1","actions":[],"capture":"window","deadline_ms":3000}`},
+		{"no answers", `{"window":"0xa1","shot":"s1","actions":[{"action":"key","keys":["a"]}],"deadline_ms":3000}`},
+	} {
+		t.Run(c.plugin, func(t *testing.T) {
+			e := newTestEnv(t)
+			e.window("0xa1", "1a", 320, 200)
+			e.screenshot(`{"window":"0xa1"}`)
+			release := make(chan struct{})
+			t.Cleanup(func() { close(release) })
+			if c.plugin == "no answers" {
+				stalledPlugin(e, release)
+			} else {
+				e.fake.with(func() {
+					e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+						deadline, _ := strconv.Atoi(args["deadline"])
+						select {
+						case <-time.After(time.Duration(deadline)*time.Millisecond + 2*waitSlack):
+						case <-release:
+						}
+						return quietReply(w)
+					}
+				})
+			}
+			start := time.Now()
+			res := e.act(c.args)
+			if elapsed := time.Since(start); elapsed > 3000*time.Millisecond+waitSlack+200*time.Millisecond {
+				t.Errorf("the call took %v", elapsed)
+			}
+			if code := get(t, res, "error.code"); code != "internal" || get(t, res, "error.message") != "the plugin did not answer a wait within 500 ms of its deadline" {
+				t.Errorf("code %v: %s", code, text(res))
+			}
+		})
 	}
 }
 

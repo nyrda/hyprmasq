@@ -171,6 +171,15 @@ type shotStore struct {
 	// The detail images whose pixels are in memory, oldest first, and the writes of the others to their files.
 	resident []residentDetail
 	spills   *spiller
+	// The window of every shot the store has had, by ID, also after it dropped the shot.
+	identities map[string]shotIdentity
+}
+
+// A shotIdentity is what the store remembers of a shot for the session: its window, and whether it dropped the shot
+// because the window closed, or because another window took over its address.
+type shotIdentity struct {
+	window, stableID string
+	closed           bool
 }
 
 type residentDetail struct {
@@ -179,7 +188,8 @@ type residentDetail struct {
 }
 
 func newShotStore() *shotStore {
-	return &shotStore{byID: map[string]*list.Element{}, byWindow: map[string]*list.List{}, last: map[string]string{}, spills: newSpiller()}
+	return &shotStore{byID: map[string]*list.Element{}, byWindow: map[string]*list.List{}, last: map[string]string{}, spills: newSpiller(),
+		identities: map[string]shotIdentity{}}
 }
 
 // returned records a shot that a result gives the session. A zoom shows part of a shot the session has, which stays
@@ -241,7 +251,7 @@ func (st *shotStore) dropClosed(windows []hypr.Window, mark int) {
 			next := e.Next()
 			if s := e.Value.(*shot); number(s.ID) <= mark {
 				if stableID, ok := open[address]; !ok || stableID != s.StableID {
-					st.removeLocked(e)
+					st.closeLocked(e)
 				}
 			}
 			e = next
@@ -265,6 +275,7 @@ func (st *shotStore) add(s *shot) {
 		st.byWindow[s.Window] = l
 	}
 	st.byID[s.ID] = l.PushFront(s)
+	st.identities[s.ID] = shotIdentity{window: s.Window, stableID: s.StableID}
 	if s.Detail != nil && s.Detail.inMemory() {
 		// The window's older detail images leave memory, and then those of the windows whose latest is oldest.
 		st.resident = slices.DeleteFunc(st.resident, func(r residentDetail) bool {
@@ -317,9 +328,35 @@ func (st *shotStore) dropWindow(window string) {
 	defer st.mu.Unlock()
 	if l := st.byWindow[window]; l != nil {
 		for l.Len() > 0 {
-			st.removeLocked(l.Back())
+			st.closeLocked(l.Back())
 		}
 	}
+}
+
+// closeLocked forgets a shot whose window closed, and remembers that it did.
+func (st *shotStore) closeLocked(e *list.Element) {
+	s := e.Value.(*shot)
+	st.removeLocked(e)
+	st.identities[s.ID] = shotIdentity{window: s.Window, stableID: s.StableID, closed: true}
+}
+
+// closedOf tells which window a shot was of that the store dropped because the window closed.
+func (st *shotStore) closedOf(id string) (shotIdentity, bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	c, ok := st.identities[id]
+	return c, ok && c.closed
+}
+
+// stableIDOf returns the stable_id of the window that a shot of the address shows, also of a shot the store has
+// dropped, or "" for a shot it never had of the address.
+func (st *shotStore) stableIDOf(id, window string) string {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if c, ok := st.identities[id]; ok && c.window == window {
+		return c.stableID
+	}
+	return ""
 }
 
 func (st *shotStore) removeLocked(e *list.Element) {

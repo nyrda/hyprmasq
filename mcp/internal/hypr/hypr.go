@@ -70,9 +70,8 @@ func (c *Client) Request(ctx context.Context, request string) ([]byte, error) {
 		return nil, &ConnectError{Socket: c.Socket, Err: err}
 	}
 	defer conn.Close()
-	if deadline, ok := ctx.Deadline(); ok {
-		conn.SetDeadline(deadline)
-	}
+	// The context's end, and not a deadline of the connection, stops the request, so that ctx.Err() tells why: a
+	// deadline of the connection can pass before the context's own timer has ended it.
 	stop := context.AfterFunc(ctx, func() { conn.SetDeadline(time.Unix(1, 0)) })
 	defer stop()
 

@@ -747,6 +747,32 @@ func replacedError(window string) *toolError {
 	return &toolError{Code: "window_gone", Message: fmt.Sprintf("window %s closed, and another window has its address now", window), Hint: hintWindows}
 }
 
+// shownWindow returns the first of the shots that is of the address, whether this server still has it or dropped it
+// because its window closed, and the stable_id of the window it shows, or "" for none.
+func (s *Server) shownWindow(window string, shotIDs ...string) (id, stableID string) {
+	for _, id := range shotIDs {
+		if stableID := s.shots.stableIDOf(id, window); id != "" && stableID != "" {
+			return id, stableID
+		}
+	}
+	return "", ""
+}
+
+// goneSinceShot reports a window that a shot of it showed, which openState found closed, or replaced by the window
+// whose state st is, which it names when a listing of the windows has it.
+func goneSinceShot(err error, window, shotID, stableID string, st hypr.State, windows []hypr.Window) error {
+	if te := asToolError(err); shotID == "" || te.Code != "window_gone" {
+		return err
+	}
+	message := fmt.Sprintf("window %s that %s shows closed", window, shotID)
+	if w := findWindow(windows, window); w != nil && w.StableID != stableID && w.StableID == st.StableID {
+		message += fmt.Sprintf("; another window, %s %q, has its address now", w.Class, w.Title)
+	} else if st.StableID != "" && st.StableID != stableID {
+		message += ", and another window has its address now"
+	}
+	return &toolError{Code: "window_gone", Message: message, Hint: hintWindows}
+}
+
 var unsafePathChars = regexp.MustCompile(`[^A-Za-z0-9_-]`)
 
 func (s *Server) lockPath(stableID string) string {

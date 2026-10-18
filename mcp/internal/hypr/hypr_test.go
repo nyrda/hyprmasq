@@ -137,3 +137,39 @@ func TestEvents(t *testing.T) {
 		t.Fatal("the connection stayed open")
 	}
 }
+
+// A request that its context's deadline ends reports the deadline, and not the connection's i/o timeout, which the
+// server would take for a failure of Hyprland.
+func TestRequestEndedByItsDeadline(t *testing.T) {
+	socket := filepath.Join(t.TempDir(), ".socket.sock")
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			// Hyprland is busy: it reads the request and answers nothing.
+			go func() {
+				defer conn.Close()
+				conn.Read(make([]byte, readChunk))
+				<-done
+			}()
+		}
+	}()
+	c := &Client{Socket: socket}
+	for range 50 {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		_, err := c.Request(ctx, "j/hyprmasq state 0x1")
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("error %v", err)
+		}
+	}
+}

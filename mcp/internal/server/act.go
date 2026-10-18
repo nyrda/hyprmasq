@@ -57,6 +57,14 @@ type actRequest struct {
 	launch string
 }
 
+// regionShot is the shot of a capture region, or "".
+func (r *actRequest) regionShot() string {
+	if r.captureRegion == nil {
+		return ""
+	}
+	return r.captureRegion.Shot
+}
+
 func intArg(v *int, def, lo, hi int, name string) (int, error) {
 	if v == nil {
 		return def, nil
@@ -325,9 +333,12 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 		return fail(err)
 	}
 	r.launch = s.launchOf(callCtx, before, r.window)
-	st, err := s.openState(callCtx, r.window, "")
+	// A shot names the window by its stable_id too, so a window that closed since, also one whose address another
+	// window has now, fails before anything opens a socket or captures.
+	shown, stableID := s.shownWindow(r.window, r.shotID, r.regionShot())
+	st, err := s.openState(callCtx, r.window, stableID)
 	if err != nil {
-		return fail(err)
+		return fail(goneSinceShot(err, r.window, shown, stableID, st, before))
 	}
 	var region *zoom
 	if r.captureMode == "region" {
@@ -1572,36 +1583,61 @@ func (s *Server) waitForWindow(ctx context.Context, r *actRequest, base baseline
 	}
 	out = waitResult(reply)
 	out.expectMs = expect
+	// A reply that came after the cancellation, from a plugin that did not take the cancel in time, ended otherwise.
+	if ctx.Err() != nil && out.Ended != "window_closed" {
+		out.Ended, out.Summary = "cancelled", ""
+	}
 	return out, nil
 }
 
-// wait runs the plugin's wait. When ctx is cancelled, it cancels the wait by its id and still reads the reply.
+const (
+	// How long after its deadline, or the call's, the reply of a wait may come before the server gives up on it.
+	waitSlack = 500 * time.Millisecond
+	// How long the reply of a cancelled wait may take after the server sent the first cancel, and how long it goes on
+	// sending cancels for a wait that has not reached the plugin yet.
+	cancelGrace  = 250 * time.Millisecond
+	cancelBudget = time.Second
+)
+
+// wait runs the plugin's wait. When ctx ends, it cancels the wait by its id and reads the reply for cancelGrace more.
 func (s *Server) wait(ctx context.Context, window string, a hypr.WaitArgs) (hypr.WaitReply, error) {
-	reqCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Duration(a.DeadlineMs)*time.Millisecond+2*time.Second)
-	defer cancel()
-	replied := make(chan struct{})
-	cancelled := make(chan struct{})
+	end := time.Now().Add(time.Duration(a.DeadlineMs) * time.Millisecond)
+	if deadline, ok := ctx.Deadline(); ok && deadline.Before(end) {
+		end = deadline
+	}
+	reqCtx, giveUp := context.WithDeadline(context.WithoutCancel(ctx), end.Add(waitSlack))
+	defer giveUp()
+	// Closed once the plugin has answered, which ends its wait.
+	answered := make(chan struct{})
 	stop := context.AfterFunc(ctx, func() {
-		defer close(cancelled)
-		// The wait may not have reached the plugin yet, so the cancel is repeated until it finds it.
-		for range 20 {
-			cctx, ccancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
-			found, _ := s.hypr.Cancel(cctx, a.ID)
-			ccancel()
-			if found {
+		time.AfterFunc(cancelGrace, giveUp)
+		// The wait may not have reached the plugin yet, so the cancel is repeated until it finds it, also after the reply
+		// was given up, since such a wait would run to its deadline.
+		budget, done := context.WithTimeout(context.WithoutCancel(ctx), cancelBudget)
+		defer done()
+		for {
+			if found, _ := s.hypr.Cancel(budget, a.ID); found {
 				return
 			}
 			select {
-			case <-replied:
+			case <-answered:
+				return
+			case <-budget.Done():
 				return
 			case <-time.After(50 * time.Millisecond):
 			}
 		}
 	})
+	defer stop()
 	reply, err := s.hypr.Wait(reqCtx, window, a)
-	close(replied)
-	if !stop() {
-		<-cancelled
+	if err == nil || reqCtx.Err() == nil {
+		close(answered)
 	}
-	return reply, err
+	switch {
+	case err == nil || reqCtx.Err() == nil:
+		return reply, err
+	case ctx.Err() != nil:
+		return reply, ctx.Err()
+	}
+	return reply, &toolError{Code: "internal", Message: fmt.Sprintf("the plugin did not answer a wait within %d ms of its deadline", waitSlack.Milliseconds())}
 }

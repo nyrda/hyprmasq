@@ -907,7 +907,8 @@ func waitHint(w *waitOut, batch []action, shotID string, actions *actionsOut, sh
 		}
 		switch kind {
 		case "":
-			since := "since the shot"
+			// Without a shot, the baseline is read when the call starts, and the window may have drawn before.
+			since := "during this call"
 			if shotID != "" {
 				since = "since shot " + shotID
 			}

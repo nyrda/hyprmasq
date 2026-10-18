@@ -3849,6 +3849,14 @@ print(longest)
             r"If the window is still loading, wait again: act with no actions, a larger wait\.expect_ms, and a deadline_ms at least 1000 above it\.",
             unchanged.text,
         ), unchanged
+        # Without a shot, the change counts from the call's start, and the hint speaks of the call.
+        unshot = mcp.call("act", {"window": popchange, "wait": {"expect_ms": 500}, **full})
+        assert unshot.data["wait"]["ended"] == "no_redraw", unshot
+        assert re.fullmatch(
+            r"no redraw within 500 ms · shot s\d+ 640×480\nNothing was drawn during this call\. "
+            r"If the window is still loading, wait again: act with no actions, a larger wait\.expect_ms, and a deadline_ms at least 1000 above it\.",
+            unshot.text,
+        ), unshot
         # A change phase that runs into the deadline times out, and the window drew nothing.
         late = mcp.call("act", {"window": popchange, "shot": changed_id, "wait": {"expect_ms": 2000}, "deadline_ms": 3000, **full})
         wait = late.data["wait"]

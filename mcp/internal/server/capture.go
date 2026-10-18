@@ -58,6 +58,9 @@ func parseRegion(raw json.RawMessage, field string) (*regionArgs, error) {
 // shot's coordinates are used.
 func (s *Server) checkShot(id, window string, st hypr.State, needSize bool) (*shot, error) {
 	sh := s.shots.get(id)
+	if c, ok := s.shots.closedOf(id); sh == nil && ok {
+		return nil, &toolError{Code: "stale_shot", Message: fmt.Sprintf("shot %s is of window %s (stable_id %s), which has closed", id, c.window, c.stableID), Hint: hintScreenshot, ShotHint: hintScreenshotShot}
+	}
 	if sh == nil {
 		return nil, &toolError{Code: "stale_shot", Message: fmt.Sprintf("there is no shot %s; this server keeps the last %d shots of each window", id, shotsPerWindow), Hint: hintScreenshot, ShotHint: hintScreenshotShot}
 	}
@@ -408,9 +411,18 @@ func (s *Server) screenshotTool(ctx context.Context, c *call) *mcp.CallToolResul
 	if err := s.checkPlugin(ctx); err != nil {
 		return simpleError(err)
 	}
-	st, err := s.openState(ctx, args.Window, "")
+	var regionShot string
+	if asked != nil {
+		regionShot = asked.Shot
+	}
+	shown, stableID := s.shownWindow(args.Window, regionShot)
+	st, err := s.openState(ctx, args.Window, stableID)
 	if err != nil {
-		return simpleError(err)
+		var windows []hypr.Window
+		if shown != "" {
+			windows, _ = s.hypr.Clients(ctx)
+		}
+		return simpleError(goneSinceShot(err, args.Window, shown, stableID, st, windows))
 	}
 	var z *zoom
 	if asked != nil {

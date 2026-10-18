@@ -89,8 +89,9 @@ func fakeInput() int {
 			if actions[i] != "sync" {
 				continue
 			}
-			fmt.Printf("{\"sync\":%d}\n", i)
+			// Logged first, since the server may act on the line before a later log entry is written.
 			logLine(fmt.Sprintf("sync %d", i))
+			fmt.Printf("{\"sync\":%d}\n", i)
 			answer, err := answers.ReadString('\n')
 			if err != nil {
 				return
