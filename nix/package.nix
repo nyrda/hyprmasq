@@ -64,7 +64,7 @@ let
 in
 stdenv.mkDerivation {
   pname = "hyprmasq";
-  version = "0.3.0-hyprland-${hyprland.version}";
+  version = lib.trim (lib.fileContents ../VERSION);
 
   src = hyprmasqSrc;
 
@@ -100,11 +100,7 @@ stdenv.mkDerivation {
 
   installPhase = ''
     runHook preInstall
-    install -Dm755 hyprmasq.so "$out/lib/hyprmasq.so"
-    install -Dm755 hyprmasq-input "$out/bin/hyprmasq-input"
-    # The plugin finds it next to itself, in ../libexec.
-    install -Dm755 hyprmasq-reaper "$out/libexec/hyprmasq-reaper"
-    install -Dm755 tools/hyprmasq-launch "$out/bin/hyprmasq-launch"
+    make install PREFIX="$out"
     # hyprctl comes from the user's PATH, so it matches the running Hyprland.
     wrapProgram "$out/bin/hyprmasq-launch" --prefix PATH : ${lib.makeBinPath [ jq ]}
     # The server runs hyprmasq-input from PATH; this one matches the plugin.
@@ -112,7 +108,7 @@ stdenv.mkDerivation {
     runHook postInstall
   '';
 
-  passthru = { inherit mcp; };
+  passthru = { inherit mcp hyprland; };
 
   meta = {
     description = "Hyprland plugin for per-window screenshots and libei input sockets";

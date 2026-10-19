@@ -26,14 +26,18 @@
       # Runs the matching Hyprland, installs hyprmasq-input, and writes /etc/xdg/hypr/hyprmasq_plugin.lua.
       nixosModules.default = import ./nix/module.nix self;
 
+      # The overlay builds against final.hyprland from the consuming package set.
       overlays.default = final: prev: { hyprmasq = final.callPackage ./nix/package.nix { }; };
 
-      checks.${system}.vm-test = import ./nix/hyprmasq-vm-test.nix { inherit system nixpkgs; };
+      checks.${system} = {
+        vm-test = import ./nix/hyprmasq-vm-test.nix { inherit system nixpkgs; };
+        module-compatibility = import ./nix/module-test.nix { inherit self pkgs; };
+      };
 
       # Builds the plugin with make, and the MCP server with go in mcp/.
       devShells.${system}.default = pkgs.mkShell {
         inputsFrom = [ self.packages.${system}.hyprmasq ];
-        packages = [ pkgs.go ];
+        packages = [ pkgs.go pkgs.clang-tools ];
       };
     };
 }

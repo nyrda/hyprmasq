@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - name: Evaluate flake
+        run: nix flake check --no-build
+      - name: Build plugin and MCP server (including Go tests)
+        run: nix build .#hyprmasq .#hyprmasq-mcp -L
+      - name: Check C, C++ and Go formatting
+        run: |
+          # The variables expand in the inner Bash process.
+          # shellcheck disable=SC2016
+          nix develop -c bash -euo pipefail -c '
+            git ls-files -z -- "src/*.cpp" "src/*.hpp" "src/*.c" "src/*.h" "tools/*.c" "tools/*.h" "nix/*.c" |
+              xargs -0 clang-format --dry-run -Werror
+            files=$(gofmt -l mcp)
+            if [[ -n "$files" ]]; then
+              printf "%s\n" "$files"
+              exit 1
+            fi
+          '
+      - name: Bench unit tests
+        run: |
+          python3 bench/analyze_test.py
+          python3 bench/dispatch_test.py
+          python3 bench/harness_test.py
+          python3 bench/tasks/board/check_test.py
+  calc-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - name: Calc checker unit tests (LibreOffice)
+        run: nix-build bench/tasks/calc/check-test.nix

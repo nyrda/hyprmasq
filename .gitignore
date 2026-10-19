@@ -5,3 +5,4 @@ hyprmasq-input
 hyprmasq-reaper
 __pycache__/
 /bench/results/
+/mcp/hyprmasq-mcp

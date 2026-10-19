@@ -28,8 +28,8 @@ namespace hyprmasq {
     void shutdownEis();
     // force: drive X11 windows even while another window of their X server has the focus.
     std::expected<SEisInfo, SError> openEis(const PHLWINDOW& window, bool force);
-    bool                            closeEis(const std::string& address);
-    std::vector<SEisInfo>           listEis();
+    bool closeEis(const std::string& address);
+    std::vector<SEisInfo> listEis();
 
     struct SLeaseState {
         int         remainingMs = 0;

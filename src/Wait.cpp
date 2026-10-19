@@ -42,7 +42,7 @@ namespace hyprmasq::wait {
         constexpr double kSameBox   = 1.5;
         constexpr size_t kMaxDamage = 1024;
 
-        double           area(const CBox& box) {
+        double area(const CBox& box) {
             return std::max(0.0, box.w) * std::max(0.0, box.h);
         }
 
@@ -98,7 +98,7 @@ namespace hyprmasq::wait {
         // window that no animation drew, as long as there are at most kMaxAnimations.
         constexpr size_t kMaxAnimations = 16;
 
-        void             merge(std::vector<CBox>& boxes, CBox box) {
+        void merge(std::vector<CBox>& boxes, CBox box) {
             for (bool joined = true; joined;) {
                 joined = false;
                 for (auto it = boxes.begin(); it != boxes.end(); ++it) {
@@ -230,7 +230,7 @@ namespace hyprmasq::wait {
 
         std::vector<std::unique_ptr<SChangeWaiter>> changeWaiters;
 
-        void                                        finish(SChangeWaiter* waiter, SChangeResult result) {
+        void finish(SChangeWaiter* waiter, SChangeResult result) {
             waiter->promise.set_value(std::move(result));
             std::erase_if(changeWaiters, [waiter](const auto& w) { return w.get() == waiter; });
         }

@@ -1,0 +1,8 @@
+title = "hyprmasq secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public test-only TLS key for the offline Thunderbird benchmark VM"
+paths = ['''^bench/tasks/thunderbird/certs/server\.key$''']

@@ -1,6 +1,6 @@
 # MCP server
 
-Status: implemented in hyprmasq 0.3.0, plugin interface 4. This document is
+Status: implemented in hyprmasq 0.1.0, plugin interface 4. This document is
 the design as built. [Installation](installation.md#mcp-server) covers
 installing and registering the server.
 
@@ -1766,7 +1766,7 @@ and plain-text errors still start with `error:`.
 **`version`**
 
 ```json
-{"ok":true,"version":"0.3.0","interface":4}
+{"ok":true,"version":"0.1.0","interface":4}
 ```
 
 `interface` increases with every incompatible change to these commands. New

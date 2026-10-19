@@ -221,8 +221,8 @@ static long budgetMs = -1, pacedMs = -1;
 static const char *composeRequested, *composeLocale;
 static bool        composed;
 
-static void        usage(FILE* out) {
-    fputs("usage: hyprmasq-input --socket PATH [--no-pace] [--json] [--budget MS] [--locale NAME] ACTION...\nactions:", out);
+static void usage(FILE* out) {
+    fputs("usage: hyprmasq-input --socket PATH [--no-pace] [--json] [--budget MS] [--locale NAME] ACTION...\n       hyprmasq-input --version\nactions:", out);
     for (size_t i = 0; i < ACTION_TYPES; ++i)
         fprintf(out, "%s%s", i ? " | " : " ", actionSyntax[i].syntax);
     fputc('\n', out);
@@ -1612,6 +1612,10 @@ static void printOutcome(int done, int total, int failedIndex, const char* deliv
 }
 
 int main(int argc, char** argv) {
+    if (argc == 2 && !strcmp(argv[1], "--version")) {
+        puts("hyprmasq-input " HYPRMASQ_VERSION);
+        return 0;
+    }
     // The budget counts from here.
     const uint64_t started = nowNs();
     const char*    socket  = NULL;

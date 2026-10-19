@@ -60,7 +60,7 @@ struct paste {
 };
 static struct paste pastes[2] = {{.kind = "clipboard", .fd = -1}, {.kind = "primary", .fd = -1}};
 
-static uint64_t     now_ms(void) {
+static uint64_t now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
@@ -79,7 +79,7 @@ static void buffer_release(void* data, struct wl_buffer* buffer) {
     wl_buffer_destroy(buffer);
 }
 static const struct wl_buffer_listener buffer_listener = {.release = buffer_release};
-static void                            draw(void) {
+static void draw(void) {
     const int width = 200, height = 100;
     size_t    size = (size_t)width * height * 4;
     int       fd   = memfd_create("hyprmasq-clip-probe", MFD_CLOEXEC);
@@ -107,11 +107,11 @@ static void configure(void* data, struct xdg_surface* xdg, uint32_t serial) {
         say("ready");
     }
 }
-static const struct xdg_surface_listener  surface_listener = {.configure = configure};
-static void                               toplevel_configure(void* data, struct xdg_toplevel* top, int32_t width, int32_t height, struct wl_array* states) {}
-static void                               toplevel_close(void* data, struct xdg_toplevel* top) {}
+static const struct xdg_surface_listener surface_listener = {.configure = configure};
+static void toplevel_configure(void* data, struct xdg_toplevel* top, int32_t width, int32_t height, struct wl_array* states) {}
+static void toplevel_close(void* data, struct xdg_toplevel* top) {}
 static const struct xdg_toplevel_listener toplevel_listener = {.configure = toplevel_configure, .close = toplevel_close};
-static void                               ping(void* data, struct xdg_wm_base* base, uint32_t serial) {
+static void ping(void* data, struct xdg_wm_base* base, uint32_t serial) {
     xdg_wm_base_pong(base, serial);
 }
 static const struct xdg_wm_base_listener wm_listener = {.ping = ping};
@@ -133,7 +133,7 @@ static void source_cancelled(void* data, struct wl_data_source* s) {
     wl_data_source_destroy(s);
 }
 static const struct wl_data_source_listener source_listener = {.target = source_target, .send = source_send, .cancelled = source_cancelled};
-static void                                 primary_send(void* data, struct zwp_primary_selection_source_v1* s, const char* mime, int32_t fd) {
+static void primary_send(void* data, struct zwp_primary_selection_source_v1* s, const char* mime, int32_t fd) {
     send_text(data, fd);
 }
 static void primary_cancelled(void* data, struct zwp_primary_selection_source_v1* s) {
@@ -143,7 +143,7 @@ static void primary_cancelled(void* data, struct zwp_primary_selection_source_v1
 }
 static const struct zwp_primary_selection_source_v1_listener primary_source_listener = {.send = primary_send, .cancelled = primary_cancelled};
 
-static void                                                  copy(uint32_t serial) {
+static void copy(uint32_t serial) {
     char* text = NULL;
     assert(asprintf(&text, "%s-copy%d", title, ++copies) > 0);
     struct wl_data_source* source = wl_data_device_manager_create_data_source(manager);
@@ -201,11 +201,11 @@ static void read_paste(struct paste* p) {
 }
 
 // The offers it is sent. Each new selection replaces the one before.
-static void                                offer_mime(void* data, struct wl_data_offer* offer, const char* mime) {}
-static void                                offer_source_actions(void* data, struct wl_data_offer* offer, uint32_t actions) {}
-static void                                offer_action(void* data, struct wl_data_offer* offer, uint32_t action) {}
+static void offer_mime(void* data, struct wl_data_offer* offer, const char* mime) {}
+static void offer_source_actions(void* data, struct wl_data_offer* offer, uint32_t actions) {}
+static void offer_action(void* data, struct wl_data_offer* offer, uint32_t action) {}
 static const struct wl_data_offer_listener offer_listener = {.offer = offer_mime, .source_actions = offer_source_actions, .action = offer_action};
-static void                                data_offer(void* data, struct wl_data_device* d, struct wl_data_offer* offer) {
+static void data_offer(void* data, struct wl_data_device* d, struct wl_data_offer* offer) {
     wl_data_offer_add_listener(offer, &offer_listener, NULL);
 }
 static void data_enter(void* data, struct wl_data_device* d, uint32_t serial, struct wl_surface* s, wl_fixed_t x, wl_fixed_t y, struct wl_data_offer* offer) {}
@@ -220,7 +220,7 @@ static void data_selection(void* data, struct wl_data_device* d, struct wl_data_
 }
 static const struct wl_data_device_listener device_listener = {
     .data_offer = data_offer, .enter = data_enter, .leave = data_leave, .motion = data_motion, .drop = data_drop, .selection = data_selection};
-static void                                                 primary_offer_mime(void* data, struct zwp_primary_selection_offer_v1* offer, const char* mime) {}
+static void primary_offer_mime(void* data, struct zwp_primary_selection_offer_v1* offer, const char* mime) {}
 static const struct zwp_primary_selection_offer_v1_listener primary_offer_listener = {.offer = primary_offer_mime};
 static void primary_data_offer(void* data, struct zwp_primary_selection_device_v1* d, struct zwp_primary_selection_offer_v1* offer) {
     zwp_primary_selection_offer_v1_add_listener(offer, &primary_offer_listener, NULL);
@@ -233,14 +233,14 @@ static void primary_selection(void* data, struct zwp_primary_selection_device_v1
 }
 static const struct zwp_primary_selection_device_v1_listener primary_device_listener = {.data_offer = primary_data_offer, .selection = primary_selection};
 
-static void                                                  pointer_enter(void* data, struct wl_pointer* p, uint32_t serial, struct wl_surface* s, wl_fixed_t x, wl_fixed_t y) {}
-static void                                                  pointer_leave(void* data, struct wl_pointer* p, uint32_t serial, struct wl_surface* s) {}
-static void                                                  pointer_motion(void* data, struct wl_pointer* p, uint32_t time, wl_fixed_t x, wl_fixed_t y) {}
-static void                                                  pointer_button(void* data, struct wl_pointer* p, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
+static void pointer_enter(void* data, struct wl_pointer* p, uint32_t serial, struct wl_surface* s, wl_fixed_t x, wl_fixed_t y) {}
+static void pointer_leave(void* data, struct wl_pointer* p, uint32_t serial, struct wl_surface* s) {}
+static void pointer_motion(void* data, struct wl_pointer* p, uint32_t time, wl_fixed_t x, wl_fixed_t y) {}
+static void pointer_button(void* data, struct wl_pointer* p, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
     if (button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED)
         select_text(serial);
 }
-static void                             pointer_axis(void* data, struct wl_pointer* p, uint32_t time, uint32_t axis, wl_fixed_t value) {}
+static void pointer_axis(void* data, struct wl_pointer* p, uint32_t time, uint32_t axis, wl_fixed_t value) {}
 static const struct wl_pointer_listener pointer_listener = {
     .enter = pointer_enter, .leave = pointer_leave, .motion = pointer_motion, .button = pointer_button, .axis = pointer_axis};
 static void keyboard_keymap(void* data, struct wl_keyboard* kb, uint32_t format, int32_t fd, uint32_t size) {
@@ -263,7 +263,7 @@ static void keyboard_key(void* data, struct wl_keyboard* kb, uint32_t serial, ui
         default: break;
     }
 }
-static void                              keyboard_modifiers(void* data, struct wl_keyboard* kb, uint32_t serial, uint32_t dep, uint32_t lat, uint32_t locked, uint32_t group) {}
+static void keyboard_modifiers(void* data, struct wl_keyboard* kb, uint32_t serial, uint32_t dep, uint32_t lat, uint32_t locked, uint32_t group) {}
 static const struct wl_keyboard_listener keyboard_listener = {
     .keymap = keyboard_keymap, .enter = keyboard_enter, .leave = keyboard_leave, .key = keyboard_key, .modifiers = keyboard_modifiers};
 static void seat_caps(void* data, struct wl_seat* s, uint32_t caps) {
@@ -279,7 +279,7 @@ static void seat_caps(void* data, struct wl_seat* s, uint32_t caps) {
     }
 }
 static const struct wl_seat_listener seat_listener = {.capabilities = seat_caps};
-static void                          global(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version) {
+static void global(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version) {
     if (!strcmp(interface, "wl_compositor"))
         compositor = wl_registry_bind(registry, name, &wl_compositor_interface, 1);
     else if (!strcmp(interface, "wl_shm"))
@@ -295,10 +295,10 @@ static void                          global(void* data, struct wl_registry* regi
     else if (!strcmp(interface, "zwp_primary_selection_device_manager_v1"))
         primary_manager = wl_registry_bind(registry, name, &zwp_primary_selection_device_manager_v1_interface, 1);
 }
-static void                              global_remove(void* data, struct wl_registry* registry, uint32_t name) {}
+static void global_remove(void* data, struct wl_registry* registry, uint32_t name) {}
 static const struct wl_registry_listener registry_listener = {.global = global, .global_remove = global_remove};
 
-int                                      main(int argc, char** argv) {
+int main(int argc, char** argv) {
     if (argc != 2) {
         fprintf(stderr, "usage: hyprmasq-clip-probe TITLE\n");
         return 2;

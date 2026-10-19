@@ -81,7 +81,7 @@ static int                            pipe_read = -1, finish_timer = -1;
 static char                           received[256];
 static size_t                         received_len;
 
-static uint64_t                       now_ms(void) {
+static uint64_t now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
@@ -109,7 +109,7 @@ static void buffer_release(void* data, struct wl_buffer* buffer) {
     wl_buffer_destroy(buffer);
 }
 static const struct wl_buffer_listener buffer_listener = {.release = buffer_release};
-static void                            fill(struct wl_surface* surface, int width, int height, uint32_t color) {
+static void fill(struct wl_surface* surface, int width, int height, uint32_t color) {
     size_t size = (size_t)width * height * 4;
     int    fd   = memfd_create("hyprmasq-dnd-probe", MFD_CLOEXEC);
     assert(fd >= 0 && ftruncate(fd, size) == 0);
@@ -145,15 +145,15 @@ static void configure(void* data, struct xdg_surface* surface, uint32_t serial) 
     // buffer from the top left, so that it does not count as resizing.
     draw(data);
 }
-static const struct xdg_surface_listener  surface_listener = {.configure = configure};
-static void                               toplevel_configure(void* data, struct xdg_toplevel* top, int32_t width, int32_t height, struct wl_array* states) {}
-static void                               toplevel_close(void* data, struct xdg_toplevel* top) {}
+static const struct xdg_surface_listener surface_listener = {.configure = configure};
+static void toplevel_configure(void* data, struct xdg_toplevel* top, int32_t width, int32_t height, struct wl_array* states) {}
+static void toplevel_close(void* data, struct xdg_toplevel* top) {}
 static const struct xdg_toplevel_listener toplevel_listener = {.configure = toplevel_configure, .close = toplevel_close};
-static void                               ping(void* data, struct xdg_wm_base* base, uint32_t serial) {
+static void ping(void* data, struct xdg_wm_base* base, uint32_t serial) {
     xdg_wm_base_pong(base, serial);
 }
 static const struct xdg_wm_base_listener wm_listener = {.ping = ping};
-static void                              create(struct window* w, const char* name, uint32_t color) {
+static void create(struct window* w, const char* name, uint32_t color) {
     *w         = (struct window){.name = name, .color = color};
     w->surface = wl_compositor_create_surface(compositor);
     w->xdg     = xdg_wm_base_get_xdg_surface(wm, w->surface);
@@ -200,9 +200,9 @@ static const struct wl_data_source_listener source_listener = {.target          
                                                                .action             = source_action};
 
 // The icon asks for one frame callback after another, as a toolkit's animated icon does.
-static void                              icon_frame(void* data, struct wl_callback* callback, uint32_t time);
+static void icon_frame(void* data, struct wl_callback* callback, uint32_t time);
 static const struct wl_callback_listener frame_listener = {.done = icon_frame};
-static void                              icon_frame(void* data, struct wl_callback* callback, uint32_t time) {
+static void icon_frame(void* data, struct wl_callback* callback, uint32_t time) {
     wl_callback_destroy(callback);
     say("icon frame");
     if (!icon)
@@ -244,7 +244,7 @@ static void offer_action(void* data, struct wl_data_offer* offer, uint32_t actio
     say("offer %u action %u", wl_proxy_get_id((struct wl_proxy*)offer), action);
 }
 static const struct wl_data_offer_listener offer_listener = {.offer = offer_mime, .source_actions = offer_source_actions, .action = offer_action};
-static void                                data_offer(void* data, struct wl_data_device* d, struct wl_data_offer* offer) {
+static void data_offer(void* data, struct wl_data_device* d, struct wl_data_offer* offer) {
     wl_data_offer_add_listener(offer, &offer_listener, NULL);
     say("data offer %u", wl_proxy_get_id((struct wl_proxy*)offer));
 }
@@ -335,12 +335,12 @@ static void pointer_leave(void* data, struct wl_pointer* p, uint32_t serial, str
 }
 // With frame-first, a press starts its drag once the pointer has moved 8 pixels from it, at the next frame callback
 // after that, if the button is still down, as Firefox does, which renders the drag's image first.
-static uint32_t                          press_serial;
-static bool                              pressed, waiting_motion;
-static double                            pointer_x, pointer_y, press_x, press_y;
-static void                              press_frame(void* data, struct wl_callback* callback, uint32_t time);
+static uint32_t press_serial;
+static bool     pressed, waiting_motion;
+static double   pointer_x, pointer_y, press_x, press_y;
+static void press_frame(void* data, struct wl_callback* callback, uint32_t time);
 static const struct wl_callback_listener press_frame_listener = {.done = press_frame};
-static void                              pointer_motion(void* data, struct wl_pointer* p, uint32_t time, wl_fixed_t x, wl_fixed_t y) {
+static void pointer_motion(void* data, struct wl_pointer* p, uint32_t time, wl_fixed_t x, wl_fixed_t y) {
     pointer_x = wl_fixed_to_double(x);
     pointer_y = wl_fixed_to_double(y);
     if (waiting_motion && pressed && (pointer_x - press_x) * (pointer_x - press_x) + (pointer_y - press_y) * (pointer_y - press_y) >= 64) {
@@ -383,7 +383,7 @@ static void pointer_button(void* data, struct wl_pointer* p, uint32_t serial, ui
     }
     start_drag(serial);
 }
-static void                             pointer_axis(void* data, struct wl_pointer* p, uint32_t time, uint32_t axis, wl_fixed_t value) {}
+static void pointer_axis(void* data, struct wl_pointer* p, uint32_t time, uint32_t axis, wl_fixed_t value) {}
 static const struct wl_pointer_listener pointer_listener = {
     .enter = pointer_enter, .leave = pointer_leave, .motion = pointer_motion, .button = pointer_button, .axis = pointer_axis};
 static void keyboard_keymap(void* data, struct wl_keyboard* kb, uint32_t format, int32_t fd, uint32_t size) {
@@ -398,7 +398,7 @@ static void keyboard_leave(void* data, struct wl_keyboard* kb, uint32_t serial, 
 static void keyboard_key(void* data, struct wl_keyboard* kb, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
     say("key %u %u", key, state);
 }
-static void                              keyboard_modifiers(void* data, struct wl_keyboard* kb, uint32_t serial, uint32_t dep, uint32_t lat, uint32_t locked, uint32_t group) {}
+static void keyboard_modifiers(void* data, struct wl_keyboard* kb, uint32_t serial, uint32_t dep, uint32_t lat, uint32_t locked, uint32_t group) {}
 static const struct wl_keyboard_listener keyboard_listener = {
     .keymap = keyboard_keymap, .enter = keyboard_enter, .leave = keyboard_leave, .key = keyboard_key, .modifiers = keyboard_modifiers};
 static void seat_caps(void* data, struct wl_seat* s, uint32_t caps) {
@@ -414,7 +414,7 @@ static void seat_caps(void* data, struct wl_seat* s, uint32_t caps) {
     }
 }
 static const struct wl_seat_listener seat_listener = {.capabilities = seat_caps};
-static void                          global(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version) {
+static void global(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version) {
     if (!strcmp(interface, "wl_compositor"))
         compositor = wl_registry_bind(registry, name, &wl_compositor_interface, 1);
     else if (!strcmp(interface, "wl_subcompositor"))
@@ -430,13 +430,13 @@ static void                          global(void* data, struct wl_registry* regi
     } else if (!strcmp(interface, "wl_data_device_manager"))
         manager = wl_registry_bind(registry, name, &wl_data_device_manager_interface, 3);
 }
-static void                              global_remove(void* data, struct wl_registry* registry, uint32_t name) {}
+static void global_remove(void* data, struct wl_registry* registry, uint32_t name) {}
 static const struct wl_registry_listener registry_listener = {.global = global, .global_remove = global_remove};
 
-int                                      main(int argc, char** argv) {
+int main(int argc, char** argv) {
     if (argc < 2) {
         fprintf(stderr,
-                                                     "usage: hyprmasq-dnd-probe TITLE [serial=enter|old|forged] [accept=none] [actions=ask] [finish=never|late|soon] [icon] [source=none] [frame-first] [user NAME]\n");
+                "usage: hyprmasq-dnd-probe TITLE [serial=enter|old|forged] [accept=none] [actions=ask] [finish=never|late|soon] [icon] [source=none] [frame-first] [user NAME]\n");
         return 2;
     }
     const char* user_name = NULL;

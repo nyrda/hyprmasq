@@ -1119,12 +1119,15 @@ os.rename(sys.argv[2] + ".part", sys.argv[2])
         machine.wait_until_succeeds(f"test -s {output}", timeout=timeout)
         return json.loads(machine.succeed(f"cat {output}"))
 
+    with subtest("input tool version"):
+        assert alice("hyprmasq-input --version").strip() == f"hyprmasq-input {expected_version}"
+
     with subtest("plugin version and window state"):
-        assert json.loads(hypr("-j hyprmasq version")) == {"ok": True, "version": "0.3.0", "interface": 4}
-        assert hypr("hyprmasq version") == "hyprmasq 0.3.0 interface 4"
+        assert json.loads(hypr("-j hyprmasq version")) == {"ok": True, "version": expected_version, "interface": 4}
+        assert hypr("hyprmasq version") == f"hyprmasq {expected_version} interface 4"
         # The module installs the MCP server of the same version, which runs the package's own hyprmasq-input.
         package = plugin.removesuffix("/lib/hyprmasq.so")
-        assert alice("hyprmasq-mcp --version").strip() == "0.3.0"
+        assert alice("hyprmasq-mcp --version").strip() == expected_version
         assert alice("readlink -f $(command -v hyprmasq-mcp)").strip() == f"{package}/bin/hyprmasq-mcp"
         assert alice("readlink -f $(command -v hyprmasq-input)").strip() == f"{package}/bin/hyprmasq-input"
         machine.succeed(f"grep -q {shlex.quote(package + '/bin')} {package}/bin/hyprmasq-mcp")
@@ -3846,7 +3849,7 @@ print(longest)
         mcp = Mcp("a")
         init = mcp.initialize()
         assert init["protocolVersion"] == "2025-11-25" and "tools" in init["capabilities"], init
-        assert (init["serverInfo"]["name"], init["serverInfo"]["version"]) == ("hyprmasq-mcp", "0.3.0"), init
+        assert (init["serverInfo"]["name"], init["serverInfo"]["version"]) == ("hyprmasq-mcp", expected_version), init
         # The first line sums it all up, for clients that show only that.
         summary, blank = init["instructions"].splitlines()[:2]
         assert summary.startswith("hyprmasq: ") and summary.endswith(".") and blank == "", init["instructions"]

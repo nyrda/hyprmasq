@@ -66,7 +66,7 @@ namespace hyprmasq::deferred {
         int   frames = 0;
         void* pinned = nullptr;
 
-        void  restoreBatch();
+        void restoreBatch();
 
         // Runs once Hyprland has returned from the last frame of this library that outlived an unload.
         void releasePinned() {
@@ -209,7 +209,7 @@ namespace hyprmasq::deferred {
         struct SBatch {
             std::function<std::string(eHyprCtlOutputFormat, std::string)> original;
 
-            std::string                                                   operator()(eHyprCtlOutputFormat format, std::string request) const {
+            std::string operator()(eHyprCtlOutputFormat format, std::string request) const {
                 SFrame      frame;
                 std::string reply;
                 ++batchDepth;

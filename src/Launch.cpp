@@ -58,7 +58,7 @@ namespace hyprmasq::launch {
         // hyprmasq-reaper, which the command of a launch runs under, or empty when there is none.
         std::string reaper;
 
-        bool        executable(const std::filesystem::path& path) {
+        bool executable(const std::filesystem::path& path) {
             return path.is_absolute() && access(path.c_str(), X_OK) == 0;
         }
 

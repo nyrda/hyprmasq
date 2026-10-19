@@ -135,5 +135,5 @@ pkgs.testers.runNixOSTest {
       system.stateVersion = "24.11";
     };
 
-  testScript = builtins.readFile ./vm-test.py;
+  testScript = "expected_version = ${builtins.toJSON plugin.version}\n" + builtins.readFile ./vm-test.py;
 }

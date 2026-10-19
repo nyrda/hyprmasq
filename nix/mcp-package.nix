@@ -6,9 +6,10 @@
   buildGoModule,
 }:
 
-buildGoModule {
+buildGoModule (finalAttrs: {
   pname = "hyprmasq-mcp";
-  version = "0.3.0";
+  version = lib.trim (lib.fileContents ../VERSION);
+  ldflags = [ "-X github.com/nyrda/hyprmasq/mcp/internal/server.Version=${finalAttrs.version}" ];
 
   src = lib.cleanSource ../mcp;
   vendorHash = "sha256-NbuvbsmNbz3aKdjyyfpkbi52yRhXl473j3LvAUDn3L8=";
@@ -21,4 +22,4 @@ buildGoModule {
     platforms = lib.platforms.linux;
     mainProgram = "hyprmasq-mcp";
   };
-}
+})

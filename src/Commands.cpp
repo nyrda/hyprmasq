@@ -327,7 +327,7 @@ namespace hyprmasq {
 
         constexpr int MAX_LEASE_MS = 600000;
 
-        std::string   leaseCommand(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
+        std::string leaseCommand(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
             const bool release = args.size() >= 2 && args[1] == "release";
             if (release ? args.size() > 3 : args.size() != 3)
                 return usage(format);
@@ -357,7 +357,7 @@ namespace hyprmasq {
         // Clients that talk to Hyprland's socket themselves wait as long as the reply takes.
         constexpr int MAX_CHANGE_WAIT_MS = 60000;
 
-        std::string   changeWait(eHyprCtlOutputFormat format, const PHLWINDOW& window, const std::vector<std::string>& args) {
+        std::string changeWait(eHyprCtlOutputFormat format, const PHLWINDOW& window, const std::vector<std::string>& args) {
             wait::SChangeOptions  options;
             std::set<std::string> seen;
             for (size_t i = 1; i < args.size(); i += 2) {
@@ -411,7 +411,7 @@ namespace hyprmasq {
                     for (const auto& box : result.animated) {
                         const int x = sc<int>(std::floor(box.x)), y = sc<int>(std::floor(box.y));
                         animated += std::format(R"({}{{"x":{},"y":{},"width":{},"height":{}}})", animated.empty() ? "" : ",", x, y, sc<int>(std::ceil(box.x + box.w)) - x,
-                                                  sc<int>(std::ceil(box.y + box.h)) - y);
+                                                sc<int>(std::ceil(box.y + box.h)) - y);
                     }
                     return std::format(
                         R"({{"ok":true,"ended":"{}","commits":{},"socketId":{},"redrawObserved":{},"commitsSince":{},"quietMs":{},"elapsedMs":{},"resizing":{},"animated":[{}]}})",

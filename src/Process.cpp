@@ -8,7 +8,7 @@
 namespace hyprmasq::process {
     namespace {
         // Environments past this size are cut there; the variables hyprmasq reads come early or not at all.
-        constexpr std::streamsize  MAX_ENVIRONMENT = 1 << 20;
+        constexpr std::streamsize MAX_ENVIRONMENT = 1 << 20;
 
         std::optional<std::string> readStat(pid_t pid) {
             std::ifstream file(std::format("/proc/{}/stat", pid));

@@ -65,10 +65,10 @@ namespace hyprmasq::wait {
         void scan();
         void scanLater();
         // Counts commits that damaged the box, or an unknown part of the window without one.
-        void                                    count(uint64_t n = 1, std::optional<CBox> box = std::nullopt);
-        bool                                    animated(const CBox& box, Time::steady_tp now) const;
-        std::optional<CBox>                     damageBox(const SP<CWLSurfaceResource>& surface, const SSurfaceState& state) const;
-        SWatched                                watch(const SP<CWLSurfaceResource>& surface);
+        void count(uint64_t n = 1, std::optional<CBox> box = std::nullopt);
+        bool animated(const CBox& box, Time::steady_tp now) const;
+        std::optional<CBox> damageBox(const SP<CWLSurfaceResource>& surface, const SSurfaceState& state) const;
+        SWatched watch(const SP<CWLSurfaceResource>& surface);
 
         PHLWINDOWREF                            m_window;
         std::map<CWLSurfaceResource*, SWatched> m_surfaces;

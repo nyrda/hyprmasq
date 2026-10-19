@@ -24,7 +24,8 @@ import (
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
 )
 
-const Version = "0.3.0"
+// Version is set from the repository VERSION file by the Nix build.
+var Version = "dev"
 
 // DefaultMaxImageSize is the default of --max-image-size. In practice runs, agents clicked as accurately in shots of 1280
 // pixels as in larger ones, which Claude Code and Codex shrank to about 2000 pixels anyway, and Claude cost about 40%

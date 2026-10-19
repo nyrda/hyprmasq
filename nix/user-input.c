@@ -21,7 +21,7 @@ static struct wl_seat*                         seat;
 static struct zwlr_virtual_pointer_manager_v1* pointers;
 static struct zwp_input_method_manager_v2*     methods;
 
-static unsigned long long                      now_ms(void) {
+static unsigned long long now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (unsigned long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
@@ -35,10 +35,10 @@ static void global(void* data, struct wl_registry* registry, uint32_t name, cons
     else if (!strcmp(interface, zwp_input_method_manager_v2_interface.name))
         methods = wl_registry_bind(registry, name, &zwp_input_method_manager_v2_interface, 1);
 }
-static void                              global_remove(void* data, struct wl_registry* registry, uint32_t name) {}
+static void global_remove(void* data, struct wl_registry* registry, uint32_t name) {}
 static const struct wl_registry_listener registry_listener = {global, global_remove};
 
-static void                              keymap(void* data, struct zwp_input_method_keyboard_grab_v2* grab, uint32_t format, int32_t fd, uint32_t size) {
+static void keymap(void* data, struct zwp_input_method_keyboard_grab_v2* grab, uint32_t format, int32_t fd, uint32_t size) {
     close(fd);
     printf("grabbed %llu\n", now_ms());
     fflush(stdout);
@@ -51,7 +51,7 @@ static void modifiers(void* data, struct zwp_input_method_keyboard_grab_v2* grab
 static void repeat_info(void* data, struct zwp_input_method_keyboard_grab_v2* grab, int32_t rate, int32_t delay) {}
 static const struct zwp_input_method_keyboard_grab_v2_listener grab_listener = {keymap, key, modifiers, repeat_info};
 
-static int                                                     button(struct wl_display* display, int x, int y, int ms) {
+static int button(struct wl_display* display, int x, int y, int ms) {
     if (!pointers) {
         fprintf(stderr, "no virtual pointer manager\n");
         return 1;

@@ -32,17 +32,17 @@ namespace hyprmasq::selection {
         // and has no hook that tells whose input a set_selection follows. An explicit instantiation may name private
         // members, so these reach them without redefining access specifiers around the includes. They bind the plugin to
         // the pinned Hyprland's layout of these classes, as wireOf in Drag.cpp does.
-        SP<CWlDataDevice>&                        wireOf(CWLDataDeviceResource& device);
-        std::vector<SP<CWLDataDeviceResource>>&   devicesOf(CWLDataDeviceProtocol& protocol);
-        SetSelection&                             setSelectionOf(CWlDataDevice& wire);
-        void                                      sendTo(CWLDataDeviceProtocol& protocol, SP<IDataDevice> device, SP<IDataSource> source);
-        SP<CZwpPrimarySelectionDeviceV1>&         wireOf(CPrimarySelectionDevice& device);
+        SP<CWlDataDevice>& wireOf(CWLDataDeviceResource& device);
+        std::vector<SP<CWLDataDeviceResource>>& devicesOf(CWLDataDeviceProtocol& protocol);
+        SetSelection& setSelectionOf(CWlDataDevice& wire);
+        void sendTo(CWLDataDeviceProtocol& protocol, SP<IDataDevice> device, SP<IDataSource> source);
+        SP<CZwpPrimarySelectionDeviceV1>& wireOf(CPrimarySelectionDevice& device);
         std::vector<SP<CPrimarySelectionDevice>>& devicesOf(CPrimarySelectionProtocol& protocol);
-        SetPrimarySelection&                      setSelectionOf(CZwpPrimarySelectionDeviceV1& wire);
-        void                                      sendTo(CPrimarySelectionProtocol& protocol, SP<CPrimarySelectionDevice> device, SP<IDataSource> source);
-        SXSelection&                              clipboardOf(CXWM& wm);
-        SXSelection&                              primaryOf(CXWM& wm);
-        SXSelection*                              selectionOf(CXWM& wm, xcb_atom_t atom);
+        SetPrimarySelection& setSelectionOf(CZwpPrimarySelectionDeviceV1& wire);
+        void sendTo(CPrimarySelectionProtocol& protocol, SP<CPrimarySelectionDevice> device, SP<IDataSource> source);
+        SXSelection& clipboardOf(CXWM& wm);
+        SXSelection& primaryOf(CXWM& wm);
+        SXSelection* selectionOf(CXWM& wm, xcb_atom_t atom);
         template <SP<CWlDataDevice> CWLDataDeviceResource::* Wire, std::vector<SP<CWLDataDeviceResource>> CWLDataDeviceProtocol::* Devices, auto Requests, auto Send>
         struct SDataAccess {
             friend SP<CWlDataDevice>& wireOf(CWLDataDeviceResource& device) {
@@ -145,7 +145,7 @@ namespace hyprmasq::selection {
         // The X window that owns an X selection that stayed the agent's, per kind, or 0.
         std::array<uint32_t, 2> keptOwners{};
 
-        wl_client*              xwaylandClient() {
+        wl_client* xwaylandClient() {
             return g_pXWayland && g_pXWayland->m_server ? g_pXWayland->m_server->m_xwaylandClient : nullptr;
         }
 

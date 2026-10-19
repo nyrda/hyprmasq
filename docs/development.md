@@ -8,18 +8,22 @@ Run `./dev.sh` from the repository root.
 | `./dev.sh vm-test` | Run the headless NixOS VM integration test. |
 | `./dev.sh vm-test-interactive` | Open the test's interactive driver. |
 
-The VM commands need Nix and KVM, and pass extra arguments to `nix-build`. The
-same test is the flake check: `nix build .#checks.x86_64-linux.vm-test`.
+The VM commands need Nix and KVM, and pass extra arguments to `nix build`.
+`vm-test` builds `.#checks.x86_64-linux.vm-test -L`; `vm-test-interactive`
+builds its `driverInteractive` attribute and opens the driver.
 
-CI does not run the VM test: it takes about 8 minutes on a desktop with KVM,
-and 20 or more on a GitHub runner. It is a gate on the author's machine
-instead. It runs on a PR's head commit before the PR is opened, and again
-before merging whenever the head commit is no longer the one it passed on. A
+CI runs `nix flake check --no-build`, builds `hyprmasq` and `hyprmasq-mcp`
+with the Go tests, checks C/C++ formatting with clang-format and Go formatting
+with gofmt, and runs the bench unit tests listed below, including the Calc
+checker with LibreOffice. It runs on PRs and pushes to `main`.
+
+The NixOS VM test is a local gate; CI does not run it. It runs on a PR's head
+commit before the PR is opened, and again before merging whenever the head commit is no longer the one it passed on. A
 PR that changes only Markdown files skips it, since neither the test nor its
 Nix build reads them. The PR template asks for both runs.
 
 The flake's dev shell, `nix develop`, has the build inputs of the plugin and
-`hyprmasq-input`, and Go for `hyprmasq-mcp`.
+`hyprmasq-input`, Go for `hyprmasq-mcp`, and clang-format from `clang-tools`.
 
 New files must be tracked by git (`git add`) before flake builds can see them.
 
@@ -32,6 +36,14 @@ hyprctl plugin unload "$PWD/hyprmasq.so"
 
 Unloading removes every open socket and every function hook.
 
+For a staged install, `make install PREFIX=/usr/local DESTDIR=/path/to/stage`
+puts the plugin in `lib`, the input tool and launcher in `bin`, and the reaper
+in `libexec`, where the plugin finds it relative to its own path.
+
+When `main` moves to a newer Hyprland release, add a `commit_pins` entry in
+`hyprpm.toml` mapping the previous Hyprland release commit to the last plugin
+commit that supports it.
+
 ## hyprmasq-mcp
 
 The MCP server is a Go module in `mcp/`, built with the Go of the pinned
@@ -40,8 +52,14 @@ nixpkgs and the [official Go SDK](https://github.com/modelcontextprotocol/go-sdk
 ```sh
 cd mcp
 nix develop .. -c go build ./cmd/hyprmasq-mcp
+nix develop .. -c go vet ./...
+nix develop .. -c go test ./...
 nix develop .. -c go test -race ./...
+gofmt -w path/to/changed.go
 ```
+
+Run the race check when changing concurrency or process handling. A plain
+`go build` reports version `dev`; the Nix build injects the top-level `VERSION`.
 
 The tests need no Hyprland. They run the server against a fake Hyprland
 socket that answers the plugin's commands, and the test binary doubles as a
@@ -58,8 +76,8 @@ the server's `minSendTime` for its `--budget`, from the keys it resolved.
 Change them together. Likewise,
 `mcp/cmd/hyprmasq-mcp/main.go` names the directory of a Hyprland instance under
 `$XDG_RUNTIME_DIR/hyprmasq` as `src/Eis.cpp` does.
-The Nix build runs them too, in the check phase of `nix build .#hyprmasq-mcp`,
-which `nix build .#hyprmasq` and the VM test include.
+The Nix build runs `go test` without the race detector in the check phase of
+`nix build .#hyprmasq-mcp`, which `nix build .#hyprmasq` and the VM test include.
 
 `nix/mcp-package.nix` vendors the Go dependencies by hash. After changing them
 in `go.mod`, update `vendorHash` there: set it to `lib.fakeHash`, build, and
@@ -96,7 +114,8 @@ output, installs the plugin through the NixOS module, and runs
 | Connection taken over | A second sender connects while the first sends text without pacing, three times. The first one exits 1 with `unconfirmed` in its JSON, and its delivery is partial with `progress.keys` equal to the keys the shell got, or uncertain with at least those. |
 | Input dropped by a closing window | Escape closes focus-probe's window while `hyprmasq-input` sends text after it without pacing, three times. A partial delivery counts exactly the keys the probe got, an uncertain one at least those. |
 | Waiting | `wait` answers after typing into a hidden shell with the frames it drew, settles an idle window after the quiet time without frames, and times out on a visible window that keeps drawing; invalid arguments fail. |
-| Version and state | `version` reports 0.3.0 and interface 4, and the module installs `hyprmasq-mcp` of that version, with the package's own `hyprmasq-input` on its `PATH`. `state` reports the address, `stableId`, size, that it is not resizing, scale, socket, commit counter, an empty drag record and capabilities of a hidden window and of the focused one. |
+| Input tool version | `hyprmasq-input --version` reports the package version from `VERSION` and exits successfully without a socket. |
+| Version and state | `version` reports the package version from `VERSION` and interface 4, and the module installs `hyprmasq-mcp` of that version, with the package's own `hyprmasq-input` on its `PATH`. `state` reports the address, `stableId`, size, that it is not resizing, scale, socket, commit counter, an empty drag record and capabilities of a hidden window and of the focused one. |
 | Error codes | Malformed commands, unknown windows, missing sockets and invalid `wait`, `screenshot`, `state` and `cancel` arguments give the documented codes, and plain-text errors start with `error:`. |
 | Commit counter | It rises after typing, never falls, and the screenshot's value lies between readings before and after. It counts a popup that opens and closes without input, including the popup's first buffer. |
 | Socket ids | `state`, `eis list`, `eis open`, screenshots and `wait … since` name the window's socket by its id, and a socket opened again gets another id and a counter that starts again. |
@@ -221,7 +240,7 @@ output, installs the plugin through the NixOS module, and runs
 | Compositor log | After Hyprland exits and flushes its log, it shows that the move and resize serials were rejected. |
 
 The test copies the screenshots and logs into the build result, for example
-`result/hyprmasq-green.png` after `nix-build nix/hyprmasq-vm-test.nix`.
+`result/hyprmasq-green.png` after `nix build .#checks.x86_64-linux.vm-test -L`.
 
 ## Benchmarks
 
@@ -235,8 +254,16 @@ python3 bench/run.py --agent claude:claude-sonnet-5-5 --reps 1
 ```
 
 [bench/README.md](../bench/README.md) describes the setup and the measures,
-and [benchmarks.md](benchmarks.md) the results so far. The benchmark is no
-gate for PRs.
+and [benchmarks.md](benchmarks.md) the results so far. Full benchmark runs are
+not a PR gate. The unit tests are:
+
+```sh
+python3 bench/analyze_test.py
+python3 bench/dispatch_test.py
+python3 bench/harness_test.py
+python3 bench/tasks/board/check_test.py
+nix-build bench/tasks/calc/check-test.nix
+```
 
 ## Source layout
 

@@ -44,10 +44,10 @@ namespace hyprmasq::placement {
         // file chooser on another. For those, when the process started tells it from a later process with its pid, which
         // the record can outlive too. An X server's connection has none, since one process serves many apps there.
         struct SApp {
-            wl_client*                        client                        = nullptr;
-            pid_t                             pid                           = 0;
-            std::optional<unsigned long long> started                       = {};
-            bool                              operator==(const SApp&) const = default;
+            wl_client*                        client  = nullptr;
+            pid_t                             pid     = 0;
+            std::optional<unsigned long long> started = {};
+            bool operator==(const SApp&) const        = default;
         };
 
         // The same process, by when it started where both are on connections of their own, and otherwise on the same
@@ -106,7 +106,7 @@ namespace hyprmasq::placement {
         CHyprSignalListener                           key, button, touch, tip;
         wl_event_source*                              afterRefocus = nullptr;
 
-        void                                          prune() {
+        void prune() {
             const auto now = Time::steadyNow();
             std::erase_if(driven, [&](const SDriven& d) { return d.window.expired() && (!d.input || now - *d.input >= RECENT); });
             std::erase_if(opened, [](const SOpened& o) { return o.window.expired(); });

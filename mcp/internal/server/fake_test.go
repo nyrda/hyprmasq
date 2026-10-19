@@ -568,7 +568,7 @@ func (f *fakeHyprland) plugin(words []string) string {
 		}
 	}
 	if words[0] == "version" {
-		return jsonReply(map[string]any{"ok": true, "version": "0.3.0", "interface": f.iface})
+		return jsonReply(map[string]any{"ok": true, "version": Version, "interface": f.iface})
 	}
 	if words[0] == "launch" && len(words) == 4 {
 		workspace, err1 := hex.DecodeString(words[1])

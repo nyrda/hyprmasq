@@ -88,29 +88,29 @@ namespace hyprmasq::drag {
         };
 
         friend std::shared_ptr<CPrivateDrag> start(const SRequest&, const SP<CWLDataSourceResource>&, const SP<CWLSurfaceResource>&, std::shared_ptr<SDragRecord>);
-        friend void                          shutdown();
-        friend size_t                        offersOf(wl_client*);
+        friend void shutdown();
+        friend size_t offersOf(wl_client*);
 
-        void                                 begin();
-        bool                                 alive();
-        bool                                 enter(const SP<CWLSurfaceResource>& surface, const Vector2D& local);
-        void                                 leave();
-        void                                 end(std::string_view phase, std::string_view reason);
-        int                                  tick();
-        void                                 accept(CWlDataOffer* offer, uint32_t serial, const char* mime);
-        void                                 setActions(CWlDataOffer* offer, uint32_t actions, uint32_t preferred);
-        void                                 receive(CWlDataOffer* offer, const char* mime, int32_t fd);
-        void                                 finish(CWlDataOffer* offer);
-        void                                 destroyed(CWlDataOffer* offer);
+        void begin();
+        bool alive();
+        bool enter(const SP<CWLSurfaceResource>& surface, const Vector2D& local);
+        void leave();
+        void end(std::string_view phase, std::string_view reason);
+        int tick();
+        void accept(CWlDataOffer* offer, uint32_t serial, const char* mime);
+        void setActions(CWlDataOffer* offer, uint32_t actions, uint32_t preferred);
+        void receive(CWlDataOffer* offer, const char* mime, int32_t fd);
+        void finish(CWlDataOffer* offer);
+        void destroyed(CWlDataOffer* offer);
 
-        std::shared_ptr<SDragRecord>         m_record;
-        uint64_t                             m_id     = 0; // in the record, so that a later drag's outcome is not overwritten
-        wl_client*                           m_client = nullptr;
-        WP<CWLDataDeviceResource>            m_device;
-        WP<CWLDataSourceResource>            m_source;
-        bool                                 m_sourceGone = false; // the client destroyed it, so it gets no more events
-        bool                                 m_sourceless = false; // a drag within the client: no offers, and no drop
-        WP<CWLSurfaceResource>               m_icon;
+        std::shared_ptr<SDragRecord> m_record;
+        uint64_t                     m_id     = 0; // in the record, so that a later drag's outcome is not overwritten
+        wl_client*                   m_client = nullptr;
+        WP<CWLDataDeviceResource>    m_device;
+        WP<CWLDataSourceResource>    m_source;
+        bool                         m_sourceGone = false; // the client destroyed it, so it gets no more events
+        bool                         m_sourceless = false; // a drag within the client: no offers, and no drop
+        WP<CWLSurfaceResource>       m_icon;
         // Every offer of the drag that the client has not destroyed, one for each surface it entered.
         std::vector<SP<CWlDataOffer>> m_offers;
         // The offer of the surface entered, and after the drop, the offer that it went to.

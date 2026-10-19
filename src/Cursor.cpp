@@ -36,8 +36,8 @@ namespace hyprmasq::cursor {
         // The theme Hyprland loaded is private to its cursor manager. An explicit instantiation may name private
         // members, so these read them without redefining access specifiers around the include.
         UP<CXCursorManager>& xcursorOf(Manager& manager);
-        int&                 sizeOf(Manager& manager);
-        float&               scaleOf(Manager& manager);
+        int& sizeOf(Manager& manager);
+        float& scaleOf(Manager& manager);
         template <UP<CXCursorManager> Manager::* XCursor, int Manager::* Size, float Manager::* Scale>
         struct SManagerAccess {
             friend UP<CXCursorManager>& xcursorOf(Manager& manager) {
@@ -86,7 +86,7 @@ namespace hyprmasq::cursor {
         wl_event_source*                timer = nullptr;
         CHyprSignalListener             renderListener;
 
-        double                          luminance(double r, double g, double b) {
+        double luminance(double r, double g, double b) {
             return 0.2126 * r + 0.7152 * g + 0.0722 * b;
         }
 

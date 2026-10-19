@@ -25,9 +25,9 @@ namespace hyprmasq::drag {
         // private, and has no hook that sees a start_drag's serial or that lets a drag run without the seat. An explicit
         // instantiation may name private members, so these reach them without redefining access specifiers around the
         // includes. They bind the plugin to the pinned Hyprland's layout of these classes, as surfaceOf in Eis.cpp does.
-        SP<CWlDataDevice>&                      wireOf(CWLDataDeviceResource& device);
+        SP<CWlDataDevice>& wireOf(CWLDataDeviceResource& device);
         std::vector<SP<CWLDataDeviceResource>>& devicesOf(CWLDataDeviceProtocol& protocol);
-        StartDrag&                              startDragOf(CWlDataDevice& wire);
+        StartDrag& startDragOf(CWlDataDevice& wire);
         template <SP<CWlDataDevice> CWLDataDeviceResource::* Wire, std::vector<SP<CWLDataDeviceResource>> CWLDataDeviceProtocol::* Devices, auto Requests>
         struct SDataAccess {
             friend SP<CWlDataDevice>& wireOf(CWLDataDeviceResource& device) {
@@ -66,7 +66,7 @@ namespace hyprmasq::drag {
         std::vector<SP<CWlDataOffer>> buried;
         wl_event_source*              reaper = nullptr;
 
-        void                          reap() {
+        void reap() {
             buried.clear();
             std::erase_if(drags, [](const auto& d) { return d->done() && d.use_count() == 1; });
         }

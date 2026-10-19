@@ -28,7 +28,7 @@ underneath, for scripts, tests and people.
 | `hyprctl hyprmasq eis open <addr> [force]` | Creates the window's input socket and prints its path. Opening it again returns the same path. `force` drives an X11 window even while another window of its X server has the focus; see [X11 windows](#x11-windows). Each `open` sets or clears it. |
 | `hyprctl hyprmasq eis close <addr>` | Removes the socket and disconnects its client. Prints `ok`. |
 | `hyprctl hyprmasq eis list` | Prints one `address path` line per open socket, followed by `force` for sockets opened with `force`. |
-| `hyprctl hyprmasq version` | Prints the plugin version and its interface version, such as `hyprmasq 0.3.0 interface 4`. |
+| `hyprctl hyprmasq version` | Prints the plugin version and its interface version, such as `hyprmasq 0.1.0 interface 4`. |
 | `hyprctl hyprmasq help` | Prints the command summary. |
 
 New keywords such as `since`, `max` and `release` are plain words, because
@@ -56,7 +56,7 @@ With `hyprctl -j`, every command answers in JSON:
 | `eis list` | `[{"address":"0x...","path":"...","socketId":"9f3a61c2-3","force":false}]` |
 | `launch` | `{"ok":true,"pid":4242}` |
 | `launched` | `{"ok":true,"windows":[{"address":"0x...","stableId":"1a","token":"9c1f0e4ab27d3365"}]}` |
-| `version` | `{"ok":true,"version":"0.3.0","interface":4}` |
+| `version` | `{"ok":true,"version":"0.1.0","interface":4}` |
 | any error | `{"ok":false,"error":"...","code":"window_gone"}` |
 
 Every JSON error has a `code` that scripts can rely on:

@@ -24,6 +24,16 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        # outPath identifies the exact compositor build and is available without building it.
+        assertion = cfg.package ? hyprland && config.programs.hyprland.package.outPath == cfg.package.hyprland.outPath;
+        message = ''
+          hyprmasq was built against Hyprland ${cfg.package.hyprland.version or "unknown"} (${cfg.package.hyprland.outPath or "unknown"}), but programs.hyprland.package is ${config.programs.hyprland.package.version} (${config.programs.hyprland.package.outPath}).
+          Set programs.hyprmasq.package = pkgs.callPackage "''${hyprmasq}/nix/package.nix" { hyprland = yourPackage; }; to build the plugin against your programs.hyprland.package, or use the module's default Hyprland package.
+        '';
+      }
+    ];
     programs.hyprland = {
       enable = lib.mkDefault true;
       # Both come from the nixpkgs revision locked by the hyprmasq flake, not from the system's nixpkgs.

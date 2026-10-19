@@ -4,11 +4,13 @@
 
 ## How it was tested
 
-<!-- Go tests, the plugin build, and what was checked by hand. -->
+<!-- CI evaluates the flake, builds the plugin and MCP server with Go tests, checks
+C/C++ and Go formatting, and runs the bench unit tests including Calc/LibreOffice.
+Record any additional checks here. -->
 
 ## VM test
 
-CI does not run the NixOS VM test, so it runs on the author's machine on the PR's head commit before the PR is opened,
+CI runs the checks listed above. The NixOS VM test is a local gate and runs on the author's machine on the PR's head commit before the PR is opened,
 and again before it is merged whenever the head commit is no longer the one it passed on, after new commits, an amend,
 a rebase or a force-push:
 

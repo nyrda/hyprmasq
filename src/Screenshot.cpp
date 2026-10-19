@@ -66,7 +66,7 @@ namespace hyprmasq {
 
             // How long a write to a FIFO without a reader waits before it opens it again. Nothing tells a writer that a
             // reader opened a FIFO, so it tries until one has, where fopen() would wait in open().
-            static constexpr int                  READER_RETRY_MS = 20;
+            static constexpr int READER_RETRY_MS = 20;
 
             static std::expected<COutput, SError> open(const std::filesystem::path& path, int stop) {
                 while (true) {

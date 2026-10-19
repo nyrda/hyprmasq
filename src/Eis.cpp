@@ -120,7 +120,7 @@ namespace hyprmasq {
 
         struct SPointerRegion {
             uint32_t x = 0, y = 0, width = 0, height = 0;
-            bool     operator==(const SPointerRegion&) const = default;
+            bool operator==(const SPointerRegion&) const = default;
         };
 
         // The pointer device's regions in window-local logical pixels: the window, then the rest of the bounding box of
