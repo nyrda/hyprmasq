@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -62,6 +63,8 @@ type Config struct {
 	Environ func(pid int) ([]byte, error)
 	// Reads the link /proc/<pid>/exe. Nil reads the real link.
 	Exe func(pid int) (string, error)
+	// Tells whether a process runs. Nil asks the kernel.
+	Alive func(pid int) bool
 }
 
 type Server struct {
@@ -77,8 +80,9 @@ type Server struct {
 	mu sync.Mutex
 	// Windows whose lease this server started or renewed.
 	leased map[string]bool
-	// The tokens of this server's launches, by which the plugin names their windows.
-	tokens map[string]bool
+	// The tokens of this server's launches, by which the plugin names their windows, with the pid of the launched
+	// process, or 0 while the plugin has not named it. See launchedWindows.
+	tokens map[string]int
 	// The windows that acts of this session sent input to that can open a window, oldest first, and the windows that a
 	// result has reported, or that came from none of them, by windowKey, with when. See late.go.
 	openers []*opener
@@ -98,6 +102,12 @@ func New(cfg Config) *Server {
 	if cfg.Exe == nil {
 		cfg.Exe = func(pid int) (string, error) { return os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)) }
 	}
+	if cfg.Alive == nil {
+		cfg.Alive = func(pid int) bool {
+			err := syscall.Kill(pid, 0)
+			return err == nil || errors.Is(err, syscall.EPERM)
+		}
+	}
 	if cfg.LeaseMs <= 0 {
 		cfg.LeaseMs = 60000
 	}
@@ -109,7 +119,7 @@ func New(cfg Config) *Server {
 		shotDir:   filepath.Join(cfg.StateDir, "mcp", fmt.Sprint(os.Getpid())),
 		owner:     fmt.Sprintf("mcp-%d-%s", os.Getpid(), randomHex(4)),
 		leased:    map[string]bool{},
-		tokens:    map[string]bool{},
+		tokens:    map[string]int{},
 		settled:   map[string]time.Time{},
 		stopCalls: stopCalls,
 		stop:      stop,
@@ -120,11 +130,6 @@ func randomHex(n int) string {
 	b := make([]byte, n)
 	rand.Read(b)
 	return hex.EncodeToString(b)
-}
-
-// Owner is the lease owner of this server session.
-func (s *Server) Owner() string {
-	return s.owner
 }
 
 // How long Shutdown tries to release the leases, after waiting for the calls.
@@ -240,7 +245,7 @@ region zooms in: {shot, x, y, width, height} in pixels of an earlier shot of the
 Example: {"window":"0x55d1c0a3e4b0","region":{"shot":"s4","x":380,"y":60,"width":200,"height":80}}`, catchUpMax.Seconds(), scale)
 }
 
-const launchDescription = `Start an application on a hidden workspace, without changing the user's visible workspace or focus. Waits up to timeout_s seconds (default 30) for its first window and for that window to settle, and returns the window's address with a shot; act takes coordinates in that shot's pixels. Close the windows you launch when you are done.
+const launchDescription = `Start an application on a hidden workspace, without changing the user's visible workspace or focus. Waits up to timeout_ms milliseconds (default 30000) for its first window and for that window to settle, and returns the window's address with a shot; act takes coordinates in that shot's pixels. Close the windows you launch when you are done.
 command is the program and its arguments, run without a shell. workspace is a named workspace (default "hyprmasq"). Applications that hand the request to an instance that is already running, such as a browser that is open, cannot be launched this way: pass an option for a separate instance.
 Example: {"command":["foot","-T","scratch"]}`
 
@@ -333,9 +338,9 @@ func (s *Server) Register(srv *mcp.Server) {
 	srv.AddTool(&mcp.Tool{Name: "act", Description: actDescription, InputSchema: actSchema(s.cfg.NewWindowGrace)}, s.handle(s.actTool))
 	srv.AddTool(&mcp.Tool{Name: "launch", Description: launchDescription, Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		InputSchema: objectSchema(map[string]json.RawMessage{
-			"command":   json.RawMessage(`{"type":"array","items":{"type":"string"},"minItems":1,"description":"Program and arguments, such as [\"foot\", \"-T\", \"scratch\"]."}`),
-			"workspace": json.RawMessage(`{"type":"string","default":"hyprmasq","description":"Named workspace for the windows: letters, digits, _, . and -."}`),
-			"timeout_s": json.RawMessage(`{"type":"integer","minimum":1,"maximum":300,"default":30,"description":"Seconds to wait for the first window."}`),
+			"command":    json.RawMessage(`{"type":"array","items":{"type":"string"},"minItems":1,"description":"Program and arguments, such as [\"foot\", \"-T\", \"scratch\"]."}`),
+			"workspace":  json.RawMessage(`{"type":"string","default":"hyprmasq","description":"Named workspace for the windows: letters, digits, _, . and -."}`),
+			"timeout_ms": json.RawMessage(`{"type":"integer","minimum":1000,"maximum":300000,"default":30000,"description":"Milliseconds to wait for the first window."}`),
 		}, "command")}, s.handle(s.launchTool))
 	srv.AddTool(&mcp.Tool{Name: "release", Description: releaseDescription, Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive, IdempotentHint: true},
 		InputSchema: objectSchema(map[string]json.RawMessage{"window": windowProperty}, "window")}, s.handle(s.releaseTool))
@@ -423,6 +428,12 @@ func decodeStrict(data []byte, out any, path string) error {
 	if err := checkJSON(data, reflect.TypeOf(out), path, false); err != nil {
 		return err
 	}
+	if name, ok := unknownMember(data, out); ok {
+		if path == "" {
+			return invalidf("unknown argument %q; the arguments are %s", name, strings.Join(jsonFields(out), ", "))
+		}
+		return invalidf("%s.%s is not a field of %s, which takes %s", path, name, path, strings.Join(jsonFields(out), ", "))
+	}
 	err := strictUnmarshal(data, out)
 	if err == nil {
 		return nil
@@ -434,12 +445,6 @@ func decodeStrict(data []byte, out any, path string) error {
 			field = "the arguments"
 		}
 		return invalidf("%s must be %s, not %s", field, expectedJSON(typeErr.Type, field), givenJSON(typeErr.Value))
-	}
-	if name, ok := strings.CutPrefix(err.Error(), "json: unknown field "); ok {
-		if path == "" {
-			return invalidf("unknown argument %s; the arguments are %s", name, strings.Join(jsonFields(out), ", "))
-		}
-		return invalidf("%s.%s is not a field of %s, which takes %s", path, strings.Trim(name, `"`), path, strings.Join(jsonFields(out), ", "))
 	}
 	if path == "" {
 		return invalidf("arguments: %v", err)
@@ -618,6 +623,32 @@ func jsonFields(out any) []string {
 		}
 	}
 	return names
+}
+
+// unknownMember returns the first member of a JSON object, in its order, that names none of the fields of the struct
+// that out points to. Like encoding/json, it matches a name to a field also when they differ only in case. False for a
+// value that is no object, which the decoder reports.
+func unknownMember(data []byte, out any) (string, bool) {
+	fields := jsonFields(out)
+	dec := json.NewDecoder(bytes.NewReader(data))
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return "", false
+	}
+	for dec.More() {
+		t, err := dec.Token()
+		if err != nil {
+			return "", false
+		}
+		name, _ := t.(string)
+		if !slices.ContainsFunc(fields, func(f string) bool { return strings.EqualFold(f, name) }) {
+			return name, true
+		}
+		var value json.RawMessage
+		if dec.Decode(&value) != nil {
+			return "", false
+		}
+	}
+	return "", false
 }
 
 func strictUnmarshal(data []byte, out any) error {

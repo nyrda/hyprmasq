@@ -39,6 +39,16 @@ jobs:
           python3 bench/dispatch_test.py
           python3 bench/harness_test.py
           python3 bench/tasks/board/check_test.py
+  go-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      # The package build runs the Go tests with -short, which skips the ones that wait on real time.
+      - name: Go tests, all of them
+        run: nix develop -c bash -euo pipefail -c 'cd mcp && go test ./...'
+      - name: Go tests with the race detector
+        run: nix develop -c bash -euo pipefail -c 'cd mcp && go test -race ./...'
   calc-check:
     runs-on: ubuntu-24.04
     steps:

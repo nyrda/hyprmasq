@@ -499,7 +499,6 @@ type Workspace struct {
 // Window is an entry of j/clients.
 type Window struct {
 	Address   string    `json:"address"`
-	Mapped    bool      `json:"mapped"`
 	Floating  bool      `json:"floating"`
 	Size      []int     `json:"size"`
 	Workspace Workspace `json:"workspace"`

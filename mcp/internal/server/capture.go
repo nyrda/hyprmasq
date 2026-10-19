@@ -58,10 +58,14 @@ func parseRegion(raw json.RawMessage, field string) (*regionArgs, error) {
 // shot's coordinates are used.
 func (s *Server) checkShot(id, window string, st hypr.State, needSize bool) (*shot, error) {
 	sh := s.shots.get(id)
-	if c, ok := s.shots.closedOf(id); sh == nil && ok {
+	c, dropped := s.shots.droppedOf(id)
+	switch {
+	case sh == nil && dropped && c.closed:
 		return nil, &toolError{Code: "stale_shot", Message: fmt.Sprintf("shot %s is of window %s (stable_id %s), which has closed", id, c.window, c.stableID), Hint: hintScreenshot, ShotHint: hintScreenshotShot}
-	}
-	if sh == nil {
+	case sh == nil && dropped && c.evicted:
+		return nil, &toolError{Code: "stale_shot", Message: fmt.Sprintf("there is no shot %s any more; this server drops the least recently used shots once their images take %d MB", id, shotBytes>>20),
+			Hint: hintScreenshot, ShotHint: hintScreenshotShot}
+	case sh == nil:
 		return nil, &toolError{Code: "stale_shot", Message: fmt.Sprintf("there is no shot %s; this server keeps the last %d shots of each window", id, shotsPerWindow), Hint: hintScreenshot, ShotHint: hintScreenshotShot}
 	}
 	if sh.Window != window {

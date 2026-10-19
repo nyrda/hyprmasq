@@ -123,6 +123,8 @@ const pendingSpills = 2
 type spiller struct {
 	wg    sync.WaitGroup
 	slots chan struct{}
+	// Called after a file is written, without a lock held, or nil.
+	written func()
 }
 
 func newSpiller() *spiller {
@@ -158,18 +160,32 @@ func (d *detail) release(sp *spiller) {
 	sp.slots <- struct{}{}
 	sp.wg.Go(func() {
 		defer func() { <-sp.slots }()
-		err := writeSpill(path, img)
+		n, err := writeSpill(path, img)
 		d.mu.Lock()
-		defer d.mu.Unlock()
 		switch {
 		case d.gone || err != nil:
 			os.Remove(path)
 			d.gone = true
 		default:
-			d.spilled = path
+			d.spilled, d.spilledBytes = path, n
 		}
 		d.img = nil
+		written := !d.gone
+		d.mu.Unlock()
+		if written && sp.written != nil {
+			sp.written()
+		}
 	})
+}
+
+// spillBytes is the size of the spill file, once it is written.
+func (d *detail) spillBytes() int64 {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.spilled == "" {
+		return 0
+	}
+	return d.spilledBytes
 }
 
 // drop forgets the pixels of a detail whose shot is gone, and deletes their file.
@@ -183,20 +199,25 @@ func (d *detail) drop() {
 }
 
 // A spill file holds the pixels as they are in memory, compressed with flate at its fastest: three to four times as fast
-// to write as a PNG, and about as small for a window's content.
-func writeSpill(path string, img *image.NRGBA) error {
+// to write as a PNG, and about as small for a window's content. It returns the size of the file.
+func writeSpill(path string, img *image.NRGBA) (int64, error) {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	bw := bufio.NewWriter(f)
 	zw, _ := flate.NewWriter(bw, flate.BestSpeed)
 	_, err = zw.Write(img.Pix)
 	err = errors.Join(err, zw.Close(), bw.Flush())
+	var n int64
+	if err == nil {
+		n, err = f.Seek(0, io.SeekCurrent)
+	}
 	if err = errors.Join(err, f.Close()); err != nil {
 		os.Remove(path)
+		return 0, err
 	}
-	return err
+	return n, nil
 }
 
 func readSpill(path string, width, height int) (*image.NRGBA, error) {

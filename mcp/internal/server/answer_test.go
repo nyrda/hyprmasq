@@ -50,6 +50,7 @@ const menuBatch = `[{"action":"click","x":20,"y":20},{"action":"key","keys":["do
 // the counter before the input, then for quiet. The sender goes on once that wait has ended, whether the window drew,
 // as a menu that opens a moment after the click does, or drew nothing, after the short time of the change phase.
 func TestKeysAfterAClickWaitForTheWindowsAnswer(t *testing.T) {
+	slow(t)
 	for _, c := range []struct {
 		name, ended string
 		// How long the window takes to answer, and the commits it draws meanwhile.
@@ -167,6 +168,7 @@ func TestWindowClosedWhileItAnswersAClick(t *testing.T) {
 // The wait for the answer to a click ends early enough that the rest of the batch fits before input has to end, and
 // within answerMaxMs, also for a window that keeps drawing.
 func TestTheAnswerToAClickKeepsTheDeadline(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Socket, w.Commits = true, 10 })
 	e.screenshot(`{"window":"0xa1"}`)

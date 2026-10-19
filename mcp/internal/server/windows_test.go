@@ -107,6 +107,7 @@ func (e *testEnv) unsubscribed() bool {
 // that the input of an act opened after the act. It lists the windows again on Hyprland's event that a window mapped,
 // or with match that a title changed, and returns as soon as one is there, with the shots it would give at once.
 func TestWindowsWaitsForAWindow(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Title = "Forgejo" })
 	e.window("0xb2", "2b", 320, 200, func(w *fakeWindow) { w.Title = "Notes" })
@@ -193,6 +194,7 @@ func TestWindowsWaitsForAWindow(t *testing.T) {
 // returns as a late window with its shot. Another window that maps meanwhile does not end the wait. Without an act whose
 // input can open a window, nothing can come, and it returns at once.
 func TestWindowsWaitsForALateWindow(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
 	e.window("0xb2", "2b", 320, 200)

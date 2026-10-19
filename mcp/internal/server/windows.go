@@ -27,6 +27,8 @@ func environValue(environ []byte, name string) string {
 
 // launchedWindows returns the tokens of this server's launches by the windowKey of their windows, which the plugin
 // found by their process or a parent of it. The address alone could be one that Hyprland gave to another window since.
+// It forgets the tokens of the launches that have ended: their process has exited, and none of their windows is left.
+// The process stays while windows can come, as hyprmasq-reaper stays while any process of the command runs.
 func (s *Server) launchedWindows(ctx context.Context) map[string]string {
 	windows, err := s.hypr.Launched(ctx)
 	if err != nil {
@@ -36,8 +38,13 @@ func (s *Server) launchedWindows(ctx context.Context) map[string]string {
 	defer s.mu.Unlock()
 	launched := map[string]string{}
 	for _, w := range windows {
-		if s.tokens[w.Token] {
+		if _, ok := s.tokens[w.Token]; ok {
 			launched[windowKey(hypr.Window{Address: w.Address, StableID: w.StableID})] = w.Token
+		}
+	}
+	for token, pid := range s.tokens {
+		if pid > 0 && !slices.ContainsFunc(windows, func(w hypr.LaunchedWindow) bool { return w.Token == token }) && !s.cfg.Alive(pid) {
+			delete(s.tokens, token)
 		}
 	}
 	return launched

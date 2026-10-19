@@ -139,6 +139,10 @@ func TestShotStoreKeepsFewDetailsInMemory(t *testing.T) {
 	if _, err := first.Detail.image(); err != nil {
 		t.Errorf("older: %v", err)
 	}
+	// The spill file counts towards shotBytes once it is written.
+	if info, err := os.Stat(filepath.Join(dir, first.ID+".z")); err != nil || first.bytes() != info.Size() || second.bytes() != 0 {
+		t.Errorf("bytes: older %d, latest %d, file %v %v", first.bytes(), second.bytes(), info, err)
+	}
 	var latest []*shot
 	for i := range residentDetails {
 		latest = append(latest, add(fmt.Sprintf("0xb%d", i)))

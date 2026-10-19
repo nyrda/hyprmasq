@@ -37,6 +37,12 @@ with subtest("hyprmasq-mcp introduces itself and its tools"):
     assert tools["screenshot"]["inputSchema"]["required"] == ["window"], tools["screenshot"]
     assert tools["launch"]["inputSchema"]["required"] == ["command"], tools["launch"]
 
+with subtest("hyprmasq-mcp refuses a runtime directory with whitespace"):
+    # The plugin splits a request into words at whitespace, and a screenshot request names a file in the directory.
+    spaced = f"XDG_RUNTIME_DIR='/tmp/run time' HYPRLAND_INSTANCE_SIGNATURE={instance}"
+    status, output = machine.execute("su - alice -c " + shlex.quote(f"{spaced} hyprmasq-mcp < /dev/null 2>&1"))
+    assert status == 1 and "/tmp/run time/hyprmasq/" in output and "contains whitespace, which a request to the plugin cannot carry" in output, (status, output)
+
 with subtest("hyprmasq-mcp launches a window on a hidden workspace"):
     before_focus = snapshot()
     launch_command = ["foot", "-T", "hm-m-shell", "-o", "colors-dark.foreground=ffffff", "bash", "--noprofile", "--norc", "-i"]
@@ -79,7 +85,7 @@ with subtest("hyprmasq-mcp launches an app whose launcher forks it away and exit
         "echo $$ > /tmp/hm-m-detach-pids; "
         "sh -c 'echo $$ >> /tmp/hm-m-detach-pids; setsid sh -c \"sleep 1; exec foot -T hm-m-detached sleep 600\" < /dev/null > /dev/null 2>&1 &'"
     )
-    call = mcp.start("launch", {"command": ["sh", "-c", launcher], "workspace": "hm-m-detach", "timeout_s": 20})
+    call = mcp.start("launch", {"command": ["sh", "-c", launcher], "workspace": "hm-m-detach", "timeout_ms": 20000})
     lines = [f"user line {n} typed during the launch" for n in range(3)]
     machine.send_chars("".join(line + "\n" for line in lines), delay=0.04)
     detached = mcp.result(call)

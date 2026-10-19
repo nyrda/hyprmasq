@@ -114,7 +114,7 @@ func TestCompareReturnsWhatTheReferenceDoes(t *testing.T) {
 				image.Rect(hi.X+1, lo.Y, hi.X+9, hi.Y),
 			}
 		}
-		var a, b image.Image = convert(pa, i%5), convert(pb, i%5)
+		a, b := convert(pa, i%5), convert(pb, i%5)
 		if i%13 == 0 {
 			// Images of different types.
 			a = convert(pa, 3)

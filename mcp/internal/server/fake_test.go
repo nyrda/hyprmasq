@@ -282,8 +282,10 @@ type fakeHyprland struct {
 	environ map[int]string
 	exe     map[int]string
 	parents map[int]int
-	// The tokens of launched processes, by pid. Every launch starts pid 5000.
+	// The tokens of launched processes, by pid. Every launch starts pid 5000. The plugin goes on naming the token of
+	// the windows of a process that has exited.
 	launches map[int]string
+	exited   map[int]bool
 	// Called for every launch after it was recorded, without the lock.
 	onLaunch func(workspace, token, line string)
 }
@@ -314,7 +316,7 @@ func newFakeHyprland(t *testing.T) *fakeHyprland {
 	}
 	t.Cleanup(func() { os.RemoveAll(dir) })
 	f := &fakeHyprland{t: t, socket: filepath.Join(dir, ".socket.sock"), scale: 2, iface: hypr.Interface, waits: map[string]chan struct{}{},
-		environ: map[int]string{}, exe: map[int]string{}, parents: map[int]int{}, launches: map[int]string{}}
+		environ: map[int]string{}, exe: map[int]string{}, parents: map[int]int{}, launches: map[int]string{}, exited: map[int]bool{}}
 	l, err := net.Listen("unix", f.socket)
 	if err != nil {
 		t.Fatal(err)
@@ -389,7 +391,6 @@ func (f *fakeHyprland) addWindow(w *fakeWindow) *fakeWindow {
 	if w.Workspace.Name == "" {
 		w.Workspace = hypr.Workspace{ID: 1, Name: "1"}
 	}
-	w.Mapped = true
 	f.windows = append(f.windows, w)
 	f.postLocked("openwindow", fmt.Sprintf("%s,%s,%s,%s", strings.TrimPrefix(w.Address, "0x"), w.Workspace.Name, w.Class, w.Title))
 	return w
@@ -803,6 +804,15 @@ func (f *fakeHyprland) writeImage(w *fakeWindow, path string, region hypr.Rect, 
 	return width, height, png.Encode(file, img)
 }
 
+// slow skips a test that waits on real time, half a second or more, under -short, which the Nix build runs the tests
+// with. CI runs them all.
+func slow(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("waits on real time; runs without -short")
+	}
+}
+
 type testEnv struct {
 	t        *testing.T
 	fake     *fakeHyprland
@@ -841,6 +851,11 @@ func (e *testEnv) newServer() *Server {
 				return "", os.ErrNotExist
 			}
 			return exe, nil
+		},
+		Alive: func(pid int) bool {
+			var exited bool
+			e.fake.with(func() { exited = e.fake.exited[pid] })
+			return !exited
 		}})
 	// Sessions in one test process share the pid, so they need their own shot directories and owners.
 	s.shotDir = filepath.Join(e.t.TempDir(), "shots")

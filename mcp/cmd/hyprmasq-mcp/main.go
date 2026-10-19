@@ -44,6 +44,11 @@ func main() {
 	if runtime == "" || instance == "" {
 		log.Fatal("XDG_RUNTIME_DIR and HYPRLAND_INSTANCE_SIGNATURE must name the Hyprland to drive")
 	}
+	stateDir := filepath.Join(runtime, "hyprmasq", instanceDir(instance))
+	// The plugin splits a request into words at whitespace, and a screenshot request names a file in the directory.
+	if strings.ContainsAny(stateDir, " \t\n\v\f\r") {
+		log.Fatalf("the directory for screenshots, %q, contains whitespace, which a request to the plugin cannot carry; run Hyprland with an XDG_RUNTIME_DIR without it", stateDir)
+	}
 	if *input == "" {
 		path, err := exec.LookPath("hyprmasq-input")
 		if err != nil {
@@ -54,7 +59,7 @@ func main() {
 
 	s := server.New(server.Config{
 		HyprlandSocket:    filepath.Join(runtime, "hypr", instance, ".socket.sock"),
-		StateDir:          filepath.Join(runtime, "hyprmasq", instanceDir(instance)),
+		StateDir:          stateDir,
 		Input:             *input,
 		MaxImageSize:      *maxImage,
 		LeaseMs:           *leaseMs,

@@ -103,6 +103,7 @@ func moved(r hypr.Rect, dy float64) hypr.Rect {
 // the shot saw, and content that keeps changing do not refuse. The points map to the window through the shot they come
 // from, also a zoom, a changes shot or an overview shrunk below the logical pixels.
 func TestTargetsThatMovedSinceTheShot(t *testing.T) {
+	slow(t)
 	for _, c := range []struct {
 		name string
 		// The content when the shot is taken, and after.
@@ -319,6 +320,7 @@ func TestTargetsInContentThatKeepsChanging(t *testing.T) {
 // The check ends early enough for the batch to fit before input has to end, and a check that runs out of time sends
 // nothing. The wait for a change to settle leaves the capture after it time too.
 func TestTheCheckOfTheTargetsKeepsTheDeadline(t *testing.T) {
+	slow(t)
 	// 70 characters take 1144 ms with round trips, of the 1750 ms that deadline_ms 4000 leaves for input.
 	batch := fmt.Sprintf(`[{"action":"click","x":240,"y":190},{"action":"type","text":%q}]`, strings.Repeat("x", 70))
 	e := newTestEnv(t)

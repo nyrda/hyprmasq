@@ -25,7 +25,7 @@ const (
 type launchArgs struct {
 	Command   []string `json:"command" args:"required"`
 	Workspace *string  `json:"workspace"`
-	TimeoutS  *int     `json:"timeout_s"`
+	TimeoutMs *int     `json:"timeout_ms"`
 }
 
 // shellQuote quotes one argument for /bin/sh, which Hyprland runs the command with.
@@ -72,7 +72,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	if !workspacePattern.MatchString(workspace) {
 		return simpleError(invalidf("workspace may only contain letters, digits, '_', '.' and '-', not %q", workspace))
 	}
-	timeoutS, err := intArg(args.TimeoutS, 30, 1, 300, "timeout_s")
+	timeoutMs, err := intArg(args.TimeoutMs, 30000, 1000, 300000, "timeout_ms")
 	if err != nil {
 		return simpleError(err)
 	}
@@ -81,7 +81,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	if request := "j/hyprmasq " + hypr.LaunchRequest(workspace, token, line); len(request) > hypr.MaxRequest {
 		return simpleError(invalidf("command is too long: %d bytes as a request to the plugin, at most %d", len(request), hypr.MaxRequest))
 	}
-	timeout := time.Duration(timeoutS) * time.Second
+	timeout := time.Duration(timeoutMs) * time.Millisecond
 	p := c.startProgress(ctx, timeout)
 	defer p.stop()
 	ctx, cancel := context.WithTimeout(ctx, timeout+launchSettleMax+captureReserve)
@@ -96,9 +96,22 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 		return simpleError(err)
 	}
 	s.mu.Lock()
-	s.tokens[token] = true
+	s.tokens[token] = 0
 	s.mu.Unlock()
-	if _, err := s.hypr.Launch(ctx, workspace, token, line); err != nil {
+	pid, err := s.hypr.Launch(ctx, workspace, token, line)
+	s.mu.Lock()
+	var refused *hypr.Error
+	var unsent *hypr.ConnectError
+	switch {
+	case err == nil && pid > 0:
+		s.tokens[token] = pid
+	// The plugin started nothing, or never got the request. A request that failed otherwise may have started the
+	// command, whose windows keep the token.
+	case errors.As(err, &refused) || errors.Is(err, hypr.ErrPluginMissing) || errors.As(err, &unsent):
+		delete(s.tokens, token)
+	}
+	s.mu.Unlock()
+	if err != nil {
 		return simpleError(err)
 	}
 
@@ -106,7 +119,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	window, after, err := s.findLaunched(ctx, before, token, start.Add(timeout))
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return simpleError(&toolError{Code: "deadline", Message: fmt.Sprintf("no window of %s appeared within %d s", args.Command[0], timeoutS),
+			return simpleError(&toolError{Code: "deadline", Message: fmt.Sprintf("no window of %s appeared within %d ms", args.Command[0], timeoutMs),
 				Hint: "The command may still be starting, or it handed the request to an instance that is already running, which opens the window elsewhere. Call windows, or launch with an option for a separate instance."})
 		}
 		return simpleError(err)

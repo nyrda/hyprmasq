@@ -141,6 +141,9 @@ func TestEvents(t *testing.T) {
 // A request that its context's deadline ends reports the deadline, and not the connection's i/o timeout, which the
 // server would take for a failure of Hyprland.
 func TestRequestEndedByItsDeadline(t *testing.T) {
+	if testing.Short() {
+		t.Skip("waits on real time; runs without -short")
+	}
 	socket := filepath.Join(t.TempDir(), ".socket.sock")
 	l, err := net.Listen("unix", socket)
 	if err != nil {

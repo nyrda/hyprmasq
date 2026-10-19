@@ -13,8 +13,9 @@ The VM commands need Nix and KVM, and pass extra arguments to `nix build`.
 builds its `driverInteractive` attribute and opens the driver.
 
 CI runs `nix flake check --no-build`, builds `hyprmasq` and `hyprmasq-mcp`
-with the Go tests, checks C/C++ formatting with clang-format and Go formatting
-with gofmt, checks the VM test's subtest tables below against its code, and
+with the Go tests, runs all Go tests with and without the race detector,
+checks C/C++ formatting with clang-format and Go formatting with gofmt, checks
+the VM test's subtest tables below against its code, and
 runs the bench unit tests listed below, including the Calc checker with
 LibreOffice. It runs on PRs and pushes to `main`.
 
@@ -77,8 +78,11 @@ the server's `minSendTime` for its `--budget`, from the keys it resolved.
 Change them together. Likewise,
 `mcp/cmd/hyprmasq-mcp/main.go` names the directory of a Hyprland instance under
 `$XDG_RUNTIME_DIR/hyprmasq` as `src/Eis.cpp` does.
-The Nix build runs `go test` without the race detector in the check phase of
-`nix build .#hyprmasq-mcp`, which `nix build .#hyprmasq` and the VM test include.
+The Nix build runs `go test -short` without the race detector in the check
+phase of `nix build .#hyprmasq-mcp`, which `nix build .#hyprmasq` and the VM
+test include. `-short` skips the tests that wait on real time for half a second
+or more; CI runs them all. In `internal/server`, such a test starts with
+`slow(t)`.
 
 `nix/mcp-package.nix` vendors the Go dependencies by hash. After changing them
 in `go.mod`, update `vendorHash` there: set it to `lib.fakeHash`, build, and
@@ -311,6 +315,7 @@ and the code drift apart.
 | Subtest | Checks |
 | --- | --- |
 | hyprmasq-mcp introduces itself and its tools | `hyprmasq-mcp`, driven over stdio by a JSON-RPC client in the test: the instructions start with a summary line; `tools/list` has `windows`, `launch`, `screenshot`, `act`, `release` and `close` with input schemas, `windows` with `match` and `wait_ms` up to 10000, none is read-only, and `windows`, `screenshot`, `launch` and `release` are not destructive. In every subtest, the structured content of each result carries all of its text: the error, the summary and the hint. |
+| hyprmasq-mcp refuses a runtime directory with whitespace | `hyprmasq-mcp` started with an `XDG_RUNTIME_DIR` that has a space exits with status 1 and says that the directory for screenshots contains whitespace, which a request to the plugin cannot carry. |
 | hyprmasq-mcp launches a window on a hidden workspace | `launch` starts foot on a hidden workspace and returns its shot and summary line, and `windows` lists it as launched, not resizing, with its capabilities; its line leaves out the pid and the capabilities, which it has all of. |
 | hyprmasq-mcp launches an app whose launcher forks it away and exits | The launched shell starts `foot` in a new session from a shell that exits at once, and exits too, as `kate` without `-b` does; `launch` returns the window on its hidden workspace while the user types into a terminal, both shells have exited, and the focus and every typed line stay with the user. |
 | hyprmasq-mcp gives Claude Code the text in place of structured content | A server whose client introduces itself as `claude-code` gives results no structured content, so Claude Code passes the text: `windows` with `match` in another case lists only the launched shell, with its shot and image, a `match` without windows says so, a screenshot has its summary and image, and an error its error line. Another client gets the structured content, with the same `match` and the shell's `shot`, whose line is in its `summary`, and a `match` without windows says so in its `summary`. |

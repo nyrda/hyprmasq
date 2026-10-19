@@ -65,6 +65,18 @@ func TestInstanceDir(t *testing.T) {
 	}
 }
 
+// A screenshot request names its file in words split at whitespace, so a runtime directory with a space is refused.
+func TestRuntimeDirWithWhitespace(t *testing.T) {
+	cmd := exec.Command(os.Args[0])
+	cmd.Env = []string{"HYPRMASQ_MCP_TEST_MAIN=--input /bin/true", "XDG_RUNTIME_DIR=" + t.TempDir() + "/run time", "HYPRLAND_INSTANCE_SIGNATURE=hyprmasq-test-none"}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	var exit *exec.ExitError
+	if err := cmd.Run(); !errors.As(err, &exit) || exit.ExitCode() != 1 || !strings.Contains(stderr.String(), "/run time/hyprmasq/hyprmasq-test-none\", contains whitespace") {
+		t.Errorf("%v, %q", err, stderr.String())
+	}
+}
+
 func TestMaxImageSizeDefault(t *testing.T) {
 	cmd := exec.Command(os.Args[0])
 	cmd.Env = []string{"HYPRMASQ_MCP_TEST_MAIN=-h"}

@@ -466,6 +466,7 @@ func TestShotsOfAStarvedWindow(t *testing.T) {
 // The wait for a window to catch up comes out of the call's time: after its wait ran into the deadline, act captures
 // at once.
 func TestCatchingUpWithinTheDeadline(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Resizing = true })
 	e.fake.with(func() {
@@ -620,6 +621,9 @@ func TestArgumentErrors(t *testing.T) {
 		{"act", `{"window":"0xa1","wait":{"expect_change":"no"}}`, "wait.expect_change must be true or false, not a string"},
 		{"act", `{"window":"0xa1","deadline_ms":1500.5}`, "deadline_ms must be an integer, not 1500.5"},
 		{"act", `{"window":"0xa1","wiat":{}}`, `unknown argument "wiat"; the arguments are window, shot, actions, wait, capture, deadline_ms`},
+		// As encoding/json, a name that differs only in case names the field. The first unknown one is named.
+		{"act", `{"window":"0xa1","WAIT":{},"zz":1,"aa":2}`, `unknown argument "zz"; the arguments are`},
+		{"act", `{"window":"0xa1","wait":{"Quiet_MS":300,"b":1}}`, "wait.b is not a field of wait"},
 		{"act", `{"window":"0xa1","capture":{"shot":"s1","x":0,"y":0,"w":1,"height":1}}`, "capture.w is not a field of capture"},
 		{"act", `{"window":161}`, "window must be a string, not a number"},
 		{"act", act(`{"action":"click","x":"1","y":1}`), "actions[0].x must be a number, not a string"},
@@ -663,7 +667,7 @@ func TestArgumentErrors(t *testing.T) {
 		{"launch", `{"command":["foot",1]}`, "command[1] must be a string, not a number"},
 		{"launch", `{"command":["foot",null,"-T","x"]}`, "command[1] must be a string, not null"},
 		{"launch", `{"command":null}`, `command must be an array such as ["foot","-T","scratch"], not null`},
-		{"launch", `{"command":["foot"],"timeout_s":null}`, "timeout_s must be an integer, not null"},
+		{"launch", `{"command":["foot"],"timeout_ms":null}`, "timeout_ms must be an integer, not null"},
 		{"launch", `{"command":["foot"],"workspace":7}`, "workspace must be a string, not a number"},
 		{"release", `{"window":null}`, "window must be a string, not null"},
 		{"close", `{"window":["0xa1"]}`, "window must be a string, not an array"},
@@ -837,6 +841,7 @@ func TestMinSendTime(t *testing.T) {
 
 // A batch that cannot be sent within the deadline is refused before anything is sent, instead of being cut off.
 func TestBatchesThatTheDeadlineCannotFit(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
 	for _, c := range []struct{ args, message, hint string }{
@@ -1405,6 +1410,7 @@ func TestWaitEndings(t *testing.T) {
 }
 
 func TestDeadlineCountsLockWaiting(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
 	e.screenshot(`{"window":"0xa1"}`)
@@ -1486,6 +1492,7 @@ func TestCancelWhileSending(t *testing.T) {
 
 // A sender that SIGTERM kills before it handles signals has not connected, so nothing was sent.
 func TestSenderStoppedBeforeItConnects(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
 	t.Setenv("FAKE_INPUT_MODE", "unhandled")
@@ -1512,6 +1519,7 @@ func TestSenderStoppedBeforeItConnects(t *testing.T) {
 // The deadline stops a sender early enough that it has its CANCEL_MS to report before the capture's reserve starts, so
 // the call ends within its deadline.
 func TestDeadlineStopsTheSenderInTime(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
 	t.Setenv("FAKE_INPUT_MODE", fmt.Sprintf("hang:1:%d", senderCancel.Milliseconds()))
@@ -1605,6 +1613,7 @@ func stalledPlugin(e *testEnv, release <-chan struct{}) {
 // when the plugin takes the cancel but its wait goes on, or answers nothing at all. A reply that comes after the cancel
 // reports the cancellation, not how the wait ended.
 func TestCancelWithAPluginThatDoesNotEndTheWait(t *testing.T) {
+	slow(t)
 	for _, plugin := range []string{"wait goes on", "late reply", "no answers"} {
 		t.Run(plugin, func(t *testing.T) {
 			e := newTestEnv(t)
@@ -1663,6 +1672,7 @@ func TestCancelWithAPluginThatDoesNotEndTheWait(t *testing.T) {
 // deadline_ms bounds a call within waitSlack also when the plugin answers its wait late or not at all: the server gives
 // the reply up waitSlack after the wait's deadline, and reports that the plugin did not answer.
 func TestDeadlineWithAPluginThatAnswersAWaitLate(t *testing.T) {
+	slow(t)
 	for _, c := range []struct{ plugin, args string }{
 		{"late reply", `{"window":"0xa1","shot":"s1","actions":[],"capture":"window","deadline_ms":3000}`},
 		{"no answers", `{"window":"0xa1","shot":"s1","actions":[{"action":"key","keys":["a"]}],"deadline_ms":3000}`},
@@ -1740,13 +1750,14 @@ func TestTwoServersContend(t *testing.T) {
 	}
 	// Both sessions renewed leases under their own owners.
 	e.fake.with(func() {
-		if a, b := e.fake.find("0xa1").Lease.Owner, e.fake.find("0xb2").Lease.Owner; a != e.server.Owner() || b != other.Owner() || a == b {
+		if a, b := e.fake.find("0xa1").Lease.Owner, e.fake.find("0xb2").Lease.Owner; a != e.server.owner || b != other.owner || a == b {
 			t.Errorf("lease owners %q and %q", a, b)
 		}
 	})
 }
 
 func TestSendLockSerializesSenders(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
 	e.window("0xb2", "2b", 320, 200)
@@ -1782,7 +1793,7 @@ func TestNewWindows(t *testing.T) {
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
 	e.screenshot(`{"window":"0xa1"}`)
-	e.server.tokens["t0k3n"] = true
+	e.server.tokens["t0k3n"] = 777
 	e.setLaunched(777, "t0k3n")
 	e.setLaunched(888, "foreign")
 	mail := hypr.Workspace{ID: 5, Name: "mail"}
@@ -1857,7 +1868,7 @@ func TestNewWindowsOfTheTargetsLaunch(t *testing.T) {
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.PID = 777 })
 	e.screenshot(`{"window":"0xa1"}`)
-	e.server.tokens["t0k3n"] = true
+	e.server.tokens["t0k3n"] = 777
 	e.setLaunched(777, "t0k3n")
 	e.fake.with(func() {
 		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
@@ -1952,6 +1963,7 @@ func TestTypingWaitsForNoNewWindow(t *testing.T) {
 
 // A window that maps a moment after the window that got the input has settled is still reported, with its shot.
 func TestNewWindowAfterTheWait(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.server.cfg.NewWindowGrace = 500 * time.Millisecond
 	e.window("0xa1", "1a", 320, 200)
@@ -1978,6 +1990,7 @@ func TestNewWindowAfterTheWait(t *testing.T) {
 // After input that can open a window, act goes on waiting through the grace period, and a redraw in that time, such as
 // a page that Enter loads, is waited out before the capture.
 func TestRedrawAfterSettling(t *testing.T) {
+	slow(t)
 	quiet := func(commits, since, elapsed int) string {
 		return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": commits, "redrawObserved": since > 0, "commitsSince": since, "quietMs": 200, "elapsedMs": elapsed})
 	}
@@ -2256,6 +2269,7 @@ func TestLaunchFindsTheWindowOfAChild(t *testing.T) {
 // A launched window that closed between the plugin's list and the window list may have left its address to another
 // window, which is not the launch's.
 func TestLaunchIgnoresAWindowAtAReusedAddress(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	var token string
 	e.fake.with(func() {
@@ -2270,7 +2284,7 @@ func TestLaunchIgnoresAWindowAtAReusedAddress(t *testing.T) {
 			return jsonReply(map[string]any{"ok": true, "windows": []map[string]string{{"address": "0xe1", "stableId": "aa", "token": token}}}), true
 		}
 	})
-	if code := errorCode(t, e.launch(`{"command":["foot"],"timeout_s":1}`)); code != "deadline" {
+	if code := errorCode(t, e.launch(`{"command":["foot"],"timeout_ms":1000}`)); code != "deadline" {
 		t.Errorf("code %q", code)
 	}
 	res := e.server.windowsTool(context.Background(), &call{})
@@ -2303,9 +2317,10 @@ func TestLaunchNamesResizedWindows(t *testing.T) {
 }
 
 func TestLaunchTimeout(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	start := time.Now()
-	res := e.launch(`{"command":["footclient"],"timeout_s":1}`)
+	res := e.launch(`{"command":["footclient"],"timeout_ms":1000}`)
 	if code := errorCode(t, res); code != "deadline" || !strings.Contains(text(res), "already running") {
 		t.Fatalf("code %q: %s", code, text(res))
 	}
@@ -2313,14 +2328,76 @@ func TestLaunchTimeout(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 4*time.Second {
 		t.Errorf("took %v", elapsed)
 	}
-	for _, args := range []string{`{"command":[]}`, `{"command":["a"],"workspace":"x y"}`, `{"command":["a"],"timeout_s":0}`, `{"cmd":["a"]}`} {
+	for _, args := range []string{`{"command":[]}`, `{"command":["a"],"workspace":"x y"}`, `{"command":["a"],"timeout_ms":999}`, `{"cmd":["a"]}`} {
 		if code := errorCode(t, e.launch(args)); code != "invalid_arguments" {
 			t.Errorf("%s: code %q", args, code)
 		}
 	}
 }
 
+// The server forgets the token of a launch once its process has exited and none of its windows is left, and the token
+// of a launch that the plugin refused at once.
+func TestLaunchTokensEndWithTheLaunch(t *testing.T) {
+	e := newTestEnv(t)
+	e.fake.with(func() {
+		e.fake.onLaunch = func(workspace, token, line string) {
+			e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xe1", StableID: "e1", Class: "foot", PID: 5000}, Width: 320, Height: 200})
+		}
+	})
+	if res := e.launch(`{"command":["foot"]}`); res.IsError {
+		t.Fatal(text(res))
+	}
+	tokens := func() int {
+		e.server.launchedWindows(context.Background())
+		e.server.mu.Lock()
+		defer e.server.mu.Unlock()
+		return len(e.server.tokens)
+	}
+	// The process may open more windows while it runs, and its window keeps the token after it exited.
+	e.fake.removeWindow("0xe1")
+	if n := tokens(); n != 1 {
+		t.Errorf("tokens while the process runs: %d", n)
+	}
+	e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xe2", StableID: "e2", Class: "foot", PID: 5000}, Width: 320, Height: 200})
+	e.fake.with(func() { e.fake.exited[5000] = true })
+	if n := tokens(); n != 1 {
+		t.Errorf("tokens while a window is left: %d", n)
+	}
+	e.fake.removeWindow("0xe2")
+	if n := tokens(); n != 0 {
+		t.Errorf("tokens after the launch ended: %d", n)
+	}
+
+	e.fake.with(func() {
+		e.fake.onPlugin = func(words []string) (string, bool) {
+			if words[0] == "launch" {
+				return pluginError("invalid_arguments", "no"), true
+			}
+			return "", false
+		}
+	})
+	if code := errorCode(t, e.launch(`{"command":["foot"]}`)); code != "invalid_arguments" {
+		t.Errorf("code %q", code)
+	}
+	// Nor does a request that never reached Hyprland: the socket is gone after the window list that comes before it.
+	gone := e.fake.socket + ".gone"
+	e.fake.with(func() {
+		e.fake.onPlugin = nil
+		e.fake.onClients = func() { os.Rename(e.fake.socket, gone) }
+	})
+	if res := e.launch(`{"command":["foot"]}`); !res.IsError {
+		t.Errorf("launched without Hyprland: %s", text(res))
+	}
+	os.Rename(gone, e.fake.socket)
+	e.server.mu.Lock()
+	defer e.server.mu.Unlock()
+	if len(e.server.tokens) != 0 {
+		t.Errorf("tokens after launches that started nothing: %v", e.server.tokens)
+	}
+}
+
 func TestClose(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
 	e.window("0xb2", "2b", 320, 200)
@@ -2596,7 +2673,7 @@ func TestSessionEndReleasesOwnLeases(t *testing.T) {
 		if e.fake.find("0xa1").Lease != nil {
 			t.Error("own lease kept")
 		}
-		if b.Lease == nil || b.Lease.Owner != other.Owner() {
+		if b.Lease == nil || b.Lease.Owner != other.owner {
 			t.Error("another session's lease was released")
 		}
 	})
@@ -2636,6 +2713,121 @@ func TestShotStoreEvictsLeastRecentlyUsed(t *testing.T) {
 	}
 	if st.get("s3") == nil {
 		t.Error("another window's shot was dropped")
+	}
+}
+
+// Beyond shotBytes, the store drops the least recently used shots of any window, but not the last one of a window that
+// a result gave, nor the keptShots most recently used. A call with a dropped shot says why it is gone.
+func TestShotStoreBoundsTheFilesOfAllWindows(t *testing.T) {
+	dir := t.TempDir()
+	st := newShotStore()
+	add := func(window string, size int64) *shot {
+		s := &shot{ID: st.newID(), Window: window, StableID: window, Path: filepath.Join(dir, strconv.Itoa(st.next)+".png")}
+		// Sparse, so that the test writes nothing.
+		os.WriteFile(s.Path, nil, 0o600)
+		os.Truncate(s.Path, size)
+		st.add(s)
+		return s
+	}
+	// Without marking it as used.
+	kept := func(s *shot) bool {
+		_, ok := st.byID[s.ID]
+		return ok
+	}
+	third := int64(shotBytes / 3)
+	last := add("0xa1", third)
+	st.returned(last)
+	older := add("0xb2", third)
+	used := add("0xb2", third)
+	newer := add("0xc3", third)
+	st.get(used.ID)
+	for range keptShots - 4 {
+		add("0xc3", 0)
+	}
+	for _, s := range []*shot{last, older, used, newer} {
+		if !kept(s) {
+			t.Errorf("%s was dropped while the newest shots took them all", s.ID)
+		}
+	}
+	st.get(used.ID)
+	add("0xc3", 0)
+	add("0xc3", 0)
+	if kept(older) {
+		t.Error("the least recently used shot was kept")
+	}
+	if _, err := os.Stat(older.Path); !os.IsNotExist(err) {
+		t.Errorf("file of the dropped shot: %v", err)
+	}
+	if !kept(last) || !kept(used) || !kept(newer) {
+		t.Error("dropped more than needed")
+	}
+	_, err := (&Server{shots: st}).checkShot(older.ID, "0xb2", hypr.State{StableID: "0xb2"}, false)
+	if te := asToolError(err); te.Code != "stale_shot" || te.Message != fmt.Sprintf("there is no shot %s any more; this server drops the least recently used shots once their images take 256 MB", older.ID) {
+		t.Errorf("error %v", err)
+	}
+	// The window's last shot stays, also when it is the least recently used.
+	for range keptShots + 1 {
+		add("0xd4", third)
+	}
+	if !kept(last) {
+		t.Error("the last shot of a window was dropped")
+	}
+	// Once a newer shot of the window is returned, the one before can go.
+	st.returned(add("0xa1", 0))
+	if kept(last) {
+		t.Error("the shot that was the last of its window was kept")
+	}
+}
+
+// A spill file that is written after the shot that let its pixels go counts at once.
+func TestShotStoreCountsSpillsWhenWritten(t *testing.T) {
+	dir := t.TempDir()
+	st := newShotStore()
+	old := &shot{ID: st.newID(), Window: "0xa1", Path: filepath.Join(dir, "old.png")}
+	os.WriteFile(old.Path, nil, 0o600)
+	os.Truncate(old.Path, shotBytes-10)
+	st.add(old)
+	withDetail := func() {
+		id := st.newID()
+		d := &detail{Width: 64, Height: 64}
+		d.keepPixels(noise(64, 64), filepath.Join(dir, id+".z"))
+		st.add(&shot{ID: id, Window: "0xb2", Detail: d})
+	}
+	withDetail()
+	for range keptShots - 1 {
+		st.add(&shot{ID: st.newID(), Window: "0xc3"})
+	}
+	// The first detail image leaves memory, and its file takes more than the 10 bytes left.
+	withDetail()
+	st.wait()
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if _, ok := st.byID[old.ID]; ok {
+		t.Error("the least recently used shot was kept")
+	}
+}
+
+// The store remembers the windows of the latest droppedShots shots it dropped, and stops being asked about older ones.
+func TestShotStoreForgetsOldDroppedShots(t *testing.T) {
+	st := newShotStore()
+	for range shotsPerWindow + droppedShots + 1 {
+		st.add(&shot{ID: st.newID(), Window: "0xa1", StableID: "1a"})
+	}
+	if len(st.dropped) != droppedShots || len(st.droppedIDs) != droppedShots {
+		t.Errorf("remembers %d dropped shots, %d IDs", len(st.dropped), len(st.droppedIDs))
+	}
+	if st.stableIDOf("s1", "0xa1") != "" {
+		t.Error("remembers the oldest dropped shot")
+	}
+	if got := st.stableIDOf("s2", "0xa1"); got != "1a" {
+		t.Errorf("stable_id of a dropped shot it remembers: %q", got)
+	}
+	if got := st.stableIDOf(fmt.Sprintf("s%d", st.next), "0xa1"); got != "1a" {
+		t.Errorf("stable_id of a kept shot: %q", got)
+	}
+	st.dropWindow("0xa1")
+	if c, ok := st.droppedOf(fmt.Sprintf("s%d", st.next)); !ok || !c.closed {
+		t.Errorf("closed shot: %v %v", c, ok)
 	}
 }
 
@@ -2906,6 +3098,7 @@ func TestStructuredContentPerClient(t *testing.T) {
 
 // TestProtocol runs the tools through an MCP client: the tool list, progress during a wait and cancellation.
 func TestProtocol(t *testing.T) {
+	slow(t)
 	e := newTestEnv(t)
 	e.window("0xa1", "1a", 320, 200)
 	var mu sync.Mutex
@@ -3625,6 +3818,7 @@ func locked(path string) bool {
 
 // The window is read again once the call holds both locks, since other calls may have changed it while it waited.
 func TestWindowReadAgainAfterTheLocks(t *testing.T) {
+	slow(t)
 	cases := []struct {
 		name, actions string
 		change        func(w *fakeWindow)
@@ -3743,7 +3937,7 @@ func TestLeaseOfABatchThatSentNothing(t *testing.T) {
 		t.Errorf("deadline: %s", text(res))
 	}
 	sendLock.release()
-	if o, ms := owner(); o != other.Owner() || ms != 20000 {
+	if o, ms := owner(); o != other.owner || ms != 20000 {
 		t.Errorf("lease of %s with %d ms left", o, ms)
 	}
 
@@ -3752,7 +3946,7 @@ func TestLeaseOfABatchThatSentNothing(t *testing.T) {
 	if res := e.act(`{"window":"0xa1","actions":[{"action":"type","text":"é"}]}`); errorCode(t, res) != "cannot_type" {
 		t.Fatal(text(res))
 	}
-	if o, ms := owner(); o != other.Owner() || ms > 20000 || ms < 15000 {
+	if o, ms := owner(); o != other.owner || ms > 20000 || ms < 15000 {
 		t.Errorf("lease of %s with %d ms left", o, ms)
 	}
 	e.server.mu.Lock()
@@ -4087,7 +4281,7 @@ func TestLeaseFollowsInput(t *testing.T) {
 	if code := errorCode(t, res); code != "cannot_type" || leases() != 4 || held() {
 		t.Fatalf("code %q, leases %d, held %v: %s", code, leases(), held(), text(res))
 	}
-	if got := e.fake.requestsMatching("j/hyprmasq lease 0xa1 release " + e.server.Owner()); len(got) != 1 {
+	if got := e.fake.requestsMatching("j/hyprmasq lease 0xa1 release " + e.server.owner); len(got) != 1 {
 		t.Errorf("released %q", got)
 	}
 }
@@ -4200,6 +4394,7 @@ func TestFailedActWithANewWindowShot(t *testing.T) {
 // Input that closes its window after the wait has ended quiet, as a file chooser does a moment after Enter, before or
 // after the capture, is delivered and closed the window: no failed capture, and no shot of a window that is gone.
 func TestWindowClosedAfterTheWait(t *testing.T) {
+	slow(t)
 	quiet := jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": 1, "redrawObserved": true, "commitsSince": 1, "quietMs": 201, "elapsedMs": 492})
 	for _, c := range []struct {
 		name, capture string
@@ -4361,6 +4556,7 @@ func TestShotOfTheWindowAClosedWindowCameFrom(t *testing.T) {
 // for quiet. A window that draws nothing is captured after the change phase. The wait ends early enough for the capture
 // within the deadline.
 func TestTheWindowItCameFromAnswersTheClose(t *testing.T) {
+	slow(t)
 	for _, c := range []struct {
 		name     string
 		redraw   bool
@@ -4509,6 +4705,7 @@ func TestZoomIntoAClosedPopup(t *testing.T) {
 // from. A zoom is captured only while the window still has that shot's size: screenshot refuses it, and act captures
 // the whole window instead and says why.
 func TestCaptureRegionAfterAResize(t *testing.T) {
+	slow(t)
 	zoomed := func(e *testEnv, from int) []string {
 		var out []string
 		for _, r := range e.fake.requestsMatching("j/hyprmasq screenshot")[from:] {

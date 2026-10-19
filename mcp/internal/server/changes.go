@@ -679,14 +679,14 @@ func (s *Server) cutZoom(img image.Image, d *detail, box image.Rectangle, of *sh
 // sameFrame tells whether a captured zoom of a changes shot shows the frame that the changes shot was compared at,
 // and all of its region within the box of that frame: the commit counter has not moved since, and no popup that closed
 // meanwhile made the plugin cut the region.
-func (z *shot) sameFrame(of *shot, region hypr.IntRect, box hypr.Rect) bool {
-	if z.Commits != of.Commits || z.SocketID != of.SocketID {
+func (sh *shot) sameFrame(of *shot, region hypr.IntRect, box hypr.Rect) bool {
+	if sh.Commits != of.Commits || sh.SocketID != of.SocketID {
 		return false
 	}
 	x0, y0 := max(float64(region.X), box.X), max(float64(region.Y), box.Y)
 	x1, y1 := min(float64(region.X+region.Width), box.X+box.Width), min(float64(region.Y+region.Height), box.Y+box.Height)
 	const slack = 1e-6
-	return z.Frame.X <= x0+slack && z.Frame.Y <= y0+slack && z.Frame.X+z.Frame.Width >= x1-slack && z.Frame.Y+z.Frame.Height >= y1-slack
+	return sh.Frame.X <= x0+slack && sh.Frame.Y <= y0+slack && sh.Frame.X+sh.Frame.Width >= x1-slack && sh.Frame.Y+sh.Frame.Height >= y1-slack
 }
 
 // zoomPixels is how many pixels the zooms into the regions take, as the plugin captures them: at the monitor's scale,
