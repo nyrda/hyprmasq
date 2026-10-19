@@ -6,7 +6,16 @@ so windows on hidden workspaces can be captured and driven without moving the
 user's focus. `tools/hyprmasq-input.c` is the libei sender,
 `tools/hyprmasq-reaper.c` supervises launched processes, and
 `tools/hyprmasq-launch` is the shell launcher. `mcp/` is the Go MCP server;
-`bench/` has the benchmark runner and task checkers. User docs are in `docs/`.
+`bench/` has the benchmark runner and task checkers.
+
+Docs: `README.md` is the landing page; `docs/installation.md` covers install,
+loading and MCP registration; `docs/automation.md` is the reference for
+`hyprctl hyprmasq`, `hyprmasq-input`, `hyprmasq-launch`, the plugin options
+and the security model; `docs/mcp.md` covers `hyprmasq-mcp`;
+`docs/development.md` covers builds, tests and contributing;
+`docs/benchmarks.md` holds the release benchmark results. Keep them in step
+with the code: a changed command, option, default or exit code updates the
+page that documents it. Agents use the MCP tools; there is no agent skill.
 
 The plugin runs inside the compositor: never block Hyprland's main thread, and
 check hooked function signatures against the pinned Hyprland source, since
