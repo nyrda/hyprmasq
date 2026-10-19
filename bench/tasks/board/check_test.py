@@ -343,7 +343,7 @@ class Attribute(unittest.TestCase):
 
 
 # The texts of results without structured content, which hyprmasq-mcp gives Claude Code, in the forms of
-# mcp/internal/server/result.go, windows.go and capture.go.
+# mcp/internal/server/summary.go, hints.go, windows.go and capture.go.
 WINDOWS_TEXT = (f'{WINDOW} · firefox "Figure 3: The motherboard · Build guide — Mozilla Firefox" · workspace web '
                 f"(hidden) · 1920×1080 · lease 60 s (this session)\nshot s1 1280×720 of window {WINDOW}")
 DELIVERED = "1/1 delivered · drag-and-drop finished · redraw observed · quiet 200 ms · 220 ms"

@@ -88,7 +88,7 @@ def to_window(shot, point):
 
 
 NUM = r"-?\d+(?:\.\d+)?"
-# A shot as shotText in mcp/internal/server/result.go names it: a full one with its image size and notes, or a
+# A shot as shotText in mcp/internal/server/summary.go names it: a full one with its image size and notes, or a
 # changes shot by the shot it was compared with.
 FULL_SHOT = r"shot (s\d+) (\d+)×(\d+)(?: \((.*)\))?"
 CHANGES_SHOT = r"shot (s\d+) = (s\d+)(?:, no change(?: outside animations)?| \+ \d+ changes?)"

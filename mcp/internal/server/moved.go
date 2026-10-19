@@ -380,7 +380,7 @@ func movedError(sh *shot, batch []action, moved []target, animated []hypr.IntRec
 	targets := "The target of " + strings.Join(actions, " and of ")
 	return &toolError{Code: "stale_shot",
 		Message:  fmt.Sprintf("the window changed since shot %s around %s, so the input could reach something other than what the shot shows there", sh.ID, strings.Join(at, " and ")),
-		Hint:     fmt.Sprintf("%s moved or changed since %s. Take a screenshot and read the coordinates from the new shot.", targets, sh.ID),
-		ShotHint: fmt.Sprintf("%s moved or changed since %s. Read the coordinates from the new shot in this result.", targets, sh.ID),
+		Hint:     joinHints(fmt.Sprintf("%s moved or changed since %s.", targets, sh.ID), hintScreenshot),
+		ShotHint: joinHints(fmt.Sprintf("%s moved or changed since %s.", targets, sh.ID), hintScreenshotShot),
 		animated: animated}
 }

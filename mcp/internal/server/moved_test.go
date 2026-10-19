@@ -266,7 +266,7 @@ func TestTargetsThatMovedSinceTheShot(t *testing.T) {
 			}
 			action := c.refused[:strings.Index(c.refused, ")")+1]
 			message := fmt.Sprintf("the window changed since shot %s around %s, so the input could reach something other than what the shot shows there", shot, c.refused)
-			hint := fmt.Sprintf("The target of %s moved or changed since %s. Read the coordinates from the new shot in this result. Nothing was sent.", action, shot)
+			hint := joinHints(fmt.Sprintf("The target of %s moved or changed since %s.", action, shot), hintScreenshotShot, hintNothingSent)
 			if get(t, res, "error.message") != message || get(t, res, "hint") != hint {
 				t.Errorf("result: %s", text(res))
 			}

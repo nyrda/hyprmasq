@@ -224,14 +224,14 @@ func newShotStore() *shotStore {
 
 // returned records a shot that a result gives the session. A zoom shows part of a shot the session has, which stays
 // the last one of the window. The shot that was the last one may go now, to keep the files within shotBytes.
-func (st *shotStore) returned(s *shot) {
-	if s == nil || s.Parent != "" {
+func (st *shotStore) returned(sh *shot) {
+	if sh == nil || sh.Parent != "" {
 		return
 	}
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if _, ok := st.byID[s.ID]; ok {
-		st.last[s.Window] = s.ID
+	if _, ok := st.byID[sh.ID]; ok {
+		st.last[sh.Window] = sh.ID
 		st.evictLocked()
 	}
 }

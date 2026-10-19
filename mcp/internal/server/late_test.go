@@ -191,7 +191,7 @@ func TestLateWindowInWindows(t *testing.T) {
 	}
 	lines = strings.Split(text(listing), "\n")
 	if !strings.HasSuffix(lines[0], " · opened by your input to 0xa1") || lines[2] != "shot "+id+" 200×200 of late window 0xf4" ||
-		!strings.HasPrefix(get(t, listing, "hint").(string), `Your input to 0xa1 in an earlier act opened window 0xf4 "Report f4" after that act had returned; it is in shot `+id+".") {
+		!startsWithHint(get(t, listing, "hint").(string), lateHint([]newWindowOut{{Window: "0xf4", Title: "Report f4", Source: "0xa1", Shot: &shotOut{ID: id}}})) {
 		t.Errorf("over the limit: %q", text(listing))
 	}
 	if res := e.screenshot(`{"window":"0xa1"}`); get(t, res, "late_windows") != nil {

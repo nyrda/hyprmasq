@@ -61,7 +61,7 @@ class CurrentProtocol(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(getattr(analyze, name), int(constants[name]))
         self.assertEqual(analyze.DRAG_MAX_STEPS, int(constants["MAX_DRAG_STEPS"]))
-        server = (root / "mcp/internal/server/act.go").read_text()
+        server = (root / "mcp/internal/server/batch.go").read_text()
         for name, copied in (("clickSettleMs", analyze.CLICK_SETTLE_MS),
                              ("answerExpectMs", analyze.ANSWER_MS), ("answerQuietMs", analyze.ANSWER_MS)):
             with self.subTest(name=name):

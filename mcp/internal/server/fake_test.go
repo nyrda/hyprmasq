@@ -966,6 +966,12 @@ func mirrored(t *testing.T, res *mcp.CallToolResult) *mcp.CallToolResult {
 	return res
 }
 
+// containsHint and startsWithHint tell whether a hint contains, or starts with, the text of a hint builder or constant.
+// An empty want fails: a builder that says nothing would match any hint.
+func containsHint(hint, want string) bool { return want != "" && strings.Contains(hint, want) }
+
+func startsWithHint(hint, want string) bool { return want != "" && strings.HasPrefix(hint, want) }
+
 // text returns the text content of a result.
 func text(res *mcp.CallToolResult) string {
 	var parts []string

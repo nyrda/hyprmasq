@@ -49,7 +49,7 @@ AGAIN = re.compile(r"drew again, settled (\d+) ms later")
 WATCH = re.compile(r"starts within (\d+) ms after it settled")
 
 # The sender's pacing, from tools/hyprmasq-input.c, and how act turns its actions into the sender's
-# (mcp/internal/server/act.go and input.go).
+# (mcp/internal/server/batch.go and input.go).
 ACTION_GAP_MS = 50
 CLICK_HOLD_MS, CLICK_GAP_MS = 50, 80
 CHORD_MOD_MS, CHORD_HOLD_MS, CHORD_GAP_MS = 10, 15, 15

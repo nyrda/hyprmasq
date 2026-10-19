@@ -313,6 +313,7 @@ func (m *mapWatch) close() {
 	}
 }
 
+// windowsTool runs the windows tool.
 func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	var args windowsArgs
 	if err := c.decode(&args); err != nil {
@@ -546,4 +547,24 @@ func windowLine(w windowOut) string {
 		}
 	}
 	return strings.Join(parts, " · ")
+}
+
+// findWindow returns the window at the address in the list, or nil.
+func findWindow(windows []hypr.Window, address string) *hypr.Window {
+	for i := range windows {
+		if windows[i].Address == address {
+			return &windows[i]
+		}
+	}
+	return nil
+}
+
+// windowPID returns the pid of the window at the address in the list, or 0.
+func windowPID(windows []hypr.Window, address string) int {
+	for _, w := range windows {
+		if w.Address == address {
+			return w.PID
+		}
+	}
+	return 0
 }

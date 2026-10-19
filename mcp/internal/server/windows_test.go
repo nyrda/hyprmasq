@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -59,7 +60,7 @@ func TestWindowsShotOfOneWindow(t *testing.T) {
 	if get(t, res, "windows.0.shot.may_be_stale") != true || get(t, res, "summary") != fmt.Sprintf("shot %s 1280×800 (may be stale: not redrawn within 1000 ms) of window 0xa1", stale) {
 		t.Errorf("stale shot: %s", text(res))
 	}
-	if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, "Shot "+stale+" may show an older frame") {
+	if hint := get(t, res, "hint"); hint != starvedHint(&shotOut{ID: stale, starved: &starvation{WaitedMs: 1000}}) {
 		t.Errorf("hint %q", hint)
 	}
 	e.fake.with(func() { e.fake.onWait = nil })
@@ -280,5 +281,113 @@ func TestWindowsWaitsWithoutEvents(t *testing.T) {
 	e.fake.addWindow(&fakeWindow{Window: hypr.Window{Address: "0xd1", StableID: "d1", Class: "portal", Title: "Open Files", PID: 7000}, Width: 100, Height: 100})
 	if res := e.result(done); get(t, res, "wait.ended") != "found" || get(t, res, "windows.0.window") != "0xd1" {
 		t.Errorf("polled: %s", text(res))
+	}
+}
+
+func TestWindowsTool(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Resizing = true })
+	e.window("0xb2", "2b", 640, 480, func(w *fakeWindow) { w.Workspace = hypr.Workspace{ID: -98, Name: "name:hyprmasq"} })
+	e.act(`{"window":"0xb2","actions":[{"action":"key","keys":["a"]}]}`)
+	res := e.server.windowsTool(context.Background(), &call{args: json.RawMessage(`{}`)})
+	if res.IsError {
+		t.Fatal(text(res))
+	}
+	want := map[string]any{"window": "0xb2", "stable_id": "2b", "class": "test.app", "title": "Test", "pid": 4242.0, "workspace": "name:hyprmasq",
+		"visible": false, "size": map[string]any{"width": 640.0, "height": 480.0}, "resizing": false, "xwayland": false, "launched": false,
+		"lease":        map[string]any{"held": true, "remaining_s": 60.0, "mine": true},
+		"capabilities": map[string]any{"lease": true, "hold": true, "dnd": true, "keyboard": "yes"}}
+	if got := get(t, res, "windows.1"); !reflect.DeepEqual(got, want) {
+		t.Errorf("window %v", got)
+	}
+	if got := get(t, res, "windows.0.visible"); got != true {
+		t.Errorf("visible %v", got)
+	}
+	if got := get(t, res, "windows.0.resizing"); got != true {
+		t.Errorf("resizing %v", got)
+	}
+	// The lines leave out the pid and the capabilities of a window that has them all.
+	if got := strings.Split(text(res), "\n"); !reflect.DeepEqual(got, []string{
+		`0xa1 · test.app "Test" · workspace 1 (visible) · 320×200 · resizing (not yet redrawn at its new size)`,
+		`0xb2 · test.app "Test" · workspace name:hyprmasq (hidden) · 640×480 · lease 60 s (this session)`,
+	}) {
+		t.Errorf("lines %q", got)
+	}
+	if code := errorCode(t, e.server.windowsTool(context.Background(), &call{args: json.RawMessage(`{"all":true}`)})); code != "invalid_arguments" {
+		t.Errorf("code %q", code)
+	}
+}
+
+// match keeps the windows whose class or title contains it, ignoring case as Unicode case folding does. A window that
+// lacks a capability names what it lacks. A list without windows says why, also in the structured content.
+func TestWindowsMatch(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 1264, 687, func(w *fakeWindow) {
+		w.Class, w.Title, w.XWayland = "Spotify", "Monolith - Crossfaith", true
+		w.Caps = hypr.Capabilities{Hold: true, Keyboard: "x11-focus"}
+	})
+	e.window("0xb2", "2b", 640, 480, func(w *fakeWindow) { w.Class, w.Title = "org.gnome.Evolution", "Inbox (3 unread)" })
+	e.window("0xc3", "3c", 640, 480, func(w *fakeWindow) { w.Class, w.Title = "foot", "spotify-tui" })
+	e.window("0xd4", "4d", 640, 480, func(w *fakeWindow) { w.Class, w.Title = "org.kde.okular", "Οδυσσεύς" })
+	windows := func(args string) (*mcp.CallToolResult, []string) {
+		t.Helper()
+		res := e.server.windowsTool(context.Background(), &call{args: json.RawMessage(args)})
+		if res.IsError {
+			t.Fatal(text(res))
+		}
+		var addresses []string
+		for _, w := range get(t, res, "windows").([]any) {
+			addresses = append(addresses, w.(map[string]any)["window"].(string))
+		}
+		return res, addresses
+	}
+	// Several windows come without shots.
+	if res, got := windows(`{"match":"SPOT"}`); !reflect.DeepEqual(got, []string{"0xa1", "0xc3"}) || hasImage(res) || get(t, res, "windows.0.shot") != nil {
+		t.Errorf("class or title with SPOT: %v %s", got, text(res))
+	}
+	// One window comes with its shot.
+	res, got := windows(`{"match":"inbox"}`)
+	if !reflect.DeepEqual(got, []string{"0xb2"}) || text(res) != "0xb2 · org.gnome.Evolution \"Inbox (3 unread)\" · workspace 1 (visible) · 640×480\nshot s1 1280×960 of window 0xb2" ||
+		get(t, res, "windows.0.shot.id") != "s1" || get(t, res, "summary") != "shot s1 1280×960 of window 0xb2" || len(res.Content) != 2 {
+		t.Errorf("title with inbox: %v %q", got, text(res))
+	}
+	if res, _ := windows(`{"match":"monolith"}`); text(res) != "0xa1 · Spotify \"Monolith - Crossfaith\" · workspace 1 (visible) · 1264×687 · xwayland · lacks lease, dnd · keyboard x11-focus\nshot s2 2528×1374 of window 0xa1" {
+		t.Errorf("an X11 window: %q", text(res))
+	}
+	if res, _ := windows(`{"match":"SPOT"}`); get(t, res, "summary") != nil {
+		t.Errorf("a summary beside the windows: %v", get(t, res, "summary"))
+	}
+	// Lowercasing alone would turn Σ into σ and keep the final ς.
+	for _, match := range []string{"ΟΔΥΣΣΕΎΣ", "Σ", "ς"} {
+		if _, got := windows(`{"match":"` + match + `"}`); !reflect.DeepEqual(got, []string{"0xd4"}) {
+			t.Errorf("%s: %v", match, got)
+		}
+	}
+	res, got = windows(`{"match":"steam"}`)
+	if got != nil || text(res) != `no window has "steam" in its class or title, of 4 windows` || get(t, res, "summary") != text(res) {
+		t.Errorf("no match: %v %q %v", got, text(res), get(t, res, "summary"))
+	}
+	if _, got := windows(`{"match":""}`); len(got) != 4 {
+		t.Errorf("empty match: %v", got)
+	}
+	empty := newTestEnv(t).server.windowsTool(context.Background(), &call{})
+	if text(empty) != "no windows" || get(t, empty, "summary") != "no windows" {
+		t.Errorf("no windows: %q %v", text(empty), get(t, empty, "summary"))
+	}
+}
+
+// windows reports the dnd capability of a window whose drags run within its app, and names it among those that a
+// window lacks.
+func TestWindowsReportDragAndDrop(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.window("0xb2", "2b", 320, 200, func(w *fakeWindow) { w.Caps = hypr.Capabilities{Lease: true, Hold: true, Keyboard: "yes"} })
+	res := e.windows()
+	if get(t, res, "windows.0.capabilities.dnd") != true || get(t, res, "windows.1.capabilities.dnd") != false {
+		t.Fatalf("%s", text(res))
+	}
+	lines := strings.Split(text(res), "\n")
+	if strings.Contains(lines[0], "lacks") || !strings.HasSuffix(lines[1], " · lacks dnd") {
+		t.Errorf("%q", lines)
 	}
 }

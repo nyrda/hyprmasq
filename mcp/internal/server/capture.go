@@ -394,6 +394,7 @@ type screenshotArgs struct {
 	Region json.RawMessage `json:"region"`
 }
 
+// screenshotTool runs the screenshot tool.
 func (s *Server) screenshotTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	var args screenshotArgs
 	if err := c.decode(&args); err != nil {

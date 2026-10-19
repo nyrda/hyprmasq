@@ -199,16 +199,6 @@ func (s *Server) RemoveStaleShots() {
 	}
 }
 
-func (s *Server) setLeased(window string, held bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if held {
-		s.leased[window] = true
-	} else {
-		delete(s.leased, window)
-	}
-}
-
 // The instructions teach the loop and how to read results. Codex adds them to every tool's description, and pi with
 // direct exposure shows none of them, so the rules for acting are in the tool descriptions, once.
 const instructions = `hyprmasq: see, click and type in Hyprland windows without disturbing the user's screen; one act call acts, waits for the redraw and returns screenshots of what changed.
@@ -813,4 +803,31 @@ func (s *Server) lockPath(stableID string) string {
 
 func (s *Server) sendLockPath() string {
 	return filepath.Join(s.cfg.StateDir, "send.lock")
+}
+
+// windowArgs are the arguments of the tools that take only a window.
+type windowArgs struct {
+	Window string `json:"window" args:"required"`
+}
+
+// windowArg decodes the window of a tool that takes only a window, in its canonical form.
+func (c *call) windowArg() (string, error) {
+	var args windowArgs
+	if err := c.decode(&args); err != nil {
+		return "", err
+	}
+	return canonicalWindow(args.Window)
+}
+
+// ptr returns a pointer to a copy of v.
+func ptr[T any](v T) *T {
+	return &v
+}
+
+// deref returns the string s points to, or "" for nil.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

@@ -128,8 +128,14 @@ func TestChangesShotOfOneRegion(t *testing.T) {
 }
 
 // laterClause is what the hint after a click, a drag, a key or Enter that changed nothing adds: the input may have opened
-// a window that maps after the call, as a portal's file chooser does.
-const laterClause = "; it may also have opened a window that maps later, as a file chooser of another process can a second or two after the input: windows with wait_ms waits for it, and your next act or screenshot returns it"
+// a window that maps after the call, as a portal's file chooser does. TestWording has its text.
+var laterClause = laterWindow([]action{{Kind: "click"}})
+
+// deliveredWithout is the result of a batch that was delivered whole and after which the window settled, with a changes
+// shot of the base that found no change.
+func deliveredWithout(changes changesOut) *actOut {
+	return &actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "quiet"}, Shot: &shotOut{Changes: &changes}}
+}
 
 // Without a change there is no image, and delivered input that changed nothing says so.
 func TestChangesShotWithoutChange(t *testing.T) {
@@ -144,7 +150,7 @@ func TestChangesShotWithoutChange(t *testing.T) {
 		t.Errorf("summary %q, changes %v", summaryOf(t, res), get(t, res, "shot.changes"))
 	}
 	// A click may also have opened a window of another process that maps after the call, which the hint says.
-	if hint := get(t, res, "hint"); hint != "Nothing changed since s1, so the input may have missed or had no visible effect"+laterClause+". Look at s1 before repeating it." {
+	if hint := get(t, res, "hint"); hint != noChangeHint(deliveredWithout(changesOut{Base: "s1"}), []action{{Kind: "click"}}) {
 		t.Errorf("hint %v", hint)
 	}
 	// A window that drew nothing gets the wait's hint, which points at the shot it still shows.
@@ -390,7 +396,7 @@ func TestChangesOfAnimationsOnly(t *testing.T) {
 	if got := summaryOf(t, res); !strings.HasSuffix(got, "shot s2 = s1, no change outside animations · lease 60 s\n1 tiny change left out\n3 changes in animations left out") {
 		t.Errorf("summary %q", got)
 	}
-	if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, "Nothing changed since s1 outside the animations, so the input may have missed, or its effect lies inside them"+laterClause+".") {
+	if hint, want := get(t, res, "hint").(string), noChangeHint(deliveredWithout(changesOut{Base: "s1", Animated: 3}), []action{{Kind: "key"}}); !startsWithHint(hint, want) {
 		t.Errorf("hint %q", hint)
 	}
 	if got := get(t, res, "shot.changes.left_out"); got != 1.0 {
