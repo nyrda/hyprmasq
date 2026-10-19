@@ -7,6 +7,7 @@ stdenv.mkDerivation {
   nativeBuildInputs = [ pkg-config wayland-scanner ];
   buildInputs = [ wayland ];
   buildPhase = ''
+    cp ${./probe-common.h} probe-common.h
     wayland-scanner client-header ${wayland-protocols}/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml xdg-shell-client-protocol.h
     wayland-scanner private-code ${wayland-protocols}/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml xdg-shell-protocol.c
     $CC -std=gnu17 -Wall -Wextra -Wno-unused-parameter -I. -x c "$src" -x none xdg-shell-protocol.c \

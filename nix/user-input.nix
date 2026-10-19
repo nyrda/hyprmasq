@@ -8,6 +8,7 @@ stdenv.mkDerivation {
   buildInputs = [ wayland ];
   # The protocols as the pinned Hyprland implements them.
   buildPhase = ''
+    cp ${./probe-common.h} probe-common.h
     for protocol in wlr-virtual-pointer-unstable-v1 input-method-unstable-v2; do
       wayland-scanner client-header ${hyprland.src}/protocols/$protocol.xml $protocol-client-protocol.h
       wayland-scanner private-code ${hyprland.src}/protocols/$protocol.xml $protocol-protocol.c

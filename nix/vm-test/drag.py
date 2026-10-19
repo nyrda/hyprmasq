@@ -1,6 +1,6 @@
 with subtest("same-client popup, move, resize and drag protections"):
     focus_workspace(10)
-    spawn("hyprmasq-focus-probe", "focus-probe")
+    spawn("hyprmasq-focus-probe guard", "focus-probe")
     wait_for(
         "probe windows",
         lambda: client("hm-guard-hidden") and client("hm-guard-visible"),

@@ -101,6 +101,12 @@ that it puts together from `nix/vm-test/`:
 - `check.py` checks the areas as part of the test's build, and the tables
   below against them.
 
+The test's own Wayland clients are in `nix/` and share `nix/probe-common.h`:
+`focus-probe.c`, whose modes it lists when run without arguments,
+`dnd-probe.c`, `clip-probe.c` and `user-input.c`. They log what they get to
+stdout, most of it stamped with `CLOCK_MONOTONIC` in milliseconds, and exit
+with status 2 on arguments they do not take.
+
 The areas share one VM and one Hyprland, and a subtest may use the windows and
 other state of earlier subtests of its area. An area that uses the state of
 another area requires it in `areas.json`. `check.py` fails when an area reads a
@@ -255,7 +261,7 @@ and the code drift apart.
 
 | Subtest | Checks |
 | --- | --- |
-| same-client popup, move, resize and drag protections | `nix/focus-probe.c`, a small xdg-shell client, answers an emulated click with a popup grab, a drag and an interactive move and resize. None of them take the real focus or change the window. The drag, from a window that shares its connection with the focused one, is cancelled, and `state` counts it with reason `shared_focus`. |
+| same-client popup, move, resize and drag protections | The guard mode of `nix/focus-probe.c`, two toplevels on one connection, answers an emulated click with a popup grab, a drag and an interactive move and resize. None of them take the real focus or change the window. The drag, from a window that shares its connection with the focused one, is cancelled, and `state` counts it with reason `shared_focus`. |
 | a hidden window's own drag-and-drop runs privately, and its data goes through file descriptors | `nix/dnd-probe.c`, a raw Wayland client that drags text from its window to itself, on a hidden workspace: an emulated press starts a private drag, the window's pointer leaves without a release, the drag enters the window and then its subsurface with a new offer, both ends learn the move action, and the drop passes the destination's pipe to the source, which writes the text that the destination reads. The icon gets frame callbacks, `state` counts the drag as finished, the shot shows the window that the finish redrew, the user's focus and pointer stay, and the window's pointer takes motion again after the drop. |
 | drags in quick succession each run privately, also when the app starts each one at a frame callback | Four drags in one `hyprmasq-input` run on the drag probe, which starts each drag only at the first frame callback after the pointer moved 8 pixels from its press, as Firefox does, and confirms each drop 300 ms after its data: all four run privately and deliver their data, a drag starts while the drop before it waits for its confirmation, `state` lists four finished drags in `ended`, and the user's focus and pointer stay. Without frame callbacks while the motion streams in, the drags would not start. |
 | a private drag that the destination refuses, or that ends outside the window, is cancelled | A destination that accepts no type, one that only asks, and a release outside the window's surfaces cancel the private drag, with reasons `rejected` and `no_target`. |

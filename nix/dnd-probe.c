@@ -29,24 +29,25 @@
 #define _GNU_SOURCE
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
-#include <linux/input-event-codes.h>
-#include <assert.h>
+#include "probe-common.h"
 #include <fcntl.h>
-#include <poll.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <sys/signalfd.h>
-#include <sys/timerfd.h>
-#include <time.h>
-#include <unistd.h>
+#include <linux/input-event-codes.h>
 
 #define PAYLOAD "hyprmasq-dnd-payload"
+
+// The serial that a drag starts with, and when the destination finishes a drop, by the options.
+static enum {
+    SERIAL_PRESS,
+    SERIAL_ENTER,
+    SERIAL_OLD,
+    SERIAL_FORGED
+} serial_mode;
+static enum {
+    FINISH_AT_ONCE,
+    FINISH_NEVER,
+    FINISH_LATE,
+    FINISH_SOON
+} finish_mode;
 
 struct window {
     struct wl_surface*   surface;
@@ -68,8 +69,7 @@ static struct window                  agent, user;
 static struct wl_surface *            sub, *icon;
 static struct wl_data_source*         source;
 static struct wl_data_offer *         entered, *dropped;
-static const char *                   serial_mode = "press", *accept_mode = "text/plain", *finish_mode = "yes";
-static bool                           ask, with_icon;
+static bool                           accept_none, ask, with_icon;
 static uint32_t                       enter_serial, old_serial;
 static struct wl_surface*             pointed; // that the pointer is on
 static bool                           ready;
@@ -81,20 +81,6 @@ static int                            pipe_read = -1, finish_timer = -1;
 static char                           received[256];
 static size_t                         received_len;
 
-static uint64_t now_ms(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
-}
-static void say(const char* format, ...) {
-    printf("%llu ", (unsigned long long)now_ms());
-    va_list args;
-    va_start(args, format);
-    vprintf(format, args);
-    va_end(args);
-    putchar('\n');
-    fflush(stdout);
-}
 static const char* name_of(struct wl_surface* s) {
     if (s && s == agent.surface)
         return agent.name;
@@ -105,25 +91,8 @@ static const char* name_of(struct wl_surface* s) {
     return "other";
 }
 
-static void buffer_release(void* data, struct wl_buffer* buffer) {
-    wl_buffer_destroy(buffer);
-}
-static const struct wl_buffer_listener buffer_listener = {.release = buffer_release};
 static void fill(struct wl_surface* surface, int width, int height, uint32_t color) {
-    size_t size = (size_t)width * height * 4;
-    int    fd   = memfd_create("hyprmasq-dnd-probe", MFD_CLOEXEC);
-    assert(fd >= 0 && ftruncate(fd, size) == 0);
-    uint32_t* pixels = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    assert(pixels != MAP_FAILED);
-    for (size_t i = 0; i < size / 4; ++i)
-        pixels[i] = color;
-    struct wl_shm_pool* pool   = wl_shm_create_pool(shm, fd, size);
-    struct wl_buffer*   buffer = wl_shm_pool_create_buffer(pool, 0, width, height, width * 4, WL_SHM_FORMAT_XRGB8888);
-    wl_buffer_add_listener(buffer, &buffer_listener, NULL);
-    wl_shm_pool_destroy(pool);
-    munmap(pixels, size);
-    close(fd);
-    wl_surface_attach(surface, buffer, 0, 0);
+    wl_surface_attach(surface, shm_buffer(shm, width, height, color, NULL), 0, 0);
     wl_surface_damage(surface, 0, 0, width, height);
 }
 static void draw(struct window* w) {
@@ -149,10 +118,6 @@ static const struct xdg_surface_listener surface_listener = {.configure = config
 static void toplevel_configure(void* data, struct xdg_toplevel* top, int32_t width, int32_t height, struct wl_array* states) {}
 static void toplevel_close(void* data, struct xdg_toplevel* top) {}
 static const struct xdg_toplevel_listener toplevel_listener = {.configure = toplevel_configure, .close = toplevel_close};
-static void ping(void* data, struct xdg_wm_base* base, uint32_t serial) {
-    xdg_wm_base_pong(base, serial);
-}
-static const struct xdg_wm_base_listener wm_listener = {.ping = ping};
 static void create(struct window* w, const char* name, uint32_t color) {
     *w         = (struct window){.name = name, .color = color};
     w->surface = wl_compositor_create_surface(compositor);
@@ -253,7 +218,7 @@ static void data_enter(void* data, struct wl_data_device* d, uint32_t serial, st
     say("drag enter %s %u %d %d", name_of(surface), offer ? wl_proxy_get_id((struct wl_proxy*)offer) : 0, wl_fixed_to_int(x), wl_fixed_to_int(y));
     if (!offer)
         return;
-    wl_data_offer_accept(offer, serial, strcmp(accept_mode, "none") ? accept_mode : NULL);
+    wl_data_offer_accept(offer, serial, accept_none ? NULL : "text/plain");
     if (ask)
         wl_data_offer_set_actions(offer, WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK, WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK);
     else
@@ -275,7 +240,7 @@ static void data_drop(void* data, struct wl_data_device* d) {
     if (!dropped)
         return;
     int fds[2];
-    assert(pipe2(fds, O_CLOEXEC | O_NONBLOCK) == 0);
+    CHECK(pipe2(fds, O_CLOEXEC | O_NONBLOCK) == 0);
     wl_data_offer_receive(dropped, "text/plain", fds[1]);
     close(fds[1]);
     pipe_read    = fds[0];
@@ -314,12 +279,12 @@ static void read_payload(void) {
     pipe_read              = -1;
     received[received_len] = 0;
     say("payload %s", received);
-    if (!strcmp(finish_mode, "yes"))
-        finish();
-    else if (!strcmp(finish_mode, "late"))
-        timerfd_settime(finish_timer, 0, &(struct itimerspec){.it_value = {.tv_sec = 1, .tv_nsec = 500000000}}, NULL);
-    else if (!strcmp(finish_mode, "soon"))
-        timerfd_settime(finish_timer, 0, &(struct itimerspec){.it_value = {.tv_nsec = 300000000}}, NULL);
+    switch (finish_mode) {
+        case FINISH_AT_ONCE: finish(); break;
+        case FINISH_LATE: timer_arm_ms(finish_timer, 1500); break;
+        case FINISH_SOON: timer_arm_ms(finish_timer, 300); break;
+        case FINISH_NEVER: break;
+    }
 }
 
 static void pointer_enter(void* data, struct wl_pointer* p, uint32_t serial, struct wl_surface* s, wl_fixed_t x, wl_fixed_t y) {
@@ -337,7 +302,6 @@ static void pointer_leave(void* data, struct wl_pointer* p, uint32_t serial, str
 // after that, if the button is still down, as Firefox does, which renders the drag's image first.
 static uint32_t press_serial;
 static bool     pressed, waiting_motion;
-static double   pointer_x, pointer_y, press_x, press_y;
 static void press_frame(void* data, struct wl_callback* callback, uint32_t time);
 static const struct wl_callback_listener press_frame_listener = {.done = press_frame};
 static void pointer_motion(void* data, struct wl_pointer* p, uint32_t time, wl_fixed_t x, wl_fixed_t y) {
@@ -363,17 +327,17 @@ static void pointer_button(void* data, struct wl_pointer* p, uint32_t serial, ui
     // A drag may start while an earlier one waits for its finish.
     if (button != BTN_LEFT || state != WL_POINTER_BUTTON_STATE_PRESSED || sourceless_started || (pointed != agent.surface && pointed != sub))
         return;
-    if (!strcmp(serial_mode, "old") && !old_recorded) {
+    if (serial_mode == SERIAL_OLD && !old_recorded) {
         old_serial   = serial;
         old_recorded = true;
         return;
     }
-    if (!strcmp(serial_mode, "enter"))
-        serial = enter_serial;
-    else if (!strcmp(serial_mode, "old"))
-        serial = old_serial;
-    else if (!strcmp(serial_mode, "forged"))
-        serial = 0x7fffff00;
+    switch (serial_mode) {
+        case SERIAL_PRESS: break;
+        case SERIAL_ENTER: serial = enter_serial; break;
+        case SERIAL_OLD: serial = old_serial; break;
+        case SERIAL_FORGED: serial = 0x7fffff00; break;
+    }
     if (frame_first) {
         press_serial   = serial;
         press_x        = pointer_x;
@@ -401,73 +365,59 @@ static void keyboard_key(void* data, struct wl_keyboard* kb, uint32_t serial, ui
 static void keyboard_modifiers(void* data, struct wl_keyboard* kb, uint32_t serial, uint32_t dep, uint32_t lat, uint32_t locked, uint32_t group) {}
 static const struct wl_keyboard_listener keyboard_listener = {
     .keymap = keyboard_keymap, .enter = keyboard_enter, .leave = keyboard_leave, .key = keyboard_key, .modifiers = keyboard_modifiers};
-static void seat_caps(void* data, struct wl_seat* s, uint32_t caps) {
-    static struct wl_pointer*  pointer;
-    static struct wl_keyboard* keyboard;
-    if ((caps & WL_SEAT_CAPABILITY_POINTER) && !pointer) {
-        pointer = wl_seat_get_pointer(s);
-        wl_pointer_add_listener(pointer, &pointer_listener, NULL);
-    }
-    if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !keyboard) {
-        keyboard = wl_seat_get_keyboard(s);
-        wl_keyboard_add_listener(keyboard, &keyboard_listener, NULL);
-    }
+static struct seat_input seat_input = {.pointer_listener = &pointer_listener, .keyboard_listener = &keyboard_listener};
+
+static void usage(void) {
+    fprintf(stderr,
+            "usage: hyprmasq-dnd-probe TITLE [serial=enter|old|forged] [accept=none] [actions=ask] [finish=never|late|soon] [icon] [source=none] [frame-first] [user NAME]\n");
+    exit(2);
 }
-static const struct wl_seat_listener seat_listener = {.capabilities = seat_caps};
-static void global(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version) {
-    if (!strcmp(interface, "wl_compositor"))
-        compositor = wl_registry_bind(registry, name, &wl_compositor_interface, 1);
-    else if (!strcmp(interface, "wl_subcompositor"))
-        subcompositor = wl_registry_bind(registry, name, &wl_subcompositor_interface, 1);
-    else if (!strcmp(interface, "wl_shm"))
-        shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
-    else if (!strcmp(interface, "xdg_wm_base")) {
-        wm = wl_registry_bind(registry, name, &xdg_wm_base_interface, 1);
-        xdg_wm_base_add_listener(wm, &wm_listener, NULL);
-    } else if (!strcmp(interface, "wl_seat")) {
-        seat = wl_registry_bind(registry, name, &wl_seat_interface, 1);
-        wl_seat_add_listener(seat, &seat_listener, NULL);
-    } else if (!strcmp(interface, "wl_data_device_manager"))
-        manager = wl_registry_bind(registry, name, &wl_data_device_manager_interface, 3);
-}
-static void global_remove(void* data, struct wl_registry* registry, uint32_t name) {}
-static const struct wl_registry_listener registry_listener = {.global = global, .global_remove = global_remove};
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        fprintf(stderr,
-                "usage: hyprmasq-dnd-probe TITLE [serial=enter|old|forged] [accept=none] [actions=ask] [finish=never|late|soon] [icon] [source=none] [frame-first] [user NAME]\n");
-        return 2;
-    }
+    if (argc < 2)
+        usage();
     const char* user_name = NULL;
     for (int i = 2; i < argc; ++i) {
-        if (!strncmp(argv[i], "serial=", 7))
-            serial_mode = argv[i] + 7;
-        else if (!strncmp(argv[i], "accept=", 7))
-            accept_mode = argv[i] + 7;
-        else if (!strcmp(argv[i], "actions=ask"))
+        const char* option = argv[i];
+        if (!strcmp(option, "serial=enter"))
+            serial_mode = SERIAL_ENTER;
+        else if (!strcmp(option, "serial=old"))
+            serial_mode = SERIAL_OLD;
+        else if (!strcmp(option, "serial=forged"))
+            serial_mode = SERIAL_FORGED;
+        else if (!strcmp(option, "accept=none"))
+            accept_none = true;
+        else if (!strcmp(option, "actions=ask"))
             ask = true;
-        else if (!strncmp(argv[i], "finish=", 7))
-            finish_mode = argv[i] + 7;
-        else if (!strcmp(argv[i], "icon"))
+        else if (!strcmp(option, "finish=never"))
+            finish_mode = FINISH_NEVER;
+        else if (!strcmp(option, "finish=late"))
+            finish_mode = FINISH_LATE;
+        else if (!strcmp(option, "finish=soon"))
+            finish_mode = FINISH_SOON;
+        else if (!strcmp(option, "icon"))
             with_icon = true;
-        else if (!strcmp(argv[i], "source=none"))
+        else if (!strcmp(option, "source=none"))
             sourceless = true;
-        else if (!strcmp(argv[i], "frame-first"))
+        else if (!strcmp(option, "frame-first"))
             frame_first = true;
-        else if (!strcmp(argv[i], "user") && i + 1 < argc)
+        else if (!strcmp(option, "user") && i + 1 < argc)
             user_name = argv[++i];
         else {
-            fprintf(stderr, "unknown option %s\n", argv[i]);
-            return 2;
+            fprintf(stderr, "hyprmasq-dnd-probe: unknown option %s\n", option);
+            usage();
         }
     }
     display = wl_display_connect(NULL);
-    assert(display);
-    struct wl_registry* registry = wl_display_get_registry(display);
-    wl_registry_add_listener(registry, &registry_listener, NULL);
-    wl_display_roundtrip(display);
-    assert(compositor && subcompositor && shm && wm && seat && manager);
+    CHECK(display);
+    bind_globals(display,
+                 (const struct probe_global[]){{.proxy = &compositor, .interface = &wl_compositor_interface, .version = 1},
+                                               {.proxy = &subcompositor, .interface = &wl_subcompositor_interface, .version = 1},
+                                               {.proxy = &shm, .interface = &wl_shm_interface, .version = 1},
+                                               {.proxy = &wm, .interface = &xdg_wm_base_interface, .version = 1, .listener = &pong_listener},
+                                               {.proxy = &seat, .interface = &wl_seat_interface, .version = 1, .listener = &seat_input_listener, .data = &seat_input},
+                                               {.proxy = &manager, .interface = &wl_data_device_manager_interface, .version = 3},
+                                               {0}});
     device = wl_data_device_manager_get_data_device(manager, seat);
     wl_data_device_add_listener(device, &device_listener, NULL);
     create(&agent, argv[1], 0xff224466);
@@ -478,43 +428,23 @@ int main(int argc, char** argv) {
     if (user_name)
         create(&user, user_name, 0xff444444);
 
-    finish_timer = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
-    sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGUSR1);
-    sigaddset(&mask, SIGUSR2);
-    sigaddset(&mask, SIGHUP);
-    assert(sigprocmask(SIG_BLOCK, &mask, NULL) == 0);
-    int signals = signalfd(-1, &mask, SFD_CLOEXEC);
-    assert(signals >= 0 && finish_timer >= 0);
+    finish_timer      = timer_new();
+    const int signals = signals_new(SIGUSR1, SIGUSR2, SIGHUP, 0);
     for (;;) {
-        struct pollfd fds[4] = {
-            {.fd = wl_display_get_fd(display), .events = POLLIN}, {.fd = signals, .events = POLLIN}, {.fd = finish_timer, .events = POLLIN}, {.fd = pipe_read, .events = POLLIN}};
-        while (wl_display_prepare_read(display) != 0)
-            wl_display_dispatch_pending(display);
-        if (wl_display_flush(display) < 0 || poll(fds, 4, -1) < 0) {
-            wl_display_cancel_read(display);
-            return 1;
-        }
-        if (fds[0].revents & POLLIN) {
-            if (wl_display_read_events(display) < 0)
-                return 1;
-        } else
-            wl_display_cancel_read(display);
-        if (wl_display_dispatch_pending(display) < 0)
+        struct pollfd fds[4] = {{0}, {.fd = signals, .events = POLLIN}, {.fd = finish_timer, .events = POLLIN}, {.fd = pipe_read, .events = POLLIN}};
+        if (!dispatch_display(display, fds, 4, -1))
             return 1;
         if (fds[1].revents & POLLIN) {
-            struct signalfd_siginfo info;
-            assert(read(signals, &info, sizeof(info)) == sizeof(info));
-            if (info.ssi_signo == SIGUSR1 && source) {
+            const uint32_t signal = signal_read(signals);
+            if (signal == SIGUSR1 && source) {
                 wl_data_source_destroy(source);
                 source = NULL;
                 say("source destroyed");
-            } else if (info.ssi_signo == SIGUSR2 && device) {
+            } else if (signal == SIGUSR2 && device) {
                 wl_data_device_release(device);
                 device = NULL;
                 say("device released");
-            } else if (info.ssi_signo == SIGHUP && agent.surface) {
+            } else if (signal == SIGHUP && agent.surface) {
                 xdg_toplevel_destroy(agent.toplevel);
                 xdg_surface_destroy(agent.xdg);
                 wl_surface_destroy(sub);
@@ -524,8 +454,7 @@ int main(int argc, char** argv) {
             }
         }
         if (fds[2].revents & POLLIN) {
-            uint64_t expirations;
-            assert(read(finish_timer, &expirations, sizeof(expirations)) == sizeof(expirations));
+            timer_read(finish_timer);
             finish();
         }
         if (pipe_read >= 0 && (fds[3].revents & (POLLIN | POLLHUP)))

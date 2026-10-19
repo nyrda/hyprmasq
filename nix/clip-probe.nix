@@ -7,6 +7,7 @@ stdenv.mkDerivation {
   nativeBuildInputs = [ pkg-config wayland-scanner ];
   buildInputs = [ wayland ];
   buildPhase = ''
+    cp ${./probe-common.h} probe-common.h
     for xml in stable/xdg-shell/xdg-shell.xml unstable/primary-selection/primary-selection-unstable-v1.xml; do
       name=$(basename $xml .xml)
       wayland-scanner client-header ${wayland-protocols}/share/wayland-protocols/$xml $name-client-protocol.h
