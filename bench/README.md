@@ -280,7 +280,7 @@ the run's directory after the debrief, and pi's MCP log, if it wrote one, to `pi
 | `phases` | The task's milestones from the VM's state, in seconds after the agent's start, such as `account verified` and `reply sent` for Thunderbird. |
 | `checks` | The checker's details, such as the user's notes for the Forgejo task. |
 | `user` | From Hyprland's events in the VM: windows that opened on the user's visible workspace, the seconds the keyboard focus was away from the user's window, and switches of the visible workspace. `undisturbed` when there were none. |
-| `usage` | Tokens, and turns for Claude Code and pi (whose tokens and cost include its compaction requests), and the cost in USD that Claude Code and pi compute, from the agent's event stream, with its final answer. |
+| `usage` | Tokens, with the cache reads and writes among the input tokens, and turns for Claude Code and pi (whose tokens and cost include its compaction requests), from the agent's event stream, with its final answer. The cost in USD is the one Claude Code and pi compute. For Codex it is what the run's requests in its transcript would cost at OpenAI's API list prices (`OPENAI_PRICES` in `report.py`), each at the prices for its prompt's length. |
 
 The per-call log is `mcp.jsonl`; `report.tool_calls()` pairs its requests and responses. The agent's events
 are in `agent.jsonl`, each with the host time it arrived. `report.py` computes the summaries again from these

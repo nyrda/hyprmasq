@@ -276,8 +276,8 @@ class PiReport(unittest.TestCase):
         # pi 1.3.0's --mode json stream of a run with one MCP tool, ping, through the tap's configuration.
         stream = report.load_jsonl(os.path.join(BENCH, "testdata", "pi-agent.jsonl"))
         self.assertEqual(report.agent_usage("pi", stream), {
-            "turns": 2, "input_tokens": 780 + 881, "output_tokens": 88 + 21, "thinking_tokens": 39 + 1,
-            "cost_usd": 0.000994, "final": "**Result of `mcp__hyprmasq__ping`:** `pong`",
+            "turns": 2, "input_tokens": 780 + 881, "cache_read_tokens": 0, "cache_write_tokens": 0,
+            "output_tokens": 88 + 21, "thinking_tokens": 39 + 1, "cost_usd": 0.000994, "final": "**Result of `mcp__hyprmasq__ping`:** `pong`",
         })
         self.assertEqual(run.session_of(stream[0]["line"]), "01a14d58-6684-7320-9b05-7a5834be9c38")
 
@@ -290,6 +290,68 @@ class PiReport(unittest.TestCase):
         usage = report.agent_usage("pi", stream[:-2] + [{"t": 0, "line": compaction}] + stream[-2:])
         self.assertEqual((usage["turns"], usage["input_tokens"], usage["output_tokens"], usage["cost_usd"]),
                          (2, 1661 + 150000, 109 + 2000, 0.078994))
+
+
+class CodexReport(unittest.TestCase):
+    @staticmethod
+    def token_count(total, last):
+        return {"type": "event_msg", "payload": {"type": "token_count", "info": {
+            "total_token_usage": total, "last_token_usage": last}}}
+
+    def run_files(self, model="gpt-6.1-sol"):
+        """A run of two requests, the second with a prompt over LONG_PROMPT, and its debrief's request after them."""
+        first = {"input_tokens": 10_000, "cached_input_tokens": 8_000, "cache_write_input_tokens": 0, "output_tokens": 100}
+        second = {"input_tokens": 300_000, "cached_input_tokens": 200_000, "cache_write_input_tokens": 50_000,
+                  "output_tokens": 1_000}
+        total = {"input_tokens": 310_000, "cached_input_tokens": 208_000, "cache_write_input_tokens": 50_000,
+                 "output_tokens": 1_100, "reasoning_output_tokens": 400}
+        debrief = {"input_tokens": 320_000, "cached_input_tokens": 300_000, "output_tokens": 500}
+        transcript = [
+            {"type": "turn_context", "payload": {"model": model}},
+            self.token_count(first, first),
+            # The same totals again, sent when only the rate limits changed.
+            self.token_count(first, first),
+            self.token_count(total, second),
+            {"type": "turn_context", "payload": {"model": model}},
+            self.token_count({"input_tokens": 630_000, "output_tokens": 1_600}, debrief),
+        ]
+        stream = [{"t": 0, "line": {"type": "item.completed", "item": {"type": "agent_message", "text": "Done"}}},
+                  {"t": 1, "line": {"type": "turn.completed", "usage": total}}]
+        return stream, transcript
+
+    def test_a_codex_run_costs_what_its_requests_would_cost_on_the_api(self):
+        stream, transcript = self.run_files()
+        # The short prompt at the base prices, the long one at the long-prompt prices; the debrief's not at all.
+        cost = (2_000 * 2.00 + 8_000 * 0.10 + 100 * 10.00) / 1e6 \
+            + (50_000 * 4.00 + 200_000 * 0.20 + 50_000 * 5.00 + 1_000 * 15.00) / 1e6
+        self.assertEqual(report.agent_usage("codex", stream, transcript), {
+            "input_tokens": 310_000, "cache_read_tokens": 208_000, "cache_write_tokens": 50_000,
+            "output_tokens": 1_100, "thinking_tokens": 400, "cost_usd": round(cost, 6),
+            "cost_basis": "API list prices for gpt-6.1-sol", "final": "Done",
+        })
+
+    def test_no_cost_without_the_prices_or_the_requests_of_the_run(self):
+        stream, transcript = self.run_files(model="gpt-unpriced")
+        self.assertIsNone(report.agent_usage("codex", stream, transcript)["cost_usd"])
+        stream, transcript = self.run_files()
+        # A transcript that ends before the requests add up to the run's total.
+        self.assertIsNone(report.agent_usage("codex", stream, transcript[:3])["cost_usd"])
+        # A transcript that misses a request, though its last totals match the run's.
+        self.assertIsNone(report.agent_usage("codex", stream, transcript[:1] + transcript[3:])["cost_usd"])
+        # Requests whose cache reads do not add up to the run's.
+        stream[1]["line"]["usage"] = {**stream[1]["line"]["usage"], "cached_input_tokens": 0}
+        self.assertIsNone(report.agent_usage("codex", stream, transcript)["cost_usd"])
+        self.assertNotIn("cost_usd", report.agent_usage("codex", stream))
+
+
+class ClaudeReport(unittest.TestCase):
+    def test_the_cache_reads_and_writes_count_in_the_input(self):
+        result = {"type": "result", "num_turns": 3, "total_cost_usd": 0.12, "result": "Done", "usage": {
+            "input_tokens": 10, "cache_read_input_tokens": 40_000, "cache_creation_input_tokens": 14_000,
+            "output_tokens": 2_000, "output_tokens_details": {"thinking_tokens": 1_000}}}
+        usage = report.agent_usage("claude-api", [{"t": 0, "line": result}])
+        self.assertEqual((usage["input_tokens"], usage["cache_read_tokens"], usage["cache_write_tokens"],
+                          usage["output_tokens"], usage["cost_usd"]), (54_010, 40_000, 14_000, 2_000, 0.12))
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ computes summary.json of every finished run in it again from the run's raw files
 RESULTS-DIR/report.md and RESULTS-DIR/runs.json. run.py calls metrics() for each run when it finishes.
 """
 
+import glob
 import json
 import os
 import statistics
@@ -126,8 +127,59 @@ def pi_text(message):
     return "".join(c.get("text", "") for c in message.get("content") or [] if c.get("type") == "text") or None
 
 
-def agent_usage(harness, stream):
-    """Tokens and turns from the agent's own event stream, and its final answer."""
+# OpenAI's API list prices in USD per million tokens, from https://developers.openai.com/api/docs/pricing on
+# 2026-10-19: input, cached input, cache writes and output, and the prices for a request whose prompt is over
+# LONG_PROMPT tokens. Codex runs on a ChatGPT login report no cost, so a run's cost is what its requests would cost
+# on the API.
+OPENAI_PRICES = {
+    "gpt-6-astra": ((10.00, 1.00, 12.50, 50.00), (20.00, 2.00, 25.00, 75.00)),
+    "gpt-6.1-sol": ((2.00, 0.10, 2.50, 10.00), (4.00, 0.20, 5.00, 15.00)),
+    "gpt-6-sol": ((2.00, 0.20, 2.50, 10.00), (4.00, 0.40, 5.00, 15.00)),
+    "gpt-6-luna": ((0.10, 0.01, 0.125, 0.50), (0.20, 0.02, 0.25, 0.75)),
+}
+LONG_PROMPT = 272_000
+
+
+def codex_requests(transcript, total):
+    """The usage of each request of the run in Codex's transcript: the requests until their sum reaches the run's
+    total, since the debrief resumes the session and adds its own requests to the same transcript. None when they do
+    not add up to it."""
+    requests, seen = [], None
+    summed = lambda key: sum(u.get(key, 0) for u in requests)
+    for entry in transcript:
+        payload = entry.get("payload") or {}
+        info = payload.get("info") or {}
+        if payload.get("type") != "token_count" or not info:
+            continue
+        if requests and all(summed(key) == total.get(key) for key in total):
+            break
+        # Codex sends the totals again without a new request, when the rate limits change.
+        if info.get("total_token_usage") == seen:
+            continue
+        seen = info.get("total_token_usage")
+        requests.append(info.get("last_token_usage") or {})
+    if not requests or any(summed(key) != total.get(key) for key in total):
+        return None
+    return requests
+
+
+def api_cost(model, requests):
+    """What the requests would cost at OPENAI_PRICES, each at the prices for its prompt's length."""
+    prices = OPENAI_PRICES.get(model)
+    if prices is None or requests is None:
+        return None
+    cost = 0.0
+    for u in requests:
+        prompt, cached, written = u.get("input_tokens", 0), u.get("cached_input_tokens", 0), u.get("cache_write_input_tokens", 0)
+        p = prices[1 if prompt > LONG_PROMPT else 0]
+        cost += ((prompt - cached - written) * p[0] + cached * p[1] + written * p[2] + u.get("output_tokens", 0) * p[3]) / 1e6
+    return round(cost, 6)
+
+
+def agent_usage(harness, stream, transcript=()):
+    """Tokens and turns from the agent's own event stream, and its final answer. input_tokens counts every prompt
+    token, cache reads and writes included. cost_usd is the harness's own figure, except for Codex, whose transcript
+    gives the requests to price at the API's list prices."""
     usage = {}
     if harness in ("claude", "claude-api"):
         for e in stream:
@@ -138,6 +190,8 @@ def agent_usage(harness, stream):
                     "turns": line.get("num_turns"),
                     "input_tokens": u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
                     + u.get("cache_creation_input_tokens", 0),
+                    "cache_read_tokens": u.get("cache_read_input_tokens", 0),
+                    "cache_write_tokens": u.get("cache_creation_input_tokens", 0),
                     "output_tokens": u.get("output_tokens"),
                     "thinking_tokens": (u.get("output_tokens_details") or {}).get("thinking_tokens"),
                     "api_seconds": (line.get("duration_api_ms") or 0) / 1000,
@@ -155,6 +209,8 @@ def agent_usage(harness, stream):
         usage = {
             "turns": len(replies),
             "input_tokens": sum(u.get("input", 0) + u.get("cacheRead", 0) + u.get("cacheWrite", 0) for u in usages),
+            "cache_read_tokens": sum(u.get("cacheRead", 0) for u in usages),
+            "cache_write_tokens": sum(u.get("cacheWrite", 0) for u in usages),
             "output_tokens": sum(u.get("output", 0) for u in usages),
             "thinking_tokens": sum(u.get("reasoning", 0) for u in usages),
             "cost_usd": round(sum((u.get("cost") or {}).get("total", 0) for u in usages), 6),
@@ -164,19 +220,32 @@ def agent_usage(harness, stream):
         if errors:
             usage["error"] = errors[-1]
     else:
-        final = None
+        final, model = None, None
         for e in stream:
             line = e["line"]
             if line.get("type") == "turn.completed":
                 u = line.get("usage") or {}
                 usage = {
                     "input_tokens": u.get("input_tokens"),
+                    "cache_read_tokens": u.get("cached_input_tokens"),
+                    "cache_write_tokens": u.get("cache_write_input_tokens"),
                     "output_tokens": u.get("output_tokens"),
                     "thinking_tokens": u.get("reasoning_output_tokens"),
                 }
             item = line.get("item") or {}
             if line.get("type") == "item.completed" and item.get("type") == "agent_message":
                 final = item.get("text")
+        for entry in transcript:
+            payload = entry.get("payload") or {}
+            if entry.get("type") == "turn_context" and payload.get("model"):
+                model = payload["model"]
+                break
+        if usage and model:
+            counters = {"input_tokens": "input_tokens", "cached_input_tokens": "cache_read_tokens",
+                        "cache_write_input_tokens": "cache_write_tokens", "output_tokens": "output_tokens"}
+            requests = codex_requests(transcript, {k: usage[ours] or 0 for k, ours in counters.items()})
+            usage["cost_usd"] = api_cost(model, requests)
+            usage["cost_basis"] = f"API list prices for {model}"
         usage["final"] = final
     return usage
 
@@ -244,6 +313,8 @@ def metrics(run_dir):
     vm = json.load(open(os.path.join(run_dir, "vm-result.json"))) if os.path.exists(os.path.join(run_dir, "vm-result.json")) else {}
     tap = load_jsonl(os.path.join(run_dir, "mcp.jsonl"))
     stream = load_jsonl(os.path.join(run_dir, "agent.jsonl"))
+    rollouts = sorted(glob.glob(os.path.join(run_dir, "transcript-rollout-*.jsonl")))
+    transcript = load_jsonl(rollouts[0]) if rollouts else []
     calls = tool_calls(tap)
     start, end = run["agent_start"], run["agent_end"]
     wall = end - start
@@ -296,7 +367,7 @@ def metrics(run_dir):
         "phases": phases,
         "checks": check.get("checks", {}),
         "user": user_disturbance(run_dir, ready, start, end, offset),
-        "usage": agent_usage(run["harness"], stream),
+        "usage": agent_usage(run["harness"], stream, transcript),
         "harness_version": run.get("harness_version"),
         "machine": run.get("machine"),
     }
@@ -346,6 +417,18 @@ def host(run):
     return (run.get("machine") or {}).get("host") or "an unrecorded machine"
 
 
+def thousands(run, key):
+    tokens = (run.get("usage") or {}).get(key)
+    return tokens / 1000 if tokens is not None else None
+
+
+def cached_percent(run):
+    usage = run.get("usage") or {}
+    if not usage.get("input_tokens") or usage.get("cache_read_tokens") is None:
+        return None
+    return 100 * usage["cache_read_tokens"] / usage["input_tokens"]
+
+
 def table(runs, phase_names, group):
     """The table of the runs' medians, a row per group and effort asked for: runs at different efforts never share
     one."""
@@ -353,7 +436,8 @@ def table(runs, phase_names, group):
     for r in runs:
         groups.setdefault((group(r), (r.get("effort") or {}).get("requested")), []).append(r)
     columns = ["Agent", "Effort", "Passed", "Wall s", "In tools s", "Outside tools s", "Turn s", "Calls", "Actions",
-               "Images"] + [f"{name.capitalize()} at s" for name in phase_names] + ["User undisturbed"]
+               "Images", "Input k", "Cached %", "Output k", "Cost $"] \
+        + [f"{name.capitalize()} at s" for name in phase_names] + ["User undisturbed"]
     out = ["| " + " | ".join(columns) + " |", "| " + " | ".join("---" for _ in columns) + " |"]
     for (name, _), rs in groups.items():
         passed = [r for r in rs if r["passed"]]
@@ -363,6 +447,9 @@ def table(runs, phase_names, group):
             f"{fmt([r['tool_seconds'] for r in rs])} | {fmt([r['outside_tool_seconds'] for r in rs])} | "
             f"{fmt([r.get('median_gap_seconds') for r in rs], 1)} | "
             f"{fmt([r['calls'] for r in rs])} | {fmt([r['actions'] for r in rs])} | {fmt([r['images'] for r in rs])} | "
+            f"{fmt([thousands(r, 'input_tokens') for r in rs])} | {fmt([cached_percent(r) for r in rs])} | "
+            f"{fmt([thousands(r, 'output_tokens') for r in rs])} | "
+            f"{fmt([(r.get('usage') or {}).get('cost_usd') for r in rs], 3)} | "
             + "".join(f"{fmt([r.get('phases', {}).get(name) for r in rs])} | " for name in phase_names)
             + f"{sum(1 for r in rs if (r.get('user') or {}).get('undisturbed'))}/{len(rs)} |"
         )
@@ -387,7 +474,10 @@ def report(results_dir):
     out += [
         "",
         "Medians, with the range over the runs in brackets. Turn s is the median time between tool calls: the "
-        "model's and the harness's time per step. The milestones are the task's, in seconds after the agent's start.",
+        "model's and the harness's time per step. Input k counts the prompt tokens of all the run's requests in "
+        "thousands, Cached % the share of them read from the provider's cache, and Output k the output tokens, "
+        "thinking included. Cost $ is the cost the harness reports, and for Codex, what its requests would cost at "
+        "OpenAI's API list prices. The milestones are the task's, in seconds after the agent's start.",
         "",
     ]
     if len({host(r) for r in runs}) > 1:
