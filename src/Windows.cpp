@@ -32,6 +32,24 @@ namespace hyprmasq {
         return nullptr;
     }
 
+    Vector2D geometryOffset(const PHLWINDOW& window) {
+        return !window->m_isX11 && window->m_xdgSurface ? window->m_xdgSurface->m_current.geometry.pos() : Vector2D{};
+    }
+
+    CBox unite(const CBox& a, const CBox& b) {
+        const double x = std::min(a.x, b.x), y = std::min(a.y, b.y);
+        return {x, y, std::max(a.x + a.w, b.x + b.w) - x, std::max(a.y + a.h, b.y + b.h) - y};
+    }
+
+    bool sharesConnection(wl_client* client, const WP<CWLSurfaceResource>& focus) {
+        auto surface = focus.lock();
+        return surface && client && surface->client() == client;
+    }
+
+    bool sharesConnection(const PHLWINDOW& w, const WP<CWLSurfaceResource>& focus) {
+        return w->resource() && sharesConnection(w->resource()->client(), focus);
+    }
+
     void forEachSurface(const PHLWINDOW& window, const std::function<void(SP<CWLSurfaceResource>)>& fn) {
         auto visit = [&](SP<CWLSurfaceResource> s) {
             if (s)

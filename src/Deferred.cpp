@@ -1,5 +1,6 @@
 #include "Deferred.hpp"
 #include "Hooks.hpp"
+#include "PrivateAccess.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/debug/HyprCtl.hpp>
@@ -20,18 +21,6 @@
 
 namespace hyprmasq::deferred {
     namespace {
-        using Commands = std::vector<SP<SHyprCtlCommand>>;
-        Commands& commandsOf(CHyprCtl& ctl);
-        // CHyprCtl::m_commands is private. An explicit instantiation may name a private member, so this reads it
-        // without redefining access specifiers around the include.
-        template <Commands CHyprCtl::* Member>
-        struct SCommandsAccess {
-            friend Commands& commandsOf(CHyprCtl& ctl) {
-                return ctl.*Member;
-            }
-        };
-        template struct SCommandsAccess<&CHyprCtl::m_commands>;
-
         using Refuse = std::move_only_function<std::string(const SError&)>;
 
         struct SJob {

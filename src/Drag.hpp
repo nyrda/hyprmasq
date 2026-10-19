@@ -43,7 +43,7 @@ namespace hyprmasq::drag {
     // True if the client has a data device of version 3 or later: a private drag needs its actions.
     bool hasDevice(wl_client* client);
     // Handles a start_drag without a source, which Hyprland's handler cannot take, during it, with the drag's origin and
-    // icon: Eis.cpp runs it privately or refuses it.
+    // icon: FocusPolicy.cpp runs it privately or refuses it.
     using SourcelessHandler = void (*)(const SP<CWLSurfaceResource>& origin, const SP<CWLSurfaceResource>& icon);
     void onSourceless(SourcelessHandler handler);
     // How many data offers of private drags the client has not destroyed yet.

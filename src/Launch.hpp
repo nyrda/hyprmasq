@@ -19,7 +19,7 @@
 // hyprmasq-reaper next to the plugin, in ../libexec of its directory or on PATH, the command runs on its own, and the
 // windows of such a process are lost. Within a minute of the launch, the plugin tags the window and registers a window
 // rule for that tag, which puts the window silently on the launch's workspace as it maps, and removes both once it has
-// mapped or is destroyed. A window that emulated input opened, see placement.hpp, it puts on the workspace of the window
+// mapped or is destroyed. A window that emulated input opened, see Placement.hpp, it puts on the workspace of the window
 // it came from the same way, also when no launch started its app. Main thread only.
 namespace hyprmasq::launch {
     void init();

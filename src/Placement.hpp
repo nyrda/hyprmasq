@@ -10,7 +10,7 @@
 // input to that window or app came later, before the app created the window; a line break that the user types does
 // not count. The plugin decides before Hyprland reads the window's rules, at a Wayland window's first commit and again
 // when the window maps, once its parent is known, by the input up to the first commit, or up to the map when nothing
-// before the first commit can have opened it, and places it with the tag and rule of launches, see launch.hpp. See "New
+// before the first commit can have opened it, and places it with the tag and rule of launches, see Launch.hpp. See "New
 // windows" in docs/usage.md.
 // Main thread only.
 namespace hyprmasq::placement {

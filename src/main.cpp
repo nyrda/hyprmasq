@@ -39,7 +39,7 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     PHANDLE = handle;
     // Hyprland's loader compares only the API version, and the plugin reads private members of Hyprland's classes, whose
-    // layout another build can change: a plugin built for another build could crash Hyprland.
+    // layout another build can change, see PrivateAccess.hpp: a plugin built for another build could crash Hyprland.
     const char* running = __hyprland_api_get_hash();
     const char* built   = __hyprland_api_get_client_hash();
     if (std::strcmp(running, built) != 0) {

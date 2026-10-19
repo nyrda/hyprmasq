@@ -1,4 +1,6 @@
 #include "Screenshot.hpp"
+#include "PrivateAccess.hpp"
+#include "Windows.hpp"
 
 #include <hyprland/src/desktop/Workspace.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
@@ -33,12 +35,6 @@ using namespace Hyprutils::Math;
 
 namespace hyprmasq {
     namespace {
-        // IHyprRenderer::renderWindow is protected. A pointer to it formed in a derived class is
-        // ordinary C++, and avoids redefining access specifiers around the include.
-        struct SRendererAccess : Render::IHyprRenderer {
-            static constexpr auto RENDER_WINDOW = &SRendererAccess::renderWindow;
-        };
-
         SError stopped(const std::filesystem::path& path) {
             return SError{eErrorCode::UNLOADED, std::format("hyprmasq was unloaded before {} was written", path.string())};
         }
@@ -234,7 +230,7 @@ namespace hyprmasq {
         std::optional<CBox> popupExtents(const PHLWINDOW& window) {
             if (window->m_isX11 || !window->m_popupHead || !window->m_xdgSurface)
                 return std::nullopt;
-            const auto          geometry = window->m_xdgSurface->m_current.geometry.pos();
+            const auto          geometry = geometryOffset(window);
             std::optional<CBox> extents;
             window->m_popupHead->breadthfirst(
                 [&](SP<Desktop::View::CPopup> popup, void*) {
@@ -247,12 +243,7 @@ namespace hyprmasq {
                             if (!s->m_current.texture || s->m_current.size.x < 1 || s->m_current.size.y < 1)
                                 return;
                             const CBox box{origin + offset, s->m_current.size};
-                            if (!extents)
-                                extents = box;
-                            else {
-                                const double x = std::min(extents->x, box.x), y = std::min(extents->y, box.y);
-                                extents = CBox{x, y, std::max(extents->x + extents->w, box.x + box.w) - x, std::max(extents->y + extents->h, box.y + box.h) - y};
-                            }
+                            extents = extents ? unite(*extents, box) : box;
                         },
                         nullptr);
                 },
@@ -403,7 +394,7 @@ namespace hyprmasq {
                 const auto workspace = window->m_workspace;
                 const auto offset    = std::exchange(window->m_floatingOffset, Vector2D{-boxX, -boxY});
                 const bool forced    = workspace && std::exchange(workspace->m_forceRendering, true);
-                (g_pHyprRenderer.get()->*SRendererAccess::RENDER_WINDOW)(window, monitor, Time::steadyNow(), false, Render::RENDER_PASS_ALL, true, true);
+                renderWindow(*g_pHyprRenderer, window, monitor, Time::steadyNow(), false, Render::RENDER_PASS_ALL, true, true);
                 window->m_floatingOffset = offset;
                 if (workspace)
                     workspace->m_forceRendering = forced;

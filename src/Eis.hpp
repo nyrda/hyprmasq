@@ -48,17 +48,19 @@ namespace hyprmasq {
         uint64_t        started = 0, finished = 0, cancelled = 0, unconfirmed = 0;
         Time::steady_tp endedAt    = {}; // when the last one ended
         uint64_t        unfinished = 0;  // private drags that have not ended, also ones before the last
-        // How the last ones ended, the latest last, so that a caller sees each one that ended since it last looked.
+        // How the last ones ended, the latest last, so that a caller sees each one that ended since it last looked:
+        // up to MAX_ENDED of them.
         struct SEnded {
             uint64_t    id = 0;
             std::string phase, reason;
         };
-        std::deque<SEnded> ended;
-        CSignalT<>         changed; // after any of these changed
+        static constexpr size_t MAX_ENDED = 32;
+        std::deque<SEnded>      ended;
+        CSignalT<>              changed; // after any of these changed
         // Records that the drag with the id ended so.
         void end(uint64_t drag, std::string_view how, std::string_view why) {
             ended.push_back({.id = drag, .phase = std::string{how}, .reason = std::string{why}});
-            if (ended.size() > 32)
+            if (ended.size() > MAX_ENDED)
                 ended.pop_front();
         }
         // A private drag has not ended: the last one, or one before it, as when the last was refused as busy.

@@ -1,6 +1,8 @@
 #include "Selection.hpp"
 #include "Eis.hpp"
 #include "Hooks.hpp"
+#include "PrivateAccess.hpp"
+#include "X11.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
@@ -23,74 +25,6 @@
 
 namespace hyprmasq::selection {
     namespace {
-        using SetSelection        = std::function<void(CWlDataDevice*, wl_resource*, uint32_t)>;
-        using SetPrimarySelection = std::function<void(CZwpPrimarySelectionDeviceV1*, wl_resource*, uint32_t)>;
-
-        // Hyprland keeps the wire resources of data devices and primary selection devices, its lists of them, their
-        // request handlers, the functions that send a device a selection, and the X window manager's selections and their
-        // lookup by atom private,
-        // and has no hook that tells whose input a set_selection follows. An explicit instantiation may name private
-        // members, so these reach them without redefining access specifiers around the includes. They bind the plugin to
-        // the pinned Hyprland's layout of these classes, as wireOf in Drag.cpp does.
-        SP<CWlDataDevice>& wireOf(CWLDataDeviceResource& device);
-        std::vector<SP<CWLDataDeviceResource>>& devicesOf(CWLDataDeviceProtocol& protocol);
-        SetSelection& setSelectionOf(CWlDataDevice& wire);
-        void sendTo(CWLDataDeviceProtocol& protocol, SP<IDataDevice> device, SP<IDataSource> source);
-        SP<CZwpPrimarySelectionDeviceV1>& wireOf(CPrimarySelectionDevice& device);
-        std::vector<SP<CPrimarySelectionDevice>>& devicesOf(CPrimarySelectionProtocol& protocol);
-        SetPrimarySelection& setSelectionOf(CZwpPrimarySelectionDeviceV1& wire);
-        void sendTo(CPrimarySelectionProtocol& protocol, SP<CPrimarySelectionDevice> device, SP<IDataSource> source);
-        SXSelection& clipboardOf(CXWM& wm);
-        SXSelection& primaryOf(CXWM& wm);
-        SXSelection* selectionOf(CXWM& wm, xcb_atom_t atom);
-        template <SP<CWlDataDevice> CWLDataDeviceResource::* Wire, std::vector<SP<CWLDataDeviceResource>> CWLDataDeviceProtocol::* Devices, auto Requests, auto Send>
-        struct SDataAccess {
-            friend SP<CWlDataDevice>& wireOf(CWLDataDeviceResource& device) {
-                return device.*Wire;
-            }
-            friend std::vector<SP<CWLDataDeviceResource>>& devicesOf(CWLDataDeviceProtocol& protocol) {
-                return protocol.*Devices;
-            }
-            friend SetSelection& setSelectionOf(CWlDataDevice& wire) {
-                return (wire.*Requests).setSelection;
-            }
-            friend void sendTo(CWLDataDeviceProtocol& protocol, SP<IDataDevice> device, SP<IDataSource> source) {
-                (protocol.*Send)(std::move(device), std::move(source));
-            }
-        };
-        template struct SDataAccess<&CWLDataDeviceResource::m_resource, &CWLDataDeviceProtocol::m_devices, &CWlDataDevice::requests, &CWLDataDeviceProtocol::sendSelectionToDevice>;
-        template <SP<CZwpPrimarySelectionDeviceV1> CPrimarySelectionDevice::* Wire, std::vector<SP<CPrimarySelectionDevice>> CPrimarySelectionProtocol::* Devices, auto Requests,
-                  auto Send>
-        struct SPrimaryAccess {
-            friend SP<CZwpPrimarySelectionDeviceV1>& wireOf(CPrimarySelectionDevice& device) {
-                return device.*Wire;
-            }
-            friend std::vector<SP<CPrimarySelectionDevice>>& devicesOf(CPrimarySelectionProtocol& protocol) {
-                return protocol.*Devices;
-            }
-            friend SetPrimarySelection& setSelectionOf(CZwpPrimarySelectionDeviceV1& wire) {
-                return (wire.*Requests).setSelection;
-            }
-            friend void sendTo(CPrimarySelectionProtocol& protocol, SP<CPrimarySelectionDevice> device, SP<IDataSource> source) {
-                (protocol.*Send)(std::move(device), std::move(source));
-            }
-        };
-        template struct SPrimaryAccess<&CPrimarySelectionDevice::m_resource, &CPrimarySelectionProtocol::m_devices, &CZwpPrimarySelectionDeviceV1::requests,
-                                       &CPrimarySelectionProtocol::sendSelectionToDevice>;
-        template <SXSelection CXWM::* Clipboard, SXSelection CXWM::* Primary, auto Get>
-        struct SXwmAccess {
-            friend SXSelection& clipboardOf(CXWM& wm) {
-                return wm.*Clipboard;
-            }
-            friend SXSelection& primaryOf(CXWM& wm) {
-                return wm.*Primary;
-            }
-            friend SXSelection* selectionOf(CXWM& wm, xcb_atom_t atom) {
-                return (wm.*Get)(atom);
-            }
-        };
-        template struct SXwmAccess<&CXWM::m_clipboard, &CXWM::m_primarySelection, &CXWM::getSelection>;
-
         enum eKind : uint8_t {
             CLIPBOARD,
             PRIMARY,
@@ -126,33 +60,18 @@ namespace hyprmasq::selection {
         // the real focus or of a selection, and of the agent's.
         uint64_t generation = 1;
 
-        struct SWrappedData {
-            WP<CWLDataDeviceResource> device;
-            SetSelection              original; // Hyprland's handler
-        };
-        struct SWrappedPrimary {
-            WP<CPrimarySelectionDevice> device;
-            SetPrimarySelection         original;
-        };
-        std::vector<SWrappedData>          wrappedData;
-        std::vector<SWrappedPrimary>       wrappedPrimary;
+        // Hyprland has no hook that tells whose input a set_selection follows, so the plugin wraps the set_selection
+        // handlers of data devices and primary selection devices.
+        CHandlerWraps<CWLDataDeviceResource, CWlDataDevice, SetSelection>                         wrappedData{wireOf, setSelectionOf};
+        CHandlerWraps<CPrimarySelectionDevice, CZwpPrimarySelectionDeviceV1, SetPrimarySelection> wrappedPrimary{wireOf, setSelectionOf};
 
-        std::array<CHyprSignalListener, 4> seatListeners;
-        wl_event_source*                   refresher = nullptr;
+        std::array<CHyprSignalListener, 4>                                                        seatListeners;
+        wl_event_source*                                                                          refresher = nullptr;
 
-        void*                              originalSetClipboard   = nullptr;
-        void*                              originalSelectionOwner = nullptr;
+        void*                                                                                     originalSetClipboard   = nullptr;
+        void*                                                                                     originalSelectionOwner = nullptr;
         // The X window that owns an X selection that stayed the agent's, per kind, or 0.
         std::array<uint32_t, 2> keptOwners{};
-
-        wl_client* xwaylandClient() {
-            return g_pXWayland && g_pXWayland->m_server ? g_pXWayland->m_server->m_xwaylandClient : nullptr;
-        }
-
-        bool focusedOn(const WP<CWLSurfaceResource>& focus, wl_client* client) {
-            const auto surface = focus.lock();
-            return surface && surface->client() == client;
-        }
 
         SClient* find(wl_client* client) {
             const auto it = clients.find(client);
@@ -166,14 +85,15 @@ namespace hyprmasq::selection {
             return c && c->agentInput && drivesClient(client) && (!c->userInput || c->agentAt > c->userAt);
         }
 
-        // Which selection of the kind the client should have now, or with keyboard or pointer, once emulated input has those. The clipboard follows the keyboard and the primary
-        // selection the pointer, as Hyprland gives them, and the primary selection pastes with keys too: the user's where
-        // the user's focus is and emulated input's is not, otherwise the agent's. A client with emulated input's keyboard
-        // and the user's pointer, as a lease keeps it, gets no primary selection, which either might paste.
+        // Which selection of the kind the client should have now, or with keyboard or pointer, once emulated input has
+        // those. The clipboard follows the keyboard and the primary selection the pointer, as Hyprland gives them, and the
+        // primary selection pastes with keys too: the user's where the user's focus is and emulated input's is not,
+        // otherwise the agent's. A client with emulated input's keyboard and the user's pointer, as a lease keeps it, gets
+        // no primary selection, which either might paste.
         eView wanted(wl_client* client, eKind kind, bool keyboard, bool pointer) {
             keyboard |= emulatedKeyboardOn(client);
             pointer |= emulatedPointerOn(client);
-            const bool realKeyboard = focusedOn(g_pSeatManager->m_state.keyboardFocus, client), realPointer = focusedOn(g_pSeatManager->m_state.pointerFocus, client);
+            const bool realKeyboard = sharesConnection(client, g_pSeatManager->m_state.keyboardFocus), realPointer = sharesConnection(client, g_pSeatManager->m_state.pointerFocus);
             if (kind == CLIPBOARD)
                 return keyboard || !realKeyboard ? eView::AGENT : eView::USER;
             if (pointer)
@@ -190,7 +110,7 @@ namespace hyprmasq::selection {
         // Sends the client's devices of the kind this selection, or none, through Hyprland's own offers, which pass a
         // paste's file descriptor to the source. Hyprland's XWayland gets X selections from the window manager instead.
         void send(wl_client* client, eKind kind, const SP<IDataSource>& source) {
-            if (client == xwaylandClient())
+            if (client == x11::xwaylandClient())
                 return;
             if (kind == CLIPBOARD && PROTO::data) {
                 for (const auto& device : std::vector{devicesOf(*PROTO::data)}) {
@@ -286,16 +206,8 @@ namespace hyprmasq::selection {
 
         void watch(wl_client* client) {
             if (PROTO::data) {
-                std::erase_if(wrappedData, [](const auto& w) { return !w.device; });
-                for (const auto& device : devicesOf(*PROTO::data)) {
-                    if (!device || device->client() != client || std::ranges::any_of(wrappedData, [&](const auto& w) { return w.device == device; }))
-                        continue;
-                    auto& wire = wireOf(*device);
-                    if (!wire || !wire->resource())
-                        continue;
-                    auto& handler = setSelectionOf(*wire);
-                    wrappedData.push_back({.device = device, .original = handler});
-                    handler = [original = handler](CWlDataDevice* r, wl_resource* sourceR, uint32_t serial) {
+                wrappedData.wrap(devicesOf(*PROTO::data), client, [](const SetSelection& original, const SP<CWLDataDeviceResource>&) -> SetSelection {
+                    return [original](CWlDataDevice* r, wl_resource* sourceR, uint32_t serial) {
                         const auto source = sourceR ? CWLDataSourceResource::fromResource(sourceR) : nullptr;
                         if (!agentSelects(r->client())) {
                             forget(source);
@@ -304,30 +216,23 @@ namespace hyprmasq::selection {
                         }
                         setAgent(CLIPBOARD, source);
                     };
-                }
+                });
             }
             if (PROTO::primarySelection) {
-                std::erase_if(wrappedPrimary, [](const auto& w) { return !w.device; });
-                for (const auto& device : devicesOf(*PROTO::primarySelection)) {
-                    if (!device || device->client() != client || std::ranges::any_of(wrappedPrimary, [&](const auto& w) { return w.device == device; }))
-                        continue;
-                    auto& wire = wireOf(*device);
-                    if (!wire || !wire->resource())
-                        continue;
-                    auto& handler = setSelectionOf(*wire);
-                    wrappedPrimary.push_back({.device = device, .original = handler});
-                    handler = [original = handler](CZwpPrimarySelectionDeviceV1* r, wl_resource* sourceR, uint32_t serial) {
-                        const auto source = sourceR ? CPrimarySelectionSource::fromResource(sourceR) : nullptr;
-                        if (!agentSelects(r->client())) {
-                            forget(source);
-                            original(r, sourceR, serial);
-                            return;
-                        }
-                        // As Hyprland, which takes none while middle-click paste is off.
-                        CConfigValue<Config::INTEGER> middleClickPaste("misc:middle_click_paste");
-                        setAgent(PRIMARY, *middleClickPaste ? source : nullptr);
-                    };
-                }
+                wrappedPrimary.wrap(devicesOf(*PROTO::primarySelection), client,
+                                    [](const SetPrimarySelection& original, const SP<CPrimarySelectionDevice>&) -> SetPrimarySelection {
+                                        return [original](CZwpPrimarySelectionDeviceV1* r, wl_resource* sourceR, uint32_t serial) {
+                                            const auto source = sourceR ? CPrimarySelectionSource::fromResource(sourceR) : nullptr;
+                                            if (!agentSelects(r->client())) {
+                                                forget(source);
+                                                original(r, sourceR, serial);
+                                                return;
+                                            }
+                                            // As Hyprland, which takes none while middle-click paste is off.
+                                            CConfigValue<Config::INTEGER> middleClickPaste("misc:middle_click_paste");
+                                            setAgent(PRIMARY, *middleClickPaste ? source : nullptr);
+                                        };
+                                    });
             }
         }
 
@@ -370,7 +275,7 @@ namespace hyprmasq::selection {
                 keptOwners[*kind] = 0;
                 return reinterpret_cast<Fn>(originalSelectionOwner)(self, e);
             }
-            auto*      server = xwaylandClient();
+            auto*      server = x11::xwaylandClient();
             const bool agent  = e->owner != sel.window && server && agentSelects(server);
             keptOwners[*kind] = agent ? e->owner : 0;
             const bool result = reinterpret_cast<Fn>(originalSelectionOwner)(self, e);
@@ -454,15 +359,7 @@ namespace hyprmasq::selection {
             }
         }
         keptOwners = {};
-        for (auto& w : wrappedData) {
-            if (auto device = w.device.lock(); device && wireOf(*device))
-                setSelectionOf(*wireOf(*device)) = std::move(w.original);
-        }
-        wrappedData.clear();
-        for (auto& w : wrappedPrimary) {
-            if (auto device = w.device.lock(); device && wireOf(*device))
-                setSelectionOf(*wireOf(*device)) = std::move(w.original);
-        }
-        wrappedPrimary.clear();
+        wrappedData.restore();
+        wrappedPrimary.restore();
     }
 }

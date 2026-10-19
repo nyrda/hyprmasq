@@ -1,6 +1,7 @@
 #include "Placement.hpp"
 #include "Hooks.hpp"
 #include "Launch.hpp"
+#include "PrivateAccess.hpp"
 #include "Process.hpp"
 #include "X11.hpp"
 
@@ -396,17 +397,6 @@ namespace hyprmasq::placement {
             }
             opened.push_back({.window = w, .source = source});
         }
-
-        // The window of a rule applicator is private. An explicit instantiation may name private members, so this
-        // reaches it without redefining access specifiers around the include.
-        PHLWINDOWREF& windowOf(Desktop::Rule::CWindowRuleApplicator& applicator);
-        template <PHLWINDOWREF Desktop::Rule::CWindowRuleApplicator::* Window>
-        struct SApplicatorAccess {
-            friend PHLWINDOWREF& windowOf(Desktop::Rule::CWindowRuleApplicator& applicator) {
-                return applicator.*Window;
-            }
-        };
-        template struct SApplicatorAccess<&Desktop::Rule::CWindowRuleApplicator::m_window>;
 
         bool readStaticRules(Desktop::Rule::CWindowRuleApplicator* self, bool preRead) {
             if (const auto w = windowOf(*self).lock())

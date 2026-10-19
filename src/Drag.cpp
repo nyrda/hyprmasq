@@ -1,4 +1,6 @@
 #include "Drag.hpp"
+#include "Hooks.hpp"
+#include "PrivateAccess.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/debug/log/Logger.hpp>
@@ -19,48 +21,27 @@
 namespace hyprmasq::drag {
     namespace {
         using std::chrono::milliseconds;
-        using StartDrag = std::function<void(CWlDataDevice*, wl_resource*, wl_resource*, wl_resource*, uint32_t)>;
-
-        // Hyprland keeps a data device's wire resource, its list of data devices and a wire resource's request handlers
-        // private, and has no hook that sees a start_drag's serial or that lets a drag run without the seat. An explicit
-        // instantiation may name private members, so these reach them without redefining access specifiers around the
-        // includes. They bind the plugin to the pinned Hyprland's layout of these classes, as surfaceOf in Eis.cpp does.
-        SP<CWlDataDevice>& wireOf(CWLDataDeviceResource& device);
-        std::vector<SP<CWLDataDeviceResource>>& devicesOf(CWLDataDeviceProtocol& protocol);
-        StartDrag& startDragOf(CWlDataDevice& wire);
-        template <SP<CWlDataDevice> CWLDataDeviceResource::* Wire, std::vector<SP<CWLDataDeviceResource>> CWLDataDeviceProtocol::* Devices, auto Requests>
-        struct SDataAccess {
-            friend SP<CWlDataDevice>& wireOf(CWLDataDeviceResource& device) {
-                return device.*Wire;
-            }
-            friend std::vector<SP<CWLDataDeviceResource>>& devicesOf(CWLDataDeviceProtocol& protocol) {
-                return protocol.*Devices;
-            }
-            friend StartDrag& startDragOf(CWlDataDevice& wire) {
-                return (wire.*Requests).startDrag;
-            }
-        };
-        template struct SDataAccess<&CWLDataDeviceResource::m_resource, &CWLDataDeviceProtocol::m_devices, &CWlDataDevice::requests>;
 
         // How long a drag waits for emulated input before the drop, and for the destination's finish after it. A drag
         // whose sender stalls while it holds the button, and a destination that never finishes, end then.
-        constexpr auto kIdleLimit   = std::chrono::seconds(10);
-        constexpr auto kFinishLimit = std::chrono::seconds(10);
+        constexpr auto IDLE_LIMIT   = std::chrono::seconds(10);
+        constexpr auto FINISH_LIMIT = std::chrono::seconds(10);
         // Limits on what a client can make the plugin keep: the offers of one drag, one for each surface it enters, and
         // the offers of all its drags that it has not destroyed.
-        constexpr size_t   kMaxOffers       = 32;
-        constexpr size_t   kMaxClientOffers = 64;
-        constexpr uint32_t kActions         = WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY | WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE | WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK;
+        constexpr size_t MAX_OFFERS        = 32;
+        constexpr size_t MAX_CLIENT_OFFERS = 64;
+        // The actions that a destination's set_actions may name, see setActions.
+        constexpr uint32_t DND_ACTIONS = WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY | WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE | WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK;
+        // How often a drag's timer runs before the drop, for the icon's frame callbacks: once a frame at 60 Hz.
+        constexpr int TICK_MS = 16;
 
-        struct SWrapped {
-            WP<CWLDataDeviceResource> device;
-            StartDrag                 original; // Hyprland's handler
-        };
-        std::vector<SWrapped>                      wrapped;
-        const SRequest*                            current    = nullptr;
-        SourcelessHandler                          sourceless = nullptr;
+        // Hyprland has no hook that sees a start_drag's serial or that lets a drag run without the seat, so the plugin
+        // wraps the start_drag handlers of data devices.
+        CHandlerWraps<CWLDataDeviceResource, CWlDataDevice, StartDrag> wrapped{wireOf, startDragOf};
+        const SRequest*                                                current    = nullptr;
+        SourcelessHandler                                              sourceless = nullptr;
 
-        std::vector<std::shared_ptr<CPrivateDrag>> drags;
+        std::vector<std::shared_ptr<CPrivateDrag>>                     drags;
         // Offers that the client destroyed, which go once the request that destroyed them has returned: an offer's
         // handler must not destroy the offer, and with it the handler, while it runs.
         std::vector<SP<CWlDataOffer>> buried;
@@ -99,17 +80,8 @@ namespace hyprmasq::drag {
     void watchDevices(wl_client* client) {
         if (!PROTO::data)
             return;
-        std::erase_if(wrapped, [](const auto& w) { return !w.device; });
-        for (const auto& device : devicesOf(*PROTO::data)) {
-            if (!device || device->client() != client || std::ranges::any_of(wrapped, [&](const auto& w) { return w.device == device; }))
-                continue;
-            auto& wire = wireOf(*device);
-            if (!wire || !wire->resource())
-                continue;
-            auto& handler = startDragOf(*wire);
-            wrapped.push_back({.device = device, .original = handler});
-            handler = [original = handler, device = WP<CWLDataDeviceResource>(device)](CWlDataDevice* r, wl_resource* source, wl_resource* origin, wl_resource* icon,
-                                                                                       uint32_t serial) {
+        wrapped.wrap(devicesOf(*PROTO::data), client, [](const StartDrag& original, const SP<CWLDataDeviceResource>& device) -> StartDrag {
+            return [original, device = WP<CWLDataDeviceResource>(device)](CWlDataDevice* r, wl_resource* source, wl_resource* origin, wl_resource* icon, uint32_t serial) {
                 // Hyprland's handler would look up a null source, which the protocol allows for a drag within the client, so
                 // that one never reaches it.
                 if (!source) {
@@ -127,7 +99,7 @@ namespace hyprmasq::drag {
                 original(r, source, origin, icon, serial);
                 current = previous;
             };
-        }
+        });
     }
 
     bool hasDevice(wl_client* client) {
@@ -149,7 +121,7 @@ namespace hyprmasq::drag {
     }
 
     bool full(wl_client* client) {
-        return offersOf(client) >= kMaxClientOffers;
+        return offersOf(client) >= MAX_CLIENT_OFFERS;
     }
 
     std::shared_ptr<CPrivateDrag> start(const SRequest& request, const SP<CWLDataSourceResource>& source, const SP<CWLSurfaceResource>& icon, std::shared_ptr<SDragRecord> record) {
@@ -194,11 +166,7 @@ namespace hyprmasq::drag {
             wl_event_source_remove(reaper);
         reaper = nullptr;
         buried.clear();
-        for (auto& w : wrapped) {
-            if (auto device = w.device.lock(); device && wireOf(*device))
-                startDragOf(*wireOf(*device)) = std::move(w.original);
-        }
-        wrapped.clear();
+        wrapped.restore();
         sourceless = nullptr;
     }
 
@@ -246,7 +214,7 @@ namespace hyprmasq::drag {
         }
         m_timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, [](void* data) { return static_cast<CPrivateDrag*>(data)->tick(); }, this);
         if (m_timer)
-            wl_event_source_timer_update(m_timer, 16);
+            wl_event_source_timer_update(m_timer, TICK_MS);
     }
 
     // Cancels a drag that lost its source or its data device.
@@ -293,7 +261,7 @@ namespace hyprmasq::drag {
             });
             return true;
         }
-        if (m_offers.size() >= kMaxOffers) {
+        if (m_offers.size() >= MAX_OFFERS) {
             cancel("limit");
             return false;
         }
@@ -402,7 +370,7 @@ namespace hyprmasq::drag {
             m_record->changed.emit();
         }
         if (m_timer)
-            wl_event_source_timer_update(m_timer, sc<int>(std::chrono::duration_cast<milliseconds>(kFinishLimit).count()));
+            wl_event_source_timer_update(m_timer, sc<int>(std::chrono::duration_cast<milliseconds>(FINISH_LIMIT).count()));
     }
 
     void CPrivateDrag::cancel(std::string_view reason) {
@@ -453,18 +421,18 @@ namespace hyprmasq::drag {
         if (m_phase == ePhase::ACTIVE) {
             if (!alive())
                 return 0;
-            if (now - m_lastInput >= kIdleLimit) {
+            if (now - m_lastInput >= IDLE_LIMIT) {
                 cancel("timeout");
                 return 0;
             }
             if (const auto icon = m_icon.lock())
                 icon->frame(now);
-            wl_event_source_timer_update(m_timer, 16);
+            wl_event_source_timer_update(m_timer, TICK_MS);
         } else if (m_phase == ePhase::DROPPED) {
-            if (now - m_droppedAt >= kFinishLimit)
+            if (now - m_droppedAt >= FINISH_LIMIT)
                 cancel("timeout");
             else
-                wl_event_source_timer_update(m_timer, std::max(1, sc<int>(std::chrono::ceil<milliseconds>(m_droppedAt + kFinishLimit - now).count())));
+                wl_event_source_timer_update(m_timer, std::max(1, sc<int>(std::chrono::ceil<milliseconds>(m_droppedAt + FINISH_LIMIT - now).count())));
         }
         return 0;
     }
@@ -486,7 +454,7 @@ namespace hyprmasq::drag {
         const auto source = m_source.lock();
         uint32_t   chosen = WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE;
         // An invalid mask or preferred action chooses none, so the drop is refused.
-        if ((actions & ~kActions) == 0 && (preferred & ~actions) == 0 && std::popcount(preferred) <= 1) {
+        if ((actions & ~DND_ACTIONS) == 0 && (preferred & ~actions) == 0 && std::popcount(preferred) <= 1) {
             const uint32_t common = actions & source->actions() & (WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY | WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE);
             if (preferred & common)
                 chosen = preferred;

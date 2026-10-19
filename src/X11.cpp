@@ -58,18 +58,22 @@ namespace hyprmasq::x11 {
         void*                 originalActivateSurface = nullptr;
         void*                 originalHandleFocusIn   = nullptr;
 
-        wl_client* xwaylandClient() {
-            return g_pXWayland && g_pXWayland->m_server ? g_pXWayland->m_server->m_xwaylandClient : nullptr;
-        }
-
         // What the main thread waits for the X server, or for XWayland to read, within a CWaitBudget: WAIT_BUDGET in
         // all, so that an X server that does not answer holds the compositor up that long at most, however many round
         // trips an input frame makes. Once WAIT_BUDGET has run out, SHORT_BUDGET for SHORT_FOR, or until a round trip
         // answers in time, so that a stuck X server costs little more, and a slow one gets WAIT_BUDGET again.
-        constexpr auto                 WAIT_BUDGET  = std::chrono::milliseconds(100);
-        constexpr auto                 SHORT_BUDGET = std::chrono::milliseconds(10);
-        constexpr auto                 SHORT_FOR    = std::chrono::seconds(1);
-        int                            budgetDepth  = 0;
+        constexpr auto WAIT_BUDGET  = std::chrono::milliseconds(100);
+        constexpr auto SHORT_BUDGET = std::chrono::milliseconds(10);
+        constexpr auto SHORT_FOR    = std::chrono::seconds(1);
+        // How often a wait within the budget looks again whether XWayland has read everything, see drain(), and whether
+        // the X server shows a restack, see restack().
+        constexpr auto DRAIN_POLL   = std::chrono::microseconds(100);
+        constexpr auto RESTACK_POLL = std::chrono::microseconds(200);
+        // How long after release() the window manager ignores focus-in events, which the restored X focus causes, see
+        // handleFocusIn().
+        constexpr auto                 FOCUS_IN_GRACE = std::chrono::milliseconds(500);
+
+        int                            budgetDepth = 0;
         Time::steady_tp                budgetEnd;
         bool                           shortBudget = false; // the budget that budgetEnd ends
         std::optional<Time::steady_tp> shortUntil;
@@ -254,7 +258,7 @@ namespace hyprmasq::x11 {
                     late();
                     return false;
                 }
-                std::this_thread::sleep_for(std::chrono::microseconds(100));
+                std::this_thread::sleep_for(DRAIN_POLL);
             }
             return true;
         }
@@ -295,7 +299,7 @@ namespace hyprmasq::x11 {
                     return true;
                 if (!order || Time::steadyNow() >= budgetEnd)
                     return false;
-                std::this_thread::sleep_for(std::chrono::microseconds(200));
+                std::this_thread::sleep_for(RESTACK_POLL);
             }
         }
 
@@ -359,6 +363,10 @@ namespace hyprmasq::x11 {
         shortUntil.reset();
     }
 
+    wl_client* xwaylandClient() {
+        return g_pXWayland && g_pXWayland->m_server ? g_pXWayland->m_server->m_xwaylandClient : nullptr;
+    }
+
     wl_client* server(const PHLWINDOW& window) {
         auto resource = window ? window->resource() : nullptr;
         if (!resource)
@@ -370,7 +378,7 @@ namespace hyprmasq::x11 {
     bool serves(wl_client* client) {
         if (!client)
             return false;
-        if (g_pXWayland && g_pXWayland->m_server && client == g_pXWayland->m_server->m_xwaylandClient)
+        if (client == xwaylandClient())
             return true;
         pid_t pid = 0;
         wl_client_get_credentials(client, &pid, nullptr, nullptr);
@@ -421,7 +429,7 @@ namespace hyprmasq::x11 {
         const auto  focus = *held;
         CWaitBudget budget;
         held.reset();
-        ignoreFocusInUntil = Time::steadyNow() + std::chrono::milliseconds(500);
+        ignoreFocusInUntil = Time::steadyNow() + FOCUS_IN_GRACE;
         auto* c            = x();
         if (!c)
             return;

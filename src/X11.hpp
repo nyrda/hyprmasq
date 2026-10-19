@@ -24,6 +24,8 @@ namespace hyprmasq::x11 {
         CWaitBudget& operator=(const CWaitBudget&) = delete;
     };
 
+    // Hyprland's XWayland as a Wayland client, or null while there is none.
+    wl_client* xwaylandClient();
     // The Wayland client acting as the window's X server: Hyprland's XWayland, an xwayland-satellite, or null.
     wl_client* server(const PHLWINDOW& window);
     // Whether a Wayland client is an X server: Hyprland's XWayland or an xwayland-satellite.

@@ -459,13 +459,16 @@ nix-build bench/tasks/calc/check-test.nix
 | `src/Screenshot.cpp` | Offscreen window rendering as the window is once its animations have ended, with popups outside the window, region readback, shrinking to a maximum size on the GPU, a detail image from the same render, and PNG or raw output. |
 | `src/Wait.cpp` | The commit counter, which watches a window's surfaces as they come and go, and both forms of `wait`, with `cancel`. |
 | `src/Deferred.cpp` | Background work for hyprctl replies, including the wrapper around hyprctl's batch command. |
-| `src/Eis.cpp` | Per-window EIS sessions, input delivery, pointer regions and device replacement, the focus lease and its focus hooks, capabilities, frame callbacks, the X11 focus rule, and the popup-grab, drag and activation hooks, with the admission of private drags and the cancels that the user's input brings. |
+| `src/Eis.cpp` | Opening and closing a window's EIS socket and the private directories it lies in, and the API of `src/Eis.hpp`: socket state, the focus lease, capabilities, and whether a window waits for frame callbacks. |
+| `src/Session.cpp` | A window's EIS session: its sender and devices, input delivery, pointer regions and device replacement, the focus lease, frame callbacks, the X11 focus rule, and the admission of private drags. |
+| `src/FocusPolicy.cpp` | The popup-grab, drag and activation hooks that keep driven windows from taking the user's focus, the hooks that keep a lease's focus, and the cancels that the user's input brings. |
+| `src/PrivateAccess.cpp` | Every private or protected member of Hyprland that the plugin reaches, with the Hyprland source it mirrors: what to check when the pinned Hyprland changes. |
 | `src/Selection.cpp` | The agent's clipboard and primary selection: the wrapped `set_selection` handlers of driven apps' data devices and primary selection devices, whose input a selection follows, the offers of the agent's selections and of the user's through Hyprland's, the hooks that keep the agent's X selections from Wayland, and the cleanup on unload. |
 | `src/Drag.cpp` | Private drags: the wrapped `start_drag` handlers that tell a request's serial, the drag's offers, its negotiation, drop and file descriptor passing, the icon's frame callbacks, its timers and its cleanup, also on unload. |
 | `src/Cursor.cpp` | Virtual cursors and click ripples: recolors the cursor theme's arrow, draws and damages them, and their options. |
 | `src/Placement.cpp` | Windows that emulated input opens: the windows the agent works in, the user's real input, the hook on `CWindowRuleApplicator::readStaticRules` that finds where a new window came from, by its parent or its app, and places it through `src/Launch.cpp`, its option, and `source`. |
 | `src/X11.cpp` | X input focus and stacking around input to XWayland windows, the window manager hooks, xwayland-satellite detection. |
-| `src/Hooks.cpp` | Installing and removing Hyprland function hooks. |
+| `src/Hooks.cpp` | Installing and removing Hyprland function hooks, and in `src/Hooks.hpp`, wrapping the request handlers of protocol devices and putting them back. |
 | `src/Launch.cpp` | Launches and their windows: starting the command, the launched process among the parents of a new window's process, and the tagged window rules that place the windows of a launch and those that input opened. |
 | `src/Process.cpp` | Reads of `/proc/<pid>/stat`: a process's parent and start time, which never wait for the process. |
 | `src/Windows.cpp` | Window address formatting and lookup, the walk over a window's surfaces, and whether a window has caught up with a resize. |

@@ -27,41 +27,32 @@ namespace hyprmasq::wait {
             return sc<int>(std::chrono::duration_cast<milliseconds>(now - since).count());
         }
 
-        // A commit is part of an animation when, at least kAfterInput after the last input, it damages a box of at most
-        // kMaxShare of the window that at least kRepeats commits since the last input, this one included, have damaged
-        // within kHistory, the first of them kSpan or more ago. Typing, which damages the same field again and again,
-        // ends before kSpan has passed since its first key, the commits that answer input come within kAfterInput, and a
-        // box that animated before the input has to keep animating for kSpan after it.
-        constexpr auto   kHistory    = std::chrono::seconds(3);
-        constexpr auto   kSpan       = milliseconds(1000);
-        constexpr auto   kAfterInput = milliseconds(500);
-        constexpr int    kRepeats    = 3;
-        constexpr double kMaxShare   = 0.15;
+        // A commit is part of an animation when, at least AFTER_INPUT after the last input, it damages a box of at most
+        // MAX_SHARE of the window that at least REPEATS commits since the last input, this one included, have damaged
+        // within HISTORY, the first of them SPAN or more ago. Typing, which damages the same field again and again,
+        // ends before SPAN has passed since its first key, the commits that answer input come within AFTER_INPUT, and a
+        // box that animated before the input has to keep animating for SPAN after it.
+        constexpr auto   HISTORY     = std::chrono::seconds(3);
+        constexpr auto   SPAN        = milliseconds(1000);
+        constexpr auto   AFTER_INPUT = milliseconds(500);
+        constexpr int    REPEATS     = 3;
+        constexpr double MAX_SHARE   = 0.15;
         // Two boxes are of the same thing when they overlap or touch, and the box around both is at most this much
         // larger than the larger of them.
-        constexpr double kSameBox   = 1.5;
-        constexpr size_t kMaxDamage = 1024;
+        constexpr double SAME_BOX = 1.5;
+        // The most damaged boxes kept, however often a window commits within HISTORY.
+        constexpr size_t MAX_DAMAGE = 1024;
 
         double area(const CBox& box) {
             return std::max(0.0, box.w) * std::max(0.0, box.h);
         }
 
-        CBox unite(const CBox& a, const CBox& b) {
-            const double x = std::min(a.x, b.x), y = std::min(a.y, b.y);
-            return {x, y, std::max(a.x + a.w, b.x + b.w) - x, std::max(a.y + a.h, b.y + b.h) - y};
-        }
-
         bool same(const CBox& a, const CBox& b) {
-            return a.copy().expand(1).overlaps(b) && area(unite(a, b)) <= kSameBox * std::max(area(a), area(b));
-        }
-
-        // The geometry offset of an xdg window, which the window-local coordinates of screenshots leave out.
-        Vector2D geometryOffset(const PHLWINDOW& window) {
-            return !window->m_isX11 && window->m_xdgSurface ? window->m_xdgSurface->m_current.geometry.pos() : Vector2D{};
+            return a.copy().expand(1).overlaps(b) && area(unite(a, b)) <= SAME_BOX * std::max(area(a), area(b));
         }
 
         // Surface pixels per logical pixel: an X11 window's surface is scaled up when Hyprland forces zero scaling for
-        // Xwayland, as input to it is (see Eis.cpp).
+        // Xwayland, as input to it is (see surfaceAt in Session.cpp).
         double surfaceScale(const PHLWINDOW& window) {
             return window->m_isX11 && window->m_X11SurfaceScaledBy > 0 ? window->m_X11SurfaceScaledBy : 1.0;
         }
@@ -95,8 +86,8 @@ namespace hyprmasq::wait {
         }
 
         // Adds an animation's box to the list, joined with a box of the same thing, so that the boxes cover no part of the
-        // window that no animation drew, as long as there are at most kMaxAnimations.
-        constexpr size_t kMaxAnimations = 16;
+        // window that no animation drew, as long as there are at most MAX_ANIMATIONS.
+        constexpr size_t MAX_ANIMATIONS = 16;
 
         void merge(std::vector<CBox>& boxes, CBox box) {
             for (bool joined = true; joined;) {
@@ -110,7 +101,7 @@ namespace hyprmasq::wait {
                     }
                 }
             }
-            if (boxes.size() < kMaxAnimations) {
+            if (boxes.size() < MAX_ANIMATIONS) {
                 boxes.push_back(box);
                 return;
             }
@@ -308,26 +299,26 @@ namespace hyprmasq::wait {
         }
         if (box)
             m_damage.push_back({.at = now, .box = *box});
-        while (!m_damage.empty() && (now - m_damage.front().at > kHistory || m_damage.size() > kMaxDamage))
+        while (!m_damage.empty() && (now - m_damage.front().at > HISTORY || m_damage.size() > MAX_DAMAGE))
             m_damage.pop_front();
         committed.emit();
     }
 
     bool CContentWatch::animated(const CBox& box, Time::steady_tp now) const {
         const auto window = m_window.lock();
-        if (!window || now - lastInput < kAfterInput || area(box) <= 0 || area(box) > kMaxShare * area(contentBox(window)))
+        if (!window || now - lastInput < AFTER_INPUT || area(box) <= 0 || area(box) > MAX_SHARE * area(contentBox(window)))
             return false;
         int                            repeats = 1;
         std::optional<Time::steady_tp> first;
         for (const auto& d : m_damage) {
             // Only commits since the last input are evidence, so that a box that animated before it cannot make the
             // window's answer in that box look like animation.
-            if (d.at < lastInput || now - d.at > kHistory || !same(d.box, box))
+            if (d.at < lastInput || now - d.at > HISTORY || !same(d.box, box))
                 continue;
             ++repeats;
             first = first ? std::min(*first, d.at) : d.at;
         }
-        return repeats >= kRepeats && first && now - *first >= kSpan;
+        return repeats >= REPEATS && first && now - *first >= SPAN;
     }
 
     // The box that a commit damaged, in window-local logical pixels, or none when it is not known, as for a surface not

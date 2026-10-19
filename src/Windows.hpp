@@ -1,12 +1,14 @@
 #pragma once
 
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/helpers/math/Math.hpp>
 
 #include <functional>
 #include <string>
 #include <string_view>
 
 class CWLSurfaceResource;
+struct wl_client;
 
 namespace hyprmasq {
     // Formats a window the way `hyprctl clients` prints its `address` field.
@@ -17,6 +19,17 @@ namespace hyprmasq {
 
     // Accepts `0x...` or `address:0x...`. Returns nullptr for unknown or unmapped windows.
     PHLWINDOW windowFromAddress(std::string_view address);
+
+    // The geometry offset of an xdg window, which the window-local coordinates of screenshots and emulated input leave
+    // out: the offset of its content within its surface. 0 for an X11 window.
+    Vector2D geometryOffset(const PHLWINDOW& window);
+
+    // The smallest box that holds both boxes.
+    CBox unite(const CBox& a, const CBox& b);
+
+    // True if focus is on a surface of the client, or of the window's Wayland connection.
+    bool sharesConnection(wl_client* client, const WP<CWLSurfaceResource>& focus);
+    bool sharesConnection(const PHLWINDOW& window, const WP<CWLSurfaceResource>& focus);
 
     // Calls fn for the window's surface, its subsurfaces and its popups with their subsurfaces.
     void forEachSurface(const PHLWINDOW& window, const std::function<void(SP<CWLSurfaceResource>)>& fn);

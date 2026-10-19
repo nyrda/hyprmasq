@@ -1,5 +1,6 @@
 #include "Cursor.hpp"
 #include "Eis.hpp"
+#include "PrivateAccess.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
@@ -31,27 +32,6 @@ using namespace Hyprutils::Math;
 
 namespace hyprmasq::cursor {
     namespace {
-        using Manager = Pointer::Cursor::CCursorManager;
-
-        // The theme Hyprland loaded is private to its cursor manager. An explicit instantiation may name private
-        // members, so these read them without redefining access specifiers around the include.
-        UP<CXCursorManager>& xcursorOf(Manager& manager);
-        int& sizeOf(Manager& manager);
-        float& scaleOf(Manager& manager);
-        template <UP<CXCursorManager> Manager::* XCursor, int Manager::* Size, float Manager::* Scale>
-        struct SManagerAccess {
-            friend UP<CXCursorManager>& xcursorOf(Manager& manager) {
-                return manager.*XCursor;
-            }
-            friend int& sizeOf(Manager& manager) {
-                return manager.*Size;
-            }
-            friend float& scaleOf(Manager& manager) {
-                return manager.*Scale;
-            }
-        };
-        template struct SManagerAccess<&Manager::m_xcursor, &Manager::m_size, &Manager::m_cursorScale>;
-
         constexpr auto   FADE = std::chrono::milliseconds(400), RIPPLE = std::chrono::milliseconds(450);
         constexpr double RIPPLE_FROM = 4, RIPPLE_TO = 18;
         constexpr int    RIPPLE_WIDTH = 2;
@@ -139,7 +119,7 @@ namespace hyprmasq::cursor {
             auto& manager = Pointer::Cursor::mgr();
             if (!manager)
                 return;
-            const float                   scale = scaleOf(*manager);
+            const float                   scale = cursorScaleOf(*manager);
             CConfigValue<Config::INTEGER> useHyprcursor("cursor:enable_hyprcursor");
             SCursorImageData              data{};
             for (const char* name : {"left_ptr", "default", "left-ptr"}) {
@@ -162,7 +142,7 @@ namespace hyprmasq::cursor {
                 hotspot     = {data.hotspotX, data.hotspotY};
                 bufferScale = scale;
             } else if (auto& xcursor = xcursorOf(*manager)) {
-                auto shape = xcursor->getShape("left_ptr", sizeOf(*manager), scale);
+                auto shape = xcursor->getShape("left_ptr", cursorSizeOf(*manager), scale);
                 if (shape && !shape->images.empty()) {
                     const auto& icon = shape->images.front();
                     source           = icon.pixels;

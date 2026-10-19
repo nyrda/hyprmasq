@@ -122,11 +122,11 @@ namespace hyprmasq::launch {
             return std::nullopt;
         }
 
-        // Tags the window and registers a window rule for that tag that puts it silently on the workspace as it maps, floating
-        // at the size it asks for when floating is set.
-        // Hyprland matches a tag on the window itself, while an exec rule would read the environment of the window's
-        // process, which can wait for that process. Hyprland drops a workspace rule, silent included, that names the
-        // workspace the window maps on anyway, the active one, so no_initial_focus keeps the focus there too.
+        // Tags the window and registers a window rule for that tag that puts it silently on the workspace as it maps,
+        // floating at the size it asks for when floating is set. Hyprland matches a tag on the window itself, while an
+        // exec rule would read the environment of the window's process, which can wait for that process. Hyprland drops
+        // a workspace rule, silent included, that names the workspace the window maps on anyway, the active one, so
+        // no_initial_focus keeps the focus there too.
         void place(STracked& t, const PHLWINDOW& window, const std::string& workspace, bool floating) {
             auto rule = Desktop::Rule::CWindowRule::buildFromExecString(std::format("workspace {} silent;no_initial_focus 1{}", workspace, floating ? ";float" : ""));
             if (!rule)
