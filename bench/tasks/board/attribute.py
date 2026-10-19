@@ -193,6 +193,10 @@ def text_content(tool, args, text, shots, sizes):
             if m:
                 window_size(sizes, m.group(1), (float(m.group(2)), float(m.group(3))))
                 listed.add(m.group(1))
+            elif line.startswith("0x"):
+                raise ValueError("Unparseable window summary: " + line)
+        if not listed and not text.startswith(("error ", "no windows", "no window has ")):
+            raise ValueError("Unparseable windows summary: " + text)
         other_shots(0)
     elif tool == "screenshot":
         m = SCREENSHOT.fullmatch(lines[0])
@@ -204,10 +208,14 @@ def text_content(tool, args, text, shots, sizes):
                 sc["shot"] = region_frame(shot_id, width, height, shots.get(m.group(5)), x, y, w, h)
             else:
                 sc["shot"] = full_frame(shot_id, width, height, m.group(10), sizes, True)
+        elif not text.startswith("error "):
+            raise ValueError("Unparseable screenshot summary: " + lines[0])
         other_shots(1)
     elif tool == "act":
         parts = summary.split(" · ")
         m = DELIVERED.fullmatch(parts[0])
+        if not m and args.get("actions") and not text.startswith("error "):
+            raise ValueError("Unparseable act delivery summary: " + summary)
         sc["actions"] = {"done": int(m.group(1)) if m else 0}
         for part in parts:
             full, changes = re.fullmatch(FULL_SHOT, part), re.fullmatch(CHANGES_SHOT, part)
@@ -539,4 +547,7 @@ def main(path):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    if sys.argv[1:] == ["--help"]:
+        print(__doc__)
+    else:
+        main(sys.argv[1])

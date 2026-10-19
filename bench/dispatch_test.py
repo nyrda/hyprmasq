@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Tests dispatch.py's planning and scheduling, and run.py's choice of runs, without machines: python3 dispatch_test.py"""
 
 import argparse

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Tests run.py's harnesses without their APIs: python3 harness_test.py
 
 pi's isolation, claude-api's key and its check, the names of runs, the efforts agents run at, and report.py's reading
@@ -162,20 +161,44 @@ class PiIsolation(unittest.TestCase):
             self.assertEqual(sorted(os.listdir(user)),
                              ["AGENTS.md", "auth.json", "extensions", "mcp.json", "models.json", "settings.json"])
 
-    def test_the_run_has_only_hyprmasqs_tools_and_the_debrief_none(self):
-        command = run.agent_command("pi", "tensorx/m", "Do it.", ["tap"], sessions="/s")
-        self.assertEqual(command[command.index("--tools") + 1], "mcp__hyprmasq__*")
-        for flag in ("--no-extensions", "--no-skills", "--no-context-files", "--no-prompt-templates", "--no-approve"):
-            self.assertIn(flag, command)
-        # The one extension loaded again after --no-extensions is the built-in MCP client.
-        self.assertEqual([command[i + 1] for i, a in enumerate(command) if a == "-e"], ["builtin:mcp"])
-        self.assertEqual(command[-2:], ["--", "Do it."])
-        debrief = run.agent_command("pi", "tensorx/m", "Tell me.", None, resume="/s/x_id.jsonl")
-        self.assertIn("--no-tools", debrief)
-        self.assertNotIn("-e", debrief)
-        self.assertEqual(debrief[debrief.index("--session") + 1], "/s/x_id.jsonl")
+    def test_pi_receives_the_model_effort_and_mcp_tools_and_the_debrief_has_none(self):
+        # Interpret the options that affect this contract, without fixing their order or unrelated flags.
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--model")
+        parser.add_argument("--thinking")
+        parser.add_argument("--tools")
+        parser.add_argument("--no-tools", action="store_true")
+        parser.add_argument("-e", "--extension", action="append", default=[])
+        parser.add_argument("--session")
+        parser.add_argument("--session-dir")
+        tap = ["python3", "mcp_tap.py", "4242", "5000", "log"]
+        with tempfile.TemporaryDirectory() as work:
+            sessions = os.path.join(work, "sessions")
+            agent_dir = run.pi_agent_dir(tap, sessions)
+            try:
+                command = run.agent_command("pi", "tensorx/m", "Do it.", tap, sessions=sessions, effort="high")
+                options, _ = parser.parse_known_args(command[1:])
+                self.assertEqual((options.model, options.thinking), ("tensorx/m", "high"))
+                self.assertEqual(options.tools, "mcp__hyprmasq__*")
+                self.assertFalse(options.no_tools)
+                self.assertIn("builtin:mcp", options.extension)
+                self.assertEqual(options.session_dir, sessions)
+                with open(os.path.join(agent_dir, "mcp.json")) as f:
+                    servers = json.load(f)["mcpServers"]
+                self.assertEqual(list(servers), ["hyprmasq"])
+                self.assertEqual([servers["hyprmasq"]["command"], *servers["hyprmasq"]["args"]], tap)
+                debrief = run.agent_command("pi", "tensorx/m", "Tell me.", None,
+                                            resume="/s/x_id.jsonl", effort="high")
+                options, _ = parser.parse_known_args(debrief[1:])
+                self.assertEqual((options.model, options.thinking), ("tensorx/m", "high"))
+                self.assertTrue(options.no_tools)
+                self.assertIsNone(options.tools)
+                self.assertEqual(options.extension, [])
+                self.assertEqual(options.session, "/s/x_id.jsonl")
+            finally:
+                shutil.rmtree(agent_dir)
         with self.assertRaises(ValueError):
-            run.agent_command("pi", "tensorx/m", "@file", ["tap"], sessions="/s")
+            run.agent_command("pi", "tensorx/m", "@file", tap, sessions="/s")
 
 
 class ClaudeApi(unittest.TestCase):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runs the Thunderbird benchmark: one fresh VM per run, an agent on the host, grading, and a debrief.
+"""Runs a benchmark task: one fresh VM per run, an agent on the host, grading, and a debrief.
 
     run.py [--agent HARNESS:MODEL[@EFFORT]]... [--reps N | --rep N...] [--out DIR] [--timeout SECONDS] [--cid CID]
            [--no-debrief]
@@ -79,7 +79,9 @@ def task_variants(task):
 def source_commit(source):
     """The commit of the hyprmasq checkout the VM runs, and whether it had changes."""
     checkout = source or os.path.dirname(BENCH)
-    run = lambda *args: subprocess.run(["git", "-C", checkout, *args], capture_output=True, text=True).stdout.strip()
+    def run(*args):
+        return subprocess.run(["git", "-C", checkout, *args], capture_output=True, text=True).stdout.strip()
+
     return {"path": checkout, "commit": run("rev-parse", "HEAD"), "dirty": bool(run("status", "--porcelain"))}
 
 

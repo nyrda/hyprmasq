@@ -61,4 +61,7 @@ def main(cid, port, log_path):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:4])
+    if sys.argv[1:] == ["--help"]:
+        print(__doc__)
+    else:
+        main(*sys.argv[1:4])

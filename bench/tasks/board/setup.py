@@ -13,18 +13,6 @@ PROFILE = "/home/alice/.mozilla/firefox/mara"
 URL = "http://guide.example.test/figures/motherboard"
 
 
-def window(predicate):
-    return next((c for c in clients() if predicate(c)), None)
-
-
-def move(address, workspace):
-    hypr("dispatch " + shlex.quote(
-        f'hl.dsp.window.move({{ window = "address:{address}", workspace = "name:{workspace}", follow = false }})'
-    ))
-    wait_for(f"{address} on {workspace}", lambda: window(
-        lambda c: c["address"] == address and c["workspace"]["name"] == workspace) is not None)
-
-
 def page_laid_out():
     return machine.execute(f"grep -q '\"type\": \"layout\"' {STATE}/events.jsonl")[0] == 0
 
@@ -46,13 +34,8 @@ def prepare():
     terminal = window(lambda c: c["title"] == "user-terminal")["address"]
     hypr("dispatch " + shlex.quote(f'hl.dsp.focus({{ window = "address:{terminal}" }})'))
 
-    def settled():
-        state = [(c["address"], c["title"], c["workspace"]["name"], c["size"]) for c in clients()]
-        time.sleep(5)
-        return state == [(c["address"], c["title"], c["workspace"]["name"], c["size"]) for c in clients()]
-
-    time.sleep(5)
-    wait_for("the windows to settle", settled, timeout=120)
+    settle("the windows to settle", initial_delay=5, interval=5,
+           fields=("address", "title", "workspace", "size"))
     return firefox
 
 

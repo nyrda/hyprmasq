@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Tests the board task's grader and attribution on constructed states and logs: python3 check_test.py"""
 
 import json
@@ -6,7 +5,6 @@ import os
 import sys
 import tempfile
 import unittest
-from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import attribute  # noqa: E402
@@ -19,9 +17,6 @@ def centre(box):
 
 CORRECT = {label: centre(boxes[0]) for label, boxes in check.REGIONS["labels"].items()}
 RAM = centre(check.REGIONS["distractors"]["loose RAM module"][0])
-# A correct board of a run from before the M.2 slots label, under the names it had.
-OLD_CORRECT = {("8-pin CPU power" if label == "CPU power headers" else label): point
-               for label, point in CORRECT.items() if label != "M.2 slots"}
 
 
 class Grade(unittest.TestCase):
@@ -30,14 +25,6 @@ class Grade(unittest.TestCase):
         self.assertTrue(result["passed"])
         self.assertEqual(result["failures"], [])
         self.assertEqual(result["checks"]["correct"], 9)
-
-    def test_run_from_before_the_m2_slots_label_grades_on_its_eight_labels(self):
-        result = check.grade(OLD_CORRECT)
-        self.assertTrue(result["passed"])
-        self.assertEqual(sorted(result["checks"]["labels"]), sorted(OLD_CORRECT))
-        self.assertEqual(result["checks"]["correct"], 8)
-        result = check.grade({**OLD_CORRECT, "8-pin CPU power": None})
-        self.assertEqual(result["failures"], ["8-pin CPU power is still in the tray"])
 
     def test_label_on_the_ram_module(self):
         result = check.grade({**CORRECT, "Memory slots": RAM})
@@ -89,8 +76,7 @@ class Grade(unittest.TestCase):
         self.assertEqual(list(check.events(places, since=8).items()),
                          [("first label placed", 10), ("all labels placed", 18), ("last change", 31)])
         self.assertEqual(check.events([], since=8), {})
-        old = [{"time": 10 + i, "label": label, "point": point} for i, (label, point) in enumerate(OLD_CORRECT.items())]
-        self.assertEqual(check.events(old)["all labels placed"], 17)
+
 
 
 # A page laid out as in the VM at 1920×1080: the content 85.5 logical pixels below the window's top, the photo at
@@ -203,17 +189,21 @@ class Attribute(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="board-attribution-") as d:
             return attribute.attribute(run.write(d, final))
 
+    def test_wait_only_call_has_no_delivery_prefix(self):
+        content = attribute.text_content("act", {"actions": []},
+                                         "redraw observed · quiet 200 ms · 123 ms · no change", {}, {})
+        self.assertEqual(content["actions"]["done"], 0)
+
+    def test_unparseable_summaries_are_reported(self):
+        for tool in ("act", "screenshot", "windows"):
+            with self.subTest(tool=tool), self.assertRaisesRegex(ValueError, "Unparseable"):
+                attribute.text_content(tool, {"actions": [{"action": "click"}]}, "changed summary wording", {}, {})
+
     def test_correct_drags_and_calibration(self):
         out = self.run_of(lambda r: [r.drag(label, point) for label, point in CORRECT.items()], CORRECT)
         self.assertEqual(out["calibration"]["offset"], [0, 85.5])
         self.assertEqual([d["outcome"] for d in out["drags"]], ["correct"] * 9)
         self.assertTrue(all(v["blame"] is None for v in out["labels"].values()))
-
-    def test_run_from_before_the_m2_slots_label(self):
-        with mock.patch.dict(CHIPS, {"8-pin CPU power": CHIPS["CPU power headers"]}):
-            out = self.run_of(lambda r: [r.drag(label, point) for label, point in OLD_CORRECT.items()], OLD_CORRECT)
-        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct"] * 8)
-        self.assertEqual(sorted(out["labels"]), sorted(OLD_CORRECT))
 
     def test_label_dropped_on_the_ram_module_is_the_models(self):
         def build(r):

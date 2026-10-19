@@ -26,13 +26,9 @@ def prepare():
 
     # Thunderbird keeps drawing for a while after its window maps: the account setup loads in a tab. Wait
     # until its windows stop changing, so that every run starts from the same screen.
-    def settled():
-        state = [(c["address"], c["title"]) for c in clients() if c["class"] != "foot"]
-        time.sleep(5)
-        return state == [(c["address"], c["title"]) for c in clients() if c["class"] != "foot"]
-
-    time.sleep(10)
-    wait_for("Thunderbird to settle", settled, timeout=120)
+    settle("Thunderbird to settle", initial_delay=10, interval=5,
+           fields=("address", "title"),
+           predicate=lambda c: c["class"] != "foot")
     return address
 
 
@@ -59,7 +55,7 @@ def collect():
     )
     logins = [t for t, m in journal("dovecot") if "Logged in: user=<mara>" in m and t < check_start]
     status, sent = machine.execute(f"cat {SPOOL}/log.jsonl")
-    submissions = [json.loads(l) for l in sent.splitlines() if l.strip()] if status == 0 else []
+    submissions = [json.loads(line) for line in sent.splitlines() if line.strip()] if status == 0 else []
     fetch(f"{SPOOL}/1.eml", "sent-1.eml")
     for unit, name in (("dovecot", "vm-dovecot.log"), ("hyprmasq-bench-smtp", "vm-smtp.log")):
         with open(out_path(name), "w") as f:

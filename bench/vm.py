@@ -67,6 +67,33 @@ def clients():
     return json.loads(hypr("-j clients"))
 
 
+def window(predicate):
+    return next((c for c in clients() if predicate(c)), None)
+
+
+def move(address, workspace):
+    hypr("dispatch " + shlex.quote(
+        f'hl.dsp.window.move({{ window = "address:{address}", workspace = "name:{workspace}", follow = false }})'
+    ))
+    wait_for(f"{address} on {workspace}", lambda: window(
+        lambda c: c["address"] == address and c["workspace"]["name"] == workspace) is not None)
+
+
+def settle(description, *, initial_delay, interval, fields, predicate=lambda c: True, timeout=120):
+    """Wait for two matching client snapshots, preserving the task's delays and fields."""
+    def state():
+        return [tuple(c[field]["name"] if field == "workspace" else c[field] for field in fields)
+                for c in clients() if predicate(c)]
+
+    def settled():
+        before = state()
+        time.sleep(interval)
+        return before == state()
+
+    time.sleep(initial_delay)
+    wait_for(description, settled, timeout=timeout)
+
+
 def snapshot():
     return {
         "workspace": json.loads(hypr("-j activeworkspace"))["id"],

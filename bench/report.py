@@ -292,7 +292,7 @@ def metrics(run_dir):
         "no_change": sum(1 for c in finished if c.get("no_change")),
         "images": sum(c.get("images", 0) for c in finished),
         "image_kib": round(sum(c.get("image_bytes", 0) for c in finished) / 1024),
-        "task": run.get("task", "thunderbird"),
+        "task": run["task"],
         "phases": phases,
         "checks": check.get("checks", {}),
         "user": user_disturbance(run_dir, ready, start, end, offset),
@@ -416,4 +416,7 @@ def report(results_dir):
 
 
 if __name__ == "__main__":
-    print(report(sys.argv[1]))
+    if sys.argv[1:] == ["--help"]:
+        print(__doc__)
+    else:
+        print(report(sys.argv[1]))

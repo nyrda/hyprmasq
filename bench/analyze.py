@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Counts the frictions of the Thunderbird runs that docs/benchmarks.md discusses.
+"""Counts friction and splits tool time for benchmark runs.
 
     analyze.py RESULTS-DIR
 
@@ -22,9 +22,9 @@ The time of the act calls, in seconds, split into what the results and the sende
 - watch_s: the watch for a second redraw and for new windows after the wait, which input that can open a window
   gets: the time the act tool's description gives it, 500 ms, or longer when the result says the window drew again.
   When a redraw in the watch made the result one wait, after a first wait without redraw or ending in a timeout, the
-  wait has that time. Runs from before the watch (#18) have none, and their grace for new windows (#15) stays in rest_s.
+  wait has that time.
 - input_s: the sender's pacing of the actions sent, without pauses: gaps, holds, typing at 15 ms a key, the 300 ms
-  from a click to the keys after it, and from #22 on at least 150 ms for the window's answer to a click.
+  from a click to the keys after it, and at least 150 ms for the window's answer to a click.
 - rest_s: the rest of the calls' time, not clamped: the captures and their comparison, the check of targets, the
   shots of new windows and of the window a closed one came from with their waits, a click's answer beyond its
   least, the sender's start and round trips, locks and transport. The results do not time these apart.
@@ -57,7 +57,7 @@ TYPE_HOLD_MS, TYPE_GAP_MS = 5, 10
 WHEEL_GAP_MS = 20
 MOTION_PRESS_MS, DRAG_HOLD_MS, DRAG_STEP_MS, DRAG_STEP_PX, DRAG_MIN_STEPS, DRAG_MAX_STEPS = 30, 50, 10, 10, 21, 2000
 CLICK_SETTLE_MS = 300
-# A click that more actions follow waits for the window's answer, from #22 on: for a redraw up to 150 ms and then
+# A click that more actions follow waits for the window's answer: for a redraw up to 150 ms and then
 # for 150 ms of quiet, so at least 150 ms.
 ANSWER_MS = 150
 
@@ -117,9 +117,9 @@ def sender_steps(actions):
     return steps
 
 
-def pacing(actions, answers):
+def pacing(actions):
     """The least time in ms that the sender takes for the actions at its pace, without the pauses, and the pauses.
-    answers tells that a click waits for the window's answer before the actions after it."""
+    A click waits for the window's answer before the actions after it."""
     steps = sender_steps(actions)
     paced = pauses = 0
     for i, step in enumerate(steps):
@@ -129,7 +129,7 @@ def pacing(actions, answers):
         if i:
             # A sync takes the place of the gap after the click: the next action comes when both have passed.
             prev = steps[i - 1]
-            paced += max(ACTION_GAP_MS, prev[1], ANSWER_MS if answers else 0) if prev[0] == "sync" else ACTION_GAP_MS
+            paced += max(ACTION_GAP_MS, prev[1], ANSWER_MS) if prev[0] == "sync" else ACTION_GAP_MS
         if verb == "click":
             paced += step[1] * CLICK_HOLD_MS + (step[1] - 1) * CLICK_GAP_MS + (CHORD_MOD_MS if step[2] else 0)
         elif verb == "drag":
@@ -159,17 +159,18 @@ def opens_windows(actions):
 
 
 def act_tool(tap):
-    """The watch after the wait in ms, and whether a click waits for its answer, from the act tool's description."""
+    """The watch after the wait in ms, from the current act tool's description."""
     for entry in tap:
         for tool in ((entry.get("msg") or {}).get("result") or {}).get("tools") or []:
             if tool.get("name") == "act":
-                text = json.dumps(tool)
-                m = WATCH.search(text)
-                return int(m.group(1)) if m else 0, "has drawn its answer" in text
-    return 0, False
+                match = WATCH.search(json.dumps(tool))
+                if not match:
+                    raise ValueError("Unparseable act watch description: " + json.dumps(tool))
+                return int(match.group(1))
+    raise ValueError("Missing act tool description in MCP log")
 
 
-def split(call, a, structured, watch_ms, answers):
+def split(call, a, structured, watch_ms):
     """The seconds of an act call: its wait, its watch, the sender's pacing, the pauses and the rest."""
     actions = a.get("actions") or []
     wait = structured.get("wait") or {}
@@ -182,11 +183,13 @@ def split(call, a, structured, watch_ms, answers):
         sent = actions[:delivered]
         keys = (done.get("progress") or {}).get("keys", 0)
     else:
-        # Results for Claude Code and older ones say it only in their text, and errors name the actions delivered on
+        # Results for Claude Code say it only in their text, and errors name the actions delivered on
         # their second line.
         text = call["summary"] + "\n" + call["hint"]
         m = DELIVERED.search(text)
-        delivered = int(m.group(1)) if m else 0 if call["summary"].startswith("error") else len(actions)
+        if not m and actions and not call["summary"].startswith("error"):
+            raise ValueError("Unparseable act delivery summary: " + text)
+        delivered = int(m.group(1)) if m else 0
         sent = actions[:delivered]
         applied = bool(sent) or bool(PARTIAL.search(text))
         keys = int(m.group(1)) if (m := KEYS.search(text)) else 0
@@ -201,8 +204,7 @@ def split(call, a, structured, watch_ms, answers):
             # Modifiers do not count, so a key is a press of the chord.
             sent = sent + [{**partial, "repeat": keys}]
     # Pauses left when the input closed its window during the send count as delivered (#16), but the sender did not
-    # wait them out. A window that closed during the wait or later had them. Older results do not tell when it closed,
-    # and in all of them the call was shorter than its pauses.
+    # wait them out. A window that closed during the wait or later had them. The text does not tell when it closed.
     if structured:
         closed_sending = wait.get("ended") == "window_closed" and not wait.get("elapsed_ms")
     else:
@@ -215,6 +217,10 @@ def split(call, a, structured, watch_ms, answers):
         again = (wait.get("again") or {}).get("elapsed_ms", 0)
     else:
         m, again = WAIT.search(call["summary"]), AGAIN.search(call["summary"])
+        if not m and not (call["summary"].startswith("error") or "window closed" in call["summary"]
+                          or "no time left to wait" in call["summary"]
+                          or wait.get("ended") in ("cancelled", "window_closed")):
+            raise ValueError("Unparseable act wait summary: " + call["summary"])
         waited = int(next(g for g in m.groups() if g)) if m else 0
         again = int(again.group(1)) if again else 0
     watched = watch_ms if applied and opens_windows(actions) and wait.get("ended") != "cancelled" else 0
@@ -232,7 +238,7 @@ def split(call, a, structured, watch_ms, answers):
             watched = max(0, watched - (waited - expect))
     elif watched:
         watched = max(watched, again)
-    paced, pauses = pacing(sent, answers)
+    paced, pauses = pacing(sent)
     # The grace ends at the latest 250 ms before the call's deadline, which a short deadline_ms brings forward, and
     # starts after at least the input and the wait.
     if watched and not again:
@@ -258,7 +264,7 @@ def analyze(run_dir):
             started[msg.get("id")] = entry["t"]
         elif entry["dir"] == "response" and msg.get("id") in started:
             structured[started.pop(msg["id"])] = (msg.get("result") or {}).get("structuredContent") or {}
-    watch_ms, answers = act_tool(tap)
+    watch_ms = act_tool(tap)
 
     wait_acts = pause_ms = overrides = closing_errors = timeouts = 0
     time = {"wait": 0.0, "watch": 0.0, "input": 0.0, "rest": 0.0}
@@ -274,7 +280,7 @@ def analyze(run_dir):
         overrides += bool(wait.get("quiet_ms") or wait.get("expect_ms"))
         closing_errors += "window_gone" in c["summary"] and "closed while" in c["summary"]
         timeouts += "timeout after" in c["summary"]
-        for part, seconds in split(c, a, structured.get(c["start"], {}), watch_ms, answers).items():
+        for part, seconds in split(c, a, structured.get(c["start"], {}), watch_ms).items():
             if part in time:
                 time[part] += seconds
 
@@ -323,4 +329,7 @@ def main(results_dir):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    if sys.argv[1:] == ["--help"]:
+        print(__doc__)
+    else:
+        main(sys.argv[1])

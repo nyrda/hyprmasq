@@ -79,4 +79,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:] == ["--help"]:
+        print(__doc__)
+    else:
+        main()

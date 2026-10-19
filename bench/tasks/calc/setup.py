@@ -20,18 +20,6 @@ ORIGINAL = f"/etc/hyprmasq-bench/calc-sheet/{FIGURES['FILE_NAME']}"
 URLS = [FIGURES["INTRANET"] + path for path, _ in FIGURES["TABS"]]
 
 
-def window(predicate):
-    return next((c for c in clients() if predicate(c)), None)
-
-
-def move(address, workspace):
-    hypr("dispatch " + shlex.quote(
-        f'hl.dsp.window.move({{ window = "address:{address}", workspace = "name:{workspace}", follow = false }})'
-    ))
-    wait_for(f"{address} on {workspace}", lambda: window(
-        lambda c: c["address"] == address and c["workspace"]["name"] == workspace) is not None)
-
-
 def tabs_loaded():
     """Whether every tab has fetched its figures from the intranet, signed in."""
     status, log = machine.execute(f"cat {INTRANET_STATE}/requests.jsonl")
@@ -74,7 +62,9 @@ def prepare():
         f"{client_env} {HYPRLAND_ENV} nohup soffice --nologo --accept={q(f'pipe,name={UNO_PIPE};urp;')} {q(SHEET)} "
         "> /tmp/hyprmasq-bench-calc.log 2>&1 &"
     )
-    is_calc = lambda c: c["title"].startswith(FIGURES["FILE_NAME"])
+    def is_calc(c):
+        return c["title"].startswith(FIGURES["FILE_NAME"])
+
     wait_for("Calc", lambda: window(is_calc) is not None, timeout=180)
     sheet_window = window(is_calc)["address"]
     move(sheet_window, calc)
@@ -88,13 +78,8 @@ def prepare():
     terminal = window(lambda c: c["title"] == "user-terminal")["address"]
     hypr("dispatch " + shlex.quote(f'hl.dsp.focus({{ window = "address:{terminal}" }})'))
 
-    def settled():
-        state = [(c["address"], c["title"], c["workspace"]["name"], c["size"]) for c in clients()]
-        time.sleep(5)
-        return state == [(c["address"], c["title"], c["workspace"]["name"], c["size"]) for c in clients()]
-
-    time.sleep(5)
-    wait_for("the windows to settle", settled, timeout=120)
+    settle("the windows to settle", initial_delay=5, interval=5,
+           fields=("address", "title", "workspace", "size"))
     machine.succeed(f"python3 {ETC}/check.py --manifest /home/alice > {STATE}/home-before.json")
     machine.succeed(f"echo {q(json.dumps({'firefox': firefox, 'calc': sheet_window}))} > {STATE}/windows.json")
     return firefox

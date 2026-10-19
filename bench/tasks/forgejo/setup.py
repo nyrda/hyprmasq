@@ -95,11 +95,7 @@ def prepare():
     alice(f"{client_env} {HYPRLAND_ENV} nohup {CHROMIUM} {FORGEJO}/ > /tmp/hyprmasq-bench-chromium.log 2>&1 &")
     wait_for("the browser", lambda: len(chromium_windows()) == 1, timeout=120)
     agent_window = chromium_windows()[0]["address"]
-    hypr("dispatch " + shlex.quote(
-        f'hl.dsp.window.move({{ window = "address:{agent_window}", workspace = "name:web", follow = false }})'
-    ))
-    wait_for("the agent's window on web", lambda: any(
-        c["address"] == agent_window and c["workspace"]["name"] == "web" for c in clients()))
+    move(agent_window, "web")
 
     # The user's window, on the visible workspace, with the focus in the notes.
     alice(f"{client_env} {HYPRLAND_ENV} {CHROMIUM} --new-window http://notes.example.test:8081/")
@@ -107,13 +103,8 @@ def prepare():
     user_window = next(c["address"] for c in chromium_windows() if c["address"] != agent_window)
     hypr("dispatch " + shlex.quote(f'hl.dsp.focus({{ window = "address:{user_window}" }})'))
 
-    def settled():
-        state = [(c["address"], c["title"], c["workspace"]["name"]) for c in clients()]
-        time.sleep(3)
-        return state == [(c["address"], c["title"], c["workspace"]["name"]) for c in clients()]
-
-    time.sleep(5)
-    wait_for("the browser to settle", settled, timeout=120)
+    settle("the browser to settle", initial_delay=5, interval=3,
+           fields=("address", "title", "workspace"))
     return agent_window
 
 

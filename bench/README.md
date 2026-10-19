@@ -1,11 +1,35 @@
 # Benchmarks
 
-Agents do a task in a NixOS VM through `hyprmasq-mcp` alone. Each run is graded from the VM's state, timed
-from both sides of the MCP connection, and ends with a debrief in which the agent says where hyprmasq slowed
-it down, which points to where to look in the logs. The goal is not a leaderboard of models: it is to see how fast agents finish ordinary computer-use
-tasks with hyprmasq, and what in hyprmasq costs them time.
+`bench/` is a development tool for measuring hyprmasq with real agents. It is not part of what hyprmasq
+installs. It requires Linux with KVM, Nix, and the agent CLIs logged in for the user running it. The default
+agents use logged-in Claude Code and Codex. API-backed agents need their provider credentials.
 
-Results of the benchmark runs so far are in [docs/benchmarks.md](../docs/benchmarks.md).
+Agents complete a task in an offline NixOS VM through `hyprmasq-mcp`. The benchmark grades the VM's state,
+measures time on both sides of the MCP connection, and asks the agent for a debrief. It measures how agents
+use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, forgejo and thunderbird.
+
+Run results are in [docs/benchmarks.md](../docs/benchmarks.md).
+
+## Tests
+
+From the repository root:
+
+```sh
+bench/test.sh
+```
+
+This runs all `*_test.py` files, including the Calc checker through `nix-build bench/tasks/calc/check-test.nix`.
+The Calc cases use headless LibreOffice in a Nix build. The suite starts no VMs or agents and uses no paid APIs.
+It needs Python 3 and Nix. Ordinary `unittest` discovery skips these filenames and does not run the Calc cases.
+
+To build a VM driver without running an agent:
+
+```sh
+nix-build bench/default.nix -A driver
+# For another task, add --argstr task calc, forgejo, or board. Board also needs --argstr variant dnd or pointer.
+```
+
+See [By hand](#by-hand) to boot that driver and probe MCP without an agent.
 
 ## Running
 
@@ -157,7 +181,7 @@ of runs and the reading of a recorded pi stream, with fake `pi` and `claude`: `p
 ```
 host                                              VM (no network)
 run.py ─ starts ─▶ nixos-test-driver ─ boots ──▶  Hyprland + hyprmasq, a terminal on the visible workspace,
-   │                                               Thunderbird on a hidden one, Dovecot, fake SMTP
+   │                                               task apps on hidden workspaces, local task servers
    └─ starts ─▶ claude -p / codex exec / pi -p
                   └─ MCP stdio ─▶ mcp_tap.py ── vsock ──▶ socat ─▶ hyprmasq-mcp
 ```
@@ -178,9 +202,9 @@ run without a feature, or tell which result saved it a call, and asked for a los
 what the agents did, before and after it; see
 [how the runs are read](../docs/benchmarks.md#how-the-runs-are-read).
 
-The VM is offline: its only device to the outside is vsock, and every server the task needs runs in it. Its
-clock starts at 2026-03-10 09:30 UTC on every boot, and the mailbox, certificates and Thunderbird profile are
-fixed, so every run starts from the same screen. Only the harness and the model vary.
+The VM is offline. Its only connection to the host is vsock, and every server the task needs runs in it. Its
+clock starts at 2026-03-10 09:30 UTC on every boot. Each task fixes its app profiles and starting data so every
+run of that task starts from the same screen.
 
 ### Isolation of the agent
 
@@ -212,7 +236,7 @@ starts.
 | `codex` | `-c model_reasoning_effort=…` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, the levels the OpenAI API takes; a model may take fewer |
 | `pi` | `--thinking` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
-The debrief resumes at the same effort. Without `@EFFORT`, the command is the same as before and the harness runs at
+The debrief resumes at the same effort. Without `@EFFORT`, the harness runs at
 its default for the model: Codex, which ignores the user's config, at its own (`low` for `gpt-6.1-sol`), and Claude
 Code at its own (`medium` for Sonnet 5.5 and Haiku 5.5). pi has no default of the model's own: it starts at its
 `medium`. pi clamps any level, its default or the one given, to what the model's `thinkingLevelMap` in `models.json`
@@ -271,7 +295,7 @@ user's workspace, errors from input that closed its window and wait timeouts. It
 | --- | --- |
 | `wait_s` | The wait for the window to settle, as each result's `wait.elapsed_ms` gives it. |
 | `watch_s` | The watch for a second redraw and new windows after the wait, after a click, drag, key or line break: the 500 ms that the `act` tool's description in the log names, or the watch's own time when the result says `drew again, settled … later`. When a redraw in the watch makes the result one wait, after a first wait without a redraw, `wait_s` holds the watch, and only the grace for new windows that is left over counts here; after a wait that timed out, nothing does. |
-| `input_s` | The sender's pacing of the actions it sent, pauses aside: the gaps, holds and typed keys of `tools/hyprmasq-input.c` (15 ms a typed key), the 300 ms from a click to the keys after it, and from #22 on at least 150 ms for the window's answer to a click that more actions follow. |
+| `input_s` | The sender's pacing of the actions it sent, pauses aside: the gaps, holds and typed keys of `tools/hyprmasq-input.c` (15 ms a typed key), the 300 ms from a click to the keys after it, and at least 150 ms for the window's answer to a click that more actions follow. |
 | `pause_s` | The pause actions the agent added. |
 | `rest_s` | The rest of the calls' time, not clamped. |
 
@@ -279,10 +303,11 @@ The rest is what hyprmasq does beyond these waits: capturing and comparing image
 shots of new windows and of the window that a closed one came from with their own waits, a click's answer beyond its
 least, the sender's start and round trips, the locks and the transport. The results do not time these apart, so the
 rest stays one number. The pacing is the least the sender needs: the logs do not record the keymap, so a key that it
-reaches with Shift lacks its 10 ms, and a character typed through Compose its further keys. Old runs stay readable:
-results without structured content give their wait in the summary, runs from before the watch (#18) get no watch,
-and their grace for new windows (#15) stays in the rest. Results for Claude Code have no structured content either,
-and their text gives no time for a wait that the window's closing ended, so that time stays in the rest.
+reaches with Shift lacks its 10 ms, and a character typed through Compose its further keys.
+
+Claude Code results have no structured content, so the analysis reads their summaries. The text gives no time
+for a wait that the window's closing ended, so that time stays in the rest. Unparseable delivery, wait or watch
+summaries stop analysis with an error, rather than assigning guessed counts or times.
 `analyze_test.py` checks that a result's text gives the same split as its structured content for the keys of a
 partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 
@@ -409,7 +434,7 @@ Calc does not get it: its External Data import (Sheet ▸ External Links) of a r
   report gives it; expected 112400`. It also reports requests without Mara's session, such as Calc's, and when
   Stockholm's page 2 and Lisbon's older updates were loaded.
 - `check_test.py`, `check-test.nix`: `nix-build bench/tasks/calc/check-test.nix` fills Mara's sheet through UNO
-  in a headless LibreOffice in 26 ways, a right one and ones wrong in each way above, saves it, and checks each
+  in a headless LibreOffice in 28 ways, a right one and ones wrong in each way above, saves it, and checks each
   verdict and its failures.
 - `setup.py`: the profiles, the two windows and their workspaces, a window rule that ignores Calc's request to be
   maximized, as Hyprland's example configuration does for every app, the watch, the list of Mara's files to
@@ -458,8 +483,6 @@ default `gtk-dnd-drag-threshold`.
   part, on a distractor (named), elsewhere, or still in the tray: `Memory slots is on the loose RAM module, at
   (1654.4, 679.8)`. It passes when all nine are correct, and reports the number correct for partial credit, the
   variant and the number of saves. Its milestones are `first label placed`, `all labels placed` and `last change`.
-  Runs from before the M.2 slots label had eight labels, with the CPU power headers as `8-pin CPU power`: by that
-  name, `check.py` and `attribute.py` grade them on the eight they had, under the names they had.
 - `attribute.py RUN-DIR | RESULTS-DIR`: who each drag's outcome is due to, from `mcp.jsonl` and the page's events.
   It maps each `act` drag's start and end from shot pixels to window-local logical pixels through the shot's frame,
   zooms included, as hyprmasq does, and to the page's coordinates with the content's offset in the window, which
