@@ -8,7 +8,7 @@ struct wl_client;
 // Hyprland: the user's selections stay as they are, and the apps that emulated input reaches see the agent's, also
 // across apps. For Hyprland's XWayland, which bridges X selections itself, it keeps the agent's X selections from the
 // user's. The file descriptors of a paste go from the destination to the source through Hyprland's own offers, which the
-// compositor never reads or writes. See "Clipboard and selections" in docs/usage.md.
+// compositor never reads or writes. See "Clipboard and selections" in docs/automation.md.
 namespace hyprmasq::selection {
     // Hooks the X window manager's bridge of X selections and listens for changes of the real focus and selections.
     void init(void* handle);

@@ -25,7 +25,7 @@ struct wl_event_source;
 // app's own connection, without Hyprland's drag controller, a grab of the seat that takes the user's pointer. It offers
 // the drag only on the data device that started it, enters only the surfaces that the emulated pointer is over, and
 // passes the file descriptors of a transfer from the destination to the source, without touching the data. See
-// "Drag-and-drop" in docs/usage.md.
+// "Drag-and-drop" in docs/automation.md.
 namespace hyprmasq::drag {
     // A start_drag request as the data device that got it saw it. Hyprland's handler drops the serial before it calls
     // CWLDataDeviceProtocol::initiateDrag.

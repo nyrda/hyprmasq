@@ -254,7 +254,7 @@ namespace hyprmasq {
             return out.empty() ? "no launched windows" : out;
         }
 
-        // The window a new window came from, see "New windows" in docs/usage.md. Its stableId tells it from a later window
+        // The window a new window came from, see "New windows" in docs/automation.md. Its stableId tells it from a later window
         // at its address, and is null once it is gone.
         std::string sourceJson(const std::optional<placement::SSource>& source) {
             if (!source)
@@ -265,7 +265,7 @@ namespace hyprmasq {
             return std::format(R"({{"window":{},"stableId":{},"placed":{}{}}})", jsonString(source->address), stableId, source->placed, reason);
         }
 
-        // The drag-and-drop operations of a window with a socket, see `drag` in docs/mcp.md.
+        // The drag-and-drop operations of a window with a socket, see "Drag-and-drop" in docs/automation.md.
         std::string dragJson(const SDragRecord* drags) {
             if (!drags)
                 return "null";

@@ -230,7 +230,7 @@ func shortcutKey(a action) bool {
 }
 
 // dragReasons explain why the plugin cancelled a drag-and-drop. Those of a drag that did not run within the app say
-// why it could not; see `drag` in docs/mcp.md.
+// why it could not; see "Drag-and-drop" in docs/automation.md.
 var dragReasons = map[string]string{
 	"shared_focus": "this window shares its app with the window that has the user's keyboard or pointer focus, so the user's input could reach the drag",
 	"x11":          "the window is an X11 window, whose drags Hyprland would run with the user's pointer",

@@ -36,8 +36,8 @@ namespace hyprmasq {
         std::string owner;
     };
 
-    // The drag-and-drop operations that a driven window's app started while its socket was open, see `drag` in
-    // docs/mcp.md. A wait holds it to see them end.
+    // The drag-and-drop operations that a driven window's app started while its socket was open, see "Drag-and-drop" in
+    // docs/automation.md. A wait holds it to see them end.
     struct SDragRecord {
         uint64_t    id        = 0;      // counts them, so the last one has this id; 0 before the first
         std::string phase     = "none"; // of the last one: none, active, dropped, finished, cancelled or unconfirmed
@@ -82,7 +82,7 @@ namespace hyprmasq {
         uint64_t                     interrupted = 0;
         std::shared_ptr<SDragRecord> drags; // kept while the socket is open
         // Why the plugin last paused the socket's devices, which stops the sender with input_paused, or empty if it never
-        // did: x11_focus, x11_unresponsive, user_button or user_key, see `state` in docs/usage.md.
+        // did: x11_focus, x11_unresponsive, user_button or user_key, see "Window state" in docs/automation.md.
         std::string lastPause;
     };
     // For a window with a socket. Main thread only.
@@ -93,14 +93,14 @@ namespace hyprmasq {
     // draw on screen, such as an application that started on a hidden workspace. Main thread only.
     bool starved(const PHLWINDOW& window);
 
-    // Starts or renews the focus lease of a window with a socket for ms milliseconds, see `lease` in docs/mcp.md.
+    // Starts or renews the focus lease of a window with a socket for ms milliseconds, see "Focus lease" in docs/automation.md.
     std::expected<SLeaseState, SError> holdLease(const PHLWINDOW& window, int ms, const std::string& owner);
     // Ends the window's lease, only if owner holds it when one is given. False if no lease ended.
     bool releaseLease(const PHLWINDOW& window, const std::optional<std::string>& owner);
     // True while a lease keeps the emulated pointer on the window.
     bool leaseKeepsPointer(const PHLWINDOW& window);
 
-    // What input can do in a window at the moment, see `state` in docs/mcp.md.
+    // What input can do in a window at the moment, see "Window state" in docs/automation.md.
     struct SCapabilities {
         bool lease = false, hold = false, dnd = false;
         bool privateDnd = false; // a drag-and-drop that emulated input starts runs as a private drag, see Drag.hpp

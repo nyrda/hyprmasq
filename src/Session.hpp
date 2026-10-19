@@ -114,8 +114,8 @@ namespace hyprmasq::input {
         // The private drag of the window's app, before its drop.
         std::shared_ptr<drag::CPrivateDrag> activeDrag() const;
         void cancelDrag(std::string_view reason);
-        // Why a drag that the window's app starts cannot run as a private drag, or none when it can: see `drag` in
-        // docs/mcp.md.
+        // Why a drag that the window's app starts cannot run as a private drag, or none when it can: see "Drag-and-drop" in
+        // docs/automation.md.
         std::optional<std::string_view> dragRefusal(const drag::SRequest* request, const SP<CWLDataSourceResource>& source, const SP<CWLSurfaceResource>& icon);
         void beginDrag(const drag::SRequest& request, const SP<CWLDataSourceResource>& source, const SP<CWLSurfaceResource>& icon);
         // Moves the drag to the surface under the emulated pointer. Only the window's own surfaces take part: a point
