@@ -1,0 +1,19 @@
+[
+  { "name": "core", "requires": [] },
+  { "name": "typing", "requires": ["core"] },
+  { "name": "input", "requires": ["core"] },
+  { "name": "waits", "requires": ["core"] },
+  { "name": "shots", "requires": ["core"] },
+  { "name": "leases", "requires": ["core"] },
+  { "name": "launch", "requires": ["core"] },
+  { "name": "shared-focus", "requires": ["core", "launch"] },
+  { "name": "drag", "requires": ["core"] },
+  { "name": "selections", "requires": ["core"] },
+  { "name": "xwayland", "requires": ["core"] },
+  { "name": "cursor", "requires": ["core"] },
+  { "name": "mcp", "requires": ["core"] },
+  { "name": "new-windows", "requires": ["core"] },
+  { "name": "mcp-shots", "requires": ["core", "mcp"] },
+  { "name": "unload", "requires": ["core", "waits"] },
+  { "name": "compositor-log", "requires": ["drag"] }
+]

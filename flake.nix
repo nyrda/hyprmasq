@@ -32,6 +32,11 @@
       checks.${system} = {
         vm-test = import ./nix/hyprmasq-vm-test.nix { inherit system nixpkgs; };
         module-compatibility = import ./nix/module-test.nix { inherit self pkgs; };
+        # The subtest tables of docs/development.md against the VM test's areas, without a VM.
+        vm-test-docs = pkgs.runCommand "hyprmasq-vm-test-docs" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+          python3 ${./nix/vm-test}/check.py --docs ${./docs/development.md}
+          touch $out
+        '';
       };
 
       # Builds the plugin with make, and the MCP server with go in mcp/.

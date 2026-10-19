@@ -18,6 +18,8 @@ jobs:
         run: nix flake check --no-build
       - name: Build plugin and MCP server (including Go tests)
         run: nix build .#hyprmasq .#hyprmasq-mcp -L
+      - name: Check the VM test's areas and subtest tables
+        run: nix build .#checks.x86_64-linux.vm-test-docs -L
       - name: Check C, C++ and Go formatting
         run: |
           # The variables expand in the inner Bash process.

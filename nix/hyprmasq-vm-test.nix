@@ -1,5 +1,8 @@
 {
   system ? "x86_64-linux",
+  # The areas of nix/vm-test/areas.json to run, as a list or a string of names separated by spaces, with the areas
+  # they require. null runs them all.
+  areas ? null,
   nixpkgs ?
     let
       locked = (builtins.fromJSON (builtins.readFile ../flake.lock)).nodes.nixpkgs.locked;
@@ -29,6 +32,59 @@ let
   clipProbe = pkgs.callPackage ./clip-probe.nix { };
   userInput = pkgs.callPackage ./user-input.nix { inherit hyprland; };
   python = pkgs.python3.withPackages (ps: [ ps.pillow ]);
+  inherit (pkgs) lib;
+
+  # The test script: common.py, then the code of each area inside a try block, in the order of areas.json.
+  allAreas = builtins.fromJSON (builtins.readFile ./vm-test/areas.json);
+  areaNames = map (area: area.name) allAreas;
+  requires = lib.listToAttrs (map (area: lib.nameValuePair area.name area.requires) allAreas);
+  requested =
+    if areas == null then
+      areaNames
+    else if builtins.isList areas then
+      areas
+    else
+      lib.filter (name: name != "") (lib.splitString " " areas);
+  unknown = lib.filter (name: !(requires ? ${name})) requested;
+  withRequired =
+    names:
+    let
+      more = lib.unique (names ++ lib.concatMap (name: requires.${name}) names);
+    in
+    if lib.length more == lib.length names then names else withRequired more;
+  selected =
+    if unknown != [ ] then
+      throw "unknown VM test areas ${toString unknown}; the areas are ${toString areaNames}"
+    else
+      lib.filter (area: lib.elem area.name (withRequired (lib.unique requested))) allAreas;
+  indentLine = line: if line == "" then "" else "    " + line;
+  areaCode =
+    area:
+    let
+      code = builtins.readFile (./vm-test + "/${area.name}.py");
+    in
+    lib.concatMapStringsSep "\n" indentLine ([ "# ${area.name}.py" ] ++ lib.splitString "\n" code);
+  # Fails the build when an area's code would not survive the indentation, or uses what an area it does not require
+  # defines.
+  areasChecked = pkgs.runCommand "hyprmasq-vm-test-areas" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+    python3 ${./vm-test}/check.py
+    touch $out
+  '';
+  testScript = lib.concatStringsSep "\n" (
+    [
+      "# Areas: ${toString (map (area: area.name) selected)}, checked by ${areasChecked}"
+      "expected_version = ${builtins.toJSON plugin.version}"
+      (builtins.readFile ./vm-test/common.py)
+      "try:"
+      "    wait_for_hyprland()"
+    ]
+    ++ map areaCode selected
+    ++ [
+      "finally:"
+      "    save_logs()"
+      ""
+    ]
+  );
 
   testConfig = pkgs.writeText "hyprmasq-test.lua" ''
     dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
@@ -69,7 +125,7 @@ let
 in
 pkgs.testers.runNixOSTest {
   passthru = { inherit plugin; };
-  name = "hyprmasq-window-automation-vm";
+  name = "hyprmasq-window-automation-vm" + lib.optionalString (areas != null) "-areas";
 
   nodes.machine =
     { pkgs, ... }:
@@ -107,6 +163,8 @@ pkgs.testers.runNixOSTest {
       ];
 
       environment.etc."hyprmasq-test.lua".source = testConfig;
+      # Scripts that the test runs in the VM.
+      environment.etc."hyprmasq-test".source = ./vm-test/guest;
       environment.etc."hyprmasq-plugin".text = "${plugin}/lib/hyprmasq.so";
 
       environment.variables = {
@@ -135,5 +193,5 @@ pkgs.testers.runNixOSTest {
       system.stateVersion = "24.11";
     };
 
-  testScript = "expected_version = ${builtins.toJSON plugin.version}\n" + builtins.readFile ./vm-test.py;
+  inherit testScript;
 }

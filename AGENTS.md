@@ -24,17 +24,19 @@ hooks are matched by name only.
   `python3 bench/tasks/board/check_test.py`. The Calc checker needs LibreOffice:
   `nix-build bench/tasks/calc/check-test.nix`.
 - Test: `nix build .#checks.x86_64-linux.vm-test -L`, the NixOS VM test in
-  `nix/vm-test.py`. It must pass. Screenshots and logs from the run land in
-  `result/`. Add a subtest for new behaviour, and update the subtest table in
-  `docs/development.md`.
+  `nix/vm-test/`, split into areas. It must pass. Screenshots and logs from the
+  run land in `result/`. Add a subtest for new behaviour, and update the
+  subtest table in `docs/development.md`, which
+  `nix build .#checks.x86_64-linux.vm-test-docs` checks against the code.
 
 Nix only sees files known to Git, so `git add` new files before building.
 
 ## Pull requests
 
 CI runs `nix flake check --no-build`, builds `hyprmasq` and `hyprmasq-mcp`
-including Go tests, checks C/C++ with clang-format and Go with gofmt, and runs
-the bench unit tests above, including Calc. The VM test is a local gate; CI
+including Go tests, checks C/C++ with clang-format and Go with gofmt, checks
+the VM test's subtest tables (`vm-test-docs`), and runs the bench unit tests
+above, including Calc. The VM test is a local gate; CI
 does not run it. Before opening a PR, run it on the commit you push and fill
 in the VM test section of
 `.github/pull_request_template.md` with that commit. Before merging, compare
