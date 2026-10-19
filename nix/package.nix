@@ -54,6 +54,7 @@
         "hyprmasq-input"
         "hyprmasq-reaper"
       ])
+      && path != toString ../hyprmasq-launch
       && !(lib.hasSuffix ".so" base);
   },
 }:

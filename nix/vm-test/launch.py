@@ -1,3 +1,8 @@
+with subtest("launcher handles failed and invalid compositor replies"):
+    # Mock only hyprctl. Run the installed launcher and jq, including the package wrapper.
+    # This makes a compositor disappearing mid-wait deterministic without unloading the plugin.
+    alice("python3 /etc/hyprmasq-test/launch-checks.py")
+
 with subtest("launching applications on a hidden workspace"):
     focus_workspace(4)
     before_focus = snapshot()

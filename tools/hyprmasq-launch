@@ -16,24 +16,62 @@ workspace=hyprmasq
 timeout=30
 
 usage() {
+    if [ $# -gt 0 ]; then
+        echo "hyprmasq-launch: $1" >&2
+    fi
     echo "usage: hyprmasq-launch [--workspace NAME] [--timeout SECONDS] [--] COMMAND [ARG...]" >&2
+    echo "Try 'hyprmasq-launch --help' for options." >&2
     exit 2
+}
+
+help() {
+    cat <<'EOF'
+Start an application on a hidden workspace and print its first window address.
+
+Usage: hyprmasq-launch [OPTIONS] [--] COMMAND [ARG...]
+       hyprmasq-launch --help | --version
+
+Options:
+  --workspace NAME   Hidden workspace name. Default: hyprmasq.
+                     Use only letters, digits, '_', '.' and '-'.
+  --timeout SECONDS  Wait for a window for this many seconds. Default: 30.
+                     A positive whole number, at most 2147483647.
+  --                 End launcher options. Pass command arguments as-is.
+  -h, --help         Show this help and exit.
+  --version          Show the version and exit.
+
+Needs hyprctl and jq on PATH and HYPRLAND_INSTANCE_SIGNATURE for the compositor.
+The command's windows open without changing the user's focus or workspace.
+Apps that pass requests to an existing instance may time out.
+
+Exit codes:
+  0  A window address, help or version was printed on stdout.
+  1  Launch failed, the compositor reply was invalid or no window appeared
+     in time.
+  2  Invalid arguments. Errors are printed on stderr.
+EOF
 }
 
 while [ $# -gt 0 ]; do
     case $1 in
-        --workspace) [ $# -ge 2 ] || usage; workspace=$2; shift 2 ;;
-        --timeout) [ $# -ge 2 ] || usage; timeout=$2; shift 2 ;;
+        -h | --help) help; exit 0 ;;
+        --version) echo "hyprmasq-launch @HYPRMASQ_VERSION@"; exit 0 ;;
+        --workspace) [ $# -ge 2 ] || usage "--workspace needs a value"; workspace=$2; shift 2 ;;
+        --timeout) [ $# -ge 2 ] || usage "--timeout needs a value"; timeout=$2; shift 2 ;;
         --) shift; break ;;
-        -*) usage ;;
+        -*) usage "invalid option '$1'" ;;
         *) break ;;
     esac
 done
-[ $# -gt 0 ] || usage
-case $timeout in '' | *[!0-9]*) usage ;; esac
+[ $# -gt 0 ] || usage "a command is required"
+case $timeout in '' | *[!0-9]*) usage "--timeout must be a positive whole number of seconds, at most 2147483647" ;; esac
+# Decimal normalization avoids shell arithmetic treating a leading zero as octal.
+timeout=$(printf '%s' "$timeout" | sed 's/^0*//')
+if [ -z "$timeout" ] || [ "${#timeout}" -gt 10 ] || [ "$timeout" -gt 2147483647 ]; then
+    usage "--timeout must be a positive whole number of seconds, at most 2147483647"
+fi
 case $workspace in '' | *[!A-Za-z0-9_.-]*)
-    echo "hyprmasq-launch: the workspace name may only contain letters, digits, '_', '.' and '-'" >&2
-    exit 2 ;;
+    usage "the workspace name may only contain letters, digits, '_', '.' and '-'" ;;
 esac
 
 # Quotes one argument for /bin/sh, which Hyprland runs the command with. The x keeps command substitution from
@@ -62,7 +100,10 @@ request="/hyprmasq launch $workspace_hex $token $line_hex"
 if [ $((${#request} % 1023)) -eq 0 ]; then
     line_hex="$line_hex "
 fi
-reply=$(hyprctl hyprmasq launch "$workspace_hex" "$token" "$line_hex")
+if ! reply=$(hyprctl hyprmasq launch "$workspace_hex" "$token" "$line_hex"); then
+    echo "hyprmasq-launch: hyprctl hyprmasq launch failed: $reply" >&2
+    exit 1
+fi
 case $reply in "launched pid "*) ;; *)
     echo "hyprmasq-launch: hyprctl hyprmasq launch failed: $reply" >&2
     exit 1 ;;
@@ -70,7 +111,14 @@ esac
 
 deadline=$(($(date +%s) + timeout))
 while [ "$(date +%s)" -lt "$deadline" ]; do
-    address=$(hyprctl -j hyprmasq launched | jq -r --arg token "$token" '[.windows[]? | select(.token == $token)][0].address // empty')
+    if ! reply=$(hyprctl -j hyprmasq launched); then
+        echo "hyprmasq-launch: cannot query launched windows: $reply" >&2
+        exit 1
+    fi
+    if ! address=$(printf '%s\n' "$reply" | jq -rs --arg token "$token" 'if length != 1 or (.[0].windows | type) != "array" then error("expected a windows array") else [.[0].windows[] | select(.token == $token)][0].address // empty end' 2>/dev/null); then
+        echo "hyprmasq-launch: invalid JSON from hyprctl hyprmasq launched: $reply" >&2
+        exit 1
+    fi
     if [ -n "$address" ]; then
         echo "$address"
         exit 0

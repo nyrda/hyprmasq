@@ -520,3 +520,29 @@ with subtest("hyprmasq-input never counts input that its closing window dropped"
         else:
             assert result["progress"]["keys"] >= delivered, (result, delivered)
     assert snapshot() == before_focus
+
+with subtest("CLI help, versions and argument errors"):
+    # Run installed tools without a compositor connection. Capture streams separately so that
+    # help/version and errors cannot accidentally move between stdout and stderr.
+    alice(f"python3 /etc/hyprmasq-test/cli-checks.py {shlex.quote(expected_version)}")
+
+with subtest("input refuses held-button overflow and releases its presses"):
+    before = snapshot()
+    held_window = alice(f"{ipc} hyprmasq-launch --workspace hm-cli-held -- foot -T hm-cli-held sleep 900").strip()
+    held_path = open_socket(held_window)
+
+    def held_input(buttons):
+        return input_json(held_path, *(word for code in buttons for word in ("down", code)), options="--no-pace")
+
+    # Repeated presses at capacity need no new tracking entry. A new 65th button fails.
+    status, reply = held_input([*range(0x110, 0x150), 0x110])
+    assert status == 0 and reply["done"] == 65, (status, reply)
+    status, reply = held_input(range(0x110, 0x151))
+    assert status == 1 and reply["error"]["code"] == "too_many_held", (status, reply)
+    assert reply["done"] == 64 and reply["failedIndex"] == 64 and reply["delivery"] == "partial", reply
+    # All tracked presses were released on failure; a later batch can use the socket.
+    status, reply = held_input([0x110])
+    assert status == 0 and reply["done"] == 1, (status, reply)
+    assert snapshot() == before
+    dispatch(f'hl.dsp.window.close({{ window = "address:{held_window}" }})')
+    wait_for("held-button test window closed", lambda: client("hm-cli-held") is None)

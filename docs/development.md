@@ -180,6 +180,8 @@ and the code drift apart.
 | hyprmasq-input counts an action cut off by its window's close with only releases left as done | Escape and a left click that close focus-probe's window while the key or the button is held, each followed by a 5-second sleep: the closing action counts as done, and the run fails at the sleep with partial delivery within 4 seconds. A run whose release meets the close on a busy host, which the plugin drops, is partial or uncertain at the closing action and is repeated, up to three times. |
 | hyprmasq-input reports a connection that another sender takes over during a burst | A second sender connects while the first sends text without pacing, three times. The first one exits 1 with `unconfirmed` in its JSON, and its delivery is partial with `progress.keys` equal to the keys the shell got, or uncertain with at least those. |
 | hyprmasq-input never counts input that its closing window dropped | Escape closes focus-probe's window while `hyprmasq-input` sends text after it without pacing, three times. A partial delivery counts exactly the keys the probe got, an uncertain one at least those. |
+| CLI help, versions and argument errors | Both installed tools print help and version on stdout without a compositor connection. Help descriptions align within each section and lines fit within 80 columns. Usage errors exit 2 with a reason and help hint on stderr; input errors retain their JSON outcome. Missing option values, empty batches, invalid timeouts and workspace names are rejected. |
+| input refuses held-button overflow and releases its presses | A batch can repeat a press with 64 held buttons. A 65th distinct press fails with `too_many_held` and partial delivery, releases tracked input, and leaves the socket usable without changing focus. |
 
 #### `waits`
 
@@ -229,6 +231,7 @@ and the code drift apart.
 
 | Subtest | Checks |
 | --- | --- |
+| launcher handles failed and invalid compositor replies | With a mocked `hyprctl`, a failed launch, failed query, non-JSON or empty reply exits 1 with a clear error and no jq parse error. A successful reply still prints the address; decimal timeouts with leading zeroes work. |
 | launching applications on a hidden workspace | `hyprmasq-launch` opens `foot` silently on its workspace with a title full of quotes and backslashes, finds a window opened by a child process, gives each of two launches at once its own window, and times out for a command without a window. A title with `/instances`, `rollinglog -f` and `/--batch;kill;`, which hyprctl and Hyprland look for in a request, reaches `foot` unchanged, on a workspace that starts with `-`, in a request of exactly 1023 bytes, which Hyprland would wait on without padding. A `foot` and an `xterm` started as children of the launched shell without Hyprland's variables, and the second window of a launch, open on the launch's workspace without the focus changing, found by their parent; `launched` gives the two windows of one launch the same token and others another. |
 | hidden wev pointer events | `wev` on a hidden workspace receives enter, motion, button and axis events. |
 | two footclient windows on one Wayland connection | Two `footclient` windows of one `foot --server`: the hidden one receives the text, the focused one receives nothing and stays focused. |

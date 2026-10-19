@@ -2,6 +2,7 @@ build/
 /result*
 *.so
 hyprmasq-input
+/hyprmasq-launch
 hyprmasq-reaper
 __pycache__/
 /bench/results/

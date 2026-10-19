@@ -1,36 +1,5 @@
 // hyprmasq-input: a libei sender for the per-window sockets that hyprmasq creates.
-//
-//   hyprmasq-input --socket PATH [--no-pace] [--json] [--budget MS] [--locale NAME] ACTION...
-//
-// Every action is checked before anything is sent. The actions then run in order, timed like a person's input unless
-// --no-pace is given. With --budget, actions that would not end within MS milliseconds of the start at their pace are
-// refused before anything is sent. --locale names the locale of the target application, whose Compose table types the
-// characters without a key of their own; the default is the sender's own. Coordinates are window-local logical pixels inside the pointer's regions, which
-// hyprmasq sets to the window and the rest of its monitor right of and below it.
-//   move X Y                          move the pointer to X,Y
-//   click [BUTTON [COUNT [MODS]]]     click BUTTON (left, right, middle or an evdev button code such as 0x113; default
-//                                     left) COUNT times, 1 to 3, holding the modifiers MODS, such as ctrl+shift, or -
-//                                     for none
-//   down BUTTON, up BUTTON            press or release BUTTON
-//   drag X1 Y1 X2 Y2 [BUTTON [MODS]]  press at X1,Y1, move to X2,Y2 in steps and release
-//   scroll DX DY                      smooth scroll by DX,DY
-//   wheel DX DY                       scroll by DX,DY wheel notches
-//   key CODE                          press and release an evdev key code (see linux/input-event-codes.h)
-//   keys CHORD [REPEAT]               press the keys of CHORD, such as ctrl+shift+t or enter, together, REPEAT times
-//   type TEXT                         type TEXT with the server's keymap; <enter>, <shortcut:ctrl+l>, <wait:MS> and other
-//                                     tags press keys or wait, and \< types a literal <
-//   text TEXT                         type TEXT as it is, without tags or escapes
-//   sleep MS                          wait MS milliseconds
-//   sync MIN MAX                      print {"sync":N}, N the number of actions before it, on standard output once the
-//                                     server has processed them, and wait for a line with N on standard input, at
-//                                     least MIN and at most MAX milliseconds; it takes the place of the gap between the
-//                                     actions around it
-//
-// Exit status 0 means that the server confirmed every event, 1 that the server or a signal stopped the actions, and 2
-// that the actions are invalid or exceed the budget, in which case nothing was sent. When the server closes the
-// connection after confirming every event sent, as hyprmasq does when the input closed the window, the releases still to
-// come of the running action count as done, since hyprmasq releases what a sender holds when its connection ends.
-// --json prints the outcome as JSON on stdout.
+// Run hyprmasq-input --help for options, actions, text tags and exit codes.
 
 #define _GNU_SOURCE
 
@@ -222,10 +191,61 @@ static const char *composeRequested, *composeLocale;
 static bool        composed;
 
 static void usage(FILE* out) {
-    fputs("usage: hyprmasq-input --socket PATH [--no-pace] [--json] [--budget MS] [--locale NAME] ACTION...\n       hyprmasq-input --version\nactions:", out);
-    for (size_t i = 0; i < ACTION_TYPES; ++i)
-        fprintf(out, "%s%s", i ? " | " : " ", actionSyntax[i].syntax);
-    fputc('\n', out);
+    fputs("usage: hyprmasq-input --socket PATH [OPTIONS] ACTION...\n"
+          "Try 'hyprmasq-input --help' for options and actions.\n",
+          out);
+}
+
+static void help(void) {
+    fputs("Send input to a window's hyprmasq libei socket.\n\n"
+          "Usage: hyprmasq-input --socket PATH [OPTIONS] ACTION...\n"
+          "       hyprmasq-input --help | --version\n\n"
+          "Options:\n"
+          "  --socket PATH  Connect to this window's input socket. Required.\n"
+          "  --no-pace      Omit delays that pace input like a person's.\n"
+          "  --json         Print the outcome as JSON on stdout.\n"
+          "  --budget MS    Refuse actions that cannot finish within MS, 0 to 3600000.\n"
+          "  --locale NAME  Use the target app's Compose locale. Default: sender's locale.\n"
+          "  -h, --help     Show this help and exit.\n"
+          "  --version      Show the version and exit.\n\n"
+          "Actions, in order:\n"
+          "  move X Y                          Move the pointer.\n"
+          "  click [BUTTON [COUNT [MODS]]]     Click 1 to 3 times. Default: left, 1.\n"
+          "  down BUTTON / up BUTTON           Press / release a button.\n"
+          "  drag X1 Y1 X2 Y2 [BUTTON [MODS]]  Press, move in steps, release.\n"
+          "  scroll DX DY                      Smooth scroll in logical pixels.\n"
+          "  wheel DX DY                       Scroll whole notches, -100 to 100.\n"
+          "  key CODE                          Press and release an evdev key code.\n"
+          "  keys CHORD [REPEAT]               Press a chord 1 to 100 times. Default: 1.\n"
+          "  type TEXT                         Type text with key tags and escapes.\n"
+          "  text TEXT                         Type literal text without tags or escapes.\n"
+          "  sleep MS                          Wait 0 to 3600000 milliseconds.\n"
+          "  sync MIN MAX                      Print {\"sync\":N} after the server processes\n"
+          "                                    the N preceding actions, then wait for a\n"
+          "                                    line with N on stdin, at least MIN and at\n"
+          "                                    most MAX milliseconds, 0 <= MIN <= MAX <=\n"
+          "                                    3600000.\n\n"
+          "Coordinates are window-local logical pixels within the pointer regions.\n"
+          "BUTTON is left, right, middle or an evdev code, e.g. 0x113.\n"
+          "MODS joins modifiers with +, e.g. ctrl+shift; - means none.\n"
+          "CHORD joins key names with +, e.g. ctrl+shift+t or enter; use plus for +.\n"
+          "Text uses the server's keymap and the target locale's Compose table.\n\n"
+          "Key tags in type TEXT, case-insensitive:\n"
+          "  <enter>, <tab>, <esc>, <backspace>, <delete>, <up>, <down>, <left>,\n"
+          "  <right>, <home>, <end>, <pageup>, <pagedown>, <space>, <F5>\n"
+          "  <KEY:COUNT>         Repeat a named key or non-printable keysym, 1 to 100.\n"
+          "  <shortcut:ctrl+l>   Hold modifiers around a key.\n"
+          "  <wait:MS>           Wait 0 to 3600000 milliseconds.\n"
+          "  <settle>            Wait 300 milliseconds.\n"
+          "  \\<                  Type a literal <. Unknown tags remain literal text.\n\n"
+          "Every action is checked before any input is sent. Held input is released\n"
+          "when the batch ends or fails. A closed window's remaining releases count\n"
+          "as done if the server confirmed all events sent before it closed.\n\n"
+          "Exit codes:\n"
+          "  0  The server confirmed all input, or help/version was printed.\n"
+          "  1  Runtime failure, including connection failure, memory exhaustion or signal.\n"
+          "  2  Invalid arguments, untypable input or exceeded budget; no input sent.\n",
+          stdout);
 }
 
 static void fail(const char* code, const char* format, ...) {
@@ -450,17 +470,23 @@ static bool paceWait(struct state* s, long ms) {
     return s->pace && ms ? waitUntil(s, nowNs() + MS(ms)) : !interrupted(s);
 }
 
-static void track(uint32_t* held, int* count, uint32_t code, bool press) {
+static bool track(uint32_t* held, int* count, uint32_t code, bool press) {
     for (int i = 0; i < *count; ++i)
         if (held[i] == code) {
             if (!press) {
                 memmove(held + i, held + i + 1, (*count - i - 1) * sizeof(*held));
                 --*count;
             }
-            return;
+            return true;
         }
-    if (press && *count < MAX_HELD)
+    if (press) {
+        if (*count == MAX_HELD) {
+            fail("too_many_held", "cannot hold more than %d keys or buttons per device", MAX_HELD);
+            return false;
+        }
         held[(*count)++] = code;
+    }
+    return true;
 }
 
 static bool useKeyboard(struct state* s) {
@@ -493,8 +519,9 @@ static bool usePointer(struct state* s) {
 static bool sendKey(struct state* s, uint32_t code, bool press, bool counts) {
     if (!useKeyboard(s))
         return false;
+    if (!track(s->heldKeys, &s->heldKeyCount, code, press))
+        return false;
     ei_device_keyboard_key(s->keyboard, code, press);
-    track(s->heldKeys, &s->heldKeyCount, code, press);
     s->sent.keys += press && counts;
     frame(s, s->keyboard);
     return !interrupted(s);
@@ -540,8 +567,9 @@ static bool sendButton(struct state* s, uint32_t button, bool press) {
         return false;
     if (!usePointer(s))
         return false;
+    if (!track(s->heldButtons, &s->heldButtonCount, button, press))
+        return false;
     ei_device_button_button(s->pointer, button, press);
-    track(s->heldButtons, &s->heldButtonCount, button, press);
     frame(s, s->pointer);
     return !interrupted(s);
 }
@@ -821,7 +849,7 @@ static bool addStep(struct steps* steps, struct step step) {
         const size_t capacity = steps->capacity ? steps->capacity * 2 : 64;
         struct step* items    = realloc(steps->items, capacity * sizeof(*items));
         if (!items) {
-            fail("invalid_arguments", "out of memory");
+            fail("out_of_memory", "out of memory");
             return false;
         }
         steps->items    = items;
@@ -876,7 +904,13 @@ static bool addComposed(struct state* s, struct steps* steps, uint32_t codepoint
         if (!utf8 || decodeUtf8(utf8, &cp) != (int)strlen(utf8) || cp != codepoint || length == 0 || (best && length >= bestLength))
             continue;
         struct chord* chords = calloc(length, sizeof(*chords));
-        size_t        i      = 0;
+        if (!chords) {
+            fail("out_of_memory", "out of memory");
+            free(best);
+            xkb_compose_table_iterator_free(it);
+            return false;
+        }
+        size_t i = 0;
         while (chords && i < length && findChord(s, syms[i], 0, &chords[i]))
             ++i;
         if (chords && i == length) {
@@ -901,6 +935,8 @@ static bool addChar(struct state* s, struct steps* steps, uint32_t codepoint) {
     if (!findChord(s, newline ? XKB_KEY_Return : 0, codepoint, &step.chord)) {
         if (!newline && addComposed(s, steps, codepoint))
             return true;
+        if (failure.code)
+            return false;
         if (newline || !composeLocale)
             fail("cannot_type", "the keymap cannot type U+%04X", codepoint);
         else if (!s->compose)
@@ -1262,7 +1298,6 @@ static int parseAction(int argc, char** argv, struct action* a) {
     const int type = findActionType(argv[0]);
     if (type < 0) {
         fail("invalid_arguments", "invalid action at '%s'", argv[0]);
-        usage(stderr);
         return 0;
     }
     *a = (struct action){.type = type, .code = BTN_LEFT, .count = 1, .keysAt = -1};
@@ -1354,10 +1389,8 @@ static bool click(struct state* s, const struct action* a) {
 // Steps of at most DRAG_STEP_PX, at least DRAG_MIN_STEPS and at most MAX_DRAG_STEPS of them.
 static long dragSteps(const struct action* a) {
     const double dx = a->x2 - a->x, dy = a->y2 - a->y;
-    long         steps = DRAG_MIN_STEPS;
-    while (steps < MAX_DRAG_STEPS && (double)steps * steps * DRAG_STEP_PX * DRAG_STEP_PX < dx * dx + dy * dy)
-        ++steps;
-    return steps;
+    const double steps = ceil(hypot(dx, dy) / DRAG_STEP_PX);
+    return steps < DRAG_MIN_STEPS ? DRAG_MIN_STEPS : steps > MAX_DRAG_STEPS ? MAX_DRAG_STEPS : (long)steps;
 }
 
 static bool drag(struct state* s, const struct action* a) {
@@ -1620,10 +1653,19 @@ int main(int argc, char** argv) {
     const uint64_t started = nowNs();
     const char*    socket  = NULL;
     bool           json = false, pace = true;
-    const char*    badOption = NULL;
-    const char*    badBudget = NULL;
-    int            first     = 1;
-    for (; first < argc && !strncmp(argv[first], "--", 2); ++first) {
+    const char*    badOption    = NULL;
+    const char*    badBudget    = NULL;
+    const char*    missingValue = NULL;
+    int            first        = 1;
+    for (; first < argc && argv[first][0] == '-'; ++first) {
+        if (!strcmp(argv[first], "-h") || !strcmp(argv[first], "--help")) {
+            help();
+            return 0;
+        }
+        if ((!strcmp(argv[first], "--socket") || !strcmp(argv[first], "--budget") || !strcmp(argv[first], "--locale")) && first + 1 == argc) {
+            missingValue = argv[first];
+            break;
+        }
         if (!strcmp(argv[first], "--socket") && first + 1 < argc)
             socket = argv[++first];
         else if (!strcmp(argv[first], "--no-pace"))
@@ -1647,8 +1689,13 @@ int main(int argc, char** argv) {
             printOutcome(0, 0, -1, "none", -1);
         return 2;
     }
-    if (badOption || !socket) {
-        fail("invalid_arguments", badOption ? "invalid option '%s'" : "--socket PATH is required", badOption);
+    if (badOption || missingValue || !socket || first == argc) {
+        if (badOption)
+            fail("invalid_arguments", "invalid option '%s'", badOption);
+        else if (missingValue)
+            fail("invalid_arguments", "%s needs a value", missingValue);
+        else
+            fail("invalid_arguments", !socket ? "--socket PATH is required" : "at least one action is required");
         usage(stderr);
         if (json)
             printOutcome(0, 0, -1, "none", -1);
@@ -1661,6 +1708,7 @@ int main(int argc, char** argv) {
     for (int i = first; actions && i < argc; ++total) {
         const int used = parseAction(argc - i, argv + i, &actions[total]);
         if (!used) {
+            usage(stderr);
             if (json)
                 printOutcome(0, total + 1, total, "none", -1);
             free(actions);
@@ -1669,8 +1717,10 @@ int main(int argc, char** argv) {
         i += used;
     }
     if (!actions) {
-        fail("invalid_arguments", "out of memory");
-        return 2;
+        fail("out_of_memory", "out of memory");
+        if (json)
+            printOutcome(0, 0, -1, "none", -1);
+        return 1;
     }
 
     sigset_t blocked;
@@ -1802,6 +1852,8 @@ int main(int argc, char** argv) {
             keys             = known < start ? 0 : (known > end ? end : known) - start;
         }
     }
+    if (failure.code && !strcmp(failure.code, "invalid_arguments") && s.sent.frames == 0)
+        usage(stderr);
     if (json)
         printOutcome(done, total, failedIndex, delivery, keys);
 
