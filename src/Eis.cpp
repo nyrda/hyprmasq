@@ -807,8 +807,10 @@ namespace hyprmasq {
                 return std::nullopt;
             }
             void deliver(eis_device* device) {
-                auto w = window.lock();
-                auto s = wlSeat();
+                // What the frame waits for the X server, over all its round trips.
+                x11::CWaitBudget budget;
+                auto             w = window.lock();
+                auto             s = wlSeat();
                 if (!w || !s) {
                     drop(device);
                     return;
@@ -1352,6 +1354,9 @@ namespace hyprmasq {
             return !knownProcess;
         }
         bool drivenX11App(const PHLWINDOW& w, bool knownProcess) {
+            // Without a driven X11 window, finding the window's X server, which reads /proc, is not needed.
+            if (std::ranges::none_of(sessions, [](const auto& entry) { return entry.second->xServer() != nullptr; }))
+                return false;
             auto* server  = x11::server(w);
             auto  focused = Desktop::focusState()->window();
             if (!server || (focused && sameX11App(w, server, focused, x11::server(focused), knownProcess)))
@@ -1514,9 +1519,10 @@ namespace hyprmasq {
             reinterpret_cast<Fn>(originalPointerButton)(self, timeMs, button, state);
         }
 
-        // Refuse symlinks and pre-existing directories accessible to another user.
-        int privateDir(int parent, const char* name) {
-            if (mkdirat(parent, name, 0700) < 0 && errno != EEXIST)
+        // Refuse symlinks and pre-existing directories accessible to another user. made tells whether this created it.
+        int privateDir(int parent, const char* name, bool& made) {
+            made = mkdirat(parent, name, 0700) == 0;
+            if (!made && errno != EEXIST)
                 return -1;
             int         fd = openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
             struct stat st{};
@@ -1525,6 +1531,32 @@ namespace hyprmasq {
                 return -1;
             }
             return fd;
+        }
+
+        // The directories of the sockets that openEis created since the load: $XDG_RUNTIME_DIR/hyprmasq, and the
+        // instance's directory in it.
+        struct SMadeDirectories {
+            std::string runtime, instance;
+            bool        root = false, own = false;
+        } made;
+
+        // Removes the directories that openEis created, once the sockets in them are gone, each only while it is empty:
+        // hyprmasq-mcp keeps its locks and shots in the instance's directory, and other instances have theirs beside it.
+        void removeDirectories() {
+            const auto dirs = std::exchange(made, {});
+            if (!dirs.root && !dirs.own)
+                return;
+            const int base = open(dirs.runtime.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+            const int root = base < 0 ? -1 : openat(base, "hyprmasq", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+            // unlinkat removes only an empty directory, and no symlink, with AT_REMOVEDIR.
+            if (root >= 0 && dirs.own)
+                unlinkat(root, dirs.instance.c_str(), AT_REMOVEDIR);
+            if (base >= 0 && dirs.root)
+                unlinkat(base, "hyprmasq", AT_REMOVEDIR);
+            if (root >= 0)
+                close(root);
+            if (base >= 0)
+                close(base);
         }
 
         // The instance's directory under $XDG_RUNTIME_DIR/hyprmasq: its signature without the commit hash in front, which
@@ -1566,6 +1598,8 @@ namespace hyprmasq {
             session->closing = "unloaded";
         sessions.clear();
         drag::shutdown();
+        // libeis has removed every socket and its lock file.
+        removeDirectories();
     }
     std::expected<SEisInfo, SError> openEis(const PHLWINDOW& w, bool force) {
         const auto address = windowAddress(w);
@@ -1588,9 +1622,16 @@ namespace hyprmasq {
             return std::unexpected(SError{eErrorCode::INTERNAL,
                                           std::format("the socket path {} has {} bytes, more than the {} of a Unix socket path; use a shorter XDG_RUNTIME_DIR", path, path.size(),
                                                       sizeof(sockaddr_un::sun_path) - 1)});
-        int base     = open(runtime, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-        int root     = base < 0 ? -1 : privateDir(base, "hyprmasq");
-        int instance = root < 0 ? -1 : privateDir(root, directory.c_str());
+        bool madeRoot = false, madeInstance = false;
+        int  base     = open(runtime, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        int  root     = base < 0 ? -1 : privateDir(base, "hyprmasq", madeRoot);
+        int  instance = root < 0 ? -1 : privateDir(root, directory.c_str(), madeInstance);
+        if (madeRoot || madeInstance) {
+            made.runtime  = runtime;
+            made.instance = directory;
+            made.root     = made.root || madeRoot;
+            made.own      = made.own || madeInstance;
+        }
         if (base >= 0)
             close(base);
         if (root >= 0)

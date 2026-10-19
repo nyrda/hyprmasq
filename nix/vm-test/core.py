@@ -63,6 +63,35 @@ with subtest("screenshots are encoded while Hyprland keeps running"):
     assert parts[1]["id"] == 4, parts
     assert_png("/tmp/hm-batch-json.png", (0, 255, 0))
 
+with subtest("a screenshot that Hyprland waits for writes regular files, and refuses anything else at once"):
+    # Another plugin's request through HyprlandAPI::invokeHyprctlCommand, also a batch, needs its reply at once, so
+    # the write cannot wait for a FIFO's reader. timeout ends hyprctl if Hyprland stops answering.
+    caller = machine.succeed("cat /etc/hyprmasq-hyprctl-caller").strip()
+    assert hypr(f"plugin load {caller}") == "ok"
+    red = windows[0][1]
+    fifo("/tmp/hm-call.png")
+    reply = json.loads(alice(f"{ipc} timeout 10 hyprctl -j hmcall hyprmasq screenshot {red} /tmp/hm-call.png"))
+    assert not reply["ok"] and reply["code"] == "unsupported", reply
+    assert "/tmp/hm-call.png is not a regular file" in reply["error"], reply
+    # hyprctl exits 7 for a reply that starts with an error.
+    status, reply = machine.execute(
+        "su - alice -c " + shlex.quote(f"{ipc} timeout 10 hyprctl hmcall '[[BATCH]]hyprmasq' screenshot {red} /tmp/hm-call.png ';' hyprmasq version")
+    )
+    parts = reply.split("\n\n\n")
+    assert status == 7 and len(parts) == 2 and parts[0].startswith("error: /tmp/hm-call.png is not a regular file"), parts
+    assert parts[1].strip().startswith("hyprmasq "), parts
+    machine.succeed("test -p /tmp/hm-call.png")
+    # A regular file is written, also over an existing one, and in a batch.
+    reply = json.loads(alice(f"{ipc} timeout 10 hyprctl -j hmcall hyprmasq screenshot {red} /tmp/hm-call-file.png"))
+    assert reply["ok"] and reply["path"] == "/tmp/hm-call-file.png", reply
+    assert_png("/tmp/hm-call-file.png", (255, 0, 0))
+    alice("rm -f /tmp/hm-call-batch.png && printf old > /tmp/hm-call-batch.png")
+    parts = alice(f"{ipc} timeout 10 hyprctl hmcall '[[BATCH]]hyprmasq' screenshot {red} /tmp/hm-call-batch.png ';' hyprmasq version").split("\n\n\n")
+    assert parts[0].strip() == "ok", parts
+    assert_png("/tmp/hm-call-batch.png", (255, 0, 0))
+    assert hypr(f"plugin unload {caller}") == "ok"
+    assert json.loads(hypr("-j activeworkspace"))["id"] == 4
+
 with subtest("screenshot regions in logical pixels"):
     green = windows[1][1]
     white = "r > 200 and g > 200 and b > 200"
@@ -127,7 +156,19 @@ with subtest("socket lifecycle"):
     dispatch('hl.dsp.window.close({ window = "address:' + doomed + '" })')
     wait_for("window teardown", lambda: client("hm-red") is None)
     machine.wait_until_succeeds(f"test ! -e {path} && test ! -e {path}.lock")
-    assert not json.loads(hypr("-j hyprmasq eis list"))
+    assert not json.loads(hypr("-j hyprmasq eis list"))["sockets"]
+
+with subtest("eis close takes an address: prefix, as open does, and eis list answers without sockets"):
+    target = windows[1][1]
+    path = open_socket(target)
+    assert hypr(f"hyprmasq eis open address:{target}") == path
+    assert hypr(f"hyprmasq eis close address:{target}") == "ok"
+    machine.succeed(f"test ! -e {path} && test ! -e {path}.lock")
+    reply = json.loads(hypr(f"-j hyprmasq eis close address:{target}"))
+    assert not reply["ok"] and reply["code"] == "no_socket" and f"no open socket for {target}" == reply["error"], reply
+    # hyprctl prints "unknown request" for an empty reply.
+    assert hypr("hyprmasq eis list") == "no open sockets"
+    assert json.loads(hypr("-j hyprmasq eis list")) == {"ok": True, "sockets": []}
 
 with subtest("hidden shell input, focus stability and frame callbacks"):
     focus_workspace(5)

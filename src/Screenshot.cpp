@@ -53,8 +53,16 @@ namespace hyprmasq {
             return poll(&fd, 1, timeout) > 0 && (fd.revents & POLLIN);
         }
 
+        SError notRegular(const std::filesystem::path& path) {
+            return SError{eErrorCode::UNSUPPORTED,
+                          std::format("{} is not a regular file, and Hyprland would wait for its reader: a screenshot that Hyprland waits for, as one through "
+                                      "HyprlandAPI::invokeHyprctlCommand, only writes regular files",
+                                      path.string())};
+        }
+
         // A file opened for writing, as by fopen(path, "wb"), without waiting in open() for a FIFO's reader: a reader
-        // that opens it later still gets the file, and stop ends the wait. The descriptor does not block.
+        // that opens it later still gets the file, and stop ends the wait. The descriptor does not block. Waited, only a
+        // regular file is opened, whose writes never wait for a reader.
         class COutput {
           public:
             COutput(const COutput&)            = delete;
@@ -68,17 +76,27 @@ namespace hyprmasq {
             // reader opened a FIFO, so it tries until one has, where fopen() would wait in open().
             static constexpr int READER_RETRY_MS = 20;
 
-            static std::expected<COutput, SError> open(const std::filesystem::path& path, int stop) {
+            static std::expected<COutput, SError> open(const std::filesystem::path& path, int stop, bool waited) {
                 while (true) {
+                    struct stat st{};
+                    // Truncating a file that is about to be refused would lose it, and opening a device can have effects.
+                    if (waited && stat(path.c_str(), &st) == 0 && !S_ISREG(st.st_mode))
+                        return std::unexpected(notRegular(path));
                     const int fd = ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_NONBLOCK | O_CLOEXEC, 0666);
-                    if (fd >= 0)
-                        return COutput{fd, path, stop};
+                    if (fd >= 0) {
+                        // What the path names may have changed since the check.
+                        COutput output{fd, path, stop};
+                        if (waited && (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)))
+                            return std::unexpected(notRegular(path));
+                        return output;
+                    }
                     if (errno == EINTR)
                         continue;
                     // ENXIO is also the answer for a socket or an absent device, which no wait opens.
-                    struct stat st{};
                     if (errno != ENXIO || stat(path.c_str(), &st) != 0 || !S_ISFIFO(st.st_mode))
                         return std::unexpected(failed("open", path));
+                    if (waited)
+                        return std::unexpected(notRegular(path));
                     if (stopping(stop, READER_RETRY_MS))
                         return std::unexpected(stopped(path));
                 }
@@ -136,9 +154,15 @@ namespace hyprmasq {
 
         // Encodes into memory, so that only the write to the file waits, and stop can end it.
         std::expected<std::vector<uint8_t>, SError> encode(const std::filesystem::path& path, int width, int height, std::vector<uint8_t>& rgba) {
+            // png_error returns to the setjmp below by longjmp, which must not skip a destructor, so every object that has
+            // one is made before it.
             std::vector<uint8_t> out;
-            png_structp          png  = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
-            png_infop            info = png ? png_create_info_struct(png) : nullptr;
+            // RPT_EXPORT already renders top-down, so rows are stored in image order.
+            std::vector<png_bytep> rows(height);
+            for (int y = 0; y < height; ++y)
+                rows[y] = rgba.data() + sc<size_t>(y) * width * 4;
+            png_structp png  = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+            png_infop   info = png ? png_create_info_struct(png) : nullptr;
             if (!png || !info) {
                 png_destroy_write_struct(&png, &info);
                 return std::unexpected(SError{eErrorCode::INTERNAL, "cannot create png writer"});
@@ -157,12 +181,6 @@ namespace hyprmasq {
             png_set_filter(png, PNG_FILTER_TYPE_BASE, PNG_FILTER_SUB);
             png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
             png_write_info(png, info);
-
-            // RPT_EXPORT already renders top-down, so rows are stored in image order.
-            std::vector<png_bytep> rows(height);
-            for (int y = 0; y < height; ++y)
-                rows[y] = rgba.data() + sc<size_t>(y) * width * 4;
-
             png_write_image(png, rows.data());
             png_write_end(png, nullptr);
             png_destroy_write_struct(&png, &info);
@@ -272,6 +290,16 @@ namespace hyprmasq {
             std::vector<UP<Render::IWindowTransformer>> m_transformers;
         };
 
+        class CRenderMonitorReset {
+          public:
+            CRenderMonitorReset() = default;
+            ~CRenderMonitorReset() {
+                g_pHyprRenderer->m_renderData.pMonitor.reset();
+            }
+            CRenderMonitorReset(const CRenderMonitorReset&)            = delete;
+            CRenderMonitorReset& operator=(const CRenderMonitorReset&) = delete;
+        };
+
         // The renderer produces premultiplied alpha, PNG stores straight alpha.
         void unpremultiply(std::vector<uint8_t>& rgba) {
             for (size_t i = 0; i < rgba.size(); i += 4) {
@@ -359,6 +387,9 @@ namespace hyprmasq {
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot allocate framebuffer"});
         if (!dynamic_cast<Render::GL::CGLFramebuffer*>(fb.get()))
             return std::unexpected(SError{eErrorCode::INTERNAL, "only the GL renderer is supported"});
+        // Hyprland resets the render data's monitor after every offscreen render, as Screenshare::CScreenshareFrame does,
+        // which beginRender sets also when it fails.
+        const CRenderMonitorReset reset;
         if (!beginRender(monitor, fb, width, height))
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot begin offscreen render"});
 
@@ -448,12 +479,11 @@ namespace hyprmasq {
             capture.detail = std::move(*detail);
         }
 
-        g_pHyprRenderer->m_renderData.pMonitor.reset();
         return capture;
     }
 
-    std::expected<void, SError> writePNG(SImage& image, const std::filesystem::path& output, int stop) {
-        auto file = COutput::open(output, stop);
+    std::expected<void, SError> writePNG(SImage& image, const std::filesystem::path& output, int stop, bool waited) {
+        auto file = COutput::open(output, stop, waited);
         if (!file)
             return std::unexpected(file.error());
         unpremultiply(image.rgba);
@@ -465,8 +495,8 @@ namespace hyprmasq {
         return file->finish();
     }
 
-    std::expected<void, SError> writeRaw(SImage& image, const std::filesystem::path& output, int stop) {
-        auto file = COutput::open(output, stop);
+    std::expected<void, SError> writeRaw(SImage& image, const std::filesystem::path& output, int stop, bool waited) {
+        auto file = COutput::open(output, stop, waited);
         if (!file)
             return std::unexpected(file.error());
         unpremultiply(image.rgba);

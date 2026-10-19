@@ -52,7 +52,9 @@ namespace hyprmasq {
     std::expected<SCapture, SError> captureWindow(const PHLWINDOW& window, const SCaptureOptions& options = {});
     // Encodes the image as a PNG, or writes its pixels as they are: straight-alpha RGBA, top row first, without a header.
     // A FIFO is written once a reader has opened it. Once stop, an eventfd or -1, is readable, a write that waits for a
-    // FIFO's reader or for room in a pipe ends with code UNLOADED. Safe on any thread.
-    std::expected<void, SError> writePNG(SImage& image, const std::filesystem::path& output, int stop = -1);
-    std::expected<void, SError> writeRaw(SImage& image, const std::filesystem::path& output, int stop = -1);
+    // FIFO's reader or for room in a pipe ends with code UNLOADED. A write that Hyprland's main thread waits for, see
+    // deferred::waited(), writes only regular files, and refuses anything else with code UNSUPPORTED before it writes
+    // to it. Safe on any thread.
+    std::expected<void, SError> writePNG(SImage& image, const std::filesystem::path& output, int stop = -1, bool waited = false);
+    std::expected<void, SError> writeRaw(SImage& image, const std::filesystem::path& output, int stop = -1, bool waited = false);
 }

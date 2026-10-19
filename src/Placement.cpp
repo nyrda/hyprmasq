@@ -151,7 +151,9 @@ namespace hyprmasq::placement {
         void realInput(const SP<CWLSurfaceResource>& surface, bool trigger) {
             if (trigger)
                 typedInto.reset();
-            if (!surface)
+            // The user's input counts against the agent's that came before it. With no window the agent works in, any
+            // input of the agent's comes later, so there is nothing to note.
+            if (!surface || driven.empty())
                 return;
             const auto now = Time::steadyNow();
             SApp       app{.client = surface->client()};

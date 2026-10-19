@@ -11,41 +11,15 @@
 
 #include <hyprland/src/plugins/PluginAPI.hpp>
 
-static HANDLE  PHANDLE = nullptr;
+#include <cstring>
+#include <format>
+#include <stdexcept>
 
-APICALL EXPORT std::string PLUGIN_API_VERSION() {
-    return HYPRLAND_API_VERSION;
-}
+static HANDLE PHANDLE = nullptr;
 
-APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
-    PHANDLE = handle;
-    try {
-        hyprmasq::initEis(handle);
-        hyprmasq::selection::init(handle);
-        hyprmasq::x11::init(handle);
-        hyprmasq::deferred::init(handle);
-        hyprmasq::cursor::init(handle);
-        hyprmasq::launch::init();
-        hyprmasq::placement::init(handle);
-    } catch (...) {
-        hyprmasq::placement::shutdown();
-        hyprmasq::launch::shutdown();
-        hyprmasq::wait::shutdown();
-        hyprmasq::shutdownEis();
-        hyprmasq::selection::shutdown();
-        hyprmasq::cursor::shutdown();
-        hyprmasq::deferred::shutdown();
-        hyprmasq::x11::shutdown();
-        hyprmasq::unhookAll();
-        throw;
-    }
-
-    HyprlandAPI::registerHyprCtlCommand(PHANDLE, SHyprCtlCommand{.name = "hyprmasq", .exact = false, .fn = hyprmasq::handleCommand});
-
-    return {"hyprmasq", "Per-window screenshots and EIS input for Hyprland", "nyrda", std::string{hyprmasq::VERSION}};
-}
-
-APICALL EXPORT void PLUGIN_EXIT() {
+// Releases what init installed, in the order that Wait.hpp and Selection.hpp require, also after a partial init: every
+// shutdown is safe without its init.
+static void shutdownAll() {
     hyprmasq::placement::shutdown();
     hyprmasq::launch::shutdown();
     // Pending waits hold threads that deferred::shutdown() joins.
@@ -56,5 +30,42 @@ APICALL EXPORT void PLUGIN_EXIT() {
     hyprmasq::cursor::shutdown();
     hyprmasq::x11::shutdown();
     hyprmasq::unhookAll();
+}
+
+APICALL EXPORT std::string PLUGIN_API_VERSION() {
+    return HYPRLAND_API_VERSION;
+}
+
+APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+    PHANDLE = handle;
+    // Hyprland's loader compares only the API version, and the plugin reads private members of Hyprland's classes, whose
+    // layout another build can change: a plugin built for another build could crash Hyprland.
+    const char* running = __hyprland_api_get_hash();
+    const char* built   = __hyprland_api_get_client_hash();
+    if (std::strcmp(running, built) != 0) {
+        HyprlandAPI::addNotification(handle, "[hyprmasq] Not loaded: it was built for another Hyprland build. Rebuild it against the running Hyprland.",
+                                     CHyprColor{1.0, 0.2, 0.2, 1.0}, 10000);
+        throw std::runtime_error(std::format("hyprmasq was built for Hyprland {}, not the running {}", built, running));
+    }
+    try {
+        hyprmasq::initEis(handle);
+        hyprmasq::selection::init(handle);
+        hyprmasq::x11::init(handle);
+        hyprmasq::deferred::init(handle);
+        hyprmasq::cursor::init(handle);
+        hyprmasq::launch::init();
+        hyprmasq::placement::init(handle);
+    } catch (...) {
+        shutdownAll();
+        throw;
+    }
+
+    HyprlandAPI::registerHyprCtlCommand(PHANDLE, SHyprCtlCommand{.name = "hyprmasq", .exact = false, .fn = hyprmasq::handleCommand});
+
+    return {"hyprmasq", "Per-window screenshots and EIS input for Hyprland", "nyrda", std::string{hyprmasq::VERSION}};
+}
+
+APICALL EXPORT void PLUGIN_EXIT() {
+    shutdownAll();
     PHANDLE = nullptr;
 }

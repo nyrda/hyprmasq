@@ -14,7 +14,7 @@ with subtest("unload removes all sockets and hooks, reload succeeds"):
     wait_for("the X primary selection", lambda: alice(f"{x_env} timeout 5 xclip -o -selection primary || true") == "xunloadword", timeout=10)
     time.sleep(0.5)
     assert user_selections() == ("userclipboard", "userprimary")
-    paths = [s["path"] for s in json.loads(hypr("-j hyprmasq eis list"))]
+    paths = [s["path"] for s in json.loads(hypr("-j hyprmasq eis list"))["sockets"]]
     assert paths
     # A wait on a window that keeps drawing is still pending at the unload, and gets an answer.
     focus_workspace(20)
@@ -41,7 +41,7 @@ with subtest("unload removes all sockets and hooks, reload succeeds"):
     for path in paths:
         machine.succeed(f"test ! -e {path} && test ! -e {path}.lock")
     assert hypr(f"plugin load {plugin}") == "ok"
-    assert json.loads(hypr("-j hyprmasq eis list")) == []
+    assert json.loads(hypr("-j hyprmasq eis list")) == {"ok": True, "sockets": []}
     assert not hypr("configerrors")
     machine.succeed("pkill -f '[h]yprmasq-clip-probe' || true")
     wait_for("the clipboard probe closed", lambda: client("hm-clip-unload") is None)

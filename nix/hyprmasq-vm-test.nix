@@ -31,6 +31,7 @@ let
   dndProbe = pkgs.callPackage ./dnd-probe.nix { };
   clipProbe = pkgs.callPackage ./clip-probe.nix { };
   userInput = pkgs.callPackage ./user-input.nix { inherit hyprland; };
+  hyprctlCaller = pkgs.callPackage ./hyprctl-caller.nix { inherit plugin; };
   python = pkgs.python3.withPackages (ps: [ ps.pillow ]);
   inherit (pkgs) lib;
 
@@ -166,6 +167,7 @@ pkgs.testers.runNixOSTest {
       # Scripts that the test runs in the VM.
       environment.etc."hyprmasq-test".source = ./vm-test/guest;
       environment.etc."hyprmasq-plugin".text = "${plugin}/lib/hyprmasq.so";
+      environment.etc."hyprmasq-hyprctl-caller".text = "${hyprctlCaller}/lib/hyprmasq-hyprctl-caller.so";
 
       environment.variables = {
         AQ_TRACE = "1";

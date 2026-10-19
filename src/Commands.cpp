@@ -170,10 +170,12 @@ namespace hyprmasq {
             // Rendering needs the compositor, encoding does not. An unload ends a write that waits for a pipe.
             const int stop = deferred::stopFd();
             return defer(format, [format, path, raw, detailPath, stop, commits, socketId, behind, hungry, capture = std::move(*capture)] mutable -> std::string {
-                if (auto written = raw ? writeRaw(capture.image, path, stop) : writePNG(capture.image, path, stop); !written)
+                // A write that the main thread waits for must not wait for a reader.
+                const bool waited = deferred::waited();
+                if (auto written = raw ? writeRaw(capture.image, path, stop, waited) : writePNG(capture.image, path, stop, waited); !written)
                     return error(format, written.error());
                 if (capture.detail)
-                    if (auto written = writeRaw(*capture.detail, detailPath, stop); !written)
+                    if (auto written = writeRaw(*capture.detail, detailPath, stop, waited); !written)
                         return error(format, written.error());
                 if (format == FORMAT_JSON) {
                     const auto& r = capture.image.region;
@@ -508,7 +510,10 @@ namespace hyprmasq {
                     } else
                         out += info.address + " " + info.path + (info.force ? " force" : "") + "\n";
                 }
-                return format == FORMAT_JSON ? "[" + out + "]" : out;
+                if (format == FORMAT_JSON)
+                    return R"({"ok":true,"sockets":[)" + out + "]}";
+                // hyprctl prints "unknown request" for an empty reply.
+                return out.empty() ? "no open sockets" : out;
             }
             // A plain word, because hyprctl takes every argument that starts with a dash as its own flag.
             if (!args.empty() && args[0] == "open" && (args.size() == 2 || (args.size() == 3 && args[2] == "force"))) {
@@ -523,8 +528,9 @@ namespace hyprmasq {
             if (args.size() != 2)
                 return usage(format);
             if (args[0] == "close") {
-                if (!closeEis(args[1]))
-                    return error(format, eErrorCode::NO_SOCKET, "no open socket for " + args[1]);
+                const auto address = std::string{normalizeAddress(args[1])};
+                if (!closeEis(address))
+                    return error(format, eErrorCode::NO_SOCKET, "no open socket for " + address);
                 return format == FORMAT_JSON ? R"({"ok":true})" : "ok";
             }
             return usage(format);

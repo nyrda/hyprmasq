@@ -148,6 +148,53 @@ with subtest("X11 apps learn they are not active after input"):
     assert hypr(f"hyprmasq eis close {x_shell}") == "ok"
     machine.execute("pkill -f 'xprop -spy'")
 
+with subtest("an X server that does not answer holds Hyprland up for 100 ms per input frame at most"):
+    focus_workspace(15)
+    stuck_windows = [xterm(f"hm-x-stuck-{n}", "sh -c " + shlex.quote(f"stty -echo; cat > /tmp/hm-x-stuck-{n}")) for n in (1, 2)]
+    focus_workspace(4)
+    before_focus = snapshot()
+    first, second = [open_socket(w) for w in stuck_windows]
+    send(first, "type", "a", "key", 28)
+    machine.wait_until_succeeds("test \"$(cat /tmp/hm-x-stuck-1)\" = a", timeout=30)
+    xwayland = machine.succeed("pgrep -x Xwayland").strip()
+
+    def stuck_input(text):
+        # The frame of the second window first gives back the X focus that the first holds, which takes several
+        # round trips, and pauses once one runs out of time.
+        script = (
+            f"s=$(date +%s%N); hyprmasq-input --socket {shlex.quote(second)} type {text} > /tmp/hm-x-stuck-out 2>&1; "
+            "echo $? $((($(date +%s%N) - s) / 1000000))"
+        )
+        status, ms = alice(script).split()
+        output = machine.succeed("cat /tmp/hm-x-stuck-out")
+        assert status == "1" and "paused input" in output, (status, output)
+        return int(ms)
+
+    # X focus stays with the first window for a second after its input, the second's input comes before that.
+    send(first, "type", "b")
+    machine.succeed(f"kill -STOP {xwayland}")
+    try:
+        held_ms = stuck_input("c")
+        again_ms = stuck_input("d")
+        latency = int(alice(f"s=$(date +%s%N); {ipc} hyprctl version > /dev/null; echo $((($(date +%s%N) - s) / 1000000))"))
+    finally:
+        machine.succeed(f"kill -CONT {xwayland}")
+    machine.log(f"input with a stuck X server took {held_ms} and {again_ms} ms, hyprctl {latency} ms")
+    assert held_ms < 400 and again_ms < 300 and latency < 300, (held_ms, again_ms, latency)
+    assert snapshot() == before_focus
+
+    # Once the X server answers again, so does input.
+    def delivered():
+        status, _ = machine.execute(f"su - alice -c {shlex.quote(f'hyprmasq-input --socket {shlex.quote(second)} type e key 28')}")
+        return status == 0 and "e" in machine.succeed("cat /tmp/hm-x-stuck-2")
+
+    wait_for("X11 input after the X server answers again", delivered, timeout=30)
+    assert snapshot() == before_focus
+    for w in stuck_windows:
+        assert hypr(f"hyprmasq eis close {w}") == "ok"
+        dispatch(f'hl.dsp.window.close({{ window = "address:{w}" }})')
+    wait_for("the stuck xterms closed", lambda: client("hm-x-stuck-1") is None and client("hm-x-stuck-2") is None)
+
 with subtest("xwayland-satellite windows"):
     spawn("xwayland-satellite :5", "satellite")
     machine.wait_until_succeeds("test -S /tmp/.X11-unix/X5", timeout=60)

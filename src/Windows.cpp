@@ -15,9 +15,14 @@ namespace hyprmasq {
         return std::format("0x{:x}", rc<uintptr_t>(window.get()));
     }
 
-    PHLWINDOW windowFromAddress(std::string_view address) {
+    std::string_view normalizeAddress(std::string_view address) {
         if (address.starts_with("address:"))
             address.remove_prefix(8);
+        return address;
+    }
+
+    PHLWINDOW windowFromAddress(std::string_view address) {
+        address = normalizeAddress(address);
 
         for (const auto& window : Desktop::windowState()->windows()) {
             if (window && window->m_isMapped && windowAddress(window) == address)

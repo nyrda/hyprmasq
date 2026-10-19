@@ -216,6 +216,16 @@ with subtest("waiting for a change since a commit count"):
     reply = background_reply("/tmp/hm-p-closed", timeout=10)
     assert reply["ok"] and reply["ended"] == "window_closed" and reply["elapsedMs"] < 4000, reply
 
+with subtest("a wait for a change without a deadline answers before hyprctl gives up"):
+    # hyprctl stops reading after 5 seconds, so the default deadline is 4500 ms.
+    time.sleep(1.5)
+    base = window_state(stated)["commits"]
+    started = time.monotonic()
+    reply = json.loads(hypr(f"-j hyprmasq wait {stated} since {base} expect 10000"))
+    took = time.monotonic() - started
+    assert reply["ok"] and reply["ended"] == "timeout" and not reply["redrawObserved"], reply
+    assert 4500 <= reply["elapsedMs"] < 4900 and took < 5, (reply, took)
+
 with subtest("a hidden window keeps drawing during a long wait"):
     # The shell prints for 3 seconds after the last key. Input alone gives a hidden window frame callbacks for a
     # second; the wait keeps them coming, past hyprctl's 5 seconds.
@@ -273,5 +283,27 @@ with subtest("unloading answers pending waits with code unloaded"):
     reply = background_reply("/tmp/hm-p-unload", timeout=10)
     assert not reply["ok"] and reply["code"] == "unloaded" and "unloaded" in reply["error"], reply
     assert hypr(f"plugin load {plugin}") == "ok"
-    assert json.loads(hypr("-j hyprmasq eis list")) == []
+    assert json.loads(hypr("-j hyprmasq eis list")) == {"ok": True, "sockets": []}
     assert window_state(stated)["commits"] is None
+
+with subtest("unloading removes the socket directories that the plugin made, while nothing else is in them"):
+    root = f"{runtime}/hyprmasq"
+    # Another instance's directory keeps the shared one.
+    path = open_socket(stated)
+    alice(f"mkdir -p -m 700 {root}/hm-other-instance")
+    assert hypr(f"plugin unload {plugin}") == "ok"
+    machine.succeed(f"test ! -e {path} && test ! -e {path}.lock && test ! -e {instance_dir} && test -d {root}/hm-other-instance")
+    assert hypr(f"plugin load {plugin}") == "ok"
+    # Another program's file, as hyprmasq-mcp's locks, keeps the instance's directory, and the plugin's go.
+    path = open_socket(stated)
+    alice(f"touch {instance_dir}/hm-keep.lock")
+    assert hypr(f"plugin unload {plugin}") == "ok"
+    assert machine.succeed(f"ls -A {instance_dir}").split() == ["hm-keep.lock"]
+    assert hypr(f"plugin load {plugin}") == "ok"
+    # Made by the plugin and left empty, both go.
+    alice(f"rm {instance_dir}/hm-keep.lock && rmdir {instance_dir} {root}/hm-other-instance {root}")
+    path = open_socket(stated)
+    assert hypr(f"plugin unload {plugin}") == "ok"
+    machine.succeed(f"test ! -e {root}")
+    assert hypr(f"plugin load {plugin}") == "ok"
+    assert json.loads(hypr("-j hyprmasq eis list")) == {"ok": True, "sockets": []}

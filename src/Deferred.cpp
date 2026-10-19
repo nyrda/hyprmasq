@@ -61,6 +61,8 @@ namespace hyprmasq::deferred {
         int                                       batchDepth = 0, pluginCalls = 0;
         std::vector<uint64_t>                     batchJobs;
         void*                                     originalInvoke = nullptr;
+        std::thread::id                           mainThread;
+        thread_local bool                         collectedAtOnce = false; // the job on this thread is one that the main thread waits for, see waited()
         // Frames of this library that Hyprland returns into, and the reference that keeps it mapped for them after
         // an unload.
         int   frames = 0;
@@ -102,12 +104,16 @@ namespace hyprmasq::deferred {
             eventfd_write(eventFd, 1);
         }
 
+        bool deferrable();
+
         uint64_t start(std::move_only_function<std::string()> work, Refuse refuse) {
             const auto id  = nextId++;
             auto*      job = (jobs[id] = std::make_unique<SJob>()).get();
             job->work      = std::move(work);
             job->refuse    = std::move(refuse);
-            auto execute   = [job] {
+            // A request that cannot be deferred now cannot be at its end either, and collect() then waits for the job.
+            const bool atOnce  = !deferrable();
+            auto       execute = [job] {
                 std::string reply;
                 try {
                     reply = job->work();
@@ -115,8 +121,9 @@ namespace hyprmasq::deferred {
                 complete(job, std::move(reply));
             };
             try {
-                job->thread = std::thread([execute] {
+                job->thread = std::thread([execute, atOnce] {
                     pthread_setname_np(pthread_self(), "hyprmasq-job");
+                    collectedAtOnce = atOnce;
                     execute();
                 });
             } catch (const std::system_error&) {
@@ -272,8 +279,9 @@ namespace hyprmasq::deferred {
         // Still wrapped when reloaded before a batch that unloaded it has finished.
         if (!batch->fn.target<SBatch>())
             batch->fn = SBatch{.original = batch->fn};
-        nonce  = std::random_device{}();
-        active = true;
+        nonce      = std::random_device{}();
+        mainThread = std::this_thread::get_id();
+        active     = true;
     }
 
     void shutdown() {
@@ -317,6 +325,10 @@ namespace hyprmasq::deferred {
 
     bool canDefer() {
         return active && deferrable();
+    }
+
+    bool waited() {
+        return collectedAtOnce || std::this_thread::get_id() == mainThread;
     }
 
     std::string run(std::move_only_function<std::string()> work) {

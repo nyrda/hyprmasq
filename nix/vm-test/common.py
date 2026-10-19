@@ -170,7 +170,7 @@ def waiting_writers(count):
 
 
 def eis_entry(address):
-    return next(e for e in json.loads(hypr("-j hyprmasq eis list")) if e["address"] == address)
+    return next(e for e in json.loads(hypr("-j hyprmasq eis list"))["sockets"] if e["address"] == address)
 
 
 # The plugin's directory for this Hyprland is its signature without the commit hash in front.

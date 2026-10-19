@@ -13,6 +13,17 @@ namespace hyprmasq::x11 {
     void init(void* handle);
     void shutdown();
 
+    // While one lives, the functions here wait for the X server for at most 100 ms in all, or 10 ms for a second after
+    // that ran out, until the X server answers in time again. Each of them opens one, so a caller only needs one around
+    // several calls, such as those of one input frame.
+    class CWaitBudget {
+      public:
+        CWaitBudget();
+        ~CWaitBudget();
+        CWaitBudget(const CWaitBudget&)            = delete;
+        CWaitBudget& operator=(const CWaitBudget&) = delete;
+    };
+
     // The Wayland client acting as the window's X server: Hyprland's XWayland, an xwayland-satellite, or null.
     wl_client* server(const PHLWINDOW& window);
     // Whether a Wayland client is an X server: Hyprland's XWayland or an xwayland-satellite.

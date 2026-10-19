@@ -1,4 +1,5 @@
 #include "X11.hpp"
+#include "Eis.hpp"
 #include "Hooks.hpp"
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
@@ -10,18 +11,26 @@
 #include <hyprland/src/xwayland/XSurface.hpp>
 #include <hyprland/src/xwayland/XWayland.hpp>
 #include <linux/sockios.h>
+#include <fcntl.h>
 #include <poll.h>
+#include <pthread.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 #include <wayland-server-core.h>
 #include <xcb/xcb.h>
 #include <xcb/xcbext.h>
 #include <algorithm>
+#include <charconv>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
+#include <future>
 #include <map>
 #include <memory>
 #include <ranges>
+#include <system_error>
 #include <thread>
 
 class CXWM;
@@ -49,8 +58,107 @@ namespace hyprmasq::x11 {
         void*                 originalActivateSurface = nullptr;
         void*                 originalHandleFocusIn   = nullptr;
 
+        wl_client* xwaylandClient() {
+            return g_pXWayland && g_pXWayland->m_server ? g_pXWayland->m_server->m_xwaylandClient : nullptr;
+        }
+
+        // What the main thread waits for the X server, or for XWayland to read, within a CWaitBudget: WAIT_BUDGET in
+        // all, so that an X server that does not answer holds the compositor up that long at most, however many round
+        // trips an input frame makes. Once WAIT_BUDGET has run out, SHORT_BUDGET for SHORT_FOR, or until a round trip
+        // answers in time, so that a stuck X server costs little more, and a slow one gets WAIT_BUDGET again.
+        constexpr auto                 WAIT_BUDGET  = std::chrono::milliseconds(100);
+        constexpr auto                 SHORT_BUDGET = std::chrono::milliseconds(10);
+        constexpr auto                 SHORT_FOR    = std::chrono::seconds(1);
+        int                            budgetDepth  = 0;
+        Time::steady_tp                budgetEnd;
+        bool                           shortBudget = false; // the budget that budgetEnd ends
+        std::optional<Time::steady_tp> shortUntil;
+
+        // A wait ran out of the budget.
+        void late() {
+            if (!shortBudget)
+                shortUntil = Time::steadyNow() + SHORT_FOR;
+        }
+
+        // A connection that is being set up. xcb_connect waits for the X server's answer without a limit, so the
+        // handshake runs on a thread of its own, on a duplicate of fd: shutdown() on fd ends a handshake that waits.
+        struct SConnecting {
+            int                            fd = -1;
+            std::thread                    thread;
+            std::future<xcb_connection_t*> result;
+        };
+        std::optional<SConnecting> connecting;
+
+        // A socket connected to the X server of a DISPLAY of the form :N or :N.S, which Hyprland exports for its
+        // XWayland. Hyprland's XWayland listens on /tmp/.X11-unix/XN, also where it listens on an abstract socket.
+        int connectDisplay(std::string_view display) {
+            if (!display.starts_with(':'))
+                return -1;
+            display.remove_prefix(1);
+            display                = display.substr(0, display.find('.'));
+            unsigned int number    = 0;
+            const auto [end, code] = std::from_chars(display.data(), display.data() + display.size(), number);
+            if (display.empty() || code != std::errc{} || end != display.data() + display.size())
+                return -1;
+            sockaddr_un addr{.sun_family = AF_UNIX, .sun_path = {}};
+            const auto  path = std::format("/tmp/.X11-unix/X{}", number);
+            if (path.size() >= sizeof(addr.sun_path))
+                return -1;
+            std::ranges::copy(path, addr.sun_path);
+            // Without waiting for room in the backlog of a server that does not accept.
+            const int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+            if (fd >= 0 && ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+                close(fd);
+                return -1;
+            }
+            return fd;
+        }
+
+        void startConnect() {
+            const char* display = getenv("DISPLAY");
+            const int   fd      = display ? connectDisplay(display) : -1;
+            const int   theirs  = fd < 0 ? -1 : fcntl(fd, F_DUPFD_CLOEXEC, 0);
+            if (theirs < 0) {
+                if (fd >= 0)
+                    close(fd);
+                return;
+            }
+            std::promise<xcb_connection_t*> promise;
+            auto                            result = promise.get_future();
+            try {
+                // Hyprland's XWayland takes no authorization.
+                std::thread thread([theirs, promise = std::move(promise)] mutable {
+                    pthread_setname_np(pthread_self(), "hyprmasq-x11");
+                    promise.set_value(xcb_connect_to_fd(theirs, nullptr));
+                });
+                connecting = SConnecting{.fd = fd, .thread = std::move(thread), .result = std::move(result)};
+            } catch (const std::system_error&) {
+                close(theirs);
+                close(fd);
+            }
+        }
+
+        // Takes the connection once its handshake has ended, waiting for that until the budget runs out.
+        void finishConnect() {
+            if (!connecting)
+                return;
+            if (connecting->result.wait_until(budgetEnd) != std::future_status::ready) {
+                late();
+                return;
+            }
+            connection = connecting->result.get();
+            connecting->thread.join();
+            close(connecting->fd);
+            connecting.reset();
+            if (xcb_connection_has_error(connection)) {
+                xcb_disconnect(connection);
+                connection = nullptr;
+            }
+        }
+
         // A connection of our own, so round trips never consume the window manager's events.
         xcb_connection_t* x() {
+            CWaitBudget budget;
             if (connection && xcb_connection_has_error(connection)) {
                 xcb_disconnect(connection);
                 connection = nullptr;
@@ -58,13 +166,10 @@ namespace hyprmasq::x11 {
                 activeWindow = XCB_ATOM_NONE;
             }
             // Hyprland exports DISPLAY when XWayland is ready, and has a window manager from then on.
-            const char* display = getenv("DISPLAY");
-            if (!connection && g_pXWayland && g_pXWayland->m_wm && display) {
-                connection = xcb_connect(display, nullptr);
-                if (xcb_connection_has_error(connection)) {
-                    xcb_disconnect(connection);
-                    connection = nullptr;
-                }
+            if (!connection && g_pXWayland && g_pXWayland->m_wm) {
+                if (!connecting)
+                    startConnect();
+                finishConnect();
             }
             // Selects no events, so only errors of unchecked requests queue up here.
             while (connection) {
@@ -73,23 +178,35 @@ namespace hyprmasq::x11 {
                     break;
                 free(event);
             }
+            // A write waits for room in the socket, which an X server that does not read leaves full. No request goes
+            // out while what it has not read fills half the socket's buffer, more than the requests of many inputs.
+            int queued = 0, buffer = 0;
+            if (socklen_t size = sizeof(buffer); connection && ioctl(xcb_get_file_descriptor(connection), SIOCOUTQ, &queued) == 0 &&
+                getsockopt(xcb_get_file_descriptor(connection), SOL_SOCKET, SO_SNDBUF, &buffer, &size) == 0 && queued > buffer / 2) {
+                late();
+                return nullptr;
+            }
             return connection;
         }
 
-        // Like xcb_wait_for_reply, but gives up after 100 ms, so a stuck X server cannot freeze the compositor.
+        // Like xcb_wait_for_reply, but gives up once the budget has run out, so a stuck X server cannot freeze the
+        // compositor.
         template <typename T>
         Reply<T> reply(xcb_connection_t* c, unsigned int sequence) {
+            CWaitBudget budget;
             xcb_flush(c);
-            const auto deadline = Time::steadyNow() + std::chrono::milliseconds(100);
             while (true) {
                 void*                result = nullptr;
                 xcb_generic_error_t* error  = nullptr;
                 if (xcb_poll_for_reply(c, sequence, &result, &error)) {
                     free(error);
+                    shortUntil.reset();
                     return Reply<T>{static_cast<T*>(result)};
                 }
-                const auto left = std::chrono::ceil<std::chrono::milliseconds>(deadline - Time::steadyNow()).count();
+                const auto left = std::chrono::ceil<std::chrono::milliseconds>(budgetEnd - Time::steadyNow()).count();
                 if (xcb_connection_has_error(c) || left <= 0) {
+                    if (left <= 0)
+                        late();
                     xcb_discard_reply(c, sequence);
                     return nullptr;
                 }
@@ -123,18 +240,20 @@ namespace hyprmasq::x11 {
 
         // Waits until XWayland has read everything sent to it over Wayland. XWayland queues input as it reads and
         // processes queued input before any further X request, so later focus and stacking changes cannot overtake it.
-        // False if XWayland has not read it all within 100 ms.
+        // False if XWayland has not read it all before the budget runs out.
         bool drain() {
-            auto* client = g_pXWayland && g_pXWayland->m_server ? g_pXWayland->m_server->m_xwaylandClient : nullptr;
+            auto* client = xwaylandClient();
             if (!client)
                 return true;
+            CWaitBudget budget;
             wl_client_flush(client);
-            const int  fd       = wl_client_get_fd(client);
-            const auto deadline = Time::steadyNow() + std::chrono::milliseconds(100);
-            int        unread   = 0;
+            const int fd     = wl_client_get_fd(client);
+            int       unread = 0;
             while (ioctl(fd, SIOCOUTQ, &unread) == 0 && unread > 0) {
-                if (Time::steadyNow() >= deadline)
+                if (Time::steadyNow() >= budgetEnd) {
+                    late();
                     return false;
+                }
                 std::this_thread::sleep_for(std::chrono::microseconds(100));
             }
             return true;
@@ -158,8 +277,10 @@ namespace hyprmasq::x11 {
         }
 
         // Puts the windows on top, bottom to top. The window manager redirects restacking of managed windows by other
-        // clients to itself, so this goes through Hyprland's, and waits until the X server shows the result.
+        // clients to itself, so this goes through Hyprland's, and waits until the X server shows the result, as long as
+        // the budget lasts.
         bool restack(xcb_connection_t* c, const std::vector<xcb_window_t>& windows) {
+            CWaitBudget               budget;
             const auto                surfaces = mappedSurfaces();
             std::vector<xcb_window_t> moved;
             for (auto id : windows) {
@@ -168,21 +289,24 @@ namespace hyprmasq::x11 {
                     moved.push_back(id);
                 }
             }
-            const auto deadline = Time::steadyNow() + std::chrono::milliseconds(100);
             while (true) {
                 auto order = stackingOrder(c);
                 if (order && order->size() >= moved.size() && std::equal(moved.begin(), moved.end(), order->end() - moved.size()))
                     return true;
-                if (!order || Time::steadyNow() >= deadline)
+                if (!order || Time::steadyNow() >= budgetEnd)
                     return false;
                 std::this_thread::sleep_for(std::chrono::microseconds(200));
             }
         }
 
         void activateSurface(CXWM* self, SP<CXWaylandSurface> surface, bool activate) {
-            // Hyprland is about to move X focus for the user: emulated keys land first, then the focus goes back.
-            drain();
-            release();
+            // Hyprland is about to move X focus for the user: emulated keys land first, then the focus goes back. Only
+            // a driven window of this X server can have emulated input on its way.
+            if (held || drivesClient(xwaylandClient())) {
+                CWaitBudget budget;
+                drain();
+                release();
+            }
             using Fn = void (*)(CXWM*, SP<CXWaylandSurface>, bool);
             reinterpret_cast<Fn>(originalActivateSurface)(self, surface, activate);
         }
@@ -196,6 +320,18 @@ namespace hyprmasq::x11 {
         }
     }
 
+    CWaitBudget::CWaitBudget() {
+        if (budgetDepth++ > 0)
+            return;
+        const auto now = Time::steadyNow();
+        shortBudget    = shortUntil && now < *shortUntil;
+        budgetEnd      = now + (shortBudget ? SHORT_BUDGET : WAIT_BUDGET);
+    }
+
+    CWaitBudget::~CWaitBudget() {
+        --budgetDepth;
+    }
+
     void init(void* handle) {
         originalActivateSurface = hook(handle, "CXWM::activateSurface", reinterpret_cast<void*>(&activateSurface));
         originalHandleFocusIn   = hook(handle, "CXWM::handleFocusIn", reinterpret_cast<void*>(&handleFocusIn));
@@ -206,9 +342,21 @@ namespace hyprmasq::x11 {
     void shutdown() {
         release();
         keyboardFocus.reset();
+        if (connecting) {
+            // Ends a handshake that waits for the X server.
+            ::shutdown(connecting->fd, SHUT_RDWR);
+            connecting->thread.join();
+            if (auto* c = connecting->result.get())
+                xcb_disconnect(c);
+            close(connecting->fd);
+            connecting.reset();
+        }
         if (connection)
             xcb_disconnect(connection);
-        connection = nullptr;
+        connection   = nullptr;
+        activeWindow = XCB_ATOM_NONE;
+        held.reset();
+        shortUntil.reset();
     }
 
     wl_client* server(const PHLWINDOW& window) {
@@ -241,6 +389,7 @@ namespace hyprmasq::x11 {
             return true;
         if (held && held->window == surface->m_xID)
             return true;
+        CWaitBudget budget;
         release();
         auto* c = x();
         if (!c || !drain())
@@ -269,7 +418,8 @@ namespace hyprmasq::x11 {
             if (!surface || surface->m_xID != held->window)
                 return;
         }
-        const auto focus = *held;
+        const auto  focus = *held;
+        CWaitBudget budget;
         held.reset();
         ignoreFocusInUntil = Time::steadyNow() + std::chrono::milliseconds(500);
         auto* c            = x();
@@ -295,14 +445,16 @@ namespace hyprmasq::x11 {
         // ask to activate another of its windows. release() tells them later.
         if (!surface || held)
             return;
+        CWaitBudget budget;
         if (auto* c = x())
             announceActiveWindow(c);
     }
 
     std::optional<SStack> raise(const PHLWINDOW& window) {
-        auto surface = window->m_xwaylandSurface.lock();
-        auto c       = surface ? x() : nullptr;
-        auto before  = c ? stackingOrder(c) : std::nullopt;
+        CWaitBudget budget;
+        auto        surface = window->m_xwaylandSurface.lock();
+        auto        c       = surface ? x() : nullptr;
+        auto        before  = c ? stackingOrder(c) : std::nullopt;
         if (!before || !std::ranges::contains(*before, surface->m_xID))
             return std::nullopt;
         SStack stack{.before = *before, .raised = {}};
@@ -330,7 +482,8 @@ namespace hyprmasq::x11 {
     }
 
     void lower(const SStack& stack) {
-        auto* c = stack.raised.empty() ? nullptr : x();
+        CWaitBudget budget;
+        auto*       c = stack.raised.empty() ? nullptr : x();
         if (!c)
             return;
         // Everything that was above the lowest raised window goes back on top of it, in its old order.

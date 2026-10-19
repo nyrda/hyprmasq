@@ -12,6 +12,9 @@ namespace hyprmasq {
     // Formats a window the way `hyprctl clients` prints its `address` field.
     std::string windowAddress(const PHLWINDOW& window);
 
+    // A window address given as `0x...` or `address:0x...`, as `0x...`.
+    std::string_view normalizeAddress(std::string_view address);
+
     // Accepts `0x...` or `address:0x...`. Returns nullptr for unknown or unmapped windows.
     PHLWINDOW windowFromAddress(std::string_view address);
 

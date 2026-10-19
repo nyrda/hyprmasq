@@ -156,8 +156,10 @@ and the code drift apart.
 | --- | --- |
 | screenshots on hidden workspaces, colors and orientation | Red, green and blue foot windows on hidden workspaces have the right colors, and the first text row is at the top. |
 | screenshots are encoded while Hyprland keeps running | While a screenshot waits for the reader of a FIFO that nobody reads yet, which the test sees in `/proc` as a `hyprmasq-job` thread in `poll`, Hyprland answers other requests; the reply comes once the file is read. A `--batch` with two screenshots and another command answers all three, in plain text and JSON. |
+| a screenshot that Hyprland waits for writes regular files, and refuses anything else at once | Through `nix/hyprctl-caller.cpp`, a plugin that passes a request on through `HyprlandAPI::invokeHyprctlCommand`, a screenshot to a FIFO without a reader is refused at once with `unsupported`, alone and in a batch, and the FIFO stays unopened; a screenshot to a new file and over an existing one is written. |
 | screenshot regions in logical pixels | A region at the top left of a green `foot` window contains its text and regions at the bottom and right do not; the reply reports the scale and the region, cut to the window at its edge; invalid regions fail without writing a file. At scale 2 the same logical region has twice the pixels, and at scale 1.25 it widens to whole device pixels and reports the region captured. |
 | socket lifecycle | Paths in the instance's directory, named by the signature without its commit hash, so that they leave 57 bytes of `sun_path` for `XDG_RUNTIME_DIR`; `0700` directories and a `0600` socket; `eis list`; removal on `eis close` and when the window closes. |
+| eis close takes an address: prefix, as open does, and eis list answers without sockets | `eis close` takes `address:0x…` as `eis open` does, and gives `no_socket` naming the address once the socket is gone; without sockets, `eis list` prints `no open sockets` and its JSON is `{"ok":true,"sockets":[]}`. |
 | hidden shell input, focus stability and frame callbacks | Typing into a foot shell on a hidden workspace runs the command, the active window and workspace stay unchanged, and the window repaints. |
 
 #### `typing`
@@ -200,10 +202,12 @@ and the code drift apart.
 | the commit counter rises on redraw, never falls, and sees popups open | It rises after typing, never falls, and the screenshot's value lies between readings before and after. It counts a popup that opens and closes without input, including the popup's first buffer. |
 | every socket has its own id, which the replies with its counter carry | `state`, `eis list`, `eis open`, screenshots and `wait … since` name the window's socket by its id, and a socket opened again gets another id and a counter that starts again. |
 | waiting for a change since a commit count | `wait … since` ends `quiet` after typing, `no_redraw` for an idle window, at once for a change before the wait, also with `ignore animations`, `timeout` for a hidden window that keeps drawing, `cancelled` through `cancel` by its id, and `window_closed` when the window closes. In a batch whose reply `plugin load` sends, Hyprland keeps answering while the wait runs on. |
+| a wait for a change without a deadline answers before hyprctl gives up | `wait … since` with `expect 10000` and no `deadline` on an idle window ends `timeout` after 4500 to 4900 ms, before `hyprctl` gives up after 5 seconds. |
 | a hidden window keeps drawing during a long wait | Through Hyprland's socket, a wait with a 2-second quiet time keeps a hidden shell drawing for the 3 seconds it prints after the last key, and answers once it is quiet, later than `hyprctl` would wait. |
 | a hidden window keeps drawing while a sender pauses between inputs | A hidden shell that keeps printing goes on drawing while a connected sender sleeps for more than a second after its input, and stops once the sender has gone. |
 | a wait keeps a window drawing that is hidden while it runs | A shell that keeps printing, visible when a `wait … since` starts and hidden 0.3 s later, goes on drawing until the wait times out. |
 | unloading answers pending waits with code unloaded | A pending `wait … since` answers with code `unloaded`, and the reloaded plugin has no sockets. |
+| unloading removes the socket directories that the plugin made, while nothing else is in them | The unload removes the instance's socket directory and `$XDG_RUNTIME_DIR/hyprmasq` that the plugin made, each only while nothing else is in it: another instance's directory keeps the shared one, and another program's file keeps the instance's. |
 
 #### `shots`
 
@@ -293,6 +297,7 @@ and the code drift apart.
 | XWayland input is refused while another X11 window is active | Input is refused while another X11 window is active and the active window stays untouched; the active window itself can be driven; `force` drives the hidden one. |
 | a driven X11 app cannot activate itself | A driven X11 app cannot activate itself; once its socket is closed, it can. |
 | X11 apps learn they are not active after input | While a Wayland window stays active, `_NET_ACTIVE_WINDOW` is written again after typing into a hidden `xterm`, after clicking it, and after it asks to be activated. |
+| an X server that does not answer holds Hyprland up for 100 ms per input frame at most | With X focus held for one hidden `xterm` and XWayland stopped by SIGSTOP, a sender to a second hidden `xterm` stops with `input_paused` within 400 ms, a second one within 300 ms, and `hyprctl` answers within 300 ms; the user's focus stays. Once XWayland runs again, input to the second `xterm` arrives. |
 | xwayland-satellite windows | Screenshots and input for a hidden satellite `xterm`; refused while another satellite window is active, allowed for Hyprland's XWayland windows; `force`; no satellite app can activate itself while a satellite window is driven, but new satellite windows still get focus. |
 
 #### `cursor`

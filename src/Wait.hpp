@@ -93,8 +93,9 @@ namespace hyprmasq::wait {
     struct SChangeOptions {
         uint64_t           since = 0;
         std::optional<int> expectMs;
-        int                quietMs = 200, deadlineMs = 5000;
-        std::string        id;
+        // hyprctl stops reading a reply after 5 seconds, so the default deadline answers before.
+        int         quietMs = 200, deadlineMs = 4500;
+        std::string id;
         // The change phase waits for a commit that is not part of an animation after the baseline.
         bool ignoreAnimations = false;
         // The id of the last drag-and-drop of the socket that the caller knows of. While a later one goes on, before
