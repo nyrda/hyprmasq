@@ -459,6 +459,7 @@ python3 bench/analyze_test.py
 python3 bench/dispatch_test.py
 python3 bench/harness_test.py
 python3 bench/tasks/board/check_test.py
+python3 bench/tasks/form/check_test.py
 nix-build bench/tasks/calc/check-test.nix
 ```
 

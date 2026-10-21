@@ -35,6 +35,21 @@ class Runs(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.options("--rep", "0")
 
+    def test_a_task_without_variant_takes_its_default(self):
+        parser = argparse.ArgumentParser()
+        parser.error = lambda message: (_ for _ in ()).throw(ValueError(message))
+        run.add_run_options(parser)
+        args = parser.parse_args(["--task", "form"])
+        run.check_run_options(args, parser)
+        self.assertEqual(args.variant, "25")
+        args = parser.parse_args(["--task", "form", "--variant", "10"])
+        run.check_run_options(args, parser)
+        self.assertEqual(args.variant, "10")
+        with self.assertRaises(ValueError):
+            run.check_run_options(parser.parse_args(["--task", "form", "--variant", "41"]), parser)
+        with self.assertRaises(ValueError):
+            run.check_run_options(parser.parse_args(["--task", "board"]), parser)
+
     def test_plan_skips_finished_runs_and_alternates_builds(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
             finish(a, "codex-gpt-1")

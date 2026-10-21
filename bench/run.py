@@ -68,12 +68,14 @@ def build_driver(out, source, task, variant, display):
 
 
 def task_variants(task):
-    """The variants a task has, from tasks/TASK/variants, one a line; none for most tasks."""
+    """The variants a task has, from tasks/TASK/variants, one a line, and its default, the one whose line is
+    `NAME default`, or None; no variants for most tasks."""
     path = os.path.join(BENCH, "tasks", task, "variants")
     if not os.path.exists(path):
-        return []
+        return [], None
     with open(path) as f:
-        return [line.strip() for line in f if line.strip()]
+        lines = [line.split() for line in f if line.strip()]
+    return [line[0] for line in lines], next((line[0] for line in lines if line[1:] == ["default"]), None)
 
 
 def source_commit(source):
@@ -591,7 +593,8 @@ def pending_runs(out, reps, agents):
 def add_run_options(parser):
     """The options that say which runs to make, shared with dispatch.py."""
     parser.add_argument("--task", default="thunderbird", help="a directory under bench/tasks")
-    parser.add_argument("--variant", help="the task's variant, for a task that has them (bench/tasks/TASK/variants)")
+    parser.add_argument("--variant", help="the task's variant, for a task that has them (bench/tasks/TASK/variants), "
+                                           "by default its default if it has one")
     parser.add_argument("--display", default="1920x1080@1", help="the VM's monitor, WIDTHxHEIGHT@SCALE")
     parser.add_argument("--agent", action="append", help="HARNESS:MODEL[@EFFORT], repeatable")
     reps = parser.add_mutually_exclusive_group()
@@ -616,7 +619,9 @@ def check_run_options(args, parser):
         parser.error("--rep counts from 1")
     if not os.path.isdir(os.path.join(BENCH, "tasks", args.task)):
         parser.error(f"no task {args.task} in {os.path.join(BENCH, 'tasks')}")
-    variants = task_variants(args.task)
+    variants, default = task_variants(args.task)
+    if variants and args.variant is None:
+        args.variant = default
     if variants and args.variant not in variants:
         parser.error(f"task {args.task} needs --variant, one of {', '.join(variants)}")
     if not variants and args.variant:

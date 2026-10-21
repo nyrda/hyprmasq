@@ -181,3 +181,82 @@ What we saw:
   18 calls and accumulated 47.4 s of settling waits. One call returned "still drawing"
   after 13.4 s, with its input delivered, and the run passed. DeepSeek repetition 1 added
   36.7 s of pause actions.
+
+## Form
+
+The form task measures speed alone: a questionnaire in a native GTK 4 app whose 25 questions each say their
+answer, in four kinds that take turns: tick checkboxes, set a slider to a number on its read-only value, type a
+given text, and choose in a dropdown. Then Submit. [bench/README.md](../bench/README.md#form) describes it; `--variant`
+sets 10 to 40 questions, and 25, the default, is the one reported here.
+
+hyprmasq's plugin and server as of commit
+[ea3d206](https://github.com/nyrda/hyprmasq/commit/ea3d206), which the form task does not change, with the task as
+of its branch's commit `144e845`, run on 2026-10-21. Four models
+ran at `low`, `medium` and `high` effort, three times each: 36 runs in sequential offline VMs, at `1920x1080@1`, on
+the same AMD Ryzen 7 5800X3D host as the release results. A game was running on the host for at least part of the
+runs, so wall and in-tool times may be somewhat longer than on an idle host.
+
+- Codex with a ChatGPT login: `gpt-6.1-sol` and `gpt-6-astra`.
+- Claude Code with a claude.ai login: `claude-opus-5-5` and `claude-sonnet-5-5`.
+
+Every run ran at the effort it requested, by the harnesses' own records. Harness versions were Codex CLI 0.163.0
+and Claude Code 2.1.304. Cost $ is Claude Code's own figure for the Anthropic API and, for Codex, what the same
+requests would cost on OpenAI's API at its list prices; both logins are subscriptions. All right at s is when every
+answer on screen was first right at once, in seconds after the agent's start.
+
+All 36 runs passed, with all 25 answers right in their last submission and one submission each. No window other
+than the questionnaire opened, and the user's focus and visible workspace stayed unchanged in all 36. From the first
+agent's start to the last one's end took 1h 39m; agent wall time totalled 1h 12m, of which 34m were in tools. The 36
+runs came to $12.60.
+
+| Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images | Input k | Cached % | Output k | Cost $ | All right at s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.1-sol | low | 3/3 | 116 (93–141) | 53 (52–58) | 3.6 (2.3–4.2) | 15 (14–17) | 62 (59–81) | 29 (17–33) | 327 (293–364) | 91 (91–93) | 2 (2–2) | 0.106 (0.098–0.106) | 106 (86–122) |
+| gpt-6.1-sol | medium | 3/3 | 121 (114–125) | 54 (50–54) | 4.0 (3.9–4.2) | 15 (14–16) | 77 (76–81) | 32 (24–38) | 320 (289–337) | 87 (85–90) | 2 (2–2) | 0.131 (0.116–0.140) | 109 (104–113) |
+| gpt-6.1-sol | high | 3/3 | 122 (118–130) | 57 (53–65) | 3.7 (3.1–4.0) | 15 (14–19) | 71 (68–76) | 25 (14–41) | 301 (292–425) | 91 (86–93) | 2 (2–3) | 0.102 (0.090–0.182) | 113 (109–122) |
+| gpt-6-astra | low | 3/3 | 131 (116–145) | 54 (53–54) | 4.6 (3.8–4.7) | 14 (14–17) | 60 (58–69) | 33 (33–36) | 304 (297–371) | 93 (87–94) | 2 (2–2) | 0.674 (0.585–0.752) | 117 (108–137) |
+| gpt-6-astra | medium | 3/3 | 143 (131–167) | 51 (50–56) | 5.4 (4.8–6.6) | 14 (14–15) | 64 (62–73) | 18 (14–27) | 286 (282–313) | 89 (87–93) | 2 (2–2) | 0.710 (0.551–0.725) | 136 (127–155) |
+| gpt-6-astra | high | 3/3 | 152 (144–165) | 55 (55–56) | 5.5 (5.2–5.5) | 18 (14–19) | 63 (61–76) | 17 (17–36) | 332 (293–387) | 91 (86–92) | 2 (2–2) | 0.768 (0.642–0.879) | 135 (129–142) |
+| Opus 5.5 | low | 3/3 | 110 (106–112) | 54 (54–61) | 2.5 (2.5–3.4) | 17 (15–18) | 59 (57–69) | 28 (19–30) | 396 (311–425) | 93 (90–93) | 4 (4–4) | 0.372 (0.367–0.398) | 95 (91–97) |
+| Opus 5.5 | medium | 3/3 | 110 (106–116) | 58 (57–62) | 2.6 (2.4–2.7) | 17 (16–19) | 66 (61–68) | 18 (16–23) | 397 (363–474) | 93 (93–94) | 4 (4–4) | 0.371 (0.355–0.419) | 97 (89–99) |
+| Opus 5.5 | high | 3/3 | 122 (115–127) | 60 (60–64) | 2.4 (2.2–3.0) | 20 (19–22) | 59 (59–76) | 28 (17–41) | 494 (453–574) | 94 (94–94) | 4 (4–5) | 0.420 (0.407–0.467) | 101 (96–104) |
+| Sonnet 5.5 | low | 3/3 | 101 (96–112) | 60 (57–61) | 2.4 (2.1–2.9) | 17 (15–17) | 61 (60–62) | 23 (22–27) | 361 (325–365) | 93 (93–93) | 4 (4–4) | 0.172 (0.164–0.179) | 87 (86–98) |
+| Sonnet 5.5 | medium | 3/3 | 93 (86–96) | 55 (54–56) | 2.0 (1.9–2.0) | 17 (15–19) | 59 (58–61) | 21 (20–22) | 397 (295–414) | 93 (92–93) | 4 (3–4) | 0.186 (0.157–0.197) | 81 (73–86) |
+| Sonnet 5.5 | high | 3/3 | 112 (106–121) | 65 (63–65) | 2.2 (1.9–3.0) | 19 (18–20) | 66 (65–77) | 32 (24–51) | 417 (410–481) | 93 (93–93) | 5 (4–5) | 0.203 (0.188–0.217) | 96 (90–99) |
+
+Seconds per question of each kind, from the previous final answer to its own, and the corrections of all three runs
+(see `check.py` in [bench/README.md](../bench/README.md#form)). Question 1 is a checkbox, so the checkbox column
+includes the time from the agent's start to its first answer.
+
+| Agent | Effort | Checkbox s | Slider s | Text s | Dropdown s | Corrections |
+| --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.1-sol | low | 5.0 (4.2–5.3) | 3.7 (2.5–4.2) | 1.2 (1.2–2.1) | 6.7 (4.0–10.2) | 0 |
+| gpt-6.1-sol | medium | 3.6 (2.8–4.1) | 3.6 (2.6–4.8) | 3.5 (1.2–6.0) | 7.1 (5.6–8.2) | 1 |
+| gpt-6.1-sol | high | 3.8 (3.4–6.7) | 3.2 (2.7–3.7) | 4.9 (2.5–7.3) | 5.5 (5.1–6.7) | 4 |
+| gpt-6-astra | low | 6.4 (3.1–7.1) | 2.6 (2.6–2.7) | 4.8 (2.2–5.7) | 7.4 (5.7–7.6) | 1 |
+| gpt-6-astra | medium | 5.5 (4.4–5.5) | 2.8 (2.1–4.0) | 5.7 (3.8–7.6) | 8.3 (8.0–9.8) | 3 |
+| gpt-6-astra | high | 4.6 (3.4–8.4) | 2.6 (2.5–3.3) | 6.8 (2.4–7.7) | 7.5 (7.0–9.2) | 3 |
+| Opus 5.5 | low | 5.1 (2.9–5.4) | 3.4 (2.6–4.6) | 2.2 (2.0–3.1) | 4.2 (4.2–5.5) | 0 |
+| Opus 5.5 | medium | 3.1 (2.4–4.0) | 4.6 (3.4–5.3) | 2.1 (2.0–4.1) | 5.1 (4.5–5.9) | 2 |
+| Opus 5.5 | high | 3.5 (3.3–3.7) | 3.4 (3.2–4.7) | 2.8 (2.1–4.0) | 6.0 (5.4–6.7) | 0 |
+| Sonnet 5.5 | low | 3.2 (2.9–3.7) | 3.1 (3.1–3.2) | 2.5 (1.9–2.7) | 5.8 (5.6–6.3) | 3 |
+| Sonnet 5.5 | medium | 3.9 (2.7–5.3) | 2.6 (2.5–3.0) | 1.9 (1.2–2.7) | 4.2 (3.8–4.7) | 0 |
+| Sonnet 5.5 | high | 3.7 (2.4–3.8) | 4.6 (4.1–4.8) | 2.3 (1.9–3.1) | 4.8 (4.7–5.9) | 3 |
+
+What we saw:
+
+- The whole questionnaire took 93 to 152 s at the medians, and 51 to 65 s of it were in hyprmasq's tools for every
+  agent. The differences between agents are the models' time outside the tools: Turn s ranges from 2.0 s (Sonnet,
+  medium) to 5.5 s (gpt-6-astra, high). Higher effort was slower or no faster for every model, except Sonnet,
+  whose `medium` runs were faster than its `low` ones; every model was slowest at `high`.
+- Dropdowns were the slowest kind for every agent, 5.8 s a question at the median over all runs, against 3.8 s for
+  checkboxes, 3.2 s for sliders and 2.6 s for text. Agents opened a dropdown in one call and chose in the next, after
+  reading the popover in the result.
+- Of the 216 slider answers, 203 were set with the keyboard alone: Home or End, then arrow keys, with the step from
+  the caption. 13 started with a click on the slider. Key presses made the largest part of the time in `act`: of
+  its 2008 s over all runs, `analyze.py` attributes 852 s to the sender's pacing of input, 387 s to waits for the
+  window to settle, 279 s to the watch for a second redraw and 490 s to the rest.
+- 12 of the 36 runs had one refused `act`: a key `repeat` above its limit of 100, such as 147 presses for a slider,
+  which the server refused before sending anything. The agents split the presses and went on.
+- In the debriefs, 31 of 36 agents named a way to set a slider or choose in a dropdown by value as the change that
+  would have made them fastest.

@@ -6,7 +6,7 @@ agents use logged-in Claude Code and Codex. API-backed agents need their provide
 
 Agents complete a task in an offline NixOS VM through `hyprmasq-mcp`. The benchmark grades the VM's state,
 measures time on both sides of the MCP connection, and asks the agent for a debrief. It measures how agents
-use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, forgejo and thunderbird.
+use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, forgejo, form and thunderbird.
 
 Run results are in [docs/benchmarks.md](../docs/benchmarks.md).
 
@@ -26,7 +26,8 @@ To build a VM driver without running an agent:
 
 ```sh
 nix-build bench/default.nix -A driver
-# For another task, add --argstr task calc, forgejo, or board. Board also needs --argstr variant dnd or pointer.
+# For another task, add --argstr task calc, forgejo, board or form. Board also needs --argstr variant dnd or pointer,
+# and form its number of questions, such as --argstr variant 25.
 ```
 
 See [By hand](#by-hand) to boot that driver and probe MCP without an agent.
@@ -42,6 +43,7 @@ python3 bench/run.py --source ../hyprmasq-feature       # the plugin and server 
 python3 bench/run.py --task forgejo                     # another task: a directory under bench/tasks
 python3 bench/run.py --display 2560x1440@1              # another monitor: WIDTHxHEIGHT@SCALE
 python3 bench/run.py --task board --variant pointer     # a task's variant: one of tasks/TASK/variants
+python3 bench/run.py --task form --variant 10           # a quick probe: 10 questions instead of the default 25
 python3 bench/run.py --rep 2 --rep 3                    # only these repetitions, instead of --reps
 python3 bench/report.py bench/results/my-run            # the report again
 ```
@@ -53,7 +55,7 @@ the task, its variant and the display; `run.py` refuses to add runs to a directo
 of them.
 
 `--variant NAME` picks one of a task's variants, which `tasks/TASK/variants` lists, one a line. A task with that
-file needs it, and others refuse it. `default.nix` gives it to the task's `vm.nix` as `benchVariant`; the default
+file needs it, unless a line there is `NAME default`, which it then takes; others refuse it. `default.nix` gives it to the task's `vm.nix` as `benchVariant`; the default
 results directory and the driver's name carry it.
 
 `--display WIDTHxHEIGHT@SCALE` sets the VM's monitor, in device pixels, by default `1920x1080@1`. Shots fit
@@ -321,7 +323,7 @@ partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |
 | `start-*.png`, `end-*.png` | Screenshots of every window and of the screen. |
-| `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board). |
+| `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json`, `vm-form-state.json` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board), the questionnaire's answers, submissions and changes (form). |
 | `vm-events.log` | Hyprland's events (`socket2`), each with the VM's time. |
 | `vm-*.log`, `vm-*.jsonl` | Hyprland, hyprmasq-mcp, socat, and the task's servers and apps, such as the intranet's requests and the watch of the sheet (Calc), or the page's events and saves (board). |
 | `attribution.json` | Board: who each drag's outcome is due to, written by `tasks/board/attribute.py`. |
@@ -515,11 +517,56 @@ default `gtk-dnd-drag-threshold`.
 - `user.js`: no first-run pages, tips or telemetry in Firefox.
 - `variants`, `prompt.md`, `debrief.md`: the variants, and what the agent is told.
 
+### form
+
+A questionnaire, a GTK 4 app in Python, on the hidden workspace `form`. It is started like a user would, on the
+visible workspace, and moved there; the user stays on workspace 1 with the terminal. The prompt asks the agent to
+answer every question as it says and press Submit at the end, in that window only.
+
+The task measures how fast an agent gets through a chore of input, with nothing to work out: each question says its
+answer. It exercises what the others do not: a native GTK 4 app, its dropdowns' popovers, sliders and many small
+targets in a column that scrolls. The questions take turns among four kinds, from `items.py`:
+
+| Kind | The question | The widget |
+| --- | --- | --- |
+| checkbox | Tick the options it names, among five to seven | check buttons, none ticked at the start |
+| slider | Set the slider to a number, on ranges such as 0 to 1000 in steps of 5 or -1 to 1 in steps of 0.05 | a slider, a caption with its range and step, and a read-only value beside it; the value snaps to the step, and the pointer or the arrow keys move it |
+| text | Type the text it shows, such as `QX-7731-B` | an entry; spaces around the text do not count |
+| dropdown | Choose the option it names, among four to twelve | a dropdown that starts at "Choose…" |
+
+The task's variants are the number of questions, from 10 to 40, the first that many of the 40 in `items.py`: 25 by
+default, which is the benchmark's, 10 for a quick probe. The questions, their order and their starting values are the
+same on every run. The wheel over a slider scrolls the page, as over the other questions, and does not move the
+slider.
+
+- `vm.nix`: the app with GTK 4's environment (`hyprmasq-bench-form`), and the number of questions from the variant.
+- `items.py`: the 40 questions and their answers, for the app and the grade.
+- `form.py`: the app. Every change of an answer is logged with the time, and for a slider with how it moved (GTK's
+  scroll type: `jump` for the pointer, `step-forward` and the like for keys), and every press of Submit with the
+  answers. On SIGUSR1 it writes its state from its memory to its file descriptor 3, a file that only root can open,
+  which root opened and passed to it at its start. The grade reads that file, so that only the app's own widgets
+  decide it, not a process of the user's that the agent could start.
+- `check.py`: passes when Submit was pressed and the last submission answers every question, and no window other
+  than the questionnaire opened while the agent worked, from a log of Hyprland's events that root keeps, out of
+  reach of the programs the agent could start; without that log it fails. A failure names the question: `Question 6 (slider) is at -17;
+  expected at -18`. Per question and per kind, it reports whether the answer is right, the changes, the corrections
+  (for a checkbox the toggles beyond the options named, for the others every setting but the last, where changes less
+  than 2 s apart are one setting, as one `act` call makes them) and the seconds from the previous final answer to its
+  own; for a slider, also how it moved. It also reports answers changed on screen after the last submission. Its
+  milestones are `first answer`, `all answered correctly`, `first submit` and `last submit`.
+- `check_test.py`: `python3 bench/tasks/form/check_test.py` checks the grade, the corrections and the milestones on
+  constructed states: right and wrong answers of each kind, no submission, a submission from before the agent's
+  start, changes after the last one, a drag, keys after a click, a checkbox ticked by mistake, another window, and
+  no log of the windows.
+- `setup.py`: the app, started with its state file, its window and its workspace, root's log of Hyprland's events,
+  and in `collect()` the app's state, asked of the app's own process, its logs and the grade.
+- `variants`, `prompt.md`, `debrief.md`: the numbers of questions, 25 the default, and what the agent is told.
+
 ## Adding a task
 
 A task is a directory under `tasks/` with a NixOS module (`vm.nix`, which `default.nix` imports for the task
 it is given), a `setup.py` for `vm.py`, a `prompt.md` and a `debrief.md`, and, if it comes in variants, a `variants`
-file. `setup.py` defines `prepare()`,
+file, in which a line `NAME default` names the variant a run takes without `--variant`. `setup.py` defines `prepare()`,
 which returns the address of the agent's window, and `collect()`, which returns `check` with `passed` and
 `failures` and `events` with VM times that `report.metrics()` turns into milestones. It may define
 `HYPRLAND_ENV`, variables for Hyprland's environment and so for the apps it starts, and `during(stop)`,
