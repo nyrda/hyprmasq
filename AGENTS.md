@@ -13,7 +13,8 @@ loading and MCP registration; `docs/automation.md` is the reference for
 `hyprctl hyprmasq`, `hyprmasq-input`, `hyprmasq-launch`, the plugin options
 and the security model; `docs/mcp.md` covers `hyprmasq-mcp`;
 `docs/development.md` covers builds, tests and contributing;
-`docs/benchmarks.md` holds the release benchmark results. Keep them in step
+`docs/benchmarks.md` holds the release benchmark results, whose figures and
+tables `bench/render.py` generates from `docs/benchmarks/data`. Keep them in step
 with the code: a changed command, option, default or exit code updates the
 page that documents it. Agents use the MCP tools; there is no agent skill.
 
@@ -30,7 +31,7 @@ hooks are matched by name only.
   Run `gofmt -w` on changed Go files.
 - Bench unit tests: `python3 bench/analyze_test.py`,
   `python3 bench/dispatch_test.py`, `python3 bench/harness_test.py`,
-  `python3 bench/tasks/board/check_test.py` and
+  `python3 bench/render_test.py`, `python3 bench/tasks/board/check_test.py` and
   `python3 bench/tasks/form/check_test.py`. The Calc checker needs LibreOffice:
   `nix-build bench/tasks/calc/check-test.nix`.
 - Test: `nix build .#checks.x86_64-linux.vm-test -L`, the NixOS VM test in
@@ -46,9 +47,9 @@ Nix only sees files known to Git, so `git add` new files before building.
 CI runs `nix flake check --no-build`, builds `hyprmasq` and `hyprmasq-mcp`
 including the Go tests with `-short`, runs all Go tests with and without
 `-race`, checks C/C++ with clang-format and Go with gofmt, checks the VM
-test's subtest tables (`vm-test-docs`), and runs the bench unit tests above,
-including Calc. The VM test is a local gate; CI
-does not run it. Before opening a PR, run it on the commit you push and fill
+test's subtest tables (`vm-test-docs`), runs the bench unit tests above,
+including Calc, and checks `docs/benchmarks.md` against its data with
+`bench/render.py --check`. The VM test is a local gate; CI does not run it. Before opening a PR, run it on the commit you push and fill
 in the VM test section of
 `.github/pull_request_template.md` with that commit. Before merging, compare
 the PR's head commit with the one it passed on: after new commits, an amend, a

@@ -1,0 +1,213 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="575" viewBox="0 0 880 575" role="img" aria-label="Wall time per run of each agent, a panel per task. Each bar is the median wall time with the median time in hyprmasq&#x27;s tools inside it, and each dot one run.">
+<title>Wall time per run of each agent, a panel per task. Each bar is the median wall time with the median time in hyprmasq&#x27;s tools inside it, and each dot one run.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.tools{fill:#3987e5}.out{fill:#454c56}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.miss{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.pass{fill:#3fb950}.fail{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.cut{stroke:#0d1117;stroke-width:2}.s0{fill:#3987e5}.s1{fill:#d95926}.s2{fill:#199e70}.s3{fill:#c98500}.s4{fill:#d55181}.s5{fill:#008300}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
+<rect x="0.5" y="0.5" width="879" height="574" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Wall time per run</text>
+<text x="24" y="53" class="t2" font-size="12.5">Each bar is a median wall time, written at the right. Its blue part is the median time in hyprmasq&#x27;s</text>
+<text x="24" y="72" class="t2" font-size="12.5">MCP tools, and the grey part fills the bar up to the median wall time. Each dot is one run.</text>
+<text x="24" y="91" class="t2" font-size="12.5">All runs asked for medium effort. DeepSeek v4.1 Flash ran at high.</text>
+<rect x="24" y="108" width="12" height="10" class="tools" rx="2"/>
+<text x="42" y="117" class="t2" font-size="12">median in hyprmasq&#x27;s tools</text>
+<rect x="209" y="108" width="12" height="10" class="out" rx="2"/>
+<text x="227" y="117" class="t2" font-size="12">rest of the median wall time</text>
+<circle cx="400.1" cy="113" r="4.5" class="dot"/>
+<text x="410.1" y="117" class="t2" font-size="12">one run</text>
+<circle cx="477.8" cy="113" r="4.5" class="miss"/>
+<text x="487.8" y="117" class="t2" font-size="12">failed run</text>
+<text x="170.7" y="151" class="t" font-size="13" font-weight="600">Board</text>
+<text x="495.3" y="151" class="m" font-size="12" text-anchor="end">13/18 passed</text>
+<line x1="170.7" y1="163" x2="170.7" y2="319" class="axis"/>
+<text x="170.7" y="334" class="m" font-size="11">0</text>
+<line x1="284.2" y1="163" x2="284.2" y2="319" class="grid"/>
+<text x="284.2" y="334" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="397.7" y1="163" x2="397.7" y2="319" class="grid"/>
+<text x="397.7" y="334" class="m" font-size="11" text-anchor="middle">100 s</text>
+<rect x="170.7" y="170" width="30" height="12" class="tools"/>
+<path d="M202.6 170H288.7Q291.7 170 291.7 173V179Q291.7 182 288.7 182H202.6Z" class="out"/>
+<circle cx="280.3" cy="176" r="3.5" class="dot"/>
+<circle cx="291.7" cy="176" r="3" class="miss"/>
+<circle cx="301.9" cy="176" r="3.5" class="dot"/>
+<text x="495.3" y="180.5" class="t2" font-size="12" text-anchor="end">53 s</text>
+<rect x="170.7" y="196" width="28.4" height="12" class="tools"/>
+<path d="M201.1 196H281.7Q284.7 196 284.7 199V205Q284.7 208 281.7 208H201.1Z" class="out"/>
+<circle cx="279.9" cy="202" r="3.5" class="dot"/>
+<circle cx="284.7" cy="202" r="3.5" class="dot"/>
+<circle cx="291.9" cy="202" r="3.5" class="dot"/>
+<text x="495.3" y="206.5" class="t2" font-size="12" text-anchor="end">50 s</text>
+<rect x="170.7" y="222" width="28.6" height="12" class="tools"/>
+<path d="M201.3 222H274.2Q277.2 222 277.2 225V231Q277.2 234 274.2 234H201.3Z" class="out"/>
+<circle cx="270.4" cy="228" r="3.5" class="dot"/>
+<circle cx="277.2" cy="228" r="3.5" class="dot"/>
+<circle cx="300.6" cy="228" r="3.5" class="dot"/>
+<text x="495.3" y="232.5" class="t2" font-size="12" text-anchor="end">47 s</text>
+<rect x="170.7" y="248" width="28.4" height="12" class="tools"/>
+<path d="M201.1 248H239.2Q242.2 248 242.2 251V257Q242.2 260 239.2 260H201.1Z" class="out"/>
+<circle cx="234.2" cy="254" r="3.5" class="dot"/>
+<circle cx="242.2" cy="254" r="3.5" class="dot"/>
+<circle cx="243.6" cy="254" r="3.5" class="dot"/>
+<text x="495.3" y="258.5" class="t2" font-size="12" text-anchor="end">32 s</text>
+<rect x="170.7" y="274" width="36.1" height="12" class="tools"/>
+<path d="M208.8 274H288.2Q291.2 274 291.2 277V283Q291.2 286 288.2 286H208.8Z" class="out"/>
+<circle cx="287.8" cy="280" r="3.5" class="dot"/>
+<circle cx="291.2" cy="280" r="3" class="miss"/>
+<circle cx="380.3" cy="280" r="3.5" class="dot"/>
+<text x="495.3" y="284.5" class="t2" font-size="12" text-anchor="end">53 s</text>
+<rect x="170.7" y="300" width="61.5" height="12" class="tools"/>
+<rect x="234.2" y="300" width="187.1" height="12" class="out"/>
+<line x1="409.3" y1="314" x2="413.3" y2="298" class="cut"/>
+<line x1="414.3" y1="314" x2="418.3" y2="298" class="cut"/>
+<circle cx="427.3" cy="306" r="3" class="miss"/>
+<circle cx="434.3" cy="306" r="3" class="miss"/>
+<circle cx="441.3" cy="306" r="3" class="miss"/>
+<text x="495.3" y="310.5" class="t2" font-size="12" text-anchor="end">1733 s</text>
+<text x="24" y="180.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="24" y="206.5" class="t" font-size="12.5" font-weight="600">gpt-6-astra</text>
+<text x="24" y="232.5" class="t" font-size="12.5" font-weight="600">Opus 5.5</text>
+<text x="24" y="258.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="24" y="284.5" class="t" font-size="12.5" font-weight="600">Haiku 5.5</text>
+<text x="24" y="310.5" class="t" font-size="12.5" font-weight="600">DeepSeek v4.1 Flash</text>
+<text x="531.3" y="151" class="t" font-size="13" font-weight="600">Calc</text>
+<text x="856" y="151" class="m" font-size="12" text-anchor="end">14/18 passed</text>
+<line x1="531.3" y1="163" x2="531.3" y2="319" class="axis"/>
+<text x="531.3" y="334" class="m" font-size="11">0</text>
+<line x1="609.5" y1="163" x2="609.5" y2="319" class="grid"/>
+<text x="609.5" y="334" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="687.6" y1="163" x2="687.6" y2="319" class="grid"/>
+<text x="687.6" y="334" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="765.8" y1="163" x2="765.8" y2="319" class="grid"/>
+<text x="765.8" y="334" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="531.3" y="170" width="34.1" height="12" class="tools"/>
+<path d="M567.4 170H664.9Q667.9 170 667.9 173V179Q667.9 182 664.9 182H567.4Z" class="out"/>
+<circle cx="667.2" cy="176" r="3.5" class="dot"/>
+<circle cx="667.9" cy="176" r="3.5" class="dot"/>
+<circle cx="676.2" cy="176" r="3.5" class="dot"/>
+<text x="856" y="180.5" class="t2" font-size="12" text-anchor="end">87 s</text>
+<rect x="531.3" y="196" width="28.8" height="12" class="tools"/>
+<path d="M562.1 196H672.8Q675.8 196 675.8 199V205Q675.8 208 672.8 208H562.1Z" class="out"/>
+<circle cx="667.5" cy="202" r="3.5" class="dot"/>
+<circle cx="675.8" cy="202" r="3.5" class="dot"/>
+<circle cx="680.3" cy="202" r="3.5" class="dot"/>
+<text x="856" y="206.5" class="t2" font-size="12" text-anchor="end">92 s</text>
+<rect x="531.3" y="222" width="26.6" height="12" class="tools"/>
+<path d="M559.9 222H634.9Q637.9 222 637.9 225V231Q637.9 234 634.9 234H559.9Z" class="out"/>
+<circle cx="635.6" cy="228" r="3.5" class="dot"/>
+<circle cx="637.9" cy="228" r="3.5" class="dot"/>
+<circle cx="649.3" cy="228" r="3.5" class="dot"/>
+<text x="856" y="232.5" class="t2" font-size="12" text-anchor="end">68 s</text>
+<rect x="531.3" y="248" width="29.2" height="12" class="tools"/>
+<path d="M562.6 248H619.6Q622.6 248 622.6 251V257Q622.6 260 619.6 260H562.6Z" class="out"/>
+<circle cx="611.4" cy="254" r="3.5" class="dot"/>
+<circle cx="622.6" cy="254" r="3.5" class="dot"/>
+<circle cx="635.1" cy="254" r="3.5" class="dot"/>
+<text x="856" y="258.5" class="t2" font-size="12" text-anchor="end">58 s</text>
+<rect x="531.3" y="274" width="28" height="12" class="tools"/>
+<path d="M561.3 274H634.3Q637.3 274 637.3 277V283Q637.3 286 634.3 286H561.3Z" class="out"/>
+<circle cx="614.2" cy="280" r="3.5" class="dot"/>
+<circle cx="637.3" cy="280" r="3" class="miss"/>
+<circle cx="642.3" cy="280" r="3.5" class="dot"/>
+<text x="856" y="284.5" class="t2" font-size="12" text-anchor="end">68 s</text>
+<rect x="531.3" y="300" width="42" height="12" class="tools"/>
+<path d="M575.4 300H724.8Q727.8 300 727.8 303V309Q727.8 312 724.8 312H575.4Z" class="out"/>
+<circle cx="723" cy="306" r="3" class="miss"/>
+<circle cx="727.8" cy="306" r="3" class="miss"/>
+<circle cx="772.4" cy="306" r="3" class="miss"/>
+<text x="856" y="310.5" class="t2" font-size="12" text-anchor="end">126 s</text>
+<text x="170.7" y="368" class="t" font-size="13" font-weight="600">Forgejo</text>
+<text x="495.3" y="368" class="m" font-size="12" text-anchor="end">18/18 passed</text>
+<line x1="170.7" y1="380" x2="170.7" y2="536" class="axis"/>
+<text x="170.7" y="551" class="m" font-size="11">0</text>
+<line x1="281.1" y1="380" x2="281.1" y2="536" class="grid"/>
+<text x="281.1" y="551" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="391.6" y1="380" x2="391.6" y2="536" class="grid"/>
+<text x="391.6" y="551" class="m" font-size="11" text-anchor="middle">100 s</text>
+<rect x="170.7" y="387" width="40" height="12" class="tools"/>
+<path d="M212.7 387H326.7Q329.7 387 329.7 390V396Q329.7 399 326.7 399H212.7Z" class="out"/>
+<circle cx="306.5" cy="393" r="3.5" class="dot"/>
+<circle cx="329.7" cy="393" r="3.5" class="dot"/>
+<circle cx="362.4" cy="393" r="3.5" class="dot"/>
+<text x="495.3" y="397.5" class="t2" font-size="12" text-anchor="end">72 s</text>
+<rect x="170.7" y="413" width="42" height="12" class="tools"/>
+<path d="M214.6 413H368.5Q371.5 413 371.5 416V422Q371.5 425 368.5 425H214.6Z" class="out"/>
+<circle cx="352.3" cy="419" r="3.5" class="dot"/>
+<circle cx="371.5" cy="419" r="3.5" class="dot"/>
+<circle cx="371.7" cy="419" r="3.5" class="dot"/>
+<text x="495.3" y="423.5" class="t2" font-size="12" text-anchor="end">91 s</text>
+<rect x="170.7" y="439" width="41.5" height="12" class="tools"/>
+<path d="M214.2 439H344.4Q347.4 439 347.4 442V448Q347.4 451 344.4 451H214.2Z" class="out"/>
+<circle cx="328.6" cy="445" r="3.5" class="dot"/>
+<circle cx="347.4" cy="445" r="3.5" class="dot"/>
+<circle cx="411.7" cy="445" r="3.5" class="dot"/>
+<text x="495.3" y="449.5" class="t2" font-size="12" text-anchor="end">80 s</text>
+<rect x="170.7" y="465" width="34" height="12" class="tools"/>
+<path d="M206.7 465H281Q284 465 284 468V474Q284 477 281 477H206.7Z" class="out"/>
+<circle cx="253.5" cy="471" r="3.5" class="dot"/>
+<circle cx="284" cy="471" r="3.5" class="dot"/>
+<circle cx="288" cy="471" r="3.5" class="dot"/>
+<text x="495.3" y="475.5" class="t2" font-size="12" text-anchor="end">51 s</text>
+<rect x="170.7" y="491" width="55.5" height="12" class="tools"/>
+<path d="M228.1 491H301.1Q304.1 491 304.1 494V500Q304.1 503 301.1 503H228.1Z" class="out"/>
+<circle cx="293.3" cy="497" r="3.5" class="dot"/>
+<circle cx="304.1" cy="497" r="3.5" class="dot"/>
+<circle cx="315.2" cy="497" r="3.5" class="dot"/>
+<text x="495.3" y="501.5" class="t2" font-size="12" text-anchor="end">60 s</text>
+<rect x="170.7" y="517" width="43.1" height="12" class="tools"/>
+<path d="M215.7 517H313Q316 517 316 520V526Q316 529 313 529H215.7Z" class="out"/>
+<circle cx="311" cy="523" r="3.5" class="dot"/>
+<circle cx="316" cy="523" r="3.5" class="dot"/>
+<circle cx="339.2" cy="523" r="3.5" class="dot"/>
+<text x="495.3" y="527.5" class="t2" font-size="12" text-anchor="end">66 s</text>
+<text x="24" y="397.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="24" y="423.5" class="t" font-size="12.5" font-weight="600">gpt-6-astra</text>
+<text x="24" y="449.5" class="t" font-size="12.5" font-weight="600">Opus 5.5</text>
+<text x="24" y="475.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="24" y="501.5" class="t" font-size="12.5" font-weight="600">Haiku 5.5</text>
+<text x="24" y="527.5" class="t" font-size="12.5" font-weight="600">DeepSeek v4.1 Flash</text>
+<text x="531.3" y="368" class="t" font-size="13" font-weight="600">Thunderbird</text>
+<text x="856" y="368" class="m" font-size="12" text-anchor="end">18/18 passed</text>
+<line x1="531.3" y1="380" x2="531.3" y2="536" class="axis"/>
+<text x="531.3" y="551" class="m" font-size="11">0</text>
+<line x1="594" y1="380" x2="594" y2="536" class="grid"/>
+<text x="594" y="551" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="656.7" y1="380" x2="656.7" y2="536" class="grid"/>
+<text x="656.7" y="551" class="m" font-size="11" text-anchor="middle">200</text>
+<line x1="719.3" y1="380" x2="719.3" y2="536" class="grid"/>
+<text x="719.3" y="551" class="m" font-size="11" text-anchor="middle">300</text>
+<line x1="782" y1="380" x2="782" y2="536" class="grid"/>
+<text x="782" y="551" class="m" font-size="11" text-anchor="middle">400 s</text>
+<rect x="531.3" y="387" width="16.7" height="12" class="tools"/>
+<path d="M550 387H595.6Q598.6 387 598.6 390V396Q598.6 399 595.6 399H550Z" class="out"/>
+<circle cx="583.5" cy="393" r="3.5" class="dot"/>
+<circle cx="598.6" cy="393" r="3.5" class="dot"/>
+<circle cx="599.1" cy="393" r="3.5" class="dot"/>
+<text x="856" y="397.5" class="t2" font-size="12" text-anchor="end">107 s</text>
+<rect x="531.3" y="413" width="15" height="12" class="tools"/>
+<path d="M548.4 413H594.9Q597.9 413 597.9 416V422Q597.9 425 594.9 425H548.4Z" class="out"/>
+<circle cx="585.7" cy="419" r="3.5" class="dot"/>
+<circle cx="597.9" cy="419" r="3.5" class="dot"/>
+<circle cx="612" cy="419" r="3.5" class="dot"/>
+<text x="856" y="423.5" class="t2" font-size="12" text-anchor="end">106 s</text>
+<rect x="531.3" y="439" width="34.8" height="12" class="tools"/>
+<path d="M568.2 439H615.6Q618.6 439 618.6 442V448Q618.6 451 615.6 451H568.2Z" class="out"/>
+<circle cx="612.1" cy="445" r="3.5" class="dot"/>
+<circle cx="618.6" cy="445" r="3.5" class="dot"/>
+<circle cx="631.9" cy="445" r="3.5" class="dot"/>
+<text x="856" y="449.5" class="t2" font-size="12" text-anchor="end">139 s</text>
+<rect x="531.3" y="465" width="20.7" height="12" class="tools"/>
+<path d="M554.1 465H584.4Q587.4 465 587.4 468V474Q587.4 477 584.4 477H554.1Z" class="out"/>
+<circle cx="582.8" cy="471" r="3.5" class="dot"/>
+<circle cx="587.4" cy="471" r="3.5" class="dot"/>
+<circle cx="587.9" cy="471" r="3.5" class="dot"/>
+<text x="856" y="475.5" class="t2" font-size="12" text-anchor="end">90 s</text>
+<rect x="531.3" y="491" width="21.2" height="12" class="tools"/>
+<path d="M554.6 491H574.1Q577.1 491 577.1 494V500Q577.1 503 574.1 503H554.6Z" class="out"/>
+<circle cx="577" cy="497" r="3.5" class="dot"/>
+<circle cx="577.1" cy="497" r="3.5" class="dot"/>
+<circle cx="585.9" cy="497" r="3.5" class="dot"/>
+<text x="856" y="501.5" class="t2" font-size="12" text-anchor="end">73 s</text>
+<rect x="531.3" y="517" width="44.5" height="12" class="tools"/>
+<path d="M577.8 517H665.3Q668.3 517 668.3 520V526Q668.3 529 665.3 529H577.8Z" class="out"/>
+<circle cx="641" cy="523" r="3.5" class="dot"/>
+<circle cx="668.3" cy="523" r="3.5" class="dot"/>
+<circle cx="773.7" cy="523" r="3.5" class="dot"/>
+<text x="856" y="527.5" class="t2" font-size="12" text-anchor="end">218 s</text>
+</svg>

@@ -8,7 +8,9 @@ Agents complete a task in an offline NixOS VM through `hyprmasq-mcp`. The benchm
 measures time on both sides of the MCP connection, and asks the agent for a debrief. It measures how agents
 use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, forgejo, form and thunderbird.
 
-Run results are in [docs/benchmarks.md](../docs/benchmarks.md).
+Run results are in [docs/benchmarks.md](../docs/benchmarks.md). `export.py` turns results directories into the
+datasets that page is generated from, and `render.py` draws its figures and tables; see
+[Updating the results](../docs/benchmarks.md#updating-the-results).
 
 ## Tests
 

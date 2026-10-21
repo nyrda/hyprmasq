@@ -84,7 +84,7 @@ on the same commands and compares screenshots to find what changed.
 
 ## Status and requirements
 
-Six agents passed 63 of 72 [release benchmark runs](docs/benchmarks.md#results),
+Six agents passed 63 of 72 [release benchmark runs](docs/benchmarks.md#release-010),
 with user focus and workspace unchanged in all 72.
 
 - Built and tested against exactly **Hyprland 0.56.2**. A Hyprland plugin must
