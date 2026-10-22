@@ -115,6 +115,12 @@ shows. Tiny changes, such as a blinking caret, are left out and counted.
 | `key` | `keys`, such as `["ctrl", "l"]` or `["ctrl+l"]`, pressed together, and `repeat` (1 to 100) |
 | `pause` | `ms` (0 to 5000) |
 
+`act` also takes the click actions of Anthropic's computer use tool, which
+Claude models reach for: `left_click`, `double_click`, `triple_click`,
+`right_click` and `middle_click`, with `x`, `y` and `modifiers`. Each is a
+`click` with its button and count. The schema leaves them out, so they add
+nothing to the model's prompt.
+
 A batch saves round trips but runs without looking, so agents batch only
 targets that are visible in the shot. A menu or dialog that opens needs a new
 shot before anything in it is clicked.

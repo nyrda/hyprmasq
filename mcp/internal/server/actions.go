@@ -64,6 +64,19 @@ var actionFields = map[string][]string{
 	"pause":  {"ms"},
 }
 
+// The click actions of Anthropic's computer use tool, which Claude models reach for: clicks with their button
+// and count. The schema leaves them out, so they cost the model nothing.
+var clickAliases = map[string]struct {
+	button string
+	count  int
+}{
+	"left_click":   {"left", 1},
+	"double_click": {"left", 2},
+	"triple_click": {"left", 3},
+	"right_click":  {"right", 1},
+	"middle_click": {"middle", 1},
+}
+
 var actionRequired = map[string][]string{
 	"click":  {"x", "y"},
 	"move":   {"x", "y"},
@@ -118,13 +131,21 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 	if !ok {
 		return a, invalidf("%s.action is missing; it is one of click, move, drag, scroll, type, key, pause", path)
 	}
-	if err := json.Unmarshal(kindRaw, &a.Kind); err != nil || actionFields[a.Kind] == nil {
+	var named string
+	err := json.Unmarshal(kindRaw, &named)
+	alias, isAlias := clickAliases[named]
+	if err != nil || actionFields[named] == nil && !isAlias {
 		return a, invalidf("%s.action must be one of click, move, drag, scroll, type, key, pause, not %s", path, kindRaw)
 	}
+	a.Kind = named
 	allowed := actionFields[a.Kind]
+	if isAlias {
+		// The alias names the button and count.
+		a.Kind, allowed = "click", []string{"x", "y", "modifiers"}
+	}
 	for name := range fields {
 		if name != "action" && !slices.Contains(allowed, name) {
-			return a, invalidf("%s.%s is not a field of %s, which takes %s", path, name, a.Kind, strings.Join(allowed, ", "))
+			return a, invalidf("%s.%s is not a field of %s, which takes %s", path, name, named, strings.Join(allowed, ", "))
 		}
 	}
 	required := actionRequired[a.Kind]
@@ -161,6 +182,9 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 		if err != nil {
 			return a, err
 		}
+	}
+	if isAlias {
+		a.Button, a.Count = alias.button, alias.count
 	}
 
 	if a.Kind == "drag" {

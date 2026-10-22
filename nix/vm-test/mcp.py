@@ -207,6 +207,18 @@ with subtest("hyprmasq-mcp clicks at the shot pixel, also at scale 2 and in a zo
     wait_for("probe at scale 1", lambda: client("hm-m-probe")["size"] == [640, 480])
     assert snapshot() == before_focus
 
+with subtest("hyprmasq-mcp takes the click actions of Anthropic's computer use tool"):
+    # Claude models reach for triple_click and its kin, which the schema leaves out. Each is a click with its button
+    # and count: three presses and releases at the point.
+    shot = mcp.call("screenshot", {"window": probe}).data["shot"]["id"]
+    start = len(probe_events("m-probe"))
+    clicked = mcp.call("act", {"window": probe, "shot": shot, "actions": [{"action": "triple_click", "x": 210, "y": 120}], "wait": {"expect_change": False}})
+    assert not clicked.is_error and clicked.data["actions"]["delivery"] == "complete", clicked
+    assert probe_motions(start) == [(210, 120)], probe_events("m-probe", start)
+    buttons = [e for _, e in probe_input(start) if e.startswith("button ")]
+    assert buttons == ["button hm-m-probe 1", "button hm-m-probe 0"] * 3, probe_events("m-probe", start)
+    assert snapshot() == before_focus
+
 with subtest("hyprmasq-mcp sends nothing for a batch it refuses"):
     # A resize makes the shot stale. The probe lets go of the lease's focus first, so that it gets no events at all.
     old = mcp.call("screenshot", {"window": probe}).data["shot"]["id"]
