@@ -10,6 +10,7 @@
   { "name": "drag", "requires": ["core"] },
   { "name": "selections", "requires": ["core"] },
   { "name": "xwayland", "requires": ["core"] },
+  { "name": "x11-menus", "requires": ["core"] },
   { "name": "cursor", "requires": ["core"] },
   { "name": "mcp", "requires": ["core"] },
   { "name": "new-windows", "requires": ["core"] },

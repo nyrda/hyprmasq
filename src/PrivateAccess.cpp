@@ -93,6 +93,10 @@ namespace hyprmasq {
             friend constexpr auto exposed(SXwmGetSelection);
         };
         template struct SExpose<SXwmGetSelection, &CXWM::getSelection>;
+        struct SXwmConnection {
+            friend constexpr auto exposed(SXwmConnection);
+        };
+        template struct SExpose<SXwmConnection, &CXWM::getConnection>;
 
         using CursorManager = Pointer::Cursor::CCursorManager;
         struct SCursorXCursor {
@@ -190,6 +194,10 @@ namespace hyprmasq {
 
     SXSelection* selectionOf(CXWM& wm, xcb_atom_t atom) {
         return (wm.*exposed(SXwmGetSelection{}))(atom);
+    }
+
+    xcb_connection_t* connectionOf(CXWM& wm) {
+        return (wm.*exposed(SXwmConnection{}))();
     }
 
     UP<CXCursorManager>& xcursorOf(CursorManager& manager) {

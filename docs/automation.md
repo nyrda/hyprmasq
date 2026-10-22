@@ -509,9 +509,22 @@ counters. Screenshots do not show the drag icon.
 
 Screenshots and input work for windows of Hyprland's XWayland and of
 xwayland-satellite. All X11 windows of one X server share one Wayland
-connection, and X routes keys by X focus, so the plugin moves X focus to the
-target for the input and back afterwards, and raises the target in the X
-stack for each pointer frame.
+connection, and X routes keys by X focus and pointer input by the stacking
+order. So the plugin moves X focus to the target for the input and back
+afterwards, and for each pointer frame puts the X windows above the target
+below it and back, all but the menus of the target's app.
+
+**Menus and lists.** X11 toolkits such as GTK 3, Tk and Chromium open menus,
+dropdown lists and the popup of a `<select>` in windows of their own, which
+`hyprmasq-mcp` reports as new windows. With Hyprland's XWayland, a click opens
+them, and a click in the menu's own window, or in the app's window where the
+menu lies over it, picks an item. So does a press, a drag onto the item and
+the release. While the app has a menu open, an override-redirect window of
+the menu, popup menu, dropdown menu or combo type, X focus stays with its
+window after input pauses, since Chromium closes its menus once its window
+loses X focus. It goes back once the menu closes, when the socket closes, or
+when you put the keyboard focus on an X11 window of the same X server. Input
+to the menu's own window leaves X focus with the app's window.
 
 To keep this from misrouting your typing, input to an X11 window is delivered
 only while the active window is a Wayland window, the target itself, or an
@@ -595,6 +608,16 @@ between you and the agent or script that drives your windows.
   Screenshots with `popups` show them, and the keyboard can reach them.
 - X11 menus and tooltips are separate windows: screenshots of the app window
   do not include them.
+- An open X11 menu grabs the pointer of its X server, and a GTK menu its
+  keyboard too, as on an X11 desktop. While a driven app has one open, your
+  first click into an X11 window of the same X server closes that menu instead
+  of reaching the window, and what you type into such a window goes to a GTK
+  menu until it closes.
+- A menu that an X11 app draws inside its own window, such as the popup of a
+  `<select>` in CEF's off-screen rendering, keeps no X focus: X focus goes
+  back a second after input, and an app that closes its menus then closes it.
+  Use the keyboard on such a control, such as Home and Down on a closed
+  `<select>`.
 - X11 input is refused while another window of the target's X server has the
   focus, unless the socket was opened with `force`. Some X11 apps that only
   accept focus through `WM_TAKE_FOCUS`, such as some Java applications, may

@@ -40,6 +40,8 @@ namespace hyprmasq::input {
         constexpr auto SATELLITE_BATCH = std::chrono::milliseconds(50);
         // How long after input a window keeps the emulated focus and gets frame callbacks.
         constexpr int IDLE_MS = 1000;
+        // How often a session that keeps the X focus for an X11 app's open menu looks whether the menu has closed.
+        constexpr int MENU_CHECK_MS = 100;
         // How often a sender that has sent nothing gets a ping, which tells whether it is still there.
         constexpr int PING_INTERVAL_MS = 1000;
         // The most events of unfinished frames a session keeps. A sender that sends more is disconnected.
@@ -1001,9 +1003,13 @@ namespace hyprmasq::input {
         if (!held)
             lease.reset();
         const bool recent = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInput).count() < IDLE_MS;
-        if (!recent && !held && keys.empty() && buttons.empty()) {
+        const bool idle   = !recent && !held && keys.empty() && buttons.empty();
+        // An X11 app's open menu keeps the X focus, until it closes.
+        const bool menu = idle && w->m_isX11 && x11::keepsFocus(w);
+        if (idle) {
             leave();
-            releaseX();
+            if (!menu)
+                releaseX();
         }
         // When a send to a sender fails, as it does once the sender has exited, libeis closes the connection
         // without a disconnect event, and what the sender held stays pressed. A failed ping it does report, so a
@@ -1027,9 +1033,9 @@ namespace hyprmasq::input {
             return 0;
         }
         awake.reset();
-        if (held || client) {
+        if (held || client || menu) {
             // A lease keeps the emulated focus until it ends, and a sender gets its pings.
-            const int delay = held ? std::max(1, held->remainingMs) : PING_INTERVAL_MS;
+            const int delay = held ? std::max(1, held->remainingMs) : menu ? MENU_CHECK_MS : PING_INTERVAL_MS;
             wl_event_source_timer_update(timer, client ? std::min(delay, PING_INTERVAL_MS) : delay);
         }
         return 0;

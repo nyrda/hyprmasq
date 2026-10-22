@@ -99,6 +99,9 @@ namespace hyprmasq {
     SXSelection& primaryOf(CXWM& wm);
     // CXWM::getSelection: the X selection of an atom, or null.
     SXSelection* selectionOf(CXWM& wm, xcb_atom_t atom);
+    // CXWM::getConnection: its connection to the X server, or null. The window manager redirects the restacking of
+    // managed windows by other clients to itself, but not its own.
+    xcb_connection_t* connectionOf(CXWM& wm);
 
     // The cursor manager, src/pointer/cursor/CursorManager.hpp.
     // CCursorManager::m_xcursor, m_size and m_cursorScale: the XCursor theme that Hyprland loaded, its size and scale.

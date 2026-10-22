@@ -30,6 +30,7 @@ let
   focusProbe = pkgs.callPackage ./focus-probe.nix { };
   dndProbe = pkgs.callPackage ./dnd-probe.nix { };
   clipProbe = pkgs.callPackage ./clip-probe.nix { };
+  comboProbe = pkgs.callPackage ./combo-probe.nix { };
   swapchainProbe = pkgs.callPackage ./swapchain-probe.nix { };
   qtProbe = pkgs.callPackage ./qt-probe.nix { };
   suspendProbe = pkgs.callPackage ./suspend-probe.nix { };
@@ -167,6 +168,7 @@ pkgs.testers.runNixOSTest {
         focusProbe
         dndProbe
         clipProbe
+        comboProbe
         swapchainProbe
         qtProbe
         suspendProbe
@@ -181,6 +183,8 @@ pkgs.testers.runNixOSTest {
         pkgs.xclip
         pkgs.xprop
         pkgs.xwayland-satellite
+        # A select on X11, whose popup Chromium closes once its window loses the X focus.
+        pkgs.chromium
       ];
 
       environment.etc."hyprmasq-test.lua".source = testConfig;

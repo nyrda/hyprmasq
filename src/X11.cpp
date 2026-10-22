@@ -1,6 +1,7 @@
 #include "X11.hpp"
 #include "Eis.hpp"
 #include "Hooks.hpp"
+#include "PrivateAccess.hpp"
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
@@ -9,6 +10,7 @@
 #include <hyprland/src/protocols/core/Compositor.hpp>
 #include <hyprland/src/xwayland/Server.hpp>
 #include <hyprland/src/xwayland/XSurface.hpp>
+#include <hyprland/src/xwayland/XWM.hpp>
 #include <hyprland/src/xwayland/XWayland.hpp>
 #include <linux/sockios.h>
 #include <fcntl.h>
@@ -22,14 +24,18 @@
 #include <xcb/xcb.h>
 #include <xcb/xcbext.h>
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
+#include <functional>
 #include <future>
 #include <map>
 #include <memory>
 #include <ranges>
+#include <span>
+#include <string>
 #include <system_error>
 #include <thread>
 
@@ -280,27 +286,41 @@ namespace hyprmasq::x11 {
             return result;
         }
 
-        // Puts the windows on top, bottom to top. The window manager redirects restacking of managed windows by other
-        // clients to itself, so this goes through Hyprland's, and waits until the X server shows the result, as long as
-        // the budget lasts.
-        bool restack(xcb_connection_t* c, const std::vector<xcb_window_t>& windows) {
-            CWaitBudget               budget;
-            const auto                surfaces = mappedSurfaces();
-            std::vector<xcb_window_t> moved;
-            for (auto id : windows) {
-                if (surfaces.contains(id)) {
-                    surfaces.at(id)->restackToTop();
-                    moved.push_back(id);
-                }
-            }
+        // Whether two windows belong to the same X client: the X server gives each client a range of ids of its own.
+        bool sameClient(xcb_connection_t* c, xcb_window_t a, xcb_window_t b) {
+            const auto mask = xcb_get_setup(c)->resource_id_mask;
+            return (a & ~mask) == (b & ~mask);
+        }
+
+        // A menu of the app of window: one of its X client's override-redirect windows, which X11 toolkits open their
+        // menus and lists in.
+        bool menuOf(xcb_connection_t* c, xcb_window_t window, const CXWaylandSurface& other) {
+            return other.m_overrideRedirect && sameClient(c, window, other.m_xID);
+        }
+
+        // Hyprland's window manager's connection. The window manager redirects the restacking of managed windows by
+        // other clients to itself, and has no function that stacks a window next to another.
+        xcb_connection_t* windowManager() {
+            return g_pXWayland && g_pXWayland->m_wm ? connectionOf(*g_pXWayland->m_wm) : nullptr;
+        }
+
+        // Waits until the X server shows a stacking order that done accepts, as long as the budget lasts.
+        bool waitForStack(xcb_connection_t* c, const std::function<bool(const std::vector<xcb_window_t>&)>& done) {
+            CWaitBudget budget;
             while (true) {
                 auto order = stackingOrder(c);
-                if (order && order->size() >= moved.size() && std::equal(moved.begin(), moved.end(), order->end() - moved.size()))
+                if (order && done(*order))
                     return true;
                 if (!order || Time::steadyNow() >= budgetEnd)
                     return false;
                 std::this_thread::sleep_for(RESTACK_POLL);
             }
+        }
+
+        // The index of a window in a stacking order, or nullopt.
+        std::optional<size_t> indexOf(const std::vector<xcb_window_t>& order, xcb_window_t window) {
+            const auto it = std::ranges::find(order, window);
+            return it == order.end() ? std::nullopt : std::optional{sc<size_t>(it - order.begin())};
         }
 
         void activateSurface(CXWM* self, SP<CXWaylandSurface> surface, bool activate) {
@@ -340,7 +360,12 @@ namespace hyprmasq::x11 {
         originalActivateSurface = hook(handle, "CXWM::activateSurface", reinterpret_cast<void*>(&activateSurface));
         originalHandleFocusIn   = hook(handle, "CXWM::handleFocusIn", reinterpret_cast<void*>(&handleFocusIn));
         // Keyboard focus can reach an XWayland surface without the window manager, for example on an unmanaged window.
-        keyboardFocus = g_pSeatManager->m_events.keyboardFocusChange.listen([] { release(); });
+        // Elsewhere, X focus routes none of the user's keys, and an X11 app closes its menus once it loses it.
+        keyboardFocus = g_pSeatManager->m_events.keyboardFocusChange.listen([] {
+            const auto focused = g_pSeatManager->m_state.keyboardFocus.lock();
+            if (focused && focused->client() == xwaylandClient())
+                release();
+        });
     }
 
     void shutdown() {
@@ -398,6 +423,10 @@ namespace hyprmasq::x11 {
         if (held && held->window == surface->m_xID)
             return true;
         CWaitBudget budget;
+        // A menu of the app whose window holds it gets its keys through that window: X focus never goes to a menu, and
+        // Chromium closes its menus once its window loses the X focus.
+        if (auto* c = x(); c && held && menuOf(c, held->window, *surface))
+            return true;
         release();
         auto* c = x();
         if (!c || !drain())
@@ -463,26 +492,39 @@ namespace hyprmasq::x11 {
         auto        surface = window->m_xwaylandSurface.lock();
         auto        c       = surface ? x() : nullptr;
         auto        before  = c ? stackingOrder(c) : std::nullopt;
-        if (!before || !std::ranges::contains(*before, surface->m_xID))
+        const auto  at      = before ? indexOf(*before, surface->m_xID) : std::nullopt;
+        if (!at)
             return std::nullopt;
-        SStack stack{.before = *before, .raised = {}};
+        const xcb_window_t target = surface->m_xID;
+        SStack             stack{.before = *before, .lowered = {}};
 
-        // Menus are separate override-redirect windows and have to stay above the window that opened them.
-        const auto mask     = xcb_get_setup(c)->resource_id_mask;
+        // The windows above the target go below it, but for its app's menus, which stay above the window that opened
+        // them. Those stay where they are: a window that moves across the pointer sends the app crossing events, which
+        // GTK takes for a pointer that moved into its menu, and its next release then picks the item under it.
         const auto surfaces = mappedSurfaces();
-        for (auto id : stack.before) {
-            auto s = surfaces.contains(id) ? surfaces.at(id) : nullptr;
-            if (id == surface->m_xID || (s && s->m_overrideRedirect && (id & ~mask) == (surface->m_xID & ~mask)))
-                stack.raised.push_back(id);
-        }
-        if (std::equal(stack.raised.begin(), stack.raised.end(), stack.before.end() - stack.raised.size())) {
-            stack.raised.clear(); // already on top
+        for (auto id : std::span(stack.before).subspan(*at + 1))
+            if (surfaces.contains(id) && !menuOf(c, target, *surfaces.at(id)))
+                stack.lowered.push_back(id);
+        if (stack.lowered.empty())
             return stack;
-        }
 
-        if (!drain())
+        auto* wm = windowManager();
+        if (!wm || !drain())
             return std::nullopt;
-        if (!restack(c, stack.raised)) {
+        // Bottom to top, each right below the target, so that they keep their order.
+        for (auto id : stack.lowered) {
+            const uint32_t values[] = {target, XCB_STACK_MODE_BELOW};
+            xcb_configure_window(wm, id, XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE, values);
+        }
+        xcb_flush(wm);
+        const bool lowered = waitForStack(c, [&](const std::vector<xcb_window_t>& order) {
+            const auto above = indexOf(order, target);
+            return above && std::ranges::none_of(stack.lowered, [&](xcb_window_t id) {
+                       const auto i = indexOf(order, id);
+                       return i && *i > *above;
+                   });
+        });
+        if (!lowered) {
             lower(stack);
             return std::nullopt;
         }
@@ -491,12 +533,55 @@ namespace hyprmasq::x11 {
 
     void lower(const SStack& stack) {
         CWaitBudget budget;
-        auto*       c = stack.raised.empty() ? nullptr : x();
-        if (!c)
+        auto*       c  = stack.lowered.empty() ? nullptr : x();
+        auto*       wm = c ? windowManager() : nullptr;
+        if (!wm)
             return;
-        // Everything that was above the lowest raised window goes back on top of it, in its old order.
-        const auto lowest = std::ranges::find_first_of(stack.before, stack.raised);
         drain();
-        restack(c, std::vector<xcb_window_t>(lowest + 1, stack.before.end()));
+        // Once the budget has run out, as after a raise() that the X server did not answer in time, the windows go back
+        // without the current order, as if all of them still existed.
+        const auto current = stackingOrder(c);
+        const auto exists  = [&](xcb_window_t id) { return !current || indexOf(*current, id).has_value(); };
+        // Each window goes back right above the one that it was above, or the next one below that, which still exist,
+        // bottom to top. Windows that opened meanwhile, such as the menu that a click opened, stay on top.
+        std::vector<std::pair<xcb_window_t, xcb_window_t>> placed;
+        for (auto id : stack.lowered) {
+            const auto at = indexOf(stack.before, id);
+            if (!at || !exists(id))
+                continue;
+            std::optional<xcb_window_t> below;
+            for (auto i = *at; !below && i-- > 0;)
+                if (exists(stack.before[i]))
+                    below = stack.before[i];
+            if (!below)
+                continue;
+            const uint32_t values[] = {*below, XCB_STACK_MODE_ABOVE};
+            xcb_configure_window(wm, id, XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE, values);
+            placed.emplace_back(id, *below);
+        }
+        xcb_flush(wm);
+        if (!current)
+            return;
+        waitForStack(c, [&](const std::vector<xcb_window_t>& order) {
+            return std::ranges::all_of(placed, [&](const auto& pair) {
+                const auto window = indexOf(order, pair.first), sibling = indexOf(order, pair.second);
+                return !window || !sibling || *window > *sibling;
+            });
+        });
+    }
+
+    bool keepsFocus(const PHLWINDOW& window) {
+        auto surface = window->m_xwaylandSurface.lock();
+        if (!surface || !held || held->window != surface->m_xID)
+            return false;
+        CWaitBudget budget;
+        auto*       c = x();
+        if (!c || !held)
+            return false;
+        static const std::array<std::string, 4> MENUS      = {"_NET_WM_WINDOW_TYPE_COMBO", "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", "_NET_WM_WINDOW_TYPE_MENU",
+                                                              "_NET_WM_WINDOW_TYPE_POPUP_MENU"};
+        const auto                              isMenuType = [](uint32_t atom) { return std::ranges::any_of(MENUS, [&](const auto& name) { return HYPRATOMS[name] == atom; }); };
+        return std::ranges::any_of(mappedSurfaces(),
+                                   [&](const auto& entry) { return menuOf(c, held->window, *entry.second) && std::ranges::any_of(entry.second->m_atoms, isMenuType); });
     }
 }

@@ -41,11 +41,17 @@ namespace hyprmasq::x11 {
     void refuseActivation(const PHLWINDOW& window);
 
     struct SStack {
-        std::vector<uint32_t> before; // root's children, bottom to top
-        std::vector<uint32_t> raised; // bottom to top
+        std::vector<uint32_t> before;  // root's children, bottom to top
+        std::vector<uint32_t> lowered; // the windows that raise() put below the target, bottom to top
     };
-    // Raises an XWayland window and its menus above every other X window. Nullopt if the X server cannot be reached.
+    // Puts the X windows above an XWayland window below it, but for the menus of its app, so that pointer input reaches
+    // the window and those menus. Nullopt if the X server cannot be reached.
     std::optional<SStack> raise(const PHLWINDOW& window);
-    // Returns the raised windows to their places.
+    // Returns the windows that raise() moved to their places.
     void lower(const SStack& stack);
+
+    // Whether the X focus that focus() holds for an XWayland window has to stay once input to it pauses: while its app
+    // has a menu open, an override-redirect window of a menu's type, which X11 apps such as Chromium close once their
+    // window loses the X focus.
+    bool keepsFocus(const PHLWINDOW& window);
 }

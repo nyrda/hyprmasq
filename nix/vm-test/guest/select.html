@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- A select at 20,20 with Zero chosen out of Zero to Five, whose page logs to the console, which Chromium's
+     --enable-logging=stderr prints: "probe ready" once loaded, "probe changed CHOICE" when the choice changes, and
+     "probe window-focus" and "probe window-blur" as its window gains and loses the X focus. -->
+<html>
+  <head>
+    <title>hm-x-select</title>
+    <style>
+      body { margin: 0; font: 16px sans-serif; }
+      select { position: absolute; left: 20px; top: 20px; width: 120px; height: 30px; }
+    </style>
+  </head>
+  <body>
+    <select id="choice">
+      <option>Zero</option><option>One</option><option>Two</option><option>Three</option><option>Four</option><option>Five</option>
+    </select>
+    <script>
+      const choice = document.getElementById("choice");
+      const say = (...parts) => console.log("probe", ...parts);
+      choice.addEventListener("change", () => say("changed", choice.value));
+      window.addEventListener("focus", () => say("window-focus"));
+      window.addEventListener("blur", () => say("window-blur"));
+      say("ready");
+    </script>
+  </body>
+</html>

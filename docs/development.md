@@ -152,7 +152,9 @@ The test's own Wayland clients are in `nix/` and share `nix/probe-common.h`:
 `user-input.c`. They log what they get to stdout, most of it stamped with
 `CLOCK_MONOTONIC` in milliseconds, and exit with status 2 on arguments they do
 not take.
-`qt-probe.py`, a Qt 6 app in PySide6, logs the same way.
+`qt-probe.py`, a Qt 6 app in PySide6, logs the same way. `combo-probe.py` is a
+GTK 3 app on X11 with a combo box, which logs alike, and Chromium opens
+`guest/select.html`, a page with a `<select>` that logs to its console.
 
 The VM also has `hyprland-dialog`, from `hyprland-qtutils`, without which
 Hyprland does not watch for apps that stop answering its pings, and the form
@@ -187,6 +189,7 @@ which is what `./dev.sh vm-test` runs.
 | `drag` | `core` | Popup, move, resize and drag protections, and private drag-and-drop. |
 | `selections` | `core` | The clipboard and primary selection of hidden apps and of the user, also X11's. |
 | `xwayland` | `core` | XWayland and xwayland-satellite windows: shots, input, the X11 focus rule and activation. |
+| `x11-menus` | `core` | The menus of X11 apps on a hidden workspace, which open in windows of their own: GTK 3's and the popup of Chromium's `<select>`. |
 | `cursor` | `core` | The virtual cursor and the click ripple. |
 | `mcp` | `core` | `hyprmasq-mcp`'s tools, launch, act, coordinates, refusals, waits and leases. Its server, shell and probe serve `mcp-shots`. |
 | `new-windows` | `core` | Where windows that input opens go, and how `hyprmasq-mcp` reports them, also late ones and those of the user's input. |
@@ -352,6 +355,13 @@ and the code drift apart.
 | X11 apps learn they are not active after input | While a Wayland window stays active, `_NET_ACTIVE_WINDOW` is written again after typing into a hidden `xterm`, after clicking it, and after it asks to be activated. |
 | an X server that does not answer holds Hyprland up for 100 ms per input frame at most | With X focus held for one hidden `xterm` and XWayland stopped by SIGSTOP, a sender to a second hidden `xterm` stops with `input_paused` within 400 ms, a second one within 300 ms, and `hyprctl` answers within 300 ms. The user's focus stays. Once XWayland runs again, input to the second `xterm` arrives. |
 | xwayland-satellite windows | Screenshots and input for a hidden satellite `xterm`. Input is refused while another satellite window is active, allowed for Hyprland's XWayland windows, and forced with `force`. No satellite app can activate itself while a satellite window is driven, but new satellite windows still get focus. |
+
+#### `x11-menus`
+
+| Subtest | Checks |
+| --- | --- |
+| a GTK 3 menu on X11 on a hidden workspace opens and picks by pointer | A click on the combo box of `combo-probe.py`, hidden under a visible `xev` window, opens its menu, which stays open past a second. A click in the menu's own window picks an item, and so do a click in the probe's window where the menu lies and a press, a drag onto an item and the release. The `xev` window gets no clicks, and is above the probe again afterwards, where an XTEST click reaches it. The user's focus stays. |
+| a Chromium select on X11 on a hidden workspace opens and picks by pointer | A click on a `<select>` in a hidden Chromium window opens its popup, which stays open past a second, also while the user moves between Wayland windows. A click in the popup's own window picks an option, and so does a click in Chromium's window where the popup lies, after which the page loses the X focus. Closing the socket while the popup is open closes it. The user's focus stays. |
 
 #### `cursor`
 
@@ -522,7 +532,7 @@ nix-build bench/tasks/calc/check-test.nix
 | `src/Drag.cpp` | Private drags: the wrapped `start_drag` handlers that tell a request's serial, the drag's offers, its negotiation, drop and file descriptor passing, the icon's frame callbacks, its timers and its cleanup, also on unload. |
 | `src/Cursor.cpp` | Virtual cursors and click ripples: recolors the cursor theme's arrow, draws and damages them, and their options. |
 | `src/Placement.cpp` | Windows that emulated input opens: the windows the agent works in, the user's real input, the hook on `CWindowRuleApplicator::readStaticRules` that finds where a new window came from, by its parent or its app, and places it through `src/Launch.cpp`, its option, and `source`. |
-| `src/X11.cpp` | X input focus and stacking around input to XWayland windows, the window manager hooks, xwayland-satellite detection. |
+| `src/X11.cpp` | X input focus and stacking around input to XWayland windows, the X focus that an app's open menu keeps, the window manager hooks, xwayland-satellite detection. |
 | `src/Hooks.cpp` | Installing and removing Hyprland function hooks, and in `src/Hooks.hpp`, wrapping the request handlers of protocol devices and putting them back. |
 | `src/Launch.cpp` | Launches and their windows: starting the command, the launched process among the parents of a new window's process, and the tagged window rules that place the windows of a launch and those that input opened. |
 | `src/Process.cpp` | Reads of `/proc/<pid>/stat`: a process's parent and start time, which never wait for the process. |
@@ -543,6 +553,7 @@ nix-build bench/tasks/calc/check-test.nix
 | `nix/clip-probe.c`, `nix/clip-probe.nix` | A test client that copies, selects and pastes text through the clipboard and the primary selection on keys and a click, and logs the selections it gets, its sources' sends and cancels, and what it pastes. |
 | `nix/dnd-probe.c`, `nix/dnd-probe.nix` | A test client that drags text from its window to itself through the data device protocol, with options for the serial, the destination's answers, the finish and an icon, and signals that destroy its source, data device or window. |
 | `nix/focus-probe.c`, `nix/focus-probe.nix` | A test client. Without arguments, it requests popup grabs, moves, resizes and drags for the protections subtest. `popup TITLE [X Y W H [GX GY]]` opens and closes a popup on SIGUSR1 and logs pointer events by surface, with GX,GY a margin outside the window's xdg geometry. `focus TITLE [TITLE]` shows one or two windows on one connection and logs their input and focus events with timestamps. `close TITLE` logs like it for one window, which it destroys when Escape or the left button goes down. `regions SOCKET MS` prints the pointer regions the plugin announces. `hold SOCKET X Y stop\|disconnect\|signal` holds Shift, A and the left button as a libei sender and then stops emulating or exits, or with `signal` presses them on SIGUSR1 and exits at once. `resize TITLE hold\|ack` shows one window with a green right edge that acks configures of its drawn size without a commit, and after a SIGUSR1 holds back configures with a new size, unacked or acked, until the next one. `opener TITLE [TITLE]` logs like `focus` and opens green windows on input to one of its windows: N or a left click a toplevel without a parent, D or a right click a dialog of that window, L a toplevel 300 ms later, K one 1.5 s later, G one 1.5 s later on a second Wayland connection of its process, a middle click a dialog 1.5 s later, S in a window it opened closes that window and opens a toplevel 300 ms later, a right click in one closes it at once and Enter redraws it and closes it 300 ms later, and F a dialog of another process, `imported HANDLE TITLE`, outside its process tree, that names its parent through xdg-foreign, as a SIGUSR1 does for its first window, logging when it maps them, and A a dialog whose parent, once it closed, redraws in orange 300 ms after its next frame callback. `browser CREATE MAP TITLE [TITLE]` works as `opener`, but a left click opens a toplevel without a parent, TITLE-popupK, CREATE ms after the press, and draws it MAP ms after creating it, as a browser's popup, and a SIGUSR2 creates TITLE-aheadK for its last toplevel, which the next left click there draws MAP ms later. `shift TITLE MS` logs like `focus` and shows a light button, which a SIGUSR1 moves 60 pixels down MS milliseconds later, while a SIGUSR2 draws a block far from it. `tiles TITLE` redraws at every frame callback and damages a tile of 256×128 whole, in which only a 24×24 spinner, noise that is new at every frame, changes, as Thunderbird's renderer damages tiles, and a left click draws a light block in the tile that stays. |
+| `nix/combo-probe.py`, `nix/combo-probe.nix` | A GTK 3 test app on X11 with a combo box, which logs when its menu opens and closes, where its items lie, and the choice. |
 | `nix/suspend-probe.c`, `nix/suspend-probe.nix` | A test client that binds `xdg_wm_base` at the version it is given, logs whether each configure says that it is suspended, and unmaps with a commit without a buffer, keeping its `xdg_toplevel`, and maps again on signals. |
 | `nix/qt-probe.py`, `nix/qt-probe.nix` | A Qt 6 test client in PySide6 with the widgets of the form task's questionnaire at fixed places, which logs the configures that Qt applies, whether they suspend it, when Qt exposes the window, and each change of a widget. |
 | `nix/user-input.c`, `nix/user-input.nix` | VM fixture for the user's own input: a held button through a virtual pointer, and an input method's keyboard grab. |
