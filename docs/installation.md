@@ -218,7 +218,8 @@ server. It needs:
 - the plugin loaded in the Hyprland it drives, with the same interface
   version, which the plugin and server of one release always have
 - `XDG_RUNTIME_DIR` and `HYPRLAND_INSTANCE_SIGNATURE` of that Hyprland, which
-  it inherits when the agent runs inside the Hyprland session
+  it inherits when the agent runs inside the Hyprland session and the client
+  passes them on, as Codex does only when told to
 - `hyprmasq-input`, from the Nix package's wrapper, from `PATH`, or given
   with `--input`.
 
@@ -237,12 +238,19 @@ claude mcp add --scope user hyprmasq -- hyprmasq-mcp
 ```toml
 [mcp_servers.hyprmasq]
 command = "hyprmasq-mcp"
+env_vars = ["XDG_RUNTIME_DIR", "HYPRLAND_INSTANCE_SIGNATURE"]
 # args = ["--max-image-size", "0"]
 # For codex exec with approval_policy = "never":
 # default_tools_approval_mode = "approve"
 # For launches with timeout_ms above about 50000:
 # tool_timeout_sec = 120
 ```
+
+Codex starts MCP servers with a few variables of its own environment, such as
+`HOME` and `PATH`, and not the session's. `env_vars` passes on the two that
+name the Hyprland. Without it the server exits at once with
+`XDG_RUNTIME_DIR and HYPRLAND_INSTANCE_SIGNATURE must name the Hyprland to
+drive`, and Codex shows the model no hyprmasq tools.
 
 Codex asks for approval before calling a tool that is not read-only, and no
 hyprmasq tool is read-only: `screenshot` and `windows` open the window's

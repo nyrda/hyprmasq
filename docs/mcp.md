@@ -226,8 +226,9 @@ run `hyprmasq-input` directly take no locks.
 
 The server needs `XDG_RUNTIME_DIR` and `HYPRLAND_INSTANCE_SIGNATURE` of the
 Hyprland it drives, which it inherits when the agent runs inside the
-Hyprland session, and the plugin loaded with the same interface version. It
-exits with status 2 on invalid options.
+Hyprland session and the client passes them on (see
+[Client notes](#client-notes) for Codex), and the plugin loaded with the same
+interface version. It exits with status 2 on invalid options.
 
 The session ends when the client closes stdin or stdout, or on SIGINT,
 SIGTERM or SIGHUP. The server then cancels running calls, releases its
@@ -240,9 +241,13 @@ leases and deletes its shots. Sockets and launched windows stay open, and only
 its text, so with the default `--structured-content auto` the server sends it
 none.
 
-**Codex** asks for approval before calling a tool that is not marked
-read-only, and no hyprmasq tool is. `codex exec` with
-`approval_policy = "never"` cannot ask and fails those calls. Set
+**Codex** starts MCP servers without the session's environment. Pass on
+the Hyprland with `env_vars = ["XDG_RUNTIME_DIR",
+"HYPRLAND_INSTANCE_SIGNATURE"]` in the server's table, or the server exits at
+start and Codex lists no hyprmasq tools. Codex asks for approval before
+calling a tool that is not marked read-only, and no hyprmasq tool is.
+`codex exec` with `approval_policy = "never"` cannot ask and fails those
+calls. Set
 `default_tools_approval_mode = "approve"` for the server, or approve single
 tools. Codex waits 60 seconds for a tool call by default. A `launch` can take
 its `timeout_ms` plus about 6 seconds, so raise `tool_timeout_sec` for long
