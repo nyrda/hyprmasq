@@ -148,9 +148,13 @@ that it puts together from `nix/vm-test/`:
 
 The test's own Wayland clients are in `nix/` and share `nix/probe-common.h`:
 `focus-probe.c`, whose modes it lists when run without arguments,
-`dnd-probe.c`, `clip-probe.c` and `user-input.c`. They log what they get to
-stdout, most of it stamped with `CLOCK_MONOTONIC` in milliseconds, and exit
-with status 2 on arguments they do not take.
+`dnd-probe.c`, `clip-probe.c`, `swapchain-probe.c` and `user-input.c`. They
+log what they get to stdout, most of it stamped with `CLOCK_MONOTONIC` in
+milliseconds, and exit with status 2 on arguments they do not take.
+
+The VM also has `hyprland-dialog`, from `hyprland-qtutils`, without which
+Hyprland does not watch for apps that stop answering its pings, and the form
+task's GTK 4 questionnaire as `hyprmasq-bench-form`.
 
 The areas share one VM and one Hyprland, and a subtest may use the windows and
 other state of earlier subtests of its area. An area that uses the state of
@@ -185,6 +189,7 @@ which is what `./dev.sh vm-test` runs.
 | `mcp` | `core` | `hyprmasq-mcp`'s tools, launch, act, coordinates, refusals, waits and leases. Its server, shell and probe serve `mcp-shots`. |
 | `new-windows` | `core` | Where windows that input opens go, and how `hyprmasq-mcp` reports them, also late ones and those of the user's input. |
 | `mcp-shots` | `core`, `mcp` | `hyprmasq-mcp`'s concurrency and cancellation, captures, changes and full shots, image sizes, resizes, starved and animated windows, input that closes its window, and the server's exit. |
+| `anr` | `core` | Hyprland's not-responding dialog, which the VM's `hyprland-dialog` logs: for a stopped app, and never for hidden apps that captures and input drive, one that waits for its dmabuf buffers as Mesa's swapchains do and the form task's GTK 4 questionnaire. |
 | `unload` | `core`, `waits` | Unloading and loading the plugin again, with a pending wait on the busy window of `waits`, selections and screenshot writes. |
 | `compositor-log` | `drag` | Hyprland's log after its exit, with the serials of `drag`'s protections subtest rejected. It ends Hyprland, so it runs last. |
 
@@ -421,6 +426,19 @@ and the code drift apart.
 | hyprmasq-mcp counts input that closes its window as delivered when only pauses follow | Escape and a click that close focus-probe's window while the key or the button is held, each followed by a 3-second pause, give `2/2 delivered · window closed`, complete delivery and `wait.ended` `window_closed`, without an error, a shot or new windows, and with only the hint that the window closed, within 2.5 seconds. A call whose release meets the close, which reports nothing delivered, is repeated, up to three times. |
 | hyprmasq-mcp ends its calls and releases its leases on SIGTERM | SIGTERM to a server while one of its calls waits ends that call and the plugin's wait. The server exits 0 within 4 seconds, releases its lease and no other, and removes its shots. |
 | hyprmasq-mcp closes a launched window, and cleans up when it exits | `close` closes the launched window, a later `act` gives `window_gone`, and a server whose stdin closes exits 0 and removes its shots. |
+
+#### `anr`
+
+The area raises the output to 1280×800, lowers `misc:anr_missed_pings` to 1, so
+that an app that has not answered a ping by Hyprland's next one, 1.5 s later,
+gets the dialog, and shows a foot that draws nothing on the visible workspace,
+as on an idle desktop. It sets both back at its end.
+
+| Subtest | Checks |
+| --- | --- |
+| Hyprland's not-responding dialog opens for a hidden app that stops answering pings | A foot on a hidden workspace that is stopped with `SIGSTOP` gets the dialog, which names it and closes once it runs again. It shows that the other subtests would see one. |
+| a capture gives a hidden app its dmabuf buffers back | `swapchain-probe.c` on a hidden workspace draws into three dumb buffers of the VM's DRM card, shared as dmabufs, and waits for a released one before each frame, as Mesa's swapchains do, without dispatching pings. Eight `act` calls of a key and a full shot, 1.5 s apart, get it to draw all 32 frames, it never waits 500 ms for a buffer, and no dialog opens. Hyprland keeps the buffers that a capture draws until a monitor's next frame, and the idle output has none. |
+| a hidden GTK 4 questionnaire answers every ping while driven as the benchmark's agents drive it | The form task's questionnaire, floating at 1000×800 on a hidden workspace, gets three rounds of keys from `hyprmasq-mcp`, a second and more apart: a box ticked, a slider moved, text typed into a field and selected, which claims the primary selection, a dropdown's third entry chosen in its popover, and a scroll. The texts and choices arrive and no dialog opens. GTK draws into shm buffers in the VM, with Vulkan on lavapipe, so this does not cover the dmabuf case above. |
 
 #### `unload`
 

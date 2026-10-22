@@ -291,6 +291,29 @@ namespace hyprmasq {
             CRenderMonitorReset& operator=(const CRenderMonitorReset&) = delete;
         };
 
+        // The renderer holds each dmabuf buffer that it draws, which the app may not reuse until the compositor releases
+        // it. After a monitor's frame, Hyprland lets them go once the GPU is done with them, but after a full fake render,
+        // as a capture is, only with the next frame of any monitor. An idle monitor can go seconds without one, and an
+        // app whose buffers a capture of its hidden window holds stops at its next frame until then: GTK 4 waits there
+        // for a free swapchain image and answers none of Hyprland's pings, which brings up the "not responding" dialog on
+        // the user's workspace. The capture lets go of the buffers that it added once it has read its pixels back, which
+        // waits for the GPU, or when it fails before, and then nothing reads what the GPU draws. Main thread only, and
+        // nothing else renders in between.
+        class CDrawnBuffers {
+          public:
+            CDrawnBuffers() : m_before(g_pHyprRenderer->m_usedAsyncBuffers.size()) {}
+            ~CDrawnBuffers() {
+                auto& used = g_pHyprRenderer->m_usedAsyncBuffers;
+                if (used.size() > m_before)
+                    used.erase(used.begin() + sc<std::ptrdiff_t>(m_before), used.end());
+            }
+            CDrawnBuffers(const CDrawnBuffers&)            = delete;
+            CDrawnBuffers& operator=(const CDrawnBuffers&) = delete;
+
+          private:
+            size_t m_before;
+        };
+
         // The renderer produces premultiplied alpha, PNG stores straight alpha.
         void unpremultiply(std::vector<uint8_t>& rgba) {
             for (size_t i = 0; i < rgba.size(); i += 4) {
@@ -381,6 +404,8 @@ namespace hyprmasq {
         // Hyprland resets the render data's monitor after every offscreen render, as Screenshare::CScreenshareFrame does,
         // which beginRender sets also when it fails.
         const CRenderMonitorReset reset;
+        // Lets go of the window's buffers after the reads below, at every return.
+        const CDrawnBuffers drawn;
         if (!beginRender(monitor, fb, width, height))
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot begin offscreen render"});
 

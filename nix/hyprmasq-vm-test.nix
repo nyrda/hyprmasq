@@ -30,6 +30,14 @@ let
   focusProbe = pkgs.callPackage ./focus-probe.nix { };
   dndProbe = pkgs.callPackage ./dnd-probe.nix { };
   clipProbe = pkgs.callPackage ./clip-probe.nix { };
+  swapchainProbe = pkgs.callPackage ./swapchain-probe.nix { };
+  # hyprland-dialog, without which Hyprland does not watch for apps that stop answering its pings. This one logs each
+  # dialog that it opens, with its arguments on one line, also one that closes again within milliseconds.
+  dialog = pkgs.writeShellScriptBin "hyprland-dialog" ''
+    args="$*"
+    printf '%s %s\n' "$(date +%s.%N)" "''${args//$'\n'/ }" >> /tmp/hyprmasq-dialogs.log
+    exec ${pkgs.hyprland-qtutils}/bin/hyprland-dialog "$@"
+  '';
   userInput = pkgs.callPackage ./user-input.nix { inherit hyprland; };
   hyprctlCaller = pkgs.callPackage ./hyprctl-caller.nix { inherit plugin; };
   python = pkgs.python3.withPackages (ps: [ ps.pillow ]);
@@ -131,7 +139,12 @@ pkgs.testers.runNixOSTest {
   nodes.machine =
     { pkgs, ... }:
     {
-      imports = [ module ];
+      # The benchmark's GTK 4 questionnaire, as hyprmasq-bench-form, which the anr area drives.
+      imports = [
+        module
+        ../bench/tasks/form/vm.nix
+      ];
+      _module.args.benchVariant = "25";
       programs.hyprmasq.enable = true;
 
       users.users.alice = {
@@ -144,13 +157,16 @@ pkgs.testers.runNixOSTest {
         pkgs.grim
         pkgs.jq
         pkgs.procps
-        python
+        # Over the questionnaire module's python3, which has no Pillow.
+        (lib.hiPrio python)
         pkgs.wev
         # A virtual pointer, whose clicks are real input to Hyprland.
         pkgs.wlrctl
         focusProbe
         dndProbe
         clipProbe
+        swapchainProbe
+        dialog
         # The user's own clipboard: wl-copy and wl-paste use data-control, as clipboard managers do.
         pkgs.wl-clipboard
         # The user's held button and input method, as real input to Hyprland.
