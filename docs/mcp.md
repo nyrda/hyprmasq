@@ -95,6 +95,9 @@ zoom s9 456×124 of s7 at 0,670 228×62
 `shot s7 = s5 + 2 changes` means s7 has s5's pixels, so the agent keeps
 reading coordinates from s5, and each zoom is listed with the box of s7 it
 shows. Tiny changes, such as a blinking caret, are left out and counted.
+`redraw observed` alone does not show that the input changed anything: a
+hidden app that the input wakes, such as a Qt app, redraws once anyway. The
+changes say what changed.
 
 | Argument | Default | Meaning |
 | --- | --- | --- |

@@ -418,6 +418,8 @@ func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
 		if err == nil {
 			s.shots.returned(sh)
 			o.Shot, o.reported = shotInfo(sh), o.OpenedByInput != ""
+			// The capture gives a window that has not caught up with a resize time to draw first, so its shot is newer.
+			o.Resizing = o.Shot.Resizing
 			images = append([][]byte{png}, images...)
 			if reclaimed != nil {
 				// The late window's line and hints name it, with this shot.

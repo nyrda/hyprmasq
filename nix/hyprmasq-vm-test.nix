@@ -31,6 +31,8 @@ let
   dndProbe = pkgs.callPackage ./dnd-probe.nix { };
   clipProbe = pkgs.callPackage ./clip-probe.nix { };
   swapchainProbe = pkgs.callPackage ./swapchain-probe.nix { };
+  qtProbe = pkgs.callPackage ./qt-probe.nix { };
+  suspendProbe = pkgs.callPackage ./suspend-probe.nix { };
   # hyprland-dialog, without which Hyprland does not watch for apps that stop answering its pings. This one logs each
   # dialog that it opens, with its arguments on one line, also one that closes again within milliseconds.
   dialog = pkgs.writeShellScriptBin "hyprland-dialog" ''
@@ -166,6 +168,8 @@ pkgs.testers.runNixOSTest {
         dndProbe
         clipProbe
         swapchainProbe
+        qtProbe
+        suspendProbe
         dialog
         # The user's own clipboard: wl-copy and wl-paste use data-control, as clipboard managers do.
         pkgs.wl-clipboard

@@ -28,11 +28,6 @@ def anr_close(address):
     wait_for(f"{address} to close", lambda: all(c["address"] != address for c in clients()))
 
 
-def anr_mode(width, height):
-    hypr("eval " + shlex.quote(f'hl.monitor({{ output = "HYPRMASQ-TEST", mode = "{width}x{height}@60", position = "0x0", scale = "1" }})'))
-    wait_for(f"a {width}x{height} output", lambda: [(m["width"], m["height"]) for m in json.loads(hypr("-j monitors"))] == [(width, height)])
-
-
 # Hyprland pings every app every 1.5 s, and shows its "not responding" dialog once an app missed
 # misc:anr_missed_pings of them in a row, 5 by default. Here one is enough: an app that has not answered a ping by the
 # next one gets the dialog. The user's window on the visible workspace draws nothing, as on an idle desktop, where no
@@ -40,7 +35,7 @@ def anr_mode(width, height):
 # questionnaire needs: Hyprland keeps popups on their monitor.
 anr_before = snapshot()
 assert hypr("eval " + shlex.quote("hl.config({ misc = { anr_missed_pings = 1 } })")) == "ok"
-anr_mode(1280, 800)
+output_mode(1280, 800)
 focus_workspace(90)
 anr_user = foot("hm-a-user")
 wait_drawn(anr_user, 500)
@@ -121,5 +116,5 @@ with subtest("a hidden GTK 4 questionnaire answers every ping while driven as th
 assert anr_agent.stop() == 0
 anr_close(anr_user)
 assert hypr("eval " + shlex.quote("hl.config({ misc = { anr_missed_pings = 5 } })")) == "ok"
-anr_mode(640, 480)
+output_mode(640, 480)
 focus_workspace(anr_before[0])

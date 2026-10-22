@@ -159,9 +159,10 @@ option may come once, in any order, and all times are 1 to 60000 ms.
 
 The wait also ends with `window_closed` when the window closes. While it runs,
 a window that Hyprland does not render, such as one on a hidden workspace,
-gets a frame callback every 16 ms, so it keeps drawing. Compare counter values
-only when their `socketId` is the same: the counter starts again at 0 when a
-socket is reopened, and a COMMITS above the counter is an error.
+gets a frame callback every 16 ms and is not told that it is suspended, so it
+keeps drawing. Compare counter values only when their `socketId` is the same:
+the counter starts again at 0 when a socket is reopened, and a COMMITS above
+the counter is an error.
 
 The default deadline of 4500 ms keeps the reply within `hyprctl`'s 5-second
 limit. A program that writes the request to Hyprland's socket,
@@ -436,7 +437,15 @@ does.
 **Hidden windows.** Hyprland sends no frame callbacks to windows it does not
 render, and many applications stop drawing without them. The plugin sends a
 hidden target frame callbacks every 16 ms with its input, for about a second
-after it while a sender is connected, and during a `wait … since`.
+after it while a sender is connected, and during a `wait … since`. Hyprland
+also tells the windows of hidden workspaces that they are suspended, and some
+applications, such as Qt ones, then draw nothing at all, neither input nor a
+new size. For as long as the target gets frame callbacks, the plugin keeps
+Hyprland from telling it, and then tells it Hyprland's state again. A sender
+that stays connected with its devices keeps the target awake for as long as
+it stays. A woken application may redraw once, also when the input changed
+nothing. X11 windows have no such state, and neither have the windows of
+clients that bind `xdg_wm_base` below version 6.
 
 **Shared connections.** Two windows of one program, such as two windows of
 one browser, can share a Wayland connection, and a connection has one
@@ -596,6 +605,11 @@ between you and the agent or script that drives your windows.
 - Applications that ignore frame callbacks while hidden, or redraw slowly, can
   show stale content. A wait cannot tell a redraw that has not started yet
   from one that is done.
+- A hidden window that the plugin does not drive stays suspended. A Qt
+  application there draws nothing, also not at a new size, until input or a
+  `wait … since` reaches it, so screenshots in between show its last frame.
+  Qt 6.11 and 6.12 acknowledge a new size while suspended with an empty
+  commit, which `resizing` misses.
 - `resizing` misses an application that acknowledges a new size and then
   commits a frame of the old size.
 - Through `hyprctl`, a wait answers within 4.5 seconds.

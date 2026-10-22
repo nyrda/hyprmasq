@@ -1,6 +1,7 @@
 #pragma once
 #include "Drag.hpp"
 #include "Eis.hpp"
+#include "Suspension.hpp"
 #include <hyprland/src/helpers/math/Math.hpp>
 #include <hyprland/src/helpers/memory/Memory.hpp>
 #include <hyprland/src/helpers/signal/Signal.hpp>
@@ -59,6 +60,7 @@ namespace hyprmasq::input {
         Time::steady_tp         lastInput = Time::steadyNow();
         // The window's commits from the socket's opening, for wait.
         std::shared_ptr<wait::CContentWatch> content;
+        std::optional<suspension::CAwake>    awake; // while the window is driven, see tick()
         uint64_t                             commitsAtInput = 0;
         bool                                 force = false, paused = false, deferredKeys = false, restoreDue = false;
         bool                                 keyboardEmulating = false; // between the keyboard's start and stop of emulation

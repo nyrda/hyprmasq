@@ -1,5 +1,6 @@
 #include "Wait.hpp"
 #include "Eis.hpp"
+#include "Suspension.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
@@ -177,6 +178,8 @@ namespace hyprmasq::wait {
             wl_event_source*               timer    = nullptr;
             CHyprSignalListener            commit, unmap, destroy, dragChange;
             std::promise<SChangeResult>    promise;
+            // Keeps a hidden window from being told that it is suspended while the wait runs, see check().
+            std::optional<suspension::CAwake> awake;
 
             ~SChangeWaiter() {
                 if (timer)
@@ -466,6 +469,7 @@ namespace hyprmasq::wait {
         waiter->socketId  = socket->id;
         waiter->options   = options;
         waiter->lastInput = socket->lastInput;
+        waiter->awake.emplace(window);
         // Ignoring animations, the phase is over at once only when a commit after the baseline was not part of one.
         waiter->changing = options.expectMs && (options.ignoreAnimations ? socket->content->lastChangeCommit : socket->content->commits) <= options.since;
         waiter->timer    = wl_event_loop_add_timer(

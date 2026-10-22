@@ -6,6 +6,7 @@
 #include "Launch.hpp"
 #include "Placement.hpp"
 #include "Selection.hpp"
+#include "Suspension.hpp"
 #include "Wait.hpp"
 #include "X11.hpp"
 
@@ -55,6 +56,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         hyprmasq::cursor::init(handle);
         hyprmasq::launch::init();
         hyprmasq::placement::init(handle);
+        hyprmasq::suspension::init(handle);
     } catch (...) {
         shutdownAll();
         throw;

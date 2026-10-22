@@ -15,6 +15,7 @@
   { "name": "new-windows", "requires": ["core"] },
   { "name": "mcp-shots", "requires": ["core", "mcp"] },
   { "name": "anr", "requires": ["core"] },
-  { "name": "unload", "requires": ["core", "waits"] },
+  { "name": "suspended", "requires": ["core"] },
+  { "name": "unload", "requires": ["core", "waits", "suspended"] },
   { "name": "compositor-log", "requires": ["drag"] }
 ]

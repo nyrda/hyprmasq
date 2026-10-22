@@ -77,8 +77,10 @@ The plugin runs inside Hyprland. For a screenshot, it renders the window
 into an offscreen buffer the way Hyprland would draw it, so the window's
 workspace does not need to be visible. For input, it opens a libei socket
 for the window and delivers each event to that window's surfaces only,
-without moving the real cursor or changing Hyprland's focus. Hidden windows
-get the frame callbacks they need to keep drawing while they are driven.
+without moving the real cursor or changing Hyprland's focus. While they are
+driven, hidden windows get the frame callbacks they need to keep drawing, and
+are not told that they are suspended, which stops some apps from drawing at
+all.
 `hyprmasq-input` paces its input like a person's, and `hyprmasq-mcp` builds
 on the same commands and compares screenshots to find what changed.
 

@@ -5,6 +5,7 @@
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/pointer/cursor/CursorManager.hpp>
 #include <hyprland/src/protocols/PrimarySelection.hpp>
+#include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/DataDevice.hpp>
 #include <hyprland/src/protocols/core/Seat.hpp>
 #include <hyprland/src/render/Renderer.hpp>
@@ -74,6 +75,11 @@ namespace hyprmasq {
             friend constexpr auto exposed(SPrimaryRequests);
         };
         template struct SExpose<SPrimaryRequests, &CZwpPrimarySelectionDeviceV1::requests>;
+
+        struct SToplevelWire {
+            friend constexpr auto exposed(SToplevelWire);
+        };
+        template struct SExpose<SToplevelWire, &CXDGToplevelResource::m_resource>;
 
         struct SXwmClipboard {
             friend constexpr auto exposed(SXwmClipboard);
@@ -168,6 +174,10 @@ namespace hyprmasq {
 
     SetPrimarySelection& setSelectionOf(CZwpPrimarySelectionDeviceV1& wire) {
         return (wire.*exposed(SPrimaryRequests{})).setSelection;
+    }
+
+    SP<CXdgToplevel>& wireOf(CXDGToplevelResource& toplevel) {
+        return toplevel.*exposed(SToplevelWire{});
     }
 
     SXSelection& clipboardOf(CXWM& wm) {

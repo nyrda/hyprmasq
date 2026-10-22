@@ -246,6 +246,15 @@ print(sum(
 """, path=path, box=box).strip())
 
 
+def changed_pixels(before, after, box):
+    """How many pixels within box (x0, y0, x1, y1) differ between the images before and after."""
+    return int(image_script("""
+x0, y0, x1, y1 = box
+a, b = Image.open(before).convert('RGB'), Image.open(after).convert('RGB')
+print(sum(a.getpixel((x, y)) != b.getpixel((x, y)) for x in range(x0, x1) for y in range(y0, y1)))
+""", before=before, after=after, box=box).strip())
+
+
 def pixels(path, *points, raw=None):
     """The RGBA values of the image at the points, and its size last. With raw, a width and height, the file holds raw
     RGBA pixels, which must be that many."""
@@ -363,6 +372,12 @@ def float_window(address, x, y, width, height):
     dispatch(f"hl.dsp.window.resize({{ x = {width}, y = {height}, {window} }})")
     dispatch(f"hl.dsp.window.move({{ x = {x}, y = {y}, {window} }})")
     wait_for(f"{address} at {x},{y} sized {width}x{height}", lambda: geometry(address) == ([x, y], [width, height]))
+
+
+def output_mode(width, height):
+    """Gives the test's output another size, at scale 1."""
+    hypr("eval " + shlex.quote(f'hl.monitor({{ output = "HYPRMASQ-TEST", mode = "{width}x{height}@60", position = "0x0", scale = "1" }})'))
+    wait_for(f"a {width}x{height} output", lambda: [(m["width"], m["height"]) for m in json.loads(hypr("-j monitors"))] == [(width, height)])
 
 
 def popup_probe(title, workspace, *popup):
@@ -684,6 +699,9 @@ def save_logs():
         "/tmp/hyprmasq-m-b-server.log",
         "/tmp/hyprmasq-m-c-server.log",
         "/tmp/hyprmasq-m-o-server.log",
+        "/tmp/hyprmasq-s-qt.log",
+        "/tmp/hyprmasq-s-raw.log",
+        "/tmp/hyprmasq-s-old.log",
     ]:
         if machine.execute(f"test -e {artifact}")[0] == 0:
             machine.copy_from_machine(artifact)

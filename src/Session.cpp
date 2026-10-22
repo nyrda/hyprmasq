@@ -808,6 +808,8 @@ namespace hyprmasq::input {
         // Input that comes more often than every TICK_MS, as a drag's motion does, keeps putting tick() off, so
         // the frame callbacks that a hidden window needs to go on, such as Firefox before it starts a drag, go out
         // here too, at most every 16 ms, see CContentWatch::sendFrames.
+        if (!awake)
+            awake.emplace(w);
         content->sendFrames();
         wl_event_source_timer_update(timer, TICK_MS);
     }
@@ -1013,13 +1015,19 @@ namespace hyprmasq::input {
                 eis_ping_unref(ping);
             }
         }
-        // Hidden windows do not get compositor frame callbacks. They get them for a second after input, and while
-        // a sender has its devices, which it keeps while it pauses between inputs and closes when it exits, also
-        // when libeis does not report the disconnect.
+        // Hidden windows do not get compositor frame callbacks, and Hyprland tells them that they are suspended, which
+        // stops some apps from drawing at all. For a second after input, and while a sender has its devices, which it
+        // keeps while it pauses between inputs and closes when it exits, also when libeis does not report the
+        // disconnect, they get frame callbacks and are not suspended.
         if (recent || (client && (pointer || keyboard))) {
+            if (!awake)
+                awake.emplace(w);
             content->sendFrames();
             wl_event_source_timer_update(timer, TICK_MS);
-        } else if (held || client) {
+            return 0;
+        }
+        awake.reset();
+        if (held || client) {
             // A lease keeps the emulated focus until it ends, and a sender gets its pings.
             const int delay = held ? std::max(1, held->remainingMs) : PING_INTERVAL_MS;
             wl_event_source_timer_update(timer, client ? std::min(delay, PING_INTERVAL_MS) : delay);

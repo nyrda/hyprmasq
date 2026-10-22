@@ -19,11 +19,19 @@ with subtest("unload removes all sockets and hooks, reload succeeds"):
     # A wait on a window that keeps drawing is still pending at the unload, and gets an answer.
     focus_workspace(20)
     hypr_background(f"-j hyprmasq wait {busy} 200 4000", "/tmp/hm-wait-unload")
+    # So is one on the hidden Qt window of the suspended area, which the wait keeps from being told that it is
+    # suspended, and the unload tells it again. The window redraws once it is shown, and the wait waits for quiet after.
+    unload_qt = len(probe_events("s-qt"))
+    hypr_background(f"-j hyprmasq wait {sus_qt} since {window_state(sus_qt)['commits']} quiet 4000 deadline 4400", "/tmp/hm-wait-unload-qt")
+    wait_for("the Qt window shown", lambda: sus_configured(unload_qt)[-1:] == ["640 480 shown"], timeout=10)
     time.sleep(0.5)
     assert hypr(f"plugin unload {plugin}") == "ok"
     machine.wait_until_succeeds("test -s /tmp/hm-wait-unload", timeout=10)
     reply = json.loads(machine.succeed("cat /tmp/hm-wait-unload"))
     assert not reply["ok"] and "unloaded" in reply["error"], reply
+    reply = background_reply("/tmp/hm-wait-unload-qt", timeout=10)
+    assert not reply["ok"] and reply["code"] == "unloaded", reply
+    wait_for("the Qt window suspended again", lambda: sus_configured(unload_qt)[-1:] == ["640 480 suspended"], timeout=10)
     wait_clip("hm-clip-unload", unload_start, "source cancelled hm-clip-unload-copy1", "source cancelled hm-clip-unload-select1")
     assert user_selections() == ("userclipboard", "userprimary")
     # The xterm's exit, after the unload, leaves the user's primary selection alone.
@@ -45,6 +53,8 @@ with subtest("unload removes all sockets and hooks, reload succeeds"):
     assert not hypr("configerrors")
     machine.succeed("pkill -f '[h]yprmasq-clip-probe' || true")
     wait_for("the clipboard probe closed", lambda: client("hm-clip-unload") is None)
+    machine.succeed(f"kill {next(c['pid'] for c in clients() if c['address'] == sus_qt)}")
+    wait_for("the Qt window closed", lambda: client("hm-s-qt") is None)
 
 with subtest("unloading ends screenshot writes that wait for a pipe at once, and Hyprland keeps answering"):
     # The red window was closed by the socket lifecycle subtest.

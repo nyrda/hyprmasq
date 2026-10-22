@@ -148,9 +148,11 @@ that it puts together from `nix/vm-test/`:
 
 The test's own Wayland clients are in `nix/` and share `nix/probe-common.h`:
 `focus-probe.c`, whose modes it lists when run without arguments,
-`dnd-probe.c`, `clip-probe.c`, `swapchain-probe.c` and `user-input.c`. They
-log what they get to stdout, most of it stamped with `CLOCK_MONOTONIC` in
-milliseconds, and exit with status 2 on arguments they do not take.
+`dnd-probe.c`, `clip-probe.c`, `swapchain-probe.c`, `suspend-probe.c` and
+`user-input.c`. They log what they get to stdout, most of it stamped with
+`CLOCK_MONOTONIC` in milliseconds, and exit with status 2 on arguments they do
+not take.
+`qt-probe.py`, a Qt 6 app in PySide6, logs the same way.
 
 The VM also has `hyprland-dialog`, from `hyprland-qtutils`, without which
 Hyprland does not watch for apps that stop answering its pings, and the form
@@ -190,7 +192,8 @@ which is what `./dev.sh vm-test` runs.
 | `new-windows` | `core` | Where windows that input opens go, and how `hyprmasq-mcp` reports them, also late ones and those of the user's input. |
 | `mcp-shots` | `core`, `mcp` | `hyprmasq-mcp`'s concurrency and cancellation, captures, changes and full shots, image sizes, resizes, starved and animated windows, input that closes its window, and the server's exit. |
 | `anr` | `core` | Hyprland's not-responding dialog, which the VM's `hyprland-dialog` logs: for a stopped app, and never for hidden apps that captures and input drive, one that waits for its dmabuf buffers as Mesa's swapchains do and the form task's GTK 4 questionnaire. |
-| `unload` | `core`, `waits` | Unloading and loading the plugin again, with a pending wait on the busy window of `waits`, selections and screenshot writes. |
+| `suspended` | `core` | Hidden windows that Hyprland tells they are suspended: a Qt 6 app, which commits no frame while it is suspended, is shown while driven and draws each act's input and a resize, and every way a hold ends gives it Hyprland's state back, also to a toplevel that unmaps and maps again. |
+| `unload` | `core`, `waits`, `suspended` | Unloading and loading the plugin again, with pending waits on the busy window of `waits` and the Qt window of `suspended`, selections and screenshot writes. |
 | `compositor-log` | `drag` | Hyprland's log after its exit, with the serials of `drag`'s protections subtest rejected. It ends Hyprland, so it runs last. |
 
 ### Subtests
@@ -441,11 +444,28 @@ as on an idle desktop. It sets both back at its end.
 | a capture gives a hidden app its dmabuf buffers back | `swapchain-probe.c` on a hidden workspace draws into three dumb buffers of the VM's DRM card, shared as dmabufs, and waits for a released one before each frame, as Mesa's swapchains do, without dispatching pings. Eight `act` calls of a key and a full shot, 1.5 s apart, get it to draw all 32 frames, it never waits 500 ms for a buffer, and no dialog opens. Hyprland keeps the buffers that a capture draws until a monitor's next frame, and the idle output has none. |
 | a hidden GTK 4 questionnaire answers every ping while driven as the benchmark's agents drive it | The form task's questionnaire, floating at 1000×800 on a hidden workspace, gets three rounds of keys from `hyprmasq-mcp`, a second and more apart: a box ticked, a slider moved, text typed into a field and selected, which claims the primary selection, a dropdown's third entry chosen in its popover, and a scroll. The texts and choices arrive and no dialog opens. GTK draws into shm buffers in the VM, with Vulkan on lavapipe, so this does not cover the dmabuf case above. |
 
+#### `suspended`
+
+The area raises the output to 1280×800, as large as a laptop's, and shows a
+foot that draws nothing on the visible workspace, as on an idle desktop. It
+sets the output back at its end. `nix/qt-probe.py` logs each configure that Qt
+applies, with whether it was suspended, and `nix/suspend-probe.c` each
+configure it gets.
+
+| Subtest | Checks |
+| --- | --- |
+| a hidden Qt 6 window shows the input of each act in a fresh frame | The Qt probe maps at half width beside the user's foot and moves to a hidden workspace, which gives it the whole output and tells it that it is suspended. Six `act` calls, 2 s apart, as an agent drove the form task's Qt questionnaire: a box ticked, the slider moved with keys, text typed into the line edit, the dropdown's list opened in its popup, an entry chosen with keys and the box cleared. Each act ends `quiet` with a redraw, the probe gets its input, and the act's shot shows it in the widget's box, also the choice after the popup has closed. Each act shows the window, which is suspended again 2 s later. The user's focus and workspace stay. |
+| a suspended Qt 6 window that Hyprland resizes draws at its new size once act waits for it | A foot launched onto its workspace halves the suspended probe, which draws nothing at its new size for 2 s. An `act` without actions that waits gets it to draw: the wait ends `quiet` with commits, nothing says `resizing`, and the probe is suspended again afterwards. |
+| the Qt window is told that it is suspended again when its socket closes, its sender dies, or its wait is cancelled or times out | A sender that holds its devices in a 20 s sleep keeps the probe shown. `eis close` gets it suspended within 1.5 s, and so does killing a second such sender with `SIGKILL` within 5 s. A `wait … since` that would wait 4 s for quiet shows it, and its `cancel` gets it suspended within 1.5 s. A wait that times out after 1.5 s shows it and then gets it suspended. |
+| a hold keeps the Qt window from being told while its workspace is shown and hidden, and gives it Hyprland's state after | A wait that starts while the probe is hidden keeps it from being told while its workspace is shown and hidden again, and one that starts while its workspace is shown keeps it from being told once Hyprland hides it. Cancelling each gets it suspended. The user's focus and workspace come back. |
+| the holds of a session and a wait on the Qt window end in either order before it is told that it is suspended | A wait that outlives the second after a sender's input keeps the probe shown 2 s after it, and the probe is suspended once the wait ends. A sender that holds its devices for 4 s keeps it shown after a wait times out within it, and the probe is suspended once the sender ends. |
+| a held toplevel that unmaps gets Hyprland's state as it maps again, and an older one is never told that it is suspended | `suspend-probe.c`, launched onto a hidden workspace and suspended, is shown for a sender that holds its devices, and unmaps with a commit without a buffer, keeping its `xdg_toplevel`. Its socket closes with the unmap, and no configure comes while it is unmapped. It maps again with the state that Hyprland told it last, which Hyprland does not update for a window that maps on the visible workspace until the workspaces change, and moved to a hidden workspace, which updates nothing for a window that Hyprland took for suspended, it is told that it is suspended. The probe at `xdg_wm_base` version 5, held by a wait while its workspace is shown, hidden during the hold, and unmapped and mapped again after the wait ended `window_closed`, is never told that it is suspended. |
+
 #### `unload`
 
 | Subtest | Checks |
 | --- | --- |
-| unload removes all sockets and hooks, reload succeeds | Unloading removes all sockets and answers a pending `wait`, cancels the agent's copy and selection in the clipboard probe, and leaves the user's selections, also once a hidden `xterm` with the agent's X primary selection exits after it. Afterwards, the user's copy and selection in the probe reach Hyprland's own handlers. The plugin loads again. |
+| unload removes all sockets and hooks, reload succeeds | Unloading removes all sockets and answers pending waits, and the hidden Qt window that a `wait … since` kept from being told that it is suspended is told again. It cancels the agent's copy and selection in the clipboard probe, and leaves the user's selections, also once a hidden `xterm` with the agent's X primary selection exits after it. Afterwards, the user's copy and selection in the probe reach Hyprland's own handlers. The plugin loads again. |
 | unloading ends screenshot writes that wait for a pipe at once, and Hyprland keeps answering | Unloading while a screenshot waits for a FIFO without a reader, and a raw one for room in the pipe of a reader that never reads, returns within 2 s and answers both with code `unloaded`. `hyprctl version`, run every 100 ms throughout, answers within a second each time. No `hyprmasq-job` thread is left, the library is unmapped, and the batch command works without the plugin. Loaded again, screenshots reach a file, a FIFO whose reader opens it after the screenshot started, and a pipe whose reader reads the raw pixels, more than fit in the pipe, as they come. |
 | the plugin can be unloaded from within a batch | The plugin can be unloaded from within a batch. Once the batch has returned, the library is released and the batch command restored, and the plugin loads again. |
 
@@ -495,6 +515,7 @@ nix-build bench/tasks/calc/check-test.nix
 | `src/Deferred.cpp` | Background work for hyprctl replies, including the wrapper around hyprctl's batch command. |
 | `src/Eis.cpp` | Opening and closing a window's EIS socket and the private directories it lies in, and the API of `src/Eis.hpp`: socket state, the focus lease, capabilities, and whether a window waits for frame callbacks. |
 | `src/Session.cpp` | A window's EIS session: its sender and devices, input delivery, pointer regions and device replacement, the focus lease, frame callbacks, the X11 focus rule, and the admission of private drags. |
+| `src/Suspension.cpp` | The hook on `CXDGToplevelResource::setSuspeneded` that keeps a driven window from being told that it is suspended, and the holds of sessions and waits that ask for it. |
 | `src/FocusPolicy.cpp` | The popup-grab, drag and activation hooks that keep driven windows from taking the user's focus, the hooks that keep a lease's focus, and the cancels that the user's input brings. |
 | `src/PrivateAccess.cpp` | Every private or protected member of Hyprland that the plugin reaches, with the Hyprland source it mirrors: what to check when the pinned Hyprland changes. |
 | `src/Selection.cpp` | The agent's clipboard and primary selection: the wrapped `set_selection` handlers of driven apps' data devices and primary selection devices, whose input a selection follows, the offers of the agent's selections and of the user's through Hyprland's, the hooks that keep the agent's X selections from Wayland, and the cleanup on unload. |
@@ -522,6 +543,8 @@ nix-build bench/tasks/calc/check-test.nix
 | `nix/clip-probe.c`, `nix/clip-probe.nix` | A test client that copies, selects and pastes text through the clipboard and the primary selection on keys and a click, and logs the selections it gets, its sources' sends and cancels, and what it pastes. |
 | `nix/dnd-probe.c`, `nix/dnd-probe.nix` | A test client that drags text from its window to itself through the data device protocol, with options for the serial, the destination's answers, the finish and an icon, and signals that destroy its source, data device or window. |
 | `nix/focus-probe.c`, `nix/focus-probe.nix` | A test client. Without arguments, it requests popup grabs, moves, resizes and drags for the protections subtest. `popup TITLE [X Y W H [GX GY]]` opens and closes a popup on SIGUSR1 and logs pointer events by surface, with GX,GY a margin outside the window's xdg geometry. `focus TITLE [TITLE]` shows one or two windows on one connection and logs their input and focus events with timestamps. `close TITLE` logs like it for one window, which it destroys when Escape or the left button goes down. `regions SOCKET MS` prints the pointer regions the plugin announces. `hold SOCKET X Y stop\|disconnect\|signal` holds Shift, A and the left button as a libei sender and then stops emulating or exits, or with `signal` presses them on SIGUSR1 and exits at once. `resize TITLE hold\|ack` shows one window with a green right edge that acks configures of its drawn size without a commit, and after a SIGUSR1 holds back configures with a new size, unacked or acked, until the next one. `opener TITLE [TITLE]` logs like `focus` and opens green windows on input to one of its windows: N or a left click a toplevel without a parent, D or a right click a dialog of that window, L a toplevel 300 ms later, K one 1.5 s later, G one 1.5 s later on a second Wayland connection of its process, a middle click a dialog 1.5 s later, S in a window it opened closes that window and opens a toplevel 300 ms later, a right click in one closes it at once and Enter redraws it and closes it 300 ms later, and F a dialog of another process, `imported HANDLE TITLE`, outside its process tree, that names its parent through xdg-foreign, as a SIGUSR1 does for its first window, logging when it maps them, and A a dialog whose parent, once it closed, redraws in orange 300 ms after its next frame callback. `browser CREATE MAP TITLE [TITLE]` works as `opener`, but a left click opens a toplevel without a parent, TITLE-popupK, CREATE ms after the press, and draws it MAP ms after creating it, as a browser's popup, and a SIGUSR2 creates TITLE-aheadK for its last toplevel, which the next left click there draws MAP ms later. `shift TITLE MS` logs like `focus` and shows a light button, which a SIGUSR1 moves 60 pixels down MS milliseconds later, while a SIGUSR2 draws a block far from it. `tiles TITLE` redraws at every frame callback and damages a tile of 256×128 whole, in which only a 24×24 spinner, noise that is new at every frame, changes, as Thunderbird's renderer damages tiles, and a left click draws a light block in the tile that stays. |
+| `nix/suspend-probe.c`, `nix/suspend-probe.nix` | A test client that binds `xdg_wm_base` at the version it is given, logs whether each configure says that it is suspended, and unmaps with a commit without a buffer, keeping its `xdg_toplevel`, and maps again on signals. |
+| `nix/qt-probe.py`, `nix/qt-probe.nix` | A Qt 6 test client in PySide6 with the widgets of the form task's questionnaire at fixed places, which logs the configures that Qt applies, whether they suspend it, when Qt exposes the window, and each change of a widget. |
 | `nix/user-input.c`, `nix/user-input.nix` | VM fixture for the user's own input: a held button through a virtual pointer, and an input method's keyboard grab. |
 
 The C and C++ code follows Hyprland's `.clang-format`. Go code is `gofmt`ed.
@@ -542,7 +565,9 @@ against a new release in every case:
   `CSeatManager::sendKeyboardKey`, `CSeatManager::sendKeyboardMods`,
   `CSeatManager::sendPointerButton`, `CSeatManager::sendTouchDown`,
   `CXWM::activateSurface`, `CXWM::handleFocusIn`,
-  `CXWM::setClipboardToWayland` and `CXWM::handleSelectionXFixesNotify`.
+  `CXWM::setClipboardToWayland`, `CXWM::handleSelectionXFixesNotify` and
+  `CXDGToplevelResource::setSuspeneded`, whose name has Hyprland's typo. It
+  must stay the only way that Hyprland tells a toplevel that it is suspended.
 - Private and protected members are all reached in one place,
   `src/PrivateAccess.cpp`, through explicit template instantiations
   (`template struct SExpose<…>`), each with a comment naming the Hyprland

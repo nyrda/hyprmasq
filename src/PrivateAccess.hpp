@@ -20,7 +20,9 @@ class CWLPointerResource;
 class CWLSurfaceResource;
 class CWlDataDevice;
 class CXCursorManager;
+class CXDGToplevelResource;
 class CXWM;
+class CXdgToplevel;
 class CZwpPrimarySelectionDeviceV1;
 class IDataDevice;
 class IDataSource;
@@ -85,6 +87,11 @@ namespace hyprmasq {
     // CZwpPrimarySelectionDeviceV1::requests.setSelection: the handler of a primary selection device's set_selection.
     using SetPrimarySelection = std::function<void(CZwpPrimarySelectionDeviceV1*, wl_resource*, uint32_t)>;
     SetPrimarySelection& setSelectionOf(CZwpPrimarySelectionDeviceV1& wire);
+
+    // xdg toplevels, src/protocols/XDGShell.hpp, and their wire resources, which hyprwayland-scanner generates into
+    // protocols/xdg-shell.hpp.
+    // CXDGToplevelResource::m_resource: a toplevel's wire resource, whose version tells which states it takes.
+    SP<CXdgToplevel>& wireOf(CXDGToplevelResource& toplevel);
 
     // The X window manager, src/xwayland/XWM.hpp.
     // CXWM::m_clipboard and CXWM::m_primarySelection: its X selections.

@@ -65,6 +65,27 @@ func TestWindowsShotOfOneWindow(t *testing.T) {
 	}
 	e.fake.with(func() { e.fake.onWait = nil })
 
+	// A window that has not caught up with a resize gets the time to draw first, and the shot says whether it did, as
+	// the window's line does.
+	e.fake.with(func() { w.Resizing = true })
+	res = e.windowsWith(`{"match":"mail"}`)
+	if get(t, res, "windows.0.resizing") != false || get(t, res, "windows.0.shot.resizing") != nil || strings.Contains(text(res), "resizing") {
+		t.Errorf("caught up: %s", text(res))
+	}
+	e.fake.with(func() {
+		w.Resizing = true
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			w.Resizing = true
+			return jsonReply(map[string]any{"ok": true, "ended": "timeout", "commits": w.Commits, "socketId": w.socketID(), "redrawObserved": false,
+				"commitsSince": 0, "quietMs": 0, "elapsedMs": 1500, "resizing": true})
+		}
+	})
+	res = e.windowsWith(`{"match":"mail"}`)
+	if get(t, res, "windows.0.resizing") != true || get(t, res, "windows.0.shot.resizing") != true || !strings.Contains(text(res), "· resizing (not yet redrawn at its new size)") {
+		t.Errorf("still resizing: %s", text(res))
+	}
+	e.fake.with(func() { w.Resizing, e.fake.onWait = false, nil })
+
 	// A shot that fails leaves the window listed, and says why.
 	e.fake.with(func() { e.fake.onScreenshot = func(w *fakeWindow) string { return "no buffer" } })
 	res = e.windowsWith(`{"match":"notes"}`)
