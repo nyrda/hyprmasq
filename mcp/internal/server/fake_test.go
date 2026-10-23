@@ -236,6 +236,8 @@ type fakeWindow struct {
 	Paint func(x, y float64) uint8
 	// Where the plugin found the window to come from, which state reports.
 	Source *hypr.Source
+	// What decides how Hyprland closes a window of its XWayland, which state reports, or nil for other windows.
+	X11 *hypr.X11Kind
 	// The plugin's count of the user's input that took the keyboard back before a shortcut had settled.
 	Interrupted int64
 	// Why the plugin last paused the socket's devices, which state reports with a socket, or "" for none.
@@ -537,7 +539,7 @@ func (f *fakeHyprland) reply(request string) string {
 func (f *fakeHyprland) state(w *fakeWindow) map[string]any {
 	st := map[string]any{"ok": true, "address": w.Address, "stableId": w.StableID, "xwayland": w.XWayland,
 		"size": map[string]any{"width": w.Width, "height": w.Height}, "resizing": w.Resizing, "starved": w.Starved, "scale": f.scale, "socket": nil, "commits": nil,
-		"lease": nil, "capabilities": w.Caps, "source": w.Source}
+		"lease": nil, "capabilities": w.Caps, "source": w.Source, "x11": w.X11}
 	if w.Socket {
 		st["socket"] = "/fake/" + w.Address + ".eis"
 		st["socketId"] = w.socketID()

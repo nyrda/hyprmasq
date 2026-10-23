@@ -209,6 +209,7 @@ hyprctl hyprmasq lease "$addr" release my-script
 | Field | Meaning |
 | --- | --- |
 | `address`, `stableId`, `xwayland` | The window. `stableId` is that of `hyprctl -j clients` and tells a new window at a reused address apart. |
+| `x11` | For a window of Hyprland's XWayland, `overrideRedirect` and `deleteWindow`, see below. `null` for other windows, also those of xwayland-satellite. |
 | `size`, `scale` | Logical size, and the monitor's scale. |
 | `resizing` | The window has not yet drawn a frame at the size Hyprland gave it. Screenshots show an older frame, and pointer input may not land where they show things. |
 | `starved` | The window is hidden, waits for a frame callback, and has got none from hyprmasq. It may show an older frame. Input and `wait … since` send frame callbacks. |
@@ -227,6 +228,13 @@ hyprctl hyprmasq lease "$addr" release my-script
 | `dnd` | The window is the active window, whose drag-and-drop Hyprland runs with your pointer. |
 | `privateDnd` | A drag-and-drop that emulated input starts runs privately inside the window. See [Drag-and-drop](#drag-and-drop). |
 | `keyboard` | `x11-focus` for X11 windows not opened with `force`, whose keys depend on the X focus. Otherwise `yes`. |
+
+`x11` tells what Hyprland's close dispatcher does with the window.
+`overrideRedirect` is true for a window that the window manager does not
+manage, such as a menu, list or tooltip. `deleteWindow` is true when the
+window's `WM_PROTOCOLS` lists `WM_DELETE_WINDOW`, as Hyprland's window manager
+last read it. The dispatcher asks such a window to close, and kills the X
+client of any other window, which ends its app with all of its windows.
 
 ## hyprmasq-input
 
@@ -524,7 +532,14 @@ the menu, popup menu, dropdown menu or combo type, X focus stays with its
 window after input pauses, since Chromium closes its menus once its window
 loses X focus. It goes back once the menu closes, when the socket closes, or
 when you put the keyboard focus on an X11 window of the same X server. Input
-to the menu's own window leaves X focus with the app's window.
+to the menu's own window leaves X focus with the app's window. Escape sent to
+the menu's window, or a click in the app's window outside the menu, dismisses
+it. Do not close a menu with Hyprland's close dispatcher. It kills the X
+client of a menu that takes no `WM_DELETE_WINDOW`, which ends the whole app,
+and GTK 3 answers the request by destroying the menu under its combo box,
+which crashes the app once the combo box opens again. `hyprmasq-mcp`'s
+`close` refuses menus, see
+`x11` in [Window state](#window-state).
 
 To keep this from misrouting your typing, input to an X11 window is delivered
 only while the active window is a Wayland window, the target itself, or an

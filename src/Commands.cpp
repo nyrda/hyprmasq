@@ -8,6 +8,7 @@
 #include "Screenshot.hpp"
 #include "Wait.hpp"
 #include "Windows.hpp"
+#include "X11.hpp"
 
 #include <hyprland/src/desktop/view/Window.hpp>
 #include <hyprland/src/output/Monitor.hpp>
@@ -290,6 +291,16 @@ namespace hyprmasq {
             return source->placed ? source->address + " placed" : std::format("{} not placed: {}", source->address, source->reason);
         }
 
+        // What decides whether Hyprland's close dispatcher asks an XWayland window to close or kills its X client, see
+        // "Window state" in docs/automation.md.
+        std::string x11Json(const std::optional<x11::SWindowKind>& kind) {
+            return kind ? std::format(R"({{"overrideRedirect":{},"deleteWindow":{}}})", kind->overrideRedirect, kind->deleteWindow) : "null";
+        }
+
+        std::string x11Text(const std::optional<x11::SWindowKind>& kind) {
+            return kind ? std::format("override_redirect={} delete_window={}", kind->overrideRedirect, kind->deleteWindow) : "none";
+        }
+
         std::string state(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
             if (args.size() != 1)
                 return usage(format);
@@ -311,17 +322,18 @@ namespace hyprmasq {
             const bool             behind   = resizing(window);
             const bool             hungry   = starved(window);
             const auto             source   = placement::source(window);
+            const auto             kind     = x11::kind(window);
             if (format == FORMAT_JSON)
                 return std::format(
-                    R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"scale":{},)"
+                    R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"x11":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"scale":{},)"
                     R"("socket":{},"socketId":{},"commits":{},"interrupted":{},"lastPause":{},"drag":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"privateDnd":{},"keyboard":"{}"}},"source":{}}})",
-                    jsonString(windowAddress(window)), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
+                    jsonString(windowAddress(window)), window->m_stableID, window->m_isX11, x11Json(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
                     socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut),
                     paused ? jsonString(*paused) : "null", dragJson(drags), lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, caps.privateDnd,
                     keyboard, sourceJson(source));
-            return std::format("address: {}\nstableId: {:x}\nxwayland: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
+            return std::format("address: {}\nstableId: {:x}\nxwayland: {}\nx11: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
                                "interrupted: {}\nlastPause: {}\ndrag: {}\nlease: {}\ncapabilities: lease={} hold={} dnd={} private_dnd={} keyboard={}\nsource: {}\n",
-                               windowAddress(window), window->m_stableID, window->m_isX11, sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
+                               windowAddress(window), window->m_stableID, window->m_isX11, x11Text(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
                                socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none", cut ? std::to_string(*cut) : "none",
                                paused.value_or("none"), dragText(drags), lease ? leaseText(*lease) : "none", caps.lease, caps.hold, caps.dnd, caps.privateDnd, keyboard,
                                sourceText(source));

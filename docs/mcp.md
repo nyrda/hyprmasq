@@ -20,7 +20,7 @@ so agents need no further instructions.
 | `screenshot` | `window`, `region` | Take a shot of the window now. With `region`, zoom into part of an earlier shot. |
 | `act` | `window`, `shot`, `actions`, `wait`, `capture`, `deadline_ms` | Send input, wait until the window has drawn the result, and return what changed. See [act](#act). |
 | `release` | `window` | End the window's focus lease. The window stays open. |
-| `close` | `window` | Ask the window to close, as Hyprland's close dispatcher does, and report within 2 seconds whether it closed and which windows appeared, such as a confirmation dialog. |
+| `close` | `window` | Ask the window to close, as Hyprland's close dispatcher does, and report within 2 seconds whether it closed and which windows appeared, such as a confirmation dialog. It refuses X11 menus and X11 windows that take no close request, see [X11 menus](#x11-menus). |
 
 No tool is read-only. `screenshot`, and `windows` when it takes a shot, open
 the window's input socket, which stays open, so the plugin treats the window
@@ -185,6 +185,22 @@ When the window that got the input closes, such as a dialog after its OK
 button, the result says `window closed` and returns a shot of the window it
 came from, where the agent goes on.
 
+### X11 menus
+
+An X11 app opens its menus, dropdown lists and tooltips in windows of their
+own, override-redirect windows that the window manager does not manage. `act`
+lists them as new windows. Escape sent to the menu's window, or a click in
+the app's window outside it, dismisses a menu, and a click on an item picks it.
+
+`close` refuses them with `unsupported`, and its hint names these ways.
+Hyprland's close dispatcher sends an X11 window the `WM_DELETE_WINDOW` request
+when the window takes it. Otherwise it kills the window's X client, which
+ends the whole app and loses its unsaved work. A menu that takes the request
+fares no better: GTK 3 destroys the menu under its combo box, which crashes
+the app once the combo box opens again. For the same reason `close` refuses an
+app's own X11 window that takes no `WM_DELETE_WINDOW`, which few apps lack:
+quit such an app from within it. See [X11 windows](automation.md#x11-windows).
+
 ## Failures
 
 Each result starts with a one-line summary, followed by a hint when one is
@@ -209,7 +225,7 @@ input is not an error.
 | `stale_shot` | The shot is unknown, of another window, shows an older frame, or the window was resized or its target moved since the shot. |
 | `out_of_bounds` | A point lies outside the shot, or outside what pointer input can reach. |
 | `cannot_type` | The keymap cannot produce a character. |
-| `unsupported` | The window lacks a capability the batch needs, such as `hold`. |
+| `unsupported` | The window lacks a capability the batch needs, such as `hold`, or `close` would end or break the window's whole X11 app. |
 | `input_paused` | The plugin paused input: the user held a button or key in a window of the same Wayland connection, or, for an X11 window, the user is in another window of its X server. |
 | `deadline` | The deadline arrived before or while the input was sent, or `launch` found no window within `timeout_ms`. |
 | `cancelled` | The server is shutting down, or the call was cancelled. |
@@ -283,4 +299,7 @@ loses nothing: the tool descriptions carry every rule.
   highlight, and a window that keeps animating tends to get full shots.
 - A hidden window that was driven and later wants to draw again may show an
   older frame without a stale mark. An `act` without actions lets it draw.
+- `close` cannot tell whether a window of xwayland-satellite takes
+  `WM_DELETE_WINDOW`, since to Hyprland it is a Wayland window. Satellite
+  kills the X client of one that does not, which ends its app.
 - An `XDG_RUNTIME_DIR` that contains whitespace is not supported.

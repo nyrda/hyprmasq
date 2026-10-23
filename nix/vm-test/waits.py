@@ -60,6 +60,8 @@ with subtest("plugin version and window state"):
     window = client("hm-p-state")
     assert reply["ok"] and reply["address"] == stated and reply["stableId"] == window["stableId"], (reply, window)
     assert not reply["xwayland"] and [reply["size"]["width"], reply["size"]["height"]] == window["size"], (reply, window)
+    # Only windows of Hyprland's XWayland have what decides how Hyprland's close dispatcher closes them.
+    assert reply["x11"] is None and "\nx11: none\n" in hypr(f"hyprmasq state {stated}"), reply
     assert reply["resizing"] is False, reply
     assert reply["scale"] == 1 and reply["socket"] is None and reply["commits"] is None and reply["lease"] is None, reply
     # A hidden window on a connection of its own, while another app has the real focus.

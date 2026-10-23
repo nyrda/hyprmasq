@@ -149,3 +149,126 @@ with subtest("a Chromium select on X11 on a hidden workspace opens and picks by 
     machine.succeed("pkill -f '[u]ser-data-dir=/tmp/hm-chromium'")
     dispatch(f'hl.dsp.window.close({{ window = "address:{menu_user}" }})')
     wait_for("chromium and the user's second window closed", lambda: client("hm-x-select") is None and client("hm-x-menu-user") is None)
+
+with subtest("hyprmasq-mcp does not close a GTK 3 menu on X11, which would break its app, and says how to dismiss it"):
+    # Hyprland's close dispatcher sends GTK's menu WM_DELETE_WINDOW, and GTK 3 destroys the menu under its combo box,
+    # which crashes the app once the combo box opens again. The combo probe on a hidden workspace, whose menu
+    # hyprmasq-mcp opens, as in the benchmark.
+    focus_workspace(95)
+    spawn(f"env {x_env} GDK_BACKEND=x11 hyprmasq-combo-probe hm-x-close", "x-close")
+    wait_for("combo probe", lambda: client("hm-x-close") is not None)
+    app = client("hm-x-close")["address"]
+    wait_drawn(app, 500)
+    focus_workspace(4)
+    dispatch(f'hl.dsp.focus({{ window = "address:{visible}" }})')
+    wait_for("foot focus", lambda: snapshot() == (4, visible))
+    before_focus = snapshot()
+    closer = Mcp("x")
+    closer.initialize()
+
+    def app_events(start):
+        return [event for _, event in probe_events("x-close", start)]
+
+    def app_menu():
+        """The menu, a window of the probe's process other than the probe's."""
+        pid = client("hm-x-close")["pid"]
+        return next((c["address"] for c in clients() if c["pid"] == pid and c["address"] != app), None)
+
+    def click_at(window, x, y):
+        """An act that clicks at the window-local logical point x,y, in the pixels of a new shot of the window."""
+        shot = closer.call("screenshot", {"window": window}).data["shot"]
+        width, height = next(c["size"] for c in clients() if c["address"] == window)
+        point = {"x": round(x * shot["width"] / width), "y": round(y * shot["height"] / height)}
+        result = closer.call("act", {"window": window, "shot": shot["id"], "actions": [{"action": "click", **point}]})
+        assert not result.is_error, result
+        return result
+
+    def open_menu():
+        """Opens the menu with a click on the combo box, and returns its address and the items by choice."""
+        start = len(probe_events("x-close"))
+        click_at(app, 50, 215)
+        wait_for("the menu", lambda: app_menu() is not None, timeout=10)
+        wait_for("menu items", lambda: any(e.startswith("menu ") for e in app_events(start)), timeout=10)
+        return app_menu(), {e.split()[1]: [int(n) for n in e.split()[2:]] for e in app_events(start) if e.startswith("menu ")}
+
+    def alive():
+        """The probe runs, with its window mapped, and has neither left its main loop nor lost its X connection."""
+        machine.succeed("pgrep -f '[h]yprmasq-combo-probe.py hm-x-close'")
+        window = client("hm-x-close")
+        return window is not None and window["address"] == app and window["mapped"]
+
+    # close refuses the menu, and sends no close, which GTK would have answered within the second.
+    menu, items = open_menu()
+    start = len(probe_events("x-close"))
+    refused_close = closer.call("close", {"window": menu})
+    assert refused_close.is_error, refused_close
+    failure(refused_close, "unsupported")
+    hint = refused_close.data["hint"]
+    assert f"act on window {menu} with the key escape" in hint and f"click in window {app} outside it" in hint, refused_close
+    time.sleep(1)
+    assert alive() and app_menu() == menu and "popup hidden" not in app_events(start), (clients(), app_events(start))
+    assert "Gtk-CRITICAL" not in machine.succeed("cat /tmp/hyprmasq-x-close.log")
+    # The plugin tells the menu, which the window manager does not manage, from the probe's window. Both take
+    # WM_DELETE_WINDOW.
+    assert window_state(menu)["x11"] == {"overrideRedirect": True, "deleteWindow": True}, window_state(menu)
+    assert window_state(app)["x11"] == {"overrideRedirect": False, "deleteWindow": True}, window_state(app)
+
+    # Escape sent to the menu's window dismisses it, as the hint says, without a choice.
+    escaped = closer.call("act", {"window": menu, "actions": [{"action": "key", "keys": ["escape"]}]})
+    assert not escaped.is_error, escaped
+    wait_for("the menu closed", lambda: app_menu() is None, timeout=10)
+    assert "popup hidden" in app_events(start) and not any(e.startswith("changed ") for e in app_events(start)), app_events(start)
+
+    # So does a click in the probe's window outside the menu, which lies over the combo box at the left.
+    menu, items = open_menu()
+    start = len(probe_events("x-close"))
+    click_at(app, 250, 50)
+    wait_for("the menu closed", lambda: app_menu() is None, timeout=10)
+    assert "popup hidden" in app_events(start) and not any(e.startswith("changed ") for e in app_events(start)), app_events(start)
+
+    # And a click on an item in the menu's own window picks it.
+    menu, items = open_menu()
+    start = len(probe_events("x-close"))
+    x, y, width, height = items["Three"]
+    click_at(menu, x + width // 2, y + height // 2)
+    wait_for("Three", lambda: "changed Three" in app_events(start), timeout=10)
+    wait_for("the menu closed", lambda: app_menu() is None, timeout=10)
+    assert alive()
+
+    # The probe's own window takes WM_DELETE_WINDOW, so close asks it to close, and GTK closes it.
+    closed = closer.call("close", {"window": app})
+    assert not closed.is_error and closed.data["closed"] and closed.data["new_windows"] == [], closed
+    wait_for("the probe exited", lambda: machine.execute("pgrep -f '[h]yprmasq-combo-probe.py hm-x-close'")[0] != 0)
+    assert snapshot() == before_focus
+
+with subtest("hyprmasq-mcp does not close an X11 window that takes no close request, which would end its app"):
+    # xev takes WM_DELETE_WINDOW, and exits on it. Without it in WM_PROTOCOLS, Hyprland would kill its X client.
+    focus_workspace(98)
+    bare = xev("hm-x-bare", "x-bare")
+    focus_workspace(4)
+    dispatch(f'hl.dsp.focus({{ window = "address:{visible}" }})')
+    wait_for("foot focus", lambda: snapshot() == (4, visible))
+    machine.wait_until_succeeds("grep -q 'Outer window is' /tmp/hyprmasq-x-bare.log", timeout=10)
+    bare_id = re.findall(r"Outer window is (0x[0-9a-f]+)", machine.succeed("cat /tmp/hyprmasq-x-bare.log"))[0]
+
+    def bare_protocols(*protocols):
+        alice(f"env {x_env} xprop -id {bare_id} -f WM_PROTOCOLS 32a -set WM_PROTOCOLS {','.join(protocols)}")
+        delete = "WM_DELETE_WINDOW" in protocols
+        wait_for("the window manager read WM_PROTOCOLS", lambda: window_state(bare)["x11"] == {"overrideRedirect": False, "deleteWindow": delete})
+
+    bare_protocols("WM_TAKE_FOCUS")
+    refused_close = closer.call("close", {"window": bare})
+    assert refused_close.is_error, refused_close
+    failure(refused_close, "unsupported")
+    assert "WM_DELETE_WINDOW" in refused_close.data["error"]["message"] and "Quit the app from within it" in refused_close.data["hint"], refused_close
+    time.sleep(1)
+    machine.succeed("pgrep -f '[x]ev -name hm-x-bare'")
+    assert client("hm-x-bare") is not None and client("hm-x-bare")["address"] == bare
+
+    # Once it takes WM_DELETE_WINDOW again, close asks it to close, and xev exits.
+    bare_protocols("WM_DELETE_WINDOW")
+    closed = closer.call("close", {"window": bare})
+    assert not closed.is_error and closed.data["closed"], closed
+    assert "ClientMessage" in machine.succeed("cat /tmp/hyprmasq-x-bare.log")
+    assert snapshot() == before_focus
+    assert closer.stop() == 0

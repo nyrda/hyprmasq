@@ -42,6 +42,18 @@ func (s *Server) closeTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	if !stableIDPattern.MatchString(target.StableID) {
 		return simpleError(&toolError{Code: "internal", Message: fmt.Sprintf("Hyprland lists window %s with the stable_id %q, which is not hexadecimal", window, target.StableID)})
 	}
+	if target.XWayland {
+		st, err := s.hypr.State(ctx, window)
+		if err != nil {
+			return simpleError(err)
+		}
+		if st.StableID != target.StableID {
+			return simpleError(replacedError(window))
+		}
+		if err := x11CloseRefusal(window, st, before); err != nil {
+			return simpleError(err)
+		}
+	}
 	start := time.Now()
 	if err := s.hypr.Dispatch(ctx, fmt.Sprintf(`hl.dsp.window.close({ window = "stableid:%s" })`, target.StableID)); err != nil {
 		return simpleError(err)
@@ -92,6 +104,35 @@ func (s *Server) closeTool(ctx context.Context, c *call) *mcp.CallToolResult {
 		out.Hint = neighboursHint(target, after)
 	}
 	return newResult(out, out.resultText, nil, "")
+}
+
+const hintQuitFromWithin = "Quit the app from within it, such as through its menu or a shortcut like ctrl+q, or ask the user to close it."
+
+// x11CloseRefusal refuses an X11 window whose close through Hyprland's dispatcher ends or breaks its app, and loses
+// what is unsaved. The dispatcher kills the X client of a window that takes no WM_DELETE_WINDOW, which ends the app
+// with every window of it. A menu, list or tooltip, which the window manager does not manage, is refused also when it
+// takes the request: GTK 3 answers it by destroying its menu under the combo box, which crashes the app once the combo
+// box opens again. windows lists the open windows, for the one that a menu came from.
+func x11CloseRefusal(window string, st hypr.State, windows []hypr.Window) *toolError {
+	switch {
+	case st.X11 == nil:
+		return &toolError{Code: "unsupported", Message: fmt.Sprintf("the hyprmasq plugin does not tell whether Hyprland can close X11 window %s without ending or breaking its app", window),
+			Hint: hintQuitFromWithin + " The plugin loaded in Hyprland may be older than hyprmasq-mcp."}
+	case st.X11.OverrideRedirect:
+		// A menu closes on Escape and on a click outside it, as on an X11 desktop.
+		app := "the app's window"
+		if src := st.Source; src != nil && src.StableID != "" && src.Window != window {
+			if w := findWindow(windows, src.Window); w != nil && w.StableID == src.StableID {
+				app = "window " + w.Address
+			}
+		}
+		return &toolError{Code: "unsupported", Message: fmt.Sprintf("window %s is a menu, list or tooltip of an X11 app, which only the app can close: closing it through Hyprland ends or breaks the whole app", window),
+			Hint: fmt.Sprintf("To dismiss it, act on window %s with the key escape, or click in %s outside it. To pick an item, click it.", window, app)}
+	case !st.X11.DeleteWindow:
+		return &toolError{Code: "unsupported", Message: fmt.Sprintf("X11 window %s takes no close request (WM_DELETE_WINDOW), so Hyprland can only close it by ending its app with all of its windows", window),
+			Hint: hintQuitFromWithin}
+	}
+	return nil
 }
 
 // neighboursHint names the tiled windows that share a closed tiled window's workspace, which take up its space.

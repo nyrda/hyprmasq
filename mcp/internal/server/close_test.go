@@ -97,3 +97,58 @@ func TestCloseLeavesAWindowThatTookOverTheAddress(t *testing.T) {
 		t.Errorf("the window that took over the address was closed: %q", e.fake.requestsMatching("/dispatch"))
 	}
 }
+
+// Hyprland closes an X11 window that takes no WM_DELETE_WINDOW by killing its X client, which ends the app, and GTK 3
+// destroys a menu that it asks to close under its combo box, so close refuses both without dispatching, and says how to
+// dismiss a menu instead.
+func TestCloseRefusesX11WindowsThatHyprlandWouldKill(t *testing.T) {
+	e := newTestEnv(t)
+	x11 := func(kind *hypr.X11Kind, source *hypr.Source) func(*fakeWindow) {
+		return func(w *fakeWindow) { w.XWayland, w.X11, w.Source = true, kind, source }
+	}
+	e.window("0xa1", "1a", 320, 200, x11(&hypr.X11Kind{DeleteWindow: true}, nil))
+	// A GTK 3 menu takes WM_DELETE_WINDOW.
+	e.window("0xb2", "2b", 100, 150, x11(&hypr.X11Kind{OverrideRedirect: true, DeleteWindow: true}, &hypr.Source{Window: "0xa1", StableID: "1a", Placed: true}))
+	// A menu whose source the plugin did not find, and one whose source has closed since.
+	e.window("0xb3", "3b", 100, 150, x11(&hypr.X11Kind{OverrideRedirect: true}, nil))
+	e.window("0xb4", "4b", 100, 150, x11(&hypr.X11Kind{OverrideRedirect: true}, &hypr.Source{Window: "0xf0", StableID: "f0", Placed: true}))
+	e.window("0xc3", "3c", 320, 200, x11(&hypr.X11Kind{}, nil))
+	// From a plugin that does not tell.
+	e.window("0xd4", "4d", 320, 200, x11(nil, nil))
+	e.fake.with(func() {
+		e.fake.onDispatch = func(expression string) string {
+			if expression != `hl.dsp.window.close({ window = "stableid:1a" })` {
+				return "error: unexpected " + expression
+			}
+			e.fake.removeWindow("0xa1")
+			return "ok"
+		}
+	})
+
+	for _, c := range []struct{ window, message, hint string }{
+		{"0xb2", "window 0xb2 is a menu, list or tooltip of an X11 app", "To dismiss it, act on window 0xb2 with the key escape, or click in window 0xa1 outside it."},
+		{"0xb3", "is a menu", "or click in the app's window outside it."},
+		{"0xb4", "is a menu", "or click in the app's window outside it."},
+		{"0xc3", "X11 window 0xc3 takes no close request (WM_DELETE_WINDOW)", "Quit the app from within it"},
+		{"0xd4", "does not tell whether Hyprland can close X11 window 0xd4", "Quit the app from within it"},
+	} {
+		res := e.close(`{"window":"` + c.window + `"}`)
+		if code := errorCode(t, res); code != "unsupported" {
+			t.Errorf("%s: code %q", c.window, code)
+		}
+		if message, _ := get(t, res, "error.message").(string); !strings.Contains(message, c.message) {
+			t.Errorf("%s: message %q", c.window, message)
+		}
+		if hint, _ := get(t, res, "hint").(string); !strings.Contains(hint, c.hint) {
+			t.Errorf("%s: hint %q", c.window, hint)
+		}
+	}
+	if got := e.fake.requestsMatching("/dispatch"); len(got) != 0 {
+		t.Fatalf("dispatched %q", got)
+	}
+
+	// The window that takes WM_DELETE_WINDOW is asked to close.
+	if res := e.close(`{"window":"0xa1"}`); res.IsError || get(t, res, "closed") != true {
+		t.Fatal(text(res))
+	}
+}

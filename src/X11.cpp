@@ -584,4 +584,13 @@ namespace hyprmasq::x11 {
         return std::ranges::any_of(mappedSurfaces(),
                                    [&](const auto& entry) { return menuOf(c, held->window, *entry.second) && std::ranges::any_of(entry.second->m_atoms, isMenuType); });
     }
+
+    std::optional<SWindowKind> kind(const PHLWINDOW& window) {
+        auto surface = window && window->m_isX11 ? window->m_xwaylandSurface.lock() : nullptr;
+        if (!surface)
+            return std::nullopt;
+        // Without a round trip, as the window manager last read WM_PROTOCOLS: when the window got its surface, and each
+        // time the app set it since. It keeps the list when the app deletes the property, which apps do not do.
+        return SWindowKind{.overrideRedirect = surface->m_overrideRedirect, .deleteWindow = std::ranges::contains(surface->m_protocols, HYPRATOMS["WM_DELETE_WINDOW"])};
+    }
 }

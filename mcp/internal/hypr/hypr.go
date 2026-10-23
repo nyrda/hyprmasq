@@ -162,11 +162,22 @@ type Capabilities struct {
 	Keyboard   string `json:"keyboard"`
 }
 
+// X11Kind tells what Hyprland's close dispatcher does with a window of its XWayland: it asks one that takes
+// WM_DELETE_WINDOW to close, and kills the X client of any other, which ends its app with every window of it.
+type X11Kind struct {
+	// The window manager does not manage the window: a menu, list, tooltip or the like.
+	OverrideRedirect bool `json:"overrideRedirect"`
+	// The window's WM_PROTOCOLS lists WM_DELETE_WINDOW, so the dispatcher asks it to close.
+	DeleteWindow bool `json:"deleteWindow"`
+}
+
 type State struct {
 	Address  string `json:"address"`
 	StableID string `json:"stableId"`
 	XWayland bool   `json:"xwayland"`
-	Size     Size   `json:"size"`
+	// For a window of Hyprland's XWayland, nil for other windows and from a plugin that does not tell.
+	X11  *X11Kind `json:"x11"`
+	Size Size     `json:"size"`
 	// The window has not caught up with its size: it shows a frame of another size.
 	Resizing bool `json:"resizing"`
 	// The window is hidden, waits for a frame callback and has got none from hyprmasq, so it may not have drawn what it

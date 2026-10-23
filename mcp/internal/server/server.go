@@ -243,6 +243,7 @@ const releaseDescription = `End the focus lease on a window, whichever session h
 Example: {"window":"0x55d1c0a3e4b0"}`
 
 const closeDescription = `Ask a window to close, as Hyprland's close dispatcher does. Close only windows you launched or the user asked you to close. Reports within 2 seconds whether it closed, and lists windows that appeared meanwhile, such as a confirmation dialog, which you can then screenshot and act on.
+It refuses X11 menus, lists and tooltips, and X11 windows that take no close request, since closing them through Hyprland ends or breaks their whole app. Dismiss a menu with the key escape or a click outside it.
 Example: {"window":"0x55d1c0a3e4b0"}`
 
 var (

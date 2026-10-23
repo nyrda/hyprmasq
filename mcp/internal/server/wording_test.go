@@ -2,6 +2,8 @@ package server
 
 import (
 	"testing"
+
+	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
 )
 
 // TestWording pins the messages that tell a model what happened and what to do next: the hints and the error messages
@@ -14,6 +16,8 @@ func TestWording(t *testing.T) {
 	delivered := func(sh *shotOut) *actOut {
 		return &actOut{Actions: &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, Wait: &waitOut{Ended: "quiet"}, Shot: sh}
 	}
+	menuState := hypr.State{X11: &hypr.X11Kind{OverrideRedirect: true}, Source: &hypr.Source{Window: "0xa1", StableID: "1a"}}
+	appWindows := []hypr.Window{{Address: "0xa1", StableID: "1a"}}
 	for _, c := range []struct{ name, got, want string }{
 		{"hintNothingSent", hintNothingSent,
 			"Nothing was sent."},
@@ -157,6 +161,20 @@ func TestWording(t *testing.T) {
 			"Nothing was drawn during this call. If the window is still loading, wait again: act with no actions, a larger wait.expect_ms, and a deadline_ms at least 1000 above it."},
 		{"no redraw after keys", waitHint(&waitOut{Ended: "no_redraw"}, []action{{Kind: "key"}}, "", &actionsOut{Done: 1, Total: 1, Delivery: "complete"}, nil),
 			"The keys may have gone to another widget or had no visible effect; it may also have opened a window that maps later, as a file chooser of another process can a second or two after the input: windows with wait_ms waits for it, and your next act or screenshot returns it. Take a screenshot and look at it before repeating them."},
+		{"close of an X11 menu: message", x11CloseRefusal("0xb2", menuState, appWindows).Message,
+			"window 0xb2 is a menu, list or tooltip of an X11 app, which only the app can close: closing it through Hyprland ends or breaks the whole app"},
+		{"close of an X11 menu: hint", x11CloseRefusal("0xb2", menuState, appWindows).Hint,
+			"To dismiss it, act on window 0xb2 with the key escape, or click in window 0xa1 outside it. To pick an item, click it."},
+		{"close of an X11 menu of an unknown window: hint", x11CloseRefusal("0xb2", menuState, nil).Hint,
+			"To dismiss it, act on window 0xb2 with the key escape, or click in the app's window outside it. To pick an item, click it."},
+		{"close of an X11 window without WM_DELETE_WINDOW: message", x11CloseRefusal("0xc3", hypr.State{X11: &hypr.X11Kind{}}, nil).Message,
+			"X11 window 0xc3 takes no close request (WM_DELETE_WINDOW), so Hyprland can only close it by ending its app with all of its windows"},
+		{"close of an X11 window without WM_DELETE_WINDOW: hint", x11CloseRefusal("0xc3", hypr.State{X11: &hypr.X11Kind{}}, nil).Hint,
+			"Quit the app from within it, such as through its menu or a shortcut like ctrl+q, or ask the user to close it."},
+		{"close of an X11 window that the plugin does not describe: message", x11CloseRefusal("0xd4", hypr.State{}, nil).Message,
+			"the hyprmasq plugin does not tell whether Hyprland can close X11 window 0xd4 without ending or breaking its app"},
+		{"close of an X11 window that the plugin does not describe: hint", x11CloseRefusal("0xd4", hypr.State{}, nil).Hint,
+			"Quit the app from within it, such as through its menu or a shortcut like ctrl+q, or ask the user to close it. The plugin loaded in Hyprland may be older than hyprmasq-mcp."},
 	} {
 		if c.got != c.want {
 			t.Errorf("%s:\n got %q\nwant %q", c.name, c.got, c.want)

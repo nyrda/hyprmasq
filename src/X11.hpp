@@ -54,4 +54,13 @@ namespace hyprmasq::x11 {
     // has a menu open, an override-redirect window of a menu's type, which X11 apps such as Chromium close once their
     // window loses the X focus.
     bool keepsFocus(const PHLWINDOW& window);
+
+    // What Hyprland's window manager knows of an XWayland window that decides what its close dispatcher does: it asks a
+    // window that takes WM_DELETE_WINDOW to close, and kills the X client of any other, which ends its app.
+    struct SWindowKind {
+        bool overrideRedirect = false; // the window manager does not manage it, as a menu, list or tooltip
+        bool deleteWindow     = false; // WM_PROTOCOLS lists WM_DELETE_WINDOW
+    };
+    // Nullopt for a window that is not one of Hyprland's XWayland.
+    std::optional<SWindowKind> kind(const PHLWINDOW& window);
 }
