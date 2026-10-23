@@ -79,7 +79,9 @@ One `act` call:
    answer before sending the rest, and keys after a click start at least
    300 ms after it.
 4. **Waits** until the window has drawn the result: first for a redraw
-   (`expect_ms`), then until it has been quiet for `quiet_ms`.
+   (`expect_ms`), then until it has been quiet for `quiet_ms`. It does not
+   wait for animations, such as a spinner, or the overlay scrollbar that
+   GTK fades in when the pointer moves, and the summary names their boxes.
 5. **Captures what changed.** By default it compares the window with the shot
    and returns a **changes shot**: a zoom into each changed region, with the
    coordinates of the earlier shot still valid. When a full shot serves

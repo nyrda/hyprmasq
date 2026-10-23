@@ -151,7 +151,7 @@ option may come once, in any order, and all times are 1 to 60000 ms.
 | Option | Default | Effect |
 | --- | --- | --- |
 | `expect MS` | none | First wait up to MS for a frame after COMMITS. It ends at once if the counter is already past COMMITS. Without a frame in time, the wait ends with `no_redraw`. Without `expect`, there is no such phase. |
-| `quiet MS` | 200 | Then wait until there has been no frame and no input for MS, and the window is not resizing. The wait ends with `quiet`. Animations, such as a spinner that keeps redrawing a small box, do not keep this phase from ending. Their boxes are reported in `animated`. |
+| `quiet MS` | 200 | Then wait until there has been no frame and no input for MS, and the window is not resizing. The wait ends with `quiet`. Animations do not keep this phase from ending. A small box that has redrawn again and again for a second since the input, such as a spinner, is one, and so is a box at most 8 logical pixels wide or high from its third frame since the input, such as an overlay scrollbar that fades in or a caret that blinks. A frame is part of an animation only when each separate part that it redraws is. Their boxes are reported in `animated`. |
 | `deadline MS` | 4500 | End the wait with `timeout` in either phase. |
 | `id WORD` | none | Name the wait so that `cancel WORD` ends it with `cancelled`. |
 | `ignore animations` | off | Frames that belong to an animation do not end the `expect` phase. |

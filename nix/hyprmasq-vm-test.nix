@@ -142,7 +142,7 @@ pkgs.testers.runNixOSTest {
   nodes.machine =
     { pkgs, ... }:
     {
-      # The benchmark's GTK 4 questionnaire, as hyprmasq-bench-form, which the anr area drives.
+      # The benchmark's GTK 4 questionnaire, as hyprmasq-bench-form, which the anr and settle areas drive.
       imports = [
         module
         ../bench/tasks/form/vm.nix

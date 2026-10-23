@@ -195,6 +195,7 @@ which is what `./dev.sh vm-test` runs.
 | `new-windows` | `core` | Where windows that input opens go, and how `hyprmasq-mcp` reports them, also late ones and those of the user's input. |
 | `mcp-shots` | `core`, `mcp` | `hyprmasq-mcp`'s concurrency and cancellation, captures, changes and full shots, image sizes, resizes, starved and animated windows, input that closes its window, and the server's exit. |
 | `anr` | `core` | Hyprland's not-responding dialog, which the VM's `hyprland-dialog` logs: for a stopped app, and never for hidden apps that captures and input drive, one that waits for its dmabuf buffers as Mesa's swapchains do and the form task's GTK 4 questionnaire. |
+| `settle` | `core` | How long `act` waits for a hidden GTK 4 app: the form task's questionnaire, whose overlay scrollbar fades in at each act, settles once its widgets have drawn. |
 | `suspended` | `core` | Hidden windows that Hyprland tells they are suspended: a Qt 6 app, which commits no frame while it is suspended, is shown while driven and draws each act's input and a resize, and every way a hold ends gives it Hyprland's state back, also to a toplevel that unmaps and maps again. |
 | `unload` | `core`, `waits`, `suspended` | Unloading and loading the plugin again, with pending waits on the busy window of `waits` and the Qt window of `suspended`, selections and screenshot writes. |
 | `compositor-log` | `drag` | Hyprland's log after its exit, with the serials of `drag`'s protections subtest rejected. It ends Hyprland, so it runs last. |
@@ -453,6 +454,16 @@ as on an idle desktop. It sets both back at its end.
 | Hyprland's not-responding dialog opens for a hidden app that stops answering pings | A foot on a hidden workspace that is stopped with `SIGSTOP` gets the dialog, which names it and closes once it runs again. It shows that the other subtests would see one. |
 | a capture gives a hidden app its dmabuf buffers back | `swapchain-probe.c` on a hidden workspace draws into three dumb buffers of the VM's DRM card, shared as dmabufs, and waits for a released one before each frame, as Mesa's swapchains do, without dispatching pings. Eight `act` calls of a key and a full shot, 1.5 s apart, get it to draw all 32 frames, it never waits 500 ms for a buffer, and no dialog opens. Hyprland keeps the buffers that a capture draws until a monitor's next frame, and the idle output has none. |
 | a hidden GTK 4 questionnaire answers every ping while driven as the benchmark's agents drive it | The form task's questionnaire, floating at 1000×800 on a hidden workspace, gets three rounds of keys from `hyprmasq-mcp`, a second and more apart: a box ticked, a slider moved, text typed into a field and selected, which claims the primary selection, a dropdown's third entry chosen in its popover, and a scroll. The texts and choices arrive and no dialog opens. GTK draws into shm buffers in the VM, with Vulkan on lavapipe, so this does not cover the dmabuf case above. |
+
+#### `settle`
+
+The area raises the output to 1280×800, as large as a laptop's, which the
+questionnaire's popover needs, and shows a foot on the visible workspace. It
+sets the output back at its end.
+
+| Subtest | Checks |
+| --- | --- |
+| a hidden GTK 4 questionnaire settles once its widgets have drawn, while its overlay scrollbar fades in | `hyprmasq-mcp` launches the form task's questionnaire on a hidden workspace and drives it as the benchmark's agents did, an act every 2.5 s, so that GTK fades the overlay scrollbar out between them and in again at each act's first motion, which redraws a strip 5 pixels wide at the right edge for about 800 ms: two clicks on the margin beside the questions, two boxes ticked, the dropdown opened, Saturn chosen in its popover by keys, and text typed into a field after a click. Every act with a click settles within 600 ms, where the strip alone kept it waiting about a second. After the clicks on the margin, which change nothing else, the summary names the strip as an animation. The questionnaire logs each answer, and the changes shot has a zoom on the box, the popover, the dropdown and the field that show it. |
 
 #### `suspended`
 

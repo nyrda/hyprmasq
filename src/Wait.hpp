@@ -26,10 +26,11 @@ namespace hyprmasq::wait {
     // and popups or subsurfaces that appear or go away. It follows the creation of popups and subsurfaces as it
     // happens, so it misses none between two reads. Must not be moved.
     //
-    // It also tells animation apart from other drawing by the box that each commit damages, in window-local logical
-    // pixels: a commit is part of an animation when it damages a small box that commits have damaged again and again
-    // for a while, such as a progress bar, a video or a spinner, and it comes well after the last input. lastChange is
-    // the time of the last commit that is not.
+    // It also tells animation apart from other drawing by the boxes that each commit damages, in window-local logical
+    // pixels, one around each part of its damage: a commit is part of an animation when each of them is a small box that
+    // commits have damaged again and again for a while, such as a progress bar, a video or a spinner, and it comes well
+    // after the last input, or a thin box that commits have damaged again and again since the last input, such as an
+    // overlay scrollbar that fades in or a caret that blinks. lastChange is the time of the last commit that is not.
     class CContentWatch {
       public:
         explicit CContentWatch(const PHLWINDOW& window);
@@ -45,13 +46,13 @@ namespace hyprmasq::wait {
             return m_fed;
         }
 
-        uint64_t            commits          = 0; // never reset
-        Time::steady_tp     lastCommit       = Time::steadyNow();
-        Time::steady_tp     lastChange       = lastCommit; // of the last commit that is not part of an animation
-        uint64_t            lastChangeCommit = 0;          // the value of commits at that commit
-        std::optional<CBox> lastAnimated;                  // the box of the last commit, when it is part of an animation
-        Time::steady_tp     lastInput = {};                // when emulated input last reached the window, set by its socket
-        CSignalT<>          committed;                     // after commits has risen
+        uint64_t          commits          = 0; // never reset
+        Time::steady_tp   lastCommit       = Time::steadyNow();
+        Time::steady_tp   lastChange       = lastCommit; // of the last commit that is not part of an animation
+        uint64_t          lastChangeCommit = 0;          // the value of commits at that commit
+        std::vector<CBox> lastAnimated;                  // the boxes of the last commit, when it is part of an animation
+        Time::steady_tp   lastInput = {};                // when emulated input last reached the window, set by its socket
+        CSignalT<>        committed;                     // after commits has risen
 
       private:
         struct SWatched {
@@ -61,18 +62,19 @@ namespace hyprmasq::wait {
         struct SDamage {
             Time::steady_tp at;
             CBox            box;
+            uint64_t        commit; // the value of commits at the commit that damaged it
         };
         void scan();
         void scanLater();
-        // Counts commits that damaged the box, or an unknown part of the window without one.
-        void count(uint64_t n = 1, std::optional<CBox> box = std::nullopt);
+        // Counts commits that damaged the boxes, or an unknown part of the window without any.
+        void count(uint64_t n = 1, std::vector<CBox> boxes = {});
         bool animated(const CBox& box, Time::steady_tp now) const;
-        std::optional<CBox> damageBox(const SP<CWLSurfaceResource>& surface, const SSurfaceState& state) const;
+        std::vector<CBox> damageBoxes(const SP<CWLSurfaceResource>& surface, const SSurfaceState& state) const;
         SWatched watch(const SP<CWLSurfaceResource>& surface);
 
         PHLWINDOWREF                            m_window;
         std::map<CWLSurfaceResource*, SWatched> m_surfaces;
-        std::deque<SDamage>                     m_damage; // the commits of the last few seconds that damaged a box
+        std::deque<SDamage>                     m_damage; // the boxes that commits damaged in the last few seconds
         wl_event_source*                        m_rescan     = nullptr;
         Time::steady_tp                         m_lastFrames = {};
         bool                                    m_fed        = false;

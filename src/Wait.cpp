@@ -28,21 +28,31 @@ namespace hyprmasq::wait {
             return sc<int>(std::chrono::duration_cast<milliseconds>(now - since).count());
         }
 
-        // A commit is part of an animation when, at least AFTER_INPUT after the last input, it damages a box of at most
-        // MAX_SHARE of the window that at least REPEATS commits since the last input, this one included, have damaged
-        // within HISTORY, the first of them SPAN or more ago. Typing, which damages the same field again and again,
-        // ends before SPAN has passed since its first key, the commits that answer input come within AFTER_INPUT, and a
-        // box that animated before the input has to keep animating for SPAN after it.
+        // A commit is part of an animation when each box it damages is. A box is when it is at most MAX_SHARE of the
+        // window, at least REPEATS commits since the last input, this one included, have damaged it within HISTORY, and,
+        // at least AFTER_INPUT after the last input, the first of them came SPAN or more ago. Typing, which damages the
+        // same field again and again, ends before SPAN has passed since its first key, the commits that answer input
+        // come within AFTER_INPUT, and a box that animated before the input has to keep animating for SPAN after it.
+        //
+        // A box at most THIN wide or high is one already with its REPEATS commits since the last input. Such a box is
+        // too thin for text, a check, a popup or a slider's handle, whatever answers the input, but it holds an overlay
+        // scrollbar that fades in, which GTK does over a second at the pointer's first motion and again two seconds
+        // later to fade it out, a caret that fades as it blinks, or a progress bar.
         constexpr auto   HISTORY     = std::chrono::seconds(3);
         constexpr auto   SPAN        = milliseconds(1000);
         constexpr auto   AFTER_INPUT = milliseconds(500);
         constexpr int    REPEATS     = 3;
         constexpr double MAX_SHARE   = 0.15;
+        constexpr double THIN        = 8;
         // Two boxes are of the same thing when they overlap or touch, and the box around both is at most this much
         // larger than the larger of them.
         constexpr double SAME_BOX = 1.5;
         // The most damaged boxes kept, however often a window commits within HISTORY.
         constexpr size_t MAX_DAMAGE = 1024;
+        // The most rectangles of a commit's damage that are joined into parts, and the most parts. A commit with more
+        // damages one box around all of it.
+        constexpr size_t MAX_RECTS = 64;
+        constexpr size_t MAX_PARTS = 16;
 
         double area(const CBox& box) {
             return std::max(0.0, box.w) * std::max(0.0, box.h);
@@ -50,6 +60,33 @@ namespace hyprmasq::wait {
 
         bool same(const CBox& a, const CBox& b) {
             return a.copy().expand(1).overlaps(b) && area(unite(a, b)) <= SAME_BOX * std::max(area(a), area(b));
+        }
+
+        // The parts of a region: the boxes around its rectangles that overlap or touch. A region keeps its rectangles in
+        // bands, which cut a rectangle where another one beside it starts or ends, so the pieces of one rectangle touch.
+        std::vector<CBox> parts(CRegion region) {
+            const auto rects = region.getRects();
+            if (rects.size() > MAX_RECTS)
+                return {region.getExtents()};
+            std::vector<CBox> boxes;
+            for (const auto& r : rects) {
+                CBox box{sc<double>(r.x1), sc<double>(r.y1), sc<double>(r.x2 - r.x1), sc<double>(r.y2 - r.y1)};
+                for (bool joined = true; joined;) {
+                    joined = false;
+                    for (auto it = boxes.begin(); it != boxes.end(); ++it) {
+                        if (it->copy().expand(1).overlaps(box)) {
+                            box = unite(*it, box);
+                            boxes.erase(it);
+                            joined = true;
+                            break;
+                        }
+                    }
+                }
+                boxes.push_back(box);
+            }
+            if (boxes.size() > MAX_PARTS)
+                return {region.getExtents()};
+            return boxes;
         }
 
         // Surface pixels per logical pixel: an X11 window's surface is scaled up when Hyprland forces zero scaling for
@@ -290,18 +327,18 @@ namespace hyprmasq::wait {
             wl_event_source_remove(m_rescan);
     }
 
-    void CContentWatch::count(uint64_t n, std::optional<CBox> box) {
+    void CContentWatch::count(uint64_t n, std::vector<CBox> boxes) {
         const auto now = Time::steadyNow();
         commits += n;
         lastCommit            = now;
-        const bool isAnimated = box && animated(*box, now);
-        lastAnimated          = isAnimated ? box : std::nullopt;
+        const bool isAnimated = !boxes.empty() && std::ranges::all_of(boxes, [&](const CBox& box) { return animated(box, now); });
         if (!isAnimated) {
             lastChange       = now;
             lastChangeCommit = commits;
         }
-        if (box)
-            m_damage.push_back({.at = now, .box = *box});
+        for (const auto& box : boxes)
+            m_damage.push_back({.at = now, .box = box, .commit = commits});
+        lastAnimated = isAnimated ? std::move(boxes) : std::vector<CBox>{};
         while (!m_damage.empty() && (now - m_damage.front().at > HISTORY || m_damage.size() > MAX_DAMAGE))
             m_damage.pop_front();
         committed.emit();
@@ -309,55 +346,55 @@ namespace hyprmasq::wait {
 
     bool CContentWatch::animated(const CBox& box, Time::steady_tp now) const {
         const auto window = m_window.lock();
-        if (!window || now - lastInput < AFTER_INPUT || area(box) <= 0 || area(box) > MAX_SHARE * area(contentBox(window)))
+        if (!window || area(box) <= 0 || area(box) > MAX_SHARE * area(contentBox(window)))
+            return false;
+        const bool thin = std::min(box.w, box.h) <= THIN;
+        if (!thin && now - lastInput < AFTER_INPUT)
             return false;
         int                            repeats = 1;
+        std::optional<uint64_t>        counted;
         std::optional<Time::steady_tp> first;
         for (const auto& d : m_damage) {
             // Only commits since the last input are evidence, so that a box that animated before it cannot make the
-            // window's answer in that box look like animation.
-            if (d.at < lastInput || now - d.at > HISTORY || !same(d.box, box))
+            // window's answer in that box look like animation. A commit counts once, however many of its boxes match.
+            if (d.at < lastInput || now - d.at > HISTORY || d.commit == counted || !same(d.box, box))
                 continue;
             ++repeats;
-            first = first ? std::min(*first, d.at) : d.at;
+            counted = d.commit;
+            first   = first ? std::min(*first, d.at) : d.at;
         }
-        return repeats >= REPEATS && first && now - *first >= SPAN;
+        return repeats >= REPEATS && (thin || (first && now - *first >= SPAN));
     }
 
-    // The box that a commit damaged, in window-local logical pixels, or none when it is not known, as for a surface not
-    // in the window's tree. Damage in buffer pixels is scaled to the surface; a transformed or cropped buffer counts as
-    // damaged whole, and so does a new buffer without damage.
-    std::optional<CBox> CContentWatch::damageBox(const SP<CWLSurfaceResource>& surface, const SSurfaceState& state) const {
+    // The boxes that a commit damaged, one around each part of its damage, in window-local logical pixels, or none when
+    // they are not known, as for a surface not in the window's tree. Damage in buffer pixels is scaled to the surface; a
+    // transformed or cropped buffer counts as damaged whole, and so does a new buffer without damage.
+    std::vector<CBox> CContentWatch::damageBoxes(const SP<CWLSurfaceResource>& surface, const SSurfaceState& state) const {
         const auto window = m_window.lock();
         if (!window || !surface)
-            return std::nullopt;
+            return {};
         const auto origin = surfaceOrigin(window, surface.get());
         if (!origin)
-            return std::nullopt;
+            return {};
         const Vector2D size = state.size.x > 0 && state.size.y > 0 ? state.size : surface->m_current.size;
         if (size.x <= 0 || size.y <= 0)
-            return std::nullopt;
-        std::optional<CBox> box;
-        const auto          add = [&](CRegion region) {
-            region.intersect(0, 0, size.x, size.y);
-            if (region.empty())
-                return;
-            const auto extents = region.getExtents();
-            box                = box ? unite(*box, extents) : extents;
-        };
-        if (state.transform != WL_OUTPUT_TRANSFORM_NORMAL || state.viewport.hasSource)
-            box = CBox{{0, 0}, size};
-        else {
-            add(state.damage);
+            return {};
+        CRegion damage;
+        if (state.transform == WL_OUTPUT_TRANSFORM_NORMAL && !state.viewport.hasSource) {
+            damage.add(state.damage);
             if (state.bufferSize.x > 0 && state.bufferSize.y > 0) {
                 CRegion buffer = state.bufferDamage;
-                add(buffer.scale(Vector2D{size.x / state.bufferSize.x, size.y / state.bufferSize.y}));
+                damage.add(buffer.scale(Vector2D{size.x / state.bufferSize.x, size.y / state.bufferSize.y}));
             }
-            if (!box)
-                box = CBox{{0, 0}, size};
+            damage.intersect(0, 0, size.x, size.y);
         }
+        if (damage.empty())
+            damage = CRegion{0, 0, size.x, size.y};
+        auto boxes = parts(damage);
         // Subsurfaces of an X11 window lie at surface pixels too.
-        return box->translate(*origin).scale(1.0 / surfaceScale(window));
+        for (auto& box : boxes)
+            box.translate(*origin).scale(1.0 / surfaceScale(window));
+        return boxes;
     }
 
     CContentWatch::SWatched CContentWatch::watch(const SP<CWLSurfaceResource>& s) {
@@ -367,7 +404,7 @@ namespace hyprmasq::wait {
             // The state queue owns its states through unique pointers, which cannot be locked.
             const auto* st = state.get();
             if (st && (st->updated.bits.buffer || st->updated.bits.damage))
-                count(1, damageBox(surface.lock(), *st));
+                count(1, damageBoxes(surface.lock(), *st));
         }));
         // A null buffer, which unmaps the surface, is applied at once without a queued state.
         listeners.push_back(s->m_events.precommit.listen([this, surface = WP<CWLSurfaceResource>(s)] {
@@ -484,9 +521,9 @@ namespace hyprmasq::wait {
         // The change phase ends at the first commit after the baseline, or the first that is not part of an animation,
         // unless expect ran out before it.
         waiter->commit     = socket->content->committed.listen([raw] {
-            if (raw->content->lastAnimated)
-                merge(raw->animated, *raw->content->lastAnimated);
-            if (raw->options.ignoreAnimations && raw->content->lastAnimated)
+            for (const auto& box : raw->content->lastAnimated)
+                merge(raw->animated, box);
+            if (raw->options.ignoreAnimations && !raw->content->lastAnimated.empty())
                 return;
             if (raw->changing && raw->content->commits > raw->options.since && Time::steadyNow() < raw->start + milliseconds(*raw->options.expectMs)) {
                 raw->changing = false;
