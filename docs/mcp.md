@@ -101,6 +101,46 @@ shows. Tiny changes, such as a blinking caret, are left out and counted.
 hidden app that the input wakes, such as a Qt app, redraws once anyway. The
 changes say what changed.
 
+### A scroll at the end of a batch
+
+A batch that ends with one or more `scroll` actions after a click, drag, key
+or text runs in two parts, so that the agent sees what its input did before
+the page moves on. `act` sends the actions before the scroll, waits for the
+window and captures what changed since the shot. Then it sends the scroll,
+waits again and captures what changed since that capture: a full shot once
+the page has moved, and otherwise the part of the window that the scroll
+changed, such as a dropdown under the pointer that took the wheel.
+
+```text
+3/3 delivered · lease 60 s
+before the scroll: redraw observed · quiet 200 ms · 412 ms · shot s9 = s8 + 2 changes
+zoom s10 496×80 of s9 at 530,0 248×40
+zoom s11 456×124 of s9 at 0,670 228×62
+after the scroll: redraw observed · quiet 200 ms · 230 ms · shot s12 1280×720 (full shot: 64% changed since s9)
+```
+
+The zooms show `s9`, which has the pixels of `s8`, and the next coordinates
+come from `s12`. The structured content has the final state at the top level,
+with the scroll's wait and shot, and in `before_scroll` the wait and the shot
+of the actions before it. `deadline_ms` covers both parts.
+
+The scroll is held back unless the actions before it were delivered whole,
+the window drew and settled after them, they opened no window, their changes
+were captured, and time is left for the scroll. The result is then that of
+the actions before it, with `delivery` `partial`, `failed_index` at the
+scroll and `held_back` naming the reason, and its summary starts with
+`2/3 delivered, scroll held back`. A batch with a scroll in the middle, with
+nothing but motion and pauses before its scroll, or with `capture`
+`"window"`, `"none"` or a region runs as one.
+
+Scroll with `unit` `notch`, a wheel click, over the page's background. A notch
+moved the pages of every toolkit we measured by 100 to 120 logical pixels.
+`px` is smooth scrolling, which apps scale as they like: the same request
+moved Qt 6 times as far as GTK 4, and GTK 3 can fling the page to its end. A
+dropdown under the pointer takes the wheel in Qt, GTK 3 and Tk, and a slider
+or other control can too, which then changes its value instead of moving the
+page.
+
 | Argument | Default | Meaning |
 | --- | --- | --- |
 | `window` | required | Window address from `windows` or `launch`. |
@@ -115,9 +155,9 @@ changes say what changed.
 | `click` | `x`, `y`, `button` (`left`, `right`, `middle`), `count` (1 to 3), `modifiers` |
 | `move` | `x`, `y`, for hover |
 | `drag` | `from` [x, y], `to` [x, y], `button`, `modifiers` |
-| `scroll` | `x`, `y`, `dx`, `dy`, `unit` (`notch` or `px`) |
+| `scroll` | `x`, `y`, `dx`, `dy`, `unit` (`notch`, a wheel click, or `px`, smooth scrolling). See [A scroll at the end of a batch](#a-scroll-at-the-end-of-a-batch). |
 | `type` | `text`, typed literally with the active keymap. A line break presses Enter. At most 65536 bytes per batch. |
-| `key` | `keys`, such as `["ctrl", "l"]` or `["ctrl+l"]`, pressed together, and `repeat` (1 to 100) |
+| `key` | `keys`, such as `["ctrl", "l"]` or `["ctrl+l"]`, pressed together, and `repeat` (1 to 500). A key alone presses as a typed key does, 15 ms a press, and a chord with modifiers takes 40 ms a press. |
 | `pause` | `ms` (0 to 5000) |
 
 `act` also takes the click actions of Anthropic's computer use tool, which
@@ -295,6 +335,9 @@ loses nothing: the tool descriptions carry every rule.
   window you are using may do nothing if the app takes more than a quarter of
   a second to run it.
 - A window moved during a batch without changing size is not noticed.
+- When another X11 window of the same X server covers the point of a scroll
+  in an X11 window, as the X server stacks them, GTK 3 and Chromium count
+  only the first notch of each scroll.
 - The comparison misses changes below its thresholds, such as a faint hover
   highlight, and a window that keeps animating tends to get full shots.
 - A hidden window that was driven and later wants to draw again may show an

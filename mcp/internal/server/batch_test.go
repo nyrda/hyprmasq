@@ -57,7 +57,7 @@ func TestValidationSendsNothing(t *testing.T) {
 		{"count of an alias", `[{"action":"triple_click","x":1,"y":1,"count":2}]`, "invalid_arguments", "actions[0].count is not a field of triple_click", false},
 		{"alias without a point", `[{"action":"double_click"}]`, "invalid_arguments", "actions[0].x is missing", false},
 		{"modifier", `[{"action":"click","x":1,"y":1,"modifiers":["hyper"]}]`, "invalid_arguments", "hyper", false},
-		{"repeat", `[{"action":"key","keys":["a"],"repeat":101}]`, "invalid_arguments", "actions[0].repeat", false},
+		{"repeat", `[{"action":"key","keys":["a"],"repeat":501}]`, "invalid_arguments", "actions[0].repeat", false},
 		{"empty key", `[{"action":"key","keys":["ctrl+"]}]`, "invalid_arguments", "plus", false},
 		{"pause", `[{"action":"pause","ms":5001}]`, "invalid_arguments", "actions[0].ms", false},
 		{"notch", `[{"action":"scroll","x":1,"y":1,"dy":1.5}]`, "invalid_arguments", "notch", false},
@@ -230,14 +230,18 @@ func TestMinSendTime(t *testing.T) {
 		{steps([]string{"drag", "0", "0", "5", "0", "left", "shift"}), 340},
 		{steps([]string{"wheel", "2", "-3"}), 80},
 		{steps([]string{"scroll", "0", "-40.5"}), 0},
+		// A chord with modifiers presses its key 10 ms after them, holds it 15 ms and repeats 15 ms apart. A key alone
+		// is typed: held 5 ms, 10 ms apart, also one that the keymap reaches with Shift.
 		{steps([]string{"keys", "ctrl+l", "3"}), 105},
+		{steps([]string{"keys", "right", "100"}), 1490},
+		{steps([]string{"keys", "A", "2"}), 20},
 		{steps([]string{"text", "aé\r\nc"}), 50},
-		{steps([]string{"sleep", "250"}, []string{"keys", "enter", "1"}), 315},
+		{steps([]string{"sleep", "250"}, []string{"keys", "enter", "1"}), 305},
 		// A sync takes the place of the gap after the action before it, and lasts at least its MIN.
-		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "300", "1000"}, []string{"keys", "enter", "1"}), 365},
-		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "100", "1000"}, []string{"keys", "enter", "1"}), 165},
-		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "20", "1000"}, []string{"keys", "enter", "1"}), 115},
-		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "0", "1000"}, []string{"keys", "enter", "1"}), 115},
+		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "300", "1000"}, []string{"keys", "enter", "1"}), 355},
+		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "100", "1000"}, []string{"keys", "enter", "1"}), 155},
+		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "20", "1000"}, []string{"keys", "enter", "1"}), 105},
+		{steps([]string{"click", "left", "1", "-"}, []string{"sync", "0", "1000"}, []string{"keys", "enter", "1"}), 105},
 	} {
 		if got := minSendTime(c.steps).Milliseconds(); got != c.ms {
 			t.Errorf("%v: %d ms, want %d", c.steps, got, c.ms)
@@ -256,8 +260,13 @@ func TestBatchesThatTheDeadlineCannotFit(t *testing.T) {
 	e.window("0xa1", "1a", 320, 200)
 	for _, c := range []struct{ args, message, hint string }{
 		{`"actions":[{"action":"key","keys":["a"]}],"deadline_ms":1000`,
-			"at least 15 ms to send, about 16 ms with round trips; deadline_ms 1000 leaves 0 ms for it, since its last 2250 ms are kept for stopping input in time and for the capture",
+			"at least 5 ms to send, about 5 ms with round trips; deadline_ms 1000 leaves 0 ms for it, since its last 2250 ms are kept for stopping input in time and for the capture",
 			"Give a deadline_ms of at least 4000"},
+		// The most presses of a chord with modifiers fit the longest deadline, and of keys alone four times as many do not.
+		{`"actions":[{"action":"key","keys":["ctrl","right"],"repeat":500}]`, "at least 19985 ms to send, about 21983 ms with round trips; deadline_ms 15000 leaves 12750 ms for it",
+			"Give a deadline_ms of at least 29000"},
+		{`"actions":[` + strings.Repeat(`{"action":"key","keys":["right"],"repeat":500},`, 3) + `{"action":"key","keys":["left"],"repeat":500}],"deadline_ms":30000`,
+			"at least 30110 ms to send", "Split it over several calls: a key alone takes at least 15 ms a press, and a chord with modifiers 40 ms."},
 		// Input ends early enough for a sender that the deadline stops to report before the capture.
 		{`"actions":[{"action":"key","keys":["a"]}],"deadline_ms":2000`, "deadline_ms 2000 leaves 0 ms for it", "Give a deadline_ms of at least 4000"},
 		{`"actions":[{"action":"type","text":"` + strings.Repeat("x", 1000) + `"}]`, "at least 14990 ms to send, about 16489 ms with round trips; deadline_ms 15000 leaves 12750 ms for it",

@@ -52,11 +52,12 @@ type target struct {
 	box   hypr.IntRect
 }
 
-// targetsOf returns the points of the batch's clicks and drags. Motion and scrolling go out at the shot's coordinates
-// too, but hover only shows something, and a scroll at a moved point scrolls what lies there, which its result shows.
-func targetsOf(batch []action, sh *shot) []target {
+// targetsOf returns the points of the clicks and drags of the batch from index from on. Motion and scrolling go out at
+// the shot's coordinates too, but hover only shows something, and a scroll at a moved point scrolls what lies there,
+// which its result shows.
+func targetsOf(batch []action, from int, sh *shot) []target {
 	var out []target
-	for i := range batch {
+	for i := from; i < len(batch); i++ {
 		a := &batch[i]
 		if a.Kind != "click" && a.Kind != "drag" {
 			continue
@@ -268,7 +269,7 @@ func (s *Server) seenShot(sh *shot) *shot {
 // captured the window, it returns the counter of the capture that it decided on: a window that has drawn since may
 // have moved its targets after it, and is checked again.
 func (s *Server) checkTargets(ctx context.Context, r *actRequest, coords *shot, cur hypr.State, by time.Time, p *progress) (decided *baseline, err error) {
-	targets := targetsOf(r.batch, coords)
+	targets := targetsOf(r.batch, r.from, coords)
 	if len(targets) == 0 {
 		return nil, nil
 	}

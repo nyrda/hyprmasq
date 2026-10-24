@@ -206,15 +206,16 @@ const instructions = `hyprmasq: see, click and type in Hyprland windows without 
 Loop: windows or launch → screenshot → act with coordinates in that shot's pixels → read the changes or the shot that act returns → act again.
 Read each result's summary, and its hint when it has one, before the next call.`
 
-var actDescription = fmt.Sprintf(`Act on a window, wait until it has redrawn, and return what changed. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
-Coordinates are pixels of the shot given in "shot" (required for click, move, drag, scroll).
+var actDescription = fmt.Sprintf(`Act on a window, wait for its redraw, and return what changed. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
+Coordinates are pixels of the shot in "shot" (required for click, move, drag, scroll).
 Actions: click {x,y,button,count,modifiers} · move {x,y} · drag {from,to,button,modifiers} · scroll {x,y,dx,dy,unit:notch|px} · type {text} · key {keys:["ctrl","l"], repeat} · pause {ms}.
-The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box in them. A full shot comes when it serves better, saying why; capture "window" asks for one.
-Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, such as arrows and enter in a menu, may follow. Whether a menu is still open shows in the shot: if it is, click its entry, as clicking its opener closes it; if it closed, open it and pick by keyboard in one batch.
+The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box. A full shot comes when it serves better, saying why; capture "window" asks for one.
+Scroll last in a batch, in notches over the page's background: you get what changed before it, then the new view.
+Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, like arrows and enter in a menu, may follow. Whether a menu is still open shows in the shot: if it is, click its entry, as clicking its opener closes it; if it closed, open it and pick by keyboard in one batch.
 drag, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability, an app's drag-and-drop also dnd.
-type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form field use a key such as shift+enter. At 15 ms a key, two or more for a character typed through Compose, a call types about %d characters, or %d with deadline_ms 30000; split longer text.
-Delivered input reached the app but may not have taken effect: a busy one, such as a game or a web app, can drop keys or take them as shortcuts, so check typed text in the result.
-Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before looking at a fresh shot.
+type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form use a key like shift+enter. At 15 ms a key, more through Compose, a call types about %d characters, or %d with deadline_ms 30000; split longer text.
+Delivered input may not take effect: a busy app, like a game or web app, can drop keys or take them as shortcuts, so check typed text.
+Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before seeing a fresh shot.
 Example: {"window":"0x55d1c0a3e4b0","shot":"s4","actions":[{"action":"click","x":412,"y":88},{"action":"type","text":"hello"},{"action":"key","keys":["enter"]}]}`,
 	typedWithin(defaultDeadline), typedWithin(maxDeadline))
 
@@ -276,10 +277,10 @@ var actionSchema = json.RawMessage(`{
 		"to": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2, "description": "drag: [x, y] in shot pixels."},
 		"dx": {"type": "number", "description": "scroll: positive scrolls right."},
 		"dy": {"type": "number", "description": "scroll: positive scrolls down."},
-		"unit": {"type": "string", "enum": ["notch", "px"], "default": "notch", "description": "scroll: notch is a wheel click, px smooth scrolling in logical pixels."},
+		"unit": {"type": "string", "enum": ["notch", "px"], "default": "notch", "description": "scroll: notch is a wheel click; px is smooth scrolling, which apps scale differently and some ignore, so prefer notch."},
 		"text": {"type": "string", "description": "type: the text, typed as given, with no tags or escapes. A line break presses Enter and a tab presses Tab."},
 		"keys": {"type": "array", "items": {"type": "string"}, "description": "key: pressed together in order and released in reverse, such as [\"ctrl\", \"shift\", \"t\"] or [\"ctrl+l\"], which is split at +. Names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus."},
-		"repeat": {"type": "integer", "minimum": 1, "maximum": 100, "default": 1, "description": "key: presses of the chord."},
+		"repeat": {"type": "integer", "minimum": 1, "maximum": 500, "default": 1, "description": "key: presses of the chord."},
 		"ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "pause: milliseconds. Actions after a click or drag already wait until the window has drawn its answer, and keys and text until 300 ms have passed since it, while the application moves the focus."}
 	},
 	"required": ["action"]
@@ -363,6 +364,14 @@ func (s *Server) handle(fn func(context.Context, *call) *mcp.CallToolResult) mcp
 		res := s.run(ctx, req, fn)
 		if !s.sendsStructured(req) {
 			res.StructuredContent = nil
+		} else if res.StructuredContent != nil {
+			// Encoded here, where a number that JSON cannot hold becomes null, and not by the SDK, which would send no
+			// reply. The text says the same, so content that does not encode at all is left out.
+			if data, err := structuredJSON(res.StructuredContent); err == nil {
+				res.StructuredContent = data
+			} else {
+				res.StructuredContent = nil
+			}
 		}
 		return res, nil
 	}

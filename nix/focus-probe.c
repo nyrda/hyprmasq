@@ -1222,7 +1222,9 @@ static void pointer_button(void* data, struct wl_pointer* p, uint32_t serial, ui
     if (opens_windows())
         opener_button(button);
 }
-static void pointer_axis(void* data, struct wl_pointer* p, uint32_t time, uint32_t axis, wl_fixed_t value) {}
+static void pointer_axis(void* data, struct wl_pointer* p, uint32_t time, uint32_t axis, wl_fixed_t value) {
+    say("axis %s %u %g", surface_name(pointer_surface), axis, wl_fixed_to_double(value));
+}
 static const struct wl_pointer_listener pointer_listener = {
     .enter  = pointer_enter,
     .leave  = pointer_leave,

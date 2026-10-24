@@ -8,6 +8,11 @@ room above and below it for every choice, which GTK puts over the combo box. It 
 after a CLOCK_MONOTONIC timestamp in milliseconds: "popup shown" and "popup hidden" as the menu opens and closes,
 "menu CHOICE X Y W H" for each item once the menu has its place, in the menu window's coordinates, and "changed CHOICE"
 when the choice changes.
+
+    hyprmasq-combo-probe --scroll TITLE
+
+The window is TITLE, 300x400, with a scrolled column of 200 rows, and logs "scroll V" with the column's vertical
+position in pixels whenever it changes, as a wheel or a kinetic scroll moves it.
 """
 
 import sys
@@ -55,7 +60,26 @@ def popup_shown(combo, _):
         say("popup hidden")
 
 
+def scroll_probe(title):
+    window = Gtk.Window(title=title)
+    window.set_default_size(300, 400)
+    window.connect("destroy", Gtk.main_quit)
+    scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER)
+    column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    for row in range(200):
+        column.pack_start(Gtk.Label(label=f"Row {row}", xalign=0), False, False, 4)
+    scroller.add(column)
+    adjustment = scroller.get_vadjustment()
+    adjustment.connect("value-changed", lambda a: say("scroll", round(a.get_value())))
+    window.add(scroller)
+    window.show_all()
+    Gtk.main()
+
+
 def main():
+    if sys.argv[1] == "--scroll":
+        scroll_probe(sys.argv[2])
+        return
     window = Gtk.Window(title=sys.argv[1])
     window.set_default_size(300, 400)
     window.connect("destroy", Gtk.main_quit)

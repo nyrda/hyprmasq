@@ -46,6 +46,9 @@ var inputArity = map[string]int{"move": 2, "click": 3, "drag": 6, "wheel": 2, "s
 //	sleep:MS                    wait MS milliseconds, then succeed
 //	toolong:MS                  refuse the batch, which takes MS milliseconds at its pace, as longer than --budget
 //	unhandled                   die of SIGTERM without a reply, as the real one does before it handles signals
+//	crash                       exit without a reply, as one that is killed
+//
+// Modes separated by ";" are those of the first runs of the test, in order, and the last one of the runs after.
 //
 // FAKE_INPUT_COMPOSE=LOCALE:REQUESTED adds that a character was typed through the Compose table of LOCALE when the
 // table of REQUESTED was asked for.
@@ -54,6 +57,10 @@ var inputArity = map[string]int{"move": 2, "click": 3, "drag": 6, "wheel": 2, "s
 // all of them otherwise, and reads the answer, a line on standard input, logging both.
 func fakeInput() int {
 	mode := os.Getenv("FAKE_INPUT_MODE")
+	if modes := strings.Split(mode, ";"); len(modes) > 1 {
+		previous, _ := os.ReadFile(os.Getenv("FAKE_INPUT_LOG"))
+		mode = modes[min(strings.Count(string(previous), `"event":"start"`), len(modes)-1)]
+	}
 	// Tests signal the sender once it has logged its start, so it handles SIGTERM before that.
 	signals := make(chan os.Signal, 1)
 	if mode != "unhandled" {
@@ -126,6 +133,8 @@ func fakeInput() int {
 		return 1
 	case mode == "unhandled":
 		time.Sleep(time.Minute)
+	case mode == "crash":
+		return 1
 	case strings.HasPrefix(mode, "sleep:"):
 		ms, _ := strconv.Atoi(strings.TrimPrefix(mode, "sleep:"))
 		syncsBefore(total)

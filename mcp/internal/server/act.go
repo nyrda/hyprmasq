@@ -51,6 +51,9 @@ type actRequest struct {
 	baseReason string
 	// The token of the launch by this server that the window belongs to, read before the input, which may close it.
 	launch string
+	// The first action of the part of the batch that a send sends and checks: act sends a batch that ends with
+	// scrolling in two parts, see split.go.
+	from int
 }
 
 // regionShot is the shot of a capture region, or "".
@@ -230,6 +233,10 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 		var locale targetLocale
 		if batchTypes(r.batch) {
 			locale = s.windowLocale(before, r.window, st.StableID)
+		}
+		if k := scrollSplitAt(r, sh, inputBy); k > 0 {
+			return s.actSplit(ctx, sendCtx, splitCall{r: r, at: k, out: out, sh: sh, st: st, start: start, end: end, sendBy: sendBy, region: region,
+				before: before, locale: locale, p: p, failShot: failShot})
 		}
 		actions, cur, err := s.send(ctx, sendCtx, r, steps, sh, st, start, p, locale)
 		out.Actions = actions
@@ -479,7 +486,12 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	}
 
 	out.Summary = summaryLine(out, r.batch)
-	wait, unchanged := waitHint(out.Wait, r.batch, r.shotID, out.Actions, out.Shot), noChangeHint(out, r.batch)
+	// The hints speak of the input that went out, without scrolls held back.
+	sent := r.batch
+	if out.Actions != nil && out.Actions.HeldBack != "" {
+		sent = r.batch[:out.Actions.Done]
+	}
+	wait, unchanged := waitHint(out.Wait, sent, r.shotID, out.Actions, out.Shot), noChangeHint(out, sent)
 	// The returned focus already tells to check the shot before repeating anything, which the hints about a missing
 	// redraw or change would repeat with a guess at the cause.
 	focus := ""
@@ -518,15 +530,16 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		wait = joinHints(wait, closedHint(out.Source))
 	}
 	// A shortcut beside the user's window that changed nothing may have come too late for the shared keyboard focus.
-	out.Hint = joinHints(focus, drag, wait, unchanged, lateShortcutHint(out, r.batch, st), out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows),
-		lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
+	out.Hint = joinHints(heldBackHint(out.Actions), focus, drag, wait, unchanged, partScrolledHint(out, sent), splitHint(out), lateShortcutHint(out, sent, st),
+		out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows), lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
 	if out.Actions != nil {
 		out.Hint = joinHints(out.Hint, out.Actions.composeNote)
 	}
 	if out.CaptureError != nil {
 		out.Hint = joinHints(out.Hint, hintCaptureFailed)
 	}
-	return newResult(out, out.resultText, images, "")
+	// The zooms of the actions before a scroll come first, as the summary lists them.
+	return newResult(out, out.resultText, append(slices.Clone(out.beforeImages), images...), "")
 }
 
 // focusReturned tells whether the user's own input to the window's app took the keyboard back from the window within a

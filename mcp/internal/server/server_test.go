@@ -151,7 +151,8 @@ func TestArgumentErrors(t *testing.T) {
 	if res.IsError {
 		t.Fatal(text(res))
 	}
-	if got, want := e.inputs(), [][]string{{"move", "5", "5", "click", "left", "1", "-", "sync", "0", "1000", "move", "5", "5", "wheel", "0", "2"}}; !reflect.DeepEqual(got, want) {
+	// The scroll that ends the batch goes out after the click has been waited for and captured.
+	if got, want := e.inputs(), [][]string{{"move", "5", "5", "click", "left", "1", "-"}, {"move", "5", "5", "wheel", "0", "2"}}; !reflect.DeepEqual(got, want) {
 		t.Errorf("inputs %q, want %q", got, want)
 	}
 	if res := call("screenshot", `{"window":"0xa1","region":null}`); res.IsError {

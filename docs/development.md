@@ -153,8 +153,10 @@ The test's own Wayland clients are in `nix/` and share `nix/probe-common.h`:
 `CLOCK_MONOTONIC` in milliseconds, and exit with status 2 on arguments they do
 not take.
 `qt-probe.py`, a Qt 6 app in PySide6, logs the same way. `combo-probe.py` is a
-GTK 3 app on X11 with a combo box, which logs alike, and Chromium opens
-`guest/select.html`, a page with a `<select>` that logs to its console.
+GTK 3 app on X11 with a combo box, or a scrolled column, which logs alike, and
+so does `slider-probe.py`, a slider in Qt 6, GTK 3 or Tk. Chromium opens
+`guest/select.html`, a page with a `<select>`, and `guest/scroll.html`, a long
+page, which log to its console.
 
 The VM also has `hyprland-dialog`, from `hyprland-qtutils`, without which
 Hyprland does not watch for apps that stop answering its pings, and the form
@@ -197,6 +199,8 @@ which is what `./dev.sh vm-test` runs.
 | `anr` | `core` | Hyprland's not-responding dialog, which the VM's `hyprland-dialog` logs: for a stopped app, and never for hidden apps that captures and input drive, one that waits for its dmabuf buffers as Mesa's swapchains do and the form task's GTK 4 questionnaire. |
 | `settle` | `core` | How long `act` waits for a hidden GTK 4 app: the form task's questionnaire, whose overlay scrollbar fades in at each act, settles once its widgets have drawn. |
 | `suspended` | `core` | Hidden windows that Hyprland tells they are suspended: a Qt 6 app, which commits no frame while it is suspended, is shown while driven and draws each act's input and a resize, and every way a hold ends gives it Hyprland's state back, also to a toplevel that unmaps and maps again. |
+| `key-pace` | `core` | Presses of a key without modifiers at the pace of typing, on sliders in Qt 6, GTK 3 and Tk. |
+| `scrolling` | `core` | `act`'s scroll at the end of a batch, which comes after the changes of the input before it or is held back, a dropdown that takes the wheel, and scrolls on X11 that move by every notch. |
 | `unload` | `core`, `waits`, `suspended` | Unloading and loading the plugin again, with pending waits on the busy window of `waits` and the Qt window of `suspended`, selections and screenshot writes. |
 | `compositor-log` | `drag` | Hyprland's log after its exit, with the serials of `drag`'s protections subtest rejected. It ends Hyprland, so it runs last. |
 
@@ -230,7 +234,7 @@ and the code drift apart.
 
 | Subtest | Checks |
 | --- | --- |
-| hyprmasq-input paces clicks and key chords and reports JSON | In `wev` on a hidden workspace: a click presses 50 ms after the move before it, the gap between actions, and holds the button 50 ms, the clicks of a double click are 80 ms apart, and `--no-pace` sends them at once. A chord presses its modifiers first and the key 10 ms later, holds it 15 ms and releases in reverse. Aliases and keysym names ignore case, a capital letter is its key without Shift, repeats are 15 ms and actions 50 ms apart. Each run reports complete delivery in `--json`. |
+| hyprmasq-input paces clicks and key chords and reports JSON | In `wev` on a hidden workspace: a click presses 50 ms after the move before it, the gap between actions, and holds the button 50 ms, the clicks of a double click are 80 ms apart, and `--no-pace` sends them at once. A chord presses its modifiers first and the key 10 ms later, holds it 15 ms and releases in reverse. Aliases and keysym names ignore case, and a capital letter is its key without Shift. Repeats of a key without modifiers are held 5 ms and 10 ms apart, as typed keys are, and those of a chord with modifiers 15 ms apart. Actions are 50 ms apart. Each run reports complete delivery in `--json`. |
 | hyprmasq-input scrolls in wheel notches and drags in steps | `wheel` sends one notch per frame, 20 ms apart, on both axes. `drag` presses at least 30 ms after its first motion, moves in steps of at most 10 pixels over at least 200 ms, and releases at the end point. |
 | hyprmasq-input waits at a sync for its caller's answer, at least MIN and at most MAX | `keys a sync MIN MAX keys b` into `wev` prints `{"sync":1}` before its JSON result, and goes on after MIN when its stdin is closed, after MAX without an answer, and only at the answer with its number, not at one with another number. |
 | hyprmasq-input types 2000 characters of paced literal text exactly into a hidden shell | `text` types tags, escapes, quotes, a tab and a line break as they are, and 2000 random characters exactly, into hidden shells. |
@@ -484,6 +488,30 @@ configure it gets.
 | the holds of a session and a wait on the Qt window end in either order before it is told that it is suspended | A wait that outlives the second after a sender's input keeps the probe shown 2 s after it, and the probe is suspended once the wait ends. A sender that holds its devices for 4 s keeps it shown after a wait times out within it, and the probe is suspended once the sender ends. |
 | a held toplevel that unmaps gets Hyprland's state as it maps again, and an older one is never told that it is suspended | `suspend-probe.c`, launched onto a hidden workspace and suspended, is shown for a sender that holds its devices, and unmaps with a commit without a buffer, keeping its `xdg_toplevel`. Its socket closes with the unmap, and no configure comes while it is unmapped. It maps again with the state that Hyprland told it last, which Hyprland does not update for a window that maps on the visible workspace until the workspaces change, and moved to a hidden workspace, which updates nothing for a window that Hyprland took for suspended, it is told that it is suspended. The probe at `xdg_wm_base` version 5, held by a wait while its workspace is shown, hidden during the hold, and unmapped and mapped again after the wait ended `window_closed`, is never told that it is suspended. |
 
+#### `key-pace`
+
+`nix/slider-probe.py` shows a slider from 0 to 1000 with the keyboard focus, in
+Qt 6 or GTK 3 on Wayland, or in Tk on X11, and logs each value it takes.
+
+| Subtest | Checks |
+| --- | --- |
+| presses of a key without modifiers come at typing pace, and each moves a Qt 6, GTK 3 and Tk slider one step | Each slider probe, alone on a hidden workspace, gets Right 500 times from one `act` of `hyprmasq-mcp`, with the default deadline: delivery is complete, and the slider takes every value from 1 to 500 once, the first and the last at least 7 s apart, at 15 ms a press. 500 presses of Shift+Right, at 40 ms a press, are refused before anything is sent, with a hint for a deadline of 29 s. The user's focus stays. |
+
+#### `scrolling`
+
+The area raises the output to 1280×800, as large as a laptop's, which the form
+task's questionnaire needs, and shows a foot on the visible workspace. It sets
+the output back at its end. `combo-probe.py --scroll` shows a column of 200
+rows in GTK 3 and logs where it is scrolled to, and Chromium opens
+`guest/scroll.html`, a page of 200 rows that logs where it rests.
+
+| Subtest | Checks |
+| --- | --- |
+| a scroll that ends a batch comes after the changes of the input before it, in a reply of two parts | An `act` on the questionnaire, launched by `hyprmasq-mcp` onto a hidden workspace, ticks Amber and then scrolls three notches over the margin. Its `before_scroll` has a wait that ended `quiet` with a redraw and a changes shot against the launch's shot, with a zoom on the box. After the scroll, the result has a full shot of the window, against that changes shot. The summary has both parts, the images are the zooms and the full shot, and the questionnaire logs Amber. |
+| a scroll after input that drew nothing or opened a window is held back | A click on `focus-probe.c`, which draws nothing in answer to it, and a scroll: delivery is partial at the scroll, `held_back` says that the actions before it drew nothing, the summary starts with `1/2 delivered, scroll held back`, the hint says that the scroll was not sent, and the probe logs the click and no scroll. A right click on an opener probe, which opens a dialog, and a scroll: `held_back` names the dialog, and the probe gets no scroll. The user's focus stays. |
+| a dropdown under the pointer that takes the wheel shows as a change after the scroll | A click on the Qt probe's check box and a notch over its dropdown: the probe logs the box ticked and Venus chosen. `before_scroll` has a zoom on the box, and the result is a changes shot against that shot, not a full shot, with a zoom on the dropdown, and a hint that a control under the pointer took the wheel. |
+| scrolls on X11 move GTK 3 and Chromium by every notch, and px scrolls move them | `combo-probe.py --scroll` on XWayland and then Chromium on X11 with `guest/scroll.html`, one at a time on a hidden workspace, get scrolls through `hyprmasq-input` after motion: one notch, which measures the step, three more and, after a click, two more. Each lands on its notch count times the step, within 3 pixels, where both took the first notch of each scroll for where to count from before. A smooth scroll of 50 px moves both. The user's focus stays. |
+
 #### `unload`
 
 | Subtest | Checks |
@@ -555,7 +583,7 @@ nix-build bench/tasks/calc/check-test.nix
 | `tools/hyprmasq-launch` | Starts an application on a hidden workspace and prints its window's address. |
 | `mcp/cmd/hyprmasq-mcp` | The MCP server's command: options, signals and the session's end. |
 | `mcp/internal/hypr` | Requests to Hyprland's socket, the plugin's replies, and Hyprland's events. |
-| `mcp/internal/server` | The tools: descriptions, schemas and argument checks (`server.go`), `act` and its waiting and lease (`act.go`), action checks and their translation to `hyprmasq-input` (`actions.go`, `input.go`), shots and zoom (`shots.go`, `capture.go`), changes shots, their limits and their full shots (`changes.go`), the check of the targets of a batch against its shot (`moved.go`), `windows`, its shots and its wait for a window, `launch`, `close` and `release` (`windows.go`, `launch.go`), the file locks (`locks.go`) and results and hints (`result.go`). |
+| `mcp/internal/server` | The tools: descriptions, schemas and argument checks (`server.go`), `act` and its waiting and lease (`act.go`), a batch that ends with a scroll, which it sends in two parts (`split.go`), action checks and their translation to `hyprmasq-input` (`actions.go`, `input.go`), shots and zoom (`shots.go`, `capture.go`), changes shots, their limits and their full shots (`changes.go`), the check of the targets of a batch against its shot (`moved.go`), `windows`, its shots and its wait for a window, `launch`, `close` and `release` (`windows.go`, `launch.go`), the file locks (`locks.go`), results and hints (`result.go`), and their structured content, encoded without numbers that JSON cannot hold (`encode.go`). |
 | `mcp/internal/delta` | The comparison of two screenshots for changes shots: the 3×3 averages of luminance and color channels, grouping changed pixels into changes, and tiny changes. |
 | `bench/` | The benchmark: the VM, the runner, the MCP log and the tasks. |
 | `nix/package.nix` | Plugin and tool derivation, for the flake and downstream `callPackage`. It installs `hyprmasq-mcp` as a wrapper that puts the package's own `hyprmasq-input` first on `PATH`. |
@@ -566,9 +594,10 @@ nix-build bench/tasks/calc/check-test.nix
 | `nix/clip-probe.c`, `nix/clip-probe.nix` | A test client that copies, selects and pastes text through the clipboard and the primary selection on keys and a click, and logs the selections it gets, its sources' sends and cancels, and what it pastes. |
 | `nix/dnd-probe.c`, `nix/dnd-probe.nix` | A test client that drags text from its window to itself through the data device protocol, with options for the serial, the destination's answers, the finish and an icon, and signals that destroy its source, data device or window. |
 | `nix/focus-probe.c`, `nix/focus-probe.nix` | A test client. Without arguments, it requests popup grabs, moves, resizes and drags for the protections subtest. `popup TITLE [X Y W H [GX GY]]` opens and closes a popup on SIGUSR1 and logs pointer events by surface, with GX,GY a margin outside the window's xdg geometry. `focus TITLE [TITLE]` shows one or two windows on one connection and logs their input and focus events with timestamps. `close TITLE` logs like it for one window, which it destroys when Escape or the left button goes down. `regions SOCKET MS` prints the pointer regions the plugin announces. `hold SOCKET X Y stop\|disconnect\|signal` holds Shift, A and the left button as a libei sender and then stops emulating or exits, or with `signal` presses them on SIGUSR1 and exits at once. `resize TITLE hold\|ack` shows one window with a green right edge that acks configures of its drawn size without a commit, and after a SIGUSR1 holds back configures with a new size, unacked or acked, until the next one. `opener TITLE [TITLE]` logs like `focus` and opens green windows on input to one of its windows: N or a left click a toplevel without a parent, D or a right click a dialog of that window, L a toplevel 300 ms later, K one 1.5 s later, G one 1.5 s later on a second Wayland connection of its process, a middle click a dialog 1.5 s later, S in a window it opened closes that window and opens a toplevel 300 ms later, a right click in one closes it at once and Enter redraws it and closes it 300 ms later, and F a dialog of another process, `imported HANDLE TITLE`, outside its process tree, that names its parent through xdg-foreign, as a SIGUSR1 does for its first window, logging when it maps them, and A a dialog whose parent, once it closed, redraws in orange 300 ms after its next frame callback. `browser CREATE MAP TITLE [TITLE]` works as `opener`, but a left click opens a toplevel without a parent, TITLE-popupK, CREATE ms after the press, and draws it MAP ms after creating it, as a browser's popup, and a SIGUSR2 creates TITLE-aheadK for its last toplevel, which the next left click there draws MAP ms later. `shift TITLE MS` logs like `focus` and shows a light button, which a SIGUSR1 moves 60 pixels down MS milliseconds later, while a SIGUSR2 draws a block far from it. `tiles TITLE` redraws at every frame callback and damages a tile of 256×128 whole, in which only a 24×24 spinner, noise that is new at every frame, changes, as Thunderbird's renderer damages tiles, and a left click draws a light block in the tile that stays. |
-| `nix/combo-probe.py`, `nix/combo-probe.nix` | A GTK 3 test app on X11 with a combo box, which logs when its menu opens and closes, where its items lie, and the choice. |
+| `nix/combo-probe.py`, `nix/combo-probe.nix` | A GTK 3 test app on X11 with a combo box, which logs when its menu opens and closes, where its items lie, and the choice. With `--scroll`, a column of 200 rows that logs where it is scrolled to. |
 | `nix/suspend-probe.c`, `nix/suspend-probe.nix` | A test client that binds `xdg_wm_base` at the version it is given, logs whether each configure says that it is suspended, and unmaps with a commit without a buffer, keeping its `xdg_toplevel`, and maps again on signals. |
 | `nix/qt-probe.py`, `nix/qt-probe.nix` | A Qt 6 test client in PySide6 with the widgets of the form task's questionnaire at fixed places, which logs the configures that Qt applies, whether they suspend it, when Qt exposes the window, and each change of a widget. |
+| `nix/slider-probe.py`, `nix/slider-probe.nix` | A test app with a slider from 0 to 1000 that has the keyboard focus, in Qt 6, GTK 3 or Tk, which logs each value the slider takes. |
 | `nix/user-input.c`, `nix/user-input.nix` | VM fixture for the user's own input: a held button through a virtual pointer, and an input method's keyboard grab. |
 
 The C and C++ code follows Hyprland's `.clang-format`. Go code is `gofmt`ed.

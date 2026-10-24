@@ -93,11 +93,11 @@ func (s *Server) sendable(clientCtx, sendCtx context.Context, r *actRequest, sh 
 		return st, deadlineWhileSending("none", r.deadline)
 	case err != nil:
 		return st, err
-	case sh != nil && batchHasCoordinates(r.batch) && cur.Size != sh.Size:
+	case sh != nil && batchHasCoordinates(r.batch[r.from:]) && cur.Size != sh.Size:
 		return cur, &toolError{Code: "stale_shot", Message: fmt.Sprintf("the window was resized from %s to %s since shot %s", formatSize(sh.Size), formatSize(cur.Size), sh.ID),
 			Hint: hintScreenshot, ShotHint: hintScreenshotShot}
 	}
-	return cur, checkCapabilities(r.batch, cur.Capabilities, r.window)
+	return cur, checkCapabilities(r.batch[r.from:], cur.Capabilities, r.window)
 }
 
 // runBatch runs the batch in one hyprmasq-input, and stops it when the window is resized or replaced meanwhile.
@@ -106,7 +106,7 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 	runCtx, stop := context.WithCancelCause(sendCtx)
 	defer stop(nil)
 	watched := make(chan struct{})
-	if sh != nil && watchesGeometry(r.batch) {
+	if sh != nil && watchesGeometry(r.batch[r.from:]) {
 		go s.watchGeometry(runCtx, stop, r.window, sh, st.StableID, watched)
 	} else {
 		close(watched)
@@ -128,7 +128,7 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 	var changed *toolError
 	errors.As(context.Cause(runCtx), &changed)
 	if err == nil && reply.Delivery == "none" && reply.Error != nil && reply.Error.Code == "too_long" {
-		return out, tooLong(reply, r.deadline, left)
+		return out, tooLong(reply, r.deadline, left, batchTypes(r.batch[r.from:]))
 	}
 
 	if err != nil {
@@ -147,8 +147,8 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 			}
 			return out, &toolError{Code: "internal", Message: err.Error(), Hint: "Tell the user that hyprmasq-input cannot be started; see the --input option of hyprmasq-mcp."}
 		}
-		out.Delivery = "uncertain"
-		out.FailedIndex = ptr(0)
+		// The part of a split batch that a sender runs starts at r.from, after what an earlier part delivered.
+		out.Done, out.Delivery, out.FailedIndex = r.from, "uncertain", ptr(r.from)
 		return out, &toolError{Code: "internal", Message: err.Error(), Hint: hintUncertain}
 	}
 	if reply.OK && reply.Delivery == "complete" {
@@ -287,13 +287,13 @@ func (s *Server) pauseReason(ctx context.Context, window string) string {
 
 // tooLong maps the sender's refusal of a batch whose resolved keys take longer at their pace than its budget, left,
 // the time to the end of input when it started. A batch that the deadline cannot fit is refused as fitsDeadline does;
-// otherwise waiting for other calls took the time.
-func tooLong(reply senderReply, deadline, left time.Duration) error {
+// otherwise waiting for other calls took the time. typed tells that the batch types text.
+func tooLong(reply senderReply, deadline, left time.Duration, typed bool) error {
 	if reply.PaceMs == nil {
 		return &toolError{Code: "deadline", Message: reply.Error.Message, Hint: "Retry, or give a larger deadline_ms (at most 30000)."}
 	}
 	least := time.Duration(*reply.PaceMs) * time.Millisecond
-	if err := overDeadline(least, deadline, true); err != nil {
+	if err := overDeadline(least, deadline, true, typed); err != nil {
 		return err
 	}
 	return &toolError{Code: "deadline",

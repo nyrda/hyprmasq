@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- A page of 200 rows, 40 px each, whose page logs "probe scroll Y" to the console, which Chromium's
+     --enable-logging=stderr prints, whenever it scrolls to the position Y in CSS pixels, and "probe ready" once
+     loaded. -->
+<html>
+  <head>
+    <title>hm-x-scroll</title>
+    <style>
+      body { margin: 0; font: 16px sans-serif; }
+      div { height: 40px; border-bottom: 1px solid #ccc; }
+    </style>
+  </head>
+  <body>
+    <script>
+      const say = (...parts) => console.log("probe", ...parts);
+      for (let row = 0; row < 200; row++) {
+        const div = document.createElement("div");
+        div.textContent = `Row ${row}`;
+        document.body.append(div);
+      }
+      // A smooth scroll ends after its animation, so only the position it rests at is logged.
+      let resting;
+      addEventListener("scroll", () => {
+        clearTimeout(resting);
+        resting = setTimeout(() => say("scroll", Math.round(scrollY)), 300);
+      });
+      say("ready");
+    </script>
+  </body>
+</html>

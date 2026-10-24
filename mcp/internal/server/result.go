@@ -89,6 +89,9 @@ type actionsOut struct {
 	Interrupted bool `json:"interrupted,omitempty"`
 	// Present only when the window's app started a drag-and-drop during the batch: how the last one went.
 	DragAndDrop *dragOut `json:"drag_and_drop,omitempty"`
+	// Present only when the batch ended with scrolling that act did not send after the actions before it: why. See
+	// split.go.
+	HeldBack string `json:"held_back,omitempty"`
 	// Why characters typed through Compose may have arrived as others, for the hint.
 	composeNote string
 }
@@ -283,6 +286,11 @@ type actOut struct {
 	NewWindows []newWindowOut `json:"new_windows"`
 	// Windows that the input of earlier acts opened after those acts had returned, which no result has reported yet.
 	LateWindows []newWindowOut `json:"late_windows,omitempty"`
+	// For a batch that ended with scrolling after other input, which act sent in two parts, what the input before the
+	// scroll did. Wait and Shot are then the scroll's. See split.go.
+	BeforeScroll *beforeScrollOut `json:"before_scroll,omitempty"`
+	// The images of BeforeScroll's shot, which come before the others.
+	beforeImages [][]byte
 	// Why the shot shows the whole window instead of the capture region, for the hint.
 	captureNote string
 }

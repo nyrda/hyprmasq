@@ -98,6 +98,9 @@ func noChangeHint(out *actOut, batch []action) string {
 		return ""
 	}
 	base := out.Shot.Changes.Base
+	if kind == "scroll" {
+		return fmt.Sprintf("Nothing moved since %s: the page may be at its end, or nothing under the pointer scrolls.", base)
+	}
 	later := laterWindow(batch)
 	if out.Shot.Changes.Animated > 0 {
 		return fmt.Sprintf("Nothing changed since %s outside the animations, so the input may have missed, or its effect lies inside them%s. Look at %s, or take a screenshot to see the animations as they are now, before repeating it.",
@@ -108,6 +111,17 @@ func noChangeHint(out *actOut, batch []action) string {
 			base, later, base)
 	}
 	return fmt.Sprintf("Nothing changed since %s, so the input may have missed or had no visible effect%s. Look at %s before repeating it.", base, later, base)
+}
+
+// partScrolledHint says that a scroll at the end of the batch changed only part of the window, which the zooms show: a
+// list there scrolled, or a control under the pointer took the wheel, as a hovered dropdown does in Qt, GTK 3 and Tk,
+// whose value then changed. Or "".
+func partScrolledHint(out *actOut, batch []action) string {
+	if len(batch) == 0 || batch[len(batch)-1].Kind != "scroll" || out.Shot == nil || out.Shot.Changes == nil || len(out.Shot.Changes.Regions) == 0 ||
+		out.Actions == nil || out.Actions.Delivery != "complete" {
+		return ""
+	}
+	return "The scroll changed only part of the window: a list there scrolled, or a control under the pointer, such as a dropdown, took the wheel and changed its value. Look at the zooms, and scroll over the page's background to move the page."
 }
 
 // laterWindow adds to a hint about input that can open a window and changed nothing that it may have opened a window

@@ -48,6 +48,31 @@ class SplitFromText(unittest.TestCase):
         self.assertEqual(from_text["watch"], 0)
         self.assertEqual(from_text, from_structured)
 
+    def test_a_batch_that_ends_with_a_scroll_waits_twice(self):
+        actions = [{"action": "click", "x": 1, "y": 1}, {"action": "scroll", "x": 1, "y": 1, "dy": 3}]
+        from_structured, from_text = both(
+            actions,
+            "2/2 delivered · lease 60 s\nbefore the scroll: redraw observed · quiet 200 ms · 412 ms · shot s2 = s1 + 1 change\n"
+            "zoom s3 140×120 of s2 at 150,50 140×120\nafter the scroll: redraw observed · quiet 200 ms · 230 ms · shot s4 640×400 "
+            "(full shot: 58% changed since s2)",
+            {"actions": {"done": 2, "total": 2, "delivery": "complete"}, "wait": {"ended": "quiet", "elapsed_ms": 230},
+             "before_scroll": {"wait": {"ended": "quiet", "elapsed_ms": 412}}})
+        self.assertEqual(from_text, from_structured)
+        self.assertEqual(from_text["wait"], 0.642)
+
+    def test_the_watch_after_a_split_batch_counts_from_its_last_wait(self):
+        # Two waits of 800 ms, neither of which took the watch's 500 ms in.
+        actions = [{"action": "click", "x": 1, "y": 1}, {"action": "scroll", "x": 1, "y": 1, "dy": 3}]
+        from_structured, from_text = both(
+            actions,
+            "2/2 delivered · lease 60 s\nbefore the scroll: redraw observed · quiet 200 ms · 800 ms · shot s2 = s1 + 1 change\n"
+            "zoom s3 140×120 of s2 at 150,50 140×120\nafter the scroll: redraw observed · quiet 200 ms · 800 ms · shot s4 640×400 "
+            "(full shot: 58% changed since s2)",
+            {"actions": {"done": 2, "total": 2, "delivery": "complete"}, "wait": {"ended": "quiet", "elapsed_ms": 800},
+             "before_scroll": {"wait": {"ended": "quiet", "elapsed_ms": 800}}})
+        self.assertEqual(from_text, from_structured)
+        self.assertEqual(from_text["watch"], 0.5)
+
 
 class CurrentProtocol(unittest.TestCase):
     def test_sender_and_server_pacing_constants_have_not_drifted(self):
@@ -89,6 +114,10 @@ class CurrentProtocol(unittest.TestCase):
         result = analyze.split({"summary": "1/1 delivered · no time left to wait", "hint": "", "seconds": 2},
                                {"actions": [{"action": "type", "text": "a"}]}, {}, 500)
         self.assertEqual(result["wait"], 0)
+
+    def test_keys_without_modifiers_go_at_the_pace_of_typing(self):
+        self.assertEqual(analyze.pacing([{"action": "key", "keys": ["right"], "repeat": 100}]), (1490, 0))
+        self.assertEqual(analyze.pacing([{"action": "key", "keys": ["ctrl", "right"], "repeat": 2}]), (65, 0))
 
     def test_clicks_always_wait_for_the_answer(self):
         # move, click, sync, move, click: two normal gaps and the sync's 150 ms minimum.

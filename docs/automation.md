@@ -265,10 +265,10 @@ Options come before the first action.
 | `click [BUTTON [COUNT [MODS]]]` | Click BUTTON (default `left`) COUNT times (1 to 3, default 1), holding MODS such as `ctrl+shift`, or `-` for none. |
 | `down BUTTON`, `up BUTTON` | Press or release a button. |
 | `drag X1 Y1 X2 Y2 [BUTTON [MODS]]` | Press at X1,Y1, move to X2,Y2 in steps, release. |
-| `scroll DX DY` | Smooth scroll in logical pixels. Positive DY scrolls down. |
+| `scroll DX DY` | Smooth scroll by DX and DY, as a touchpad does. Apps scale it as they like, and some X11 apps ignore it, so prefer `wheel`. Positive DY scrolls down. |
 | `wheel DX DY` | Scroll whole wheel notches, -100 to 100 per axis. |
 | `key CODE` | Press and release a Linux evdev key code, such as `28` for Enter. |
-| `keys CHORD [REPEAT]` | Press the keys of CHORD together, such as `ctrl+shift+t` or `enter`, 1 to 100 times. |
+| `keys CHORD [REPEAT]` | Press the keys of CHORD together, such as `ctrl+shift+t` or `enter`, 1 to 500 times. |
 | `type TEXT` | Type text, with [key tags](#key-tags) for keys and waits. |
 | `text TEXT` | Type TEXT literally, without tags or escapes. |
 | `sleep MS` | Wait 0 to 3600000 ms. |
@@ -307,8 +307,8 @@ send it, so `hyprmasq-input` paces its input unless `--no-pace` is given:
 | Between actions | 50 ms |
 | Press after motion | at least 30 ms |
 | Button held | 50 ms |
-| Chord keys held | 15 ms |
-| Typed keys | held 5 ms, 10 ms apart |
+| Chords with modifiers | the key 10 ms after its modifiers, held 15 ms, 15 ms apart |
+| Typed keys, and `keys` that names one key | held 5 ms, 10 ms apart |
 | Wheel notches | 20 ms apart |
 | Drags | steps of at most 10 logical pixels, 10 ms apart |
 
@@ -326,7 +326,7 @@ it.
 | `<enter>`, `<tab>`, `<space>`, `<esc>`, `<backspace>`, `<delete>` | Press that key. |
 | `<up>`, `<down>`, `<left>`, `<right>`, `<home>`, `<end>`, `<pageup>`, `<pagedown>` | Press that key. |
 | `<F5>`, `<XF86AudioMute>`, … | Press the key of an XKB keysym that does not type a character. |
-| `<KEY:COUNT>` | Press a named key or keysym 1 to 100 times, such as `<down:5>`. |
+| `<KEY:COUNT>` | Press a named key or keysym 1 to 500 times, such as `<down:5>`. |
 | `<shortcut:MODS+KEY>` | Hold the modifiers around KEY, such as `<shortcut:ctrl+l>`. |
 | `<wait:MS>` | Wait 0 to 3600000 ms. |
 | `<settle>` | Wait 300 ms. |
@@ -540,6 +540,17 @@ and GTK 3 answers the request by destroying the menu under its combo box,
 which crashes the app once the combo box opens again. `hyprmasq-mcp`'s
 `close` refuses menus, see
 `x11` in [Window state](#window-state).
+
+**Scrolling.** XInput 2 clients, such as GTK 3 and Chromium, turn a scroll into
+the difference of a scroll valuator from the value they saw last, and forget
+that value when the pointer enters a window and when the device that sends
+the pointer's events changes, as it does between motion and a scroll in
+Hyprland's XWayland. So before the first scroll after other pointer input, the
+plugin sends the X server a scroll of 0 in a frame before it, which those
+clients take for the value to count from, and every notch counts. One case
+remains: when another X11 window of the same X server lies over the target
+where the pointer is, the restacking for each frame tells the app that the
+pointer entered again, and only the first notch of a scroll counts.
 
 To keep this from misrouting your typing, input to an X11 window is delivered
 only while the active window is a Wayland window, the target itself, or an

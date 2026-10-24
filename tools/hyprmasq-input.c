@@ -26,13 +26,16 @@
 #define TIMEOUT_MS     5000
 #define REPLACE_MS     1000
 #define SETTLE_MS      300
-#define MAX_REPEAT     100
 #define MAX_NOTCHES    100
 #define MAX_SLEEP_MS   3600000
 #define MAX_CHORD_MODS 8
 #define MAX_HELD       64
 #define MAX_DRAG_STEPS 2000
 #define EVDEV_OFFSET   8
+// The presses of a key or tag. 500 presses of a key without modifiers take 7.5 s at their pace, and of a chord with
+// modifiers 20 s, which the longest deadline of hyprmasq-mcp still fits: enough for a slider of 360 steps, end to end.
+// hyprmasq-mcp's maxRepeat repeats it. Change them together.
+#define MAX_REPEAT 500
 // After SIGINT or SIGTERM, what is left to do gets this long: releasing what is held, confirming it and reporting.
 // hyprmasq-mcp stops a sender this long and a margin before its wait and capture start, and kills it 2 s after SIGTERM:
 // senderCancel and the constants after it in mcp/internal/server/input.go. Change them together.
@@ -142,7 +145,7 @@ static const struct {
     [ACTION_SCROLL] = {"scroll", "scroll DX DY"},
     [ACTION_WHEEL]  = {"wheel", "wheel DX DY, whole notches up to 100"},
     [ACTION_KEY]    = {"key", "key CODE"},
-    [ACTION_KEYS]   = {"keys", "keys CHORD [REPEAT], REPEAT 1 to 100"},
+    [ACTION_KEYS]   = {"keys", "keys CHORD [REPEAT], REPEAT 1 to 500"},
     [ACTION_TYPE]   = {"type", "type TEXT"},
     [ACTION_TEXT]   = {"text", "text TEXT"},
     [ACTION_SLEEP]  = {"sleep", "sleep MS, up to 3600000"},
@@ -216,7 +219,7 @@ static void help(void) {
           "  scroll DX DY                      Smooth scroll in logical pixels.\n"
           "  wheel DX DY                       Scroll whole notches, -100 to 100.\n"
           "  key CODE                          Press and release an evdev key code.\n"
-          "  keys CHORD [REPEAT]               Press a chord 1 to 100 times. Default: 1.\n"
+          "  keys CHORD [REPEAT]               Press a chord 1 to 500 times. Default: 1.\n"
           "  type TEXT                         Type text with key tags and escapes.\n"
           "  text TEXT                         Type literal text without tags or escapes.\n"
           "  sleep MS                          Wait 0 to 3600000 milliseconds.\n"
@@ -233,7 +236,7 @@ static void help(void) {
           "Key tags in type TEXT, case-insensitive:\n"
           "  <enter>, <tab>, <esc>, <backspace>, <delete>, <up>, <down>, <left>,\n"
           "  <right>, <home>, <end>, <pageup>, <pagedown>, <space>, <F5>\n"
-          "  <KEY:COUNT>         Repeat a named key or non-printable keysym, 1 to 100.\n"
+          "  <KEY:COUNT>         Repeat a named key or non-printable keysym, 1 to 500.\n"
           "  <shortcut:ctrl+l>   Hold modifiers around a key.\n"
           "  <wait:MS>           Wait 0 to 3600000 milliseconds.\n"
           "  <settle>            Wait 300 milliseconds.\n"
@@ -1526,6 +1529,14 @@ static bool typeSteps(struct state* s, const struct steps* steps) {
     return true;
 }
 
+// Whether a keys action names one key, without modifiers, which it presses as typing would: held TYPE_HOLD_MS and
+// TYPE_GAP_MS apart, with any modifier that the keymap needs for it, such as Shift for @, at once before it. Apps took
+// a hundred arrow presses at this pace one step each, in Qt, GTK, Tk and Chromium. Chords with modifiers keep their
+// pace, which gives a shortcut's modifiers time to take effect.
+static bool typedKeys(const struct action* a) {
+    return a->type == ACTION_KEYS && !strchr(a->text, '+');
+}
+
 // The least time that the resolved actions take at their pace, in milliseconds, without the round trips: the delays of
 // the pacing, of which only sleeps and waits remain with --no-pace. type and text count every step they resolved to, so
 // a character typed through Compose counts a key for each keysym of its sequence.
@@ -1554,7 +1565,12 @@ static long pacedTime(const struct state* s, const struct action* actions, int t
                 ms += notches ? pace * (notches - 1) * WHEEL_GAP_MS : 0;
                 break;
             case ACTION_KEY: ms += pace * CHORD_HOLD_MS; break;
-            case ACTION_KEYS: ms += pace * (a->count * (mods + CHORD_HOLD_MS) + (a->count - 1) * CHORD_GAP_MS); break;
+            case ACTION_KEYS:
+                if (typedKeys(a))
+                    ms += pace * (a->count * TYPE_HOLD_MS + (a->count - 1) * TYPE_GAP_MS);
+                else
+                    ms += pace * (a->count * (mods + CHORD_HOLD_MS) + (a->count - 1) * CHORD_GAP_MS);
+                break;
             case ACTION_TYPE:
             case ACTION_TEXT:
                 for (size_t j = 0; j < a->steps.count; ++j) {
@@ -1583,9 +1599,12 @@ static bool runAction(struct state* s, const struct action* a) {
         case ACTION_WHEEL: return wheel(s, a);
         case ACTION_KEY: return pressChord(s, &(struct chord){.code = a->code}, 0, CHORD_HOLD_MS, true);
         case ACTION_KEYS:
-            for (long i = 0; i < a->count; ++i)
-                if ((i && !paceWait(s, CHORD_GAP_MS)) || !pressChord(s, &a->chord, CHORD_MOD_MS, CHORD_HOLD_MS, i + 1 == a->count))
+            for (long i = 0; i < a->count; ++i) {
+                const bool typed = typedKeys(a);
+                if ((i && !paceWait(s, typed ? TYPE_GAP_MS : CHORD_GAP_MS)) ||
+                    !pressChord(s, &a->chord, typed ? 0 : CHORD_MOD_MS, typed ? TYPE_HOLD_MS : CHORD_HOLD_MS, i + 1 == a->count))
                     return false;
+            }
             return true;
         case ACTION_TYPE:
         case ACTION_TEXT: return typeSteps(s, &a->steps);

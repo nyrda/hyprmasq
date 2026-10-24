@@ -91,16 +91,19 @@ with subtest("hyprmasq-input paces clicks and key chords and reports JSON"):
     assert [e[2:] for e in events] == [(29, 1), (42, 1), (20, 1), (20, 0), (42, 0), (29, 0)], events
     assert 8 <= events[2][1] - events[1][1] <= 150 and 12 <= events[3][1] - events[2][1] <= 150, events
 
-    # Aliases and keysym names ignore case, a letter is its key without Shift, and repeats are 15 ms apart. Actions
-    # are 50 ms apart.
+    # Aliases and keysym names ignore case, and a letter is its key without Shift. A key without modifiers is held 5 ms
+    # and repeats 10 ms apart, as typed keys do, and a chord with modifiers repeats 15 ms apart. Actions are 50 ms
+    # apart.
     offset = log_size("hm-i-wev")
     chords = ["ctrl+l", "Enter", "return", "esc", "ESCAPE", "del", "f5", "A"]
-    args = [word for chord in chords for word in ("keys", chord)] + ["keys", "tab", 3]
-    assert input_json(input_path, *args) == (0, complete(len(chords) + 1))
-    events = wait_wev(offset, {"key"}, lambda e: len(e) >= 24)
-    assert [int(e[2]) for e in events if e[3] == 1] == [29, 38, 28, 28, 1, 1, 111, 63, 30, 15, 15, 15], events
+    args = [word for chord in chords for word in ("keys", chord)] + ["keys", "tab", 3, "keys", "shift+tab", 2]
+    assert input_json(input_path, *args) == (0, complete(len(chords) + 2))
+    events = wait_wev(offset, {"key"}, lambda e: len(e) >= 32)
+    assert [int(e[2]) for e in events if e[3] == 1] == [29, 38, 28, 28, 1, 1, 111, 63, 30, 15, 15, 15, 42, 15, 42, 15], events
     assert events[4][1] - events[3][1] >= 45, events
-    assert all(events[i + 1][1] - events[i][1] >= 12 for i in (19, 21)), events
+    assert all(events[i + 1][1] - events[i][1] >= 3 for i in (18, 20, 22)), events
+    assert all(events[i + 1][1] - events[i][1] >= 8 for i in (19, 21)), events
+    assert events[28][1] - events[27][1] >= 12, events
     assert snapshot() == before_focus
 
 with subtest("hyprmasq-input scrolls in wheel notches and drags in steps"):

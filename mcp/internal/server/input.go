@@ -115,11 +115,13 @@ func minSendTime(steps []inputStep) time.Duration {
 				ms += (notches - 1) * wheelGapMs
 			}
 		case "keys":
-			repeat, press := int(value(argv[2])), chordHoldMs
+			// A chord of one key is typed, and one with modifiers goes down after them.
+			repeat := int(value(argv[2]))
 			if strings.Contains(argv[1], "+") {
-				press += chordModMs
+				ms += repeat*(chordModMs+chordHoldMs) + (repeat-1)*chordGapMs
+			} else {
+				ms += repeat*typeHoldMs + (repeat-1)*typeGapMs
 			}
-			ms += repeat*press + (repeat-1)*chordGapMs
 		case "text":
 			// Every character is at least one key press, and a CR LF is one Enter.
 			if keys := utf8.RuneCountInString(argv[1]) - strings.Count(argv[1], "\r\n"); keys > 0 {

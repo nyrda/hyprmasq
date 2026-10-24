@@ -130,6 +130,22 @@ namespace hyprmasq::input {
             }
         }
 
+        // The X server whose last pointer event from hyprmasq was a scroll, or null. An X server, such as Hyprland's
+        // XWayland, gives each scroll as a change of a scroll valuator, which XInput 2 clients turn into a scroll by its
+        // difference from the value they saw last. GTK 3 and Chromium forget that value when the pointer enters a window,
+        // and when the device that sends the master pointer's events changes: XWayland sends motion from its absolute
+        // pointer and scrolls from its relative pointer, so every scroll after a motion, an enter or a button takes the
+        // first notch for the value to count from, and a scroll of one event, as of px, does nothing. So before the first
+        // scroll after anything else, also right after an enter, the X server gets a scroll of 0 in a frame before the
+        // scroll's, which those clients take for that value. The client is only compared, and an enter, which comes first for a
+        // new session, makes it count for nothing.
+        wl_client* scrollBaseline = nullptr;
+
+        bool isScroll(eis_event* e) {
+            const auto type = eis_event_get_type(e);
+            return type == EIS_EVENT_SCROLL_DELTA || type == EIS_EVENT_SCROLL_DISCRETE || type == EIS_EVENT_SCROLL_STOP;
+        }
+
         // Sends a scroll event to the pointer resource.
         void sendScroll(const WP<CWLPointerResource>& p, eis_event* e, uint64_t now) {
             const auto   type     = eis_event_get_type(e);
@@ -267,6 +283,8 @@ namespace hyprmasq::input {
     void SSession::leavePointer() {
         pressSerials.clear();
         auto s = wlSeat();
+        if (s && scrollBaseline == s->client())
+            scrollBaseline = nullptr;
         if (s && enteredPointer)
             for (auto& p : s->m_pointers)
                 if (p) {
@@ -920,7 +938,8 @@ namespace hyprmasq::input {
             enterKeyboard(s, w->resource(), false);
             frame.focusedKeyboard = true;
         }
-        if (enteredPointer != target) {
+        const bool entering = enteredPointer != target;
+        if (entering) {
             if (enteredPointer)
                 leavePointer();
             for (auto& p : s->m_pointers)
@@ -930,6 +949,18 @@ namespace hyprmasq::input {
                 }
             enteredPointer = target;
             buttons.clear();
+        }
+        if (!isScroll(e)) {
+            if (scrollBaseline == s->client())
+                scrollBaseline = nullptr;
+        } else if ((entering || scrollBaseline != s->client()) && x11::serves(s->client())) {
+            for (auto& p : s->m_pointers)
+                if (p) {
+                    p->sendAxis(frame.time, WL_POINTER_AXIS_VERTICAL_SCROLL, 0);
+                    p->sendAxis(frame.time, WL_POINTER_AXIS_HORIZONTAL_SCROLL, 0);
+                    p->sendFrame();
+                }
+            scrollBaseline = s->client();
         }
         for (auto& p : s->m_pointers)
             if (p)
@@ -984,6 +1015,8 @@ namespace hyprmasq::input {
                 p->sendEnter(real, local);
                 p->sendFrame();
             }
+        if (scrollBaseline == s->client())
+            scrollBaseline = nullptr;
         enteredPointer.reset();
         buttons.clear();
         selection::restore(s->client());

@@ -14,14 +14,16 @@ func summaryLine(out *actOut, batch []action) string {
 		}
 	}
 	add(actionsText(out.Actions, batch))
-	add(waitText(out.Wait))
+	// A batch that act sent in two parts, before and after its scroll, has a line for each part's wait and shot.
+	split := out.BeforeScroll != nil
+	if !split {
+		add(waitText(out.Wait))
+	}
 	if out.WindowClosed && (out.Wait == nil || out.Wait.Ended != "window_closed") {
 		add("window closed")
 	}
-	if out.Shot != nil {
-		add(shotText(out.Shot))
-	} else if out.CaptureError != nil {
-		add("capture failed: " + out.CaptureError.Message)
+	if !split {
+		add(resultShotText(out))
 	}
 	add(sourceText(out.Source))
 	// A held lease tells the agent that the window keeps the emulated focus until its next call. A window without one
@@ -31,10 +33,39 @@ func summaryLine(out *actOut, batch []action) string {
 	}
 	add(newWindowsText(out.NewWindows))
 	add(lateWindowsText(out.LateWindows))
-	lines := append([]string{strings.Join(parts, " · ")}, changesLines(out.Shot)...)
+	lines := []string{strings.Join(parts, " · ")}
+	if split {
+		before := out.BeforeScroll
+		lines = append(lines, "before the scroll: "+joinParts(waitText(before.Wait), shotText(before.Shot)))
+		lines = append(lines, changesLines(before.Shot)...)
+		lines = append(lines, "after the scroll: "+joinParts(waitText(out.Wait), resultShotText(out)))
+	}
+	lines = append(lines, changesLines(out.Shot)...)
 	lines = append(lines, sourceLines(out.Source)...)
 	lines = append(lines, newWindowLines(out.NewWindows, "new window")...)
 	return strings.Join(append(lines, newWindowLines(out.LateWindows, "late window")...), "\n")
+}
+
+// resultShotText is the summary's part about the result's shot, or about the capture that failed.
+func resultShotText(out *actOut) string {
+	switch {
+	case out.Shot != nil:
+		return shotText(out.Shot)
+	case out.CaptureError != nil:
+		return "capture failed: " + out.CaptureError.Message
+	}
+	return ""
+}
+
+// joinParts joins the summary's parts that are not empty.
+func joinParts(parts ...string) string {
+	var kept []string
+	for _, p := range parts {
+		if p != "" {
+			kept = append(kept, p)
+		}
+	}
+	return strings.Join(kept, " · ")
 }
 
 // actionsText counts the actions the application received as delivered: the sender cannot see whether the application
@@ -55,6 +86,10 @@ func actionsText(a *actionsOut, batch []action) string {
 	case "none":
 		text += ", nothing sent"
 	case "partial":
+		if a.HeldBack != "" {
+			text += ", scroll held back"
+			break
+		}
 		text += ", delivery partial"
 		if failed != "" {
 			text += ": " + failed + " may be partly applied"

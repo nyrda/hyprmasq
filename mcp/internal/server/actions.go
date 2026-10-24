@@ -90,7 +90,9 @@ var actionRequired = map[string][]string{
 // Limits within those of hyprmasq-input, which gets every action on its command line.
 const (
 	maxPauseMs = 5000
-	maxRepeat  = 100
+	// The sender's MAX_REPEAT: 500 presses of a key take 7.5 s at its pace and fit the default deadline, and those of a
+	// chord with modifiers 20 s, which fit the longest.
+	maxRepeat  = 500
 	maxNotches = 100
 	// A chord of hyprmasq-input has at most nine keys, with names under 64 bytes and 256 bytes in all.
 	maxChordKeys  = 9

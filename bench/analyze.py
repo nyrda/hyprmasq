@@ -137,9 +137,11 @@ def pacing(actions):
             paced += MOTION_PRESS_MS + 2 * DRAG_HOLD_MS + (moves - 1) * DRAG_STEP_MS
         elif verb == "wheel":
             paced += max(0, step[1] - 1) * WHEEL_GAP_MS
+        elif verb == "keys" and step[1]:
+            paced += step[2] * (CHORD_MOD_MS + CHORD_HOLD_MS) + (step[2] - 1) * CHORD_GAP_MS
         elif verb == "keys":
-            press = CHORD_HOLD_MS + (CHORD_MOD_MS if step[1] else 0)
-            paced += step[2] * press + (step[2] - 1) * CHORD_GAP_MS
+            # A key without modifiers goes at the pace of typing.
+            paced += step[2] * TYPE_HOLD_MS + (step[2] - 1) * TYPE_GAP_MS
         elif verb == "text":
             # Every character is a key, and a CR LF one Enter; one typed through Compose takes more.
             keys = len(step[1]) - step[1].count("\r\n")
@@ -212,9 +214,17 @@ def split(call, a, structured, watch_ms):
     if closed_sending:
         while sent and sent[-1].get("action") == "pause":
             sent = sent[:-1]
+    # A batch that ends with a scroll waits twice: for the actions before the scroll, and after it.
+    first = (structured.get("before_scroll") or {}).get("wait") or {}
     if "elapsed_ms" in wait:
-        waited = wait["elapsed_ms"]
-        again = (wait.get("again") or {}).get("elapsed_ms", 0)
+        final = wait["elapsed_ms"]
+        waited = final + first.get("elapsed_ms", 0)
+        again = (wait.get("again") or {}).get("elapsed_ms", 0) + (first.get("again") or {}).get("elapsed_ms", 0)
+    elif "\nbefore the scroll: " in "\n" + call["summary"] + "\n" + call["hint"]:
+        text = call["summary"] + "\n" + call["hint"]
+        waits = [int(next(g for g in m.groups() if g)) for m in WAIT.finditer(text)]
+        waited, final = sum(waits), (waits or [0])[-1]
+        again = sum(int(m.group(1)) for m in AGAIN.finditer(text))
     else:
         m, again = WAIT.search(call["summary"]), AGAIN.search(call["summary"])
         if not m and not (call["summary"].startswith("error") or "window closed" in call["summary"]
@@ -223,6 +233,7 @@ def split(call, a, structured, watch_ms):
             raise ValueError("Unparseable act wait summary: " + call["summary"])
         waited = int(next(g for g in m.groups() if g)) if m else 0
         again = int(again.group(1)) if again else 0
+        final = waited
     watched = watch_ms if applied and opens_windows(actions) and wait.get("ended") != "cancelled" else 0
     if watched and "timeout after" in call["summary"]:
         # A watch that ran into the deadline is in the wait's time. A wait that did before it leaves at most the grace,
@@ -234,8 +245,9 @@ def split(call, a, structured, watch_ms):
         # windows lasts the watch's time from the end of the first wait.
         settings = a.get("wait") or {}
         expect = settings.get("expect_ms", 1000)
-        if waited >= expect + settings.get("quiet_ms", 200):
-            watched = max(0, watched - (waited - expect))
+        # Only the last wait, which the grace follows, can hold part of it.
+        if final >= expect + settings.get("quiet_ms", 200):
+            watched = max(0, watched - (final - expect))
     elif watched:
         watched = max(watched, again)
     paced, pauses = pacing(sent)

@@ -120,12 +120,23 @@ func fitsDeadline(steps []inputStep, deadline time.Duration) error {
 	if len(steps) == 0 {
 		return nil
 	}
-	return overDeadline(minSendTime(steps), deadline, false)
+	return overDeadline(minSendTime(steps), deadline, false, typesText(steps))
+}
+
+// typesText tells whether the steps type text.
+func typesText(steps []inputStep) bool {
+	for _, step := range steps {
+		if step.Argv[0] == "text" {
+			return true
+		}
+	}
+	return false
 }
 
 // overDeadline refuses input that takes at least least to send at its pace, or nil when the deadline leaves enough
-// time for it. resolved tells that the least time is the sender's, which knows the keys that the keymap needs.
-func overDeadline(least, deadline time.Duration, resolved bool) error {
+// time for it. resolved tells that the least time is the sender's, which knows the keys that the keymap needs, and
+// typed that the input types text, which the hint for input that no deadline fits counts in characters.
+func overDeadline(least, deadline time.Duration, resolved, typed bool) error {
 	need, left := withRoundTrips(least), inputTime(deadline)
 	if need <= left {
 		return nil
@@ -139,6 +150,8 @@ func overDeadline(least, deadline time.Duration, resolved bool) error {
 			least.Milliseconds(), how, need.Milliseconds(), deadline.Milliseconds(), max(0, left.Milliseconds()), (deadline - left).Milliseconds())}
 	if enough := deadlineFor(least); enough <= maxDeadline {
 		te.Hint = fmt.Sprintf("Give a deadline_ms of at least %d, or split the batch over several calls.", enough.Milliseconds())
+	} else if !typed {
+		te.Hint = "Split it over several calls: a key alone takes at least 15 ms a press, and a chord with modifiers 40 ms."
 	} else if resolved {
 		te.Hint = fmt.Sprintf("Split it over several calls: typing takes at least 15 ms %s.", perKey)
 	} else {
