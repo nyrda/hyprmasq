@@ -1419,7 +1419,8 @@ static bool scroll(struct state* s, const struct action* a) {
         return false;
     ei_device_scroll_stop(s->pointer, a->x != 0, a->y != 0);
     frame(s, s->pointer);
-    return !interrupted(s);
+    // As after a wheel's last notch: the scroll reaches an X11 app before the sender can end. See wheel.
+    return !interrupted(s) && paceWait(s, WHEEL_GAP_MS);
 }
 
 // One notch per frame, as a wheel sends them.
@@ -1567,6 +1568,7 @@ static long pacedTime(const struct state* s, const struct action* actions, int t
                 notches = labs(a->dx) + labs(a->dy);
                 ms += notches ? pace * notches * WHEEL_GAP_MS : 0;
                 break;
+            case ACTION_SCROLL: ms += pace * WHEEL_GAP_MS; break;
             case ACTION_KEY: ms += pace * CHORD_HOLD_MS; break;
             case ACTION_KEYS:
                 if (typedKeys(a))

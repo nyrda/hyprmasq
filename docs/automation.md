@@ -310,6 +310,7 @@ send it, so `hyprmasq-input` paces its input unless `--no-pace` is given:
 | Chords with modifiers | the key 10 ms after its modifiers, held 15 ms, 15 ms apart |
 | Typed keys, and `keys` that names one key | held 5 ms, 10 ms apart |
 | Wheel notches | 20 ms apart, then 20 ms after the last notch |
+| Smooth scrolls | 20 ms after each |
 | Drags | steps of at most 10 logical pixels, 10 ms apart |
 
 **Releases.** `hyprmasq-input` leaves nothing pressed. After a failure, and on
@@ -548,9 +549,10 @@ the pointer's events changes, as it does between motion and a scroll in
 Hyprland's XWayland. So before the first scroll after other pointer input, the
 plugin sends the X server a scroll of 0 in a frame before it, which those
 clients take for the value to count from. `hyprmasq-input` also waits 20 ms
-after the last wheel notch before it ends. XWayland queues scroll motion but
-handles the pointer's leave at the sender's end at once, and without that wait
-the last notch can reach the X root window instead of the app. The wait is a
+after the last wheel notch, and after a smooth scroll, before it ends. XWayland
+queues scroll motion but handles the pointer's leave at the sender's end at
+once, and without that wait the last scroll can reach the X root window
+instead of the app. The wait is a
 matter of timing, not an acknowledgement from XWayland, and `--no-pace` skips
 it. Another case remains: when another X11 window of the same X server lies
 over the target where the pointer is, the restacking for each frame tells the

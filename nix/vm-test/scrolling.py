@@ -185,7 +185,7 @@ with subtest("scrolls on X11 move GTK 3 and Chromium by every notch, and px scro
         machine.succeed(scr_kill)
         wait_for(f"{scr_title} closed", lambda: client(scr_title) is None)
 
-with subtest("ending an X11 wheel action preserves its final notch"):
+with subtest("ending an X11 wheel action or smooth scroll keeps its last scroll"):
     scr_window = scr_hidden(scr_probes[1][0], "sc-chromium", "hm-x-scroll", 103)
     machine.wait_until_succeeds("grep -q '\"probe ready\"' /tmp/hyprmasq-sc-chromium.log", timeout=60)
     scr_path = open_socket(scr_window)
@@ -197,6 +197,13 @@ with subtest("ending an X11 wheel action preserves its final notch"):
         send(scr_path, "move", 96, 400, "wheel", 0, scr_n)
         scr_after = scr_settled(scr_chromium_positions)
         assert scr_after == scr_at + 120 * scr_n, (scr_trial, scr_at, scr_n, scr_after)
+        scr_at = scr_after
+    # A smooth scroll is a single event at the end of its sender, which the leave can overtake as it can a last notch.
+    for scr_trial in range(24):
+        scr_down = scr_at < 3000
+        send(scr_path, "move", 96, 400, "scroll", 0, 50 if scr_down else -50)
+        scr_after = scr_settled(scr_chromium_positions)
+        assert scr_after > scr_at if scr_down else scr_after < scr_at, (scr_trial, scr_at, scr_after)
         scr_at = scr_after
     assert snapshot() == (99, scr_user), snapshot()
     machine.succeed(scr_probes[1][4])

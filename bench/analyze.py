@@ -91,8 +91,10 @@ def sender_steps(actions):
             (x1, y1), (x2, y2) = a.get("from", (0, 0)), a.get("to", (0, 0))
             seq = [["drag", math.hypot(x2 - x1, y2 - y1)]]
         elif kind == "scroll":
-            notches = int(abs(a.get("dx", 0)) + abs(a.get("dy", 0))) if a.get("unit", "notch") == "notch" else 0
-            seq = [["move"], ["wheel", notches]]
+            if a.get("unit", "notch") == "notch":
+                seq = [["move"], ["wheel", int(abs(a.get("dx", 0)) + abs(a.get("dy", 0)))]]
+            else:
+                seq = [["move"], ["scroll"]]
         elif kind == "key":
             # act joins the keys with "+", as in ["ctrl", "l"] or ["ctrl+l"], and a "+" means modifiers.
             seq = [["keys", "+" in "+".join(a.get("keys", [])), a.get("repeat", 1)]]
@@ -138,6 +140,9 @@ def pacing(actions):
         elif verb == "wheel":
             # The last notch gets its gap too, before the sender can end.
             paced += step[1] * WHEEL_GAP_MS
+        elif verb == "scroll":
+            # So does a smooth scroll.
+            paced += WHEEL_GAP_MS
         elif verb == "keys" and step[1]:
             paced += step[2] * (CHORD_MOD_MS + CHORD_HOLD_MS) + (step[2] - 1) * CHORD_GAP_MS
         elif verb == "keys":

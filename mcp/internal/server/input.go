@@ -115,6 +115,9 @@ func minSendTime(steps []inputStep) time.Duration {
 				// The last notch gets its gap too, before the sender can end: see wheel in hyprmasq-input.c.
 				ms += notches * wheelGapMs
 			}
+		case "scroll":
+			// So does a smooth scroll.
+			ms += wheelGapMs
 		case "keys":
 			// A chord of one key is typed, and one with modifiers goes down after them.
 			repeat := int(value(argv[2]))
