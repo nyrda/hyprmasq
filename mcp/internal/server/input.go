@@ -112,7 +112,8 @@ func minSendTime(steps []inputStep) time.Duration {
 			}
 		case "wheel":
 			if notches := int(math.Abs(value(argv[1])) + math.Abs(value(argv[2]))); notches > 0 {
-				ms += (notches - 1) * wheelGapMs
+				// The last notch gets its gap too, before the sender can end: see wheel in hyprmasq-input.c.
+				ms += notches * wheelGapMs
 			}
 		case "keys":
 			// A chord of one key is typed, and one with modifiers goes down after them.

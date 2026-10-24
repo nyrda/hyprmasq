@@ -228,7 +228,8 @@ func TestMinSendTime(t *testing.T) {
 		{steps([]string{"click", "left", "2", "ctrl"}), 190},
 		{steps([]string{"drag", "0", "0", "300", "400", "left", "-"}), 620},
 		{steps([]string{"drag", "0", "0", "5", "0", "left", "shift"}), 340},
-		{steps([]string{"wheel", "2", "-3"}), 80},
+		// Five notches, 20 ms apart and 20 ms after the last, which XWayland needs before the sender's end leaves.
+		{steps([]string{"wheel", "2", "-3"}), 100},
 		{steps([]string{"scroll", "0", "-40.5"}), 0},
 		// A chord with modifiers presses its key 10 ms after them, holds it 15 ms and repeats 15 ms apart. A key alone
 		// is typed: held 5 ms, 10 ms apart, also one that the keymap reaches with Shift.

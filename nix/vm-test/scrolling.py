@@ -185,6 +185,23 @@ with subtest("scrolls on X11 move GTK 3 and Chromium by every notch, and px scro
         machine.succeed(scr_kill)
         wait_for(f"{scr_title} closed", lambda: client(scr_title) is None)
 
+with subtest("ending an X11 wheel action preserves its final notch"):
+    scr_window = scr_hidden(scr_probes[1][0], "sc-chromium", "hm-x-scroll", 103)
+    machine.wait_until_succeeds("grep -q '\"probe ready\"' /tmp/hyprmasq-sc-chromium.log", timeout=60)
+    scr_path = open_socket(scr_window)
+    scr_at = 0
+    # Sender exit leaves the pointer. XWayland can process that leave before the final queued scroll, routing
+    # the last notch to the root window. Repeated short senders exercise that race, away from either page end.
+    for scr_trial in range(48):
+        scr_n = (1 if scr_trial % 2 else 7) * (1 if scr_at < 1000 else -1)
+        send(scr_path, "move", 96, 400, "wheel", 0, scr_n)
+        scr_after = scr_settled(scr_chromium_positions)
+        assert scr_after == scr_at + 120 * scr_n, (scr_trial, scr_at, scr_n, scr_after)
+        scr_at = scr_after
+    assert snapshot() == (99, scr_user), snapshot()
+    machine.succeed(scr_probes[1][4])
+    wait_for("the repeated-scroll Chromium closed", lambda: client("hm-x-scroll") is None)
+
 assert scr_agent.stop() == 0
 machine.succeed(f"kill {next(c['pid'] for c in clients() if c['address'] == scr_user)}")
 wait_for("hm-sc-user closed", lambda: client("hm-sc-user") is None)

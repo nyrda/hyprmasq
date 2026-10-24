@@ -1439,7 +1439,10 @@ static bool wheel(struct state* s, const struct action* a) {
             if (interrupted(s))
                 return false;
         }
-    return true;
+    // XWayland queues scroll motion but handles wl_pointer.leave immediately. When the sender exits, hyprmasq
+    // leaves the pointer, which can route the last queued notch to the X root window instead of the target. Give
+    // that notch the same processing interval as the others before the sender can stop emulating.
+    return !sent || paceWait(s, WHEEL_GAP_MS);
 }
 
 // The answers to syncs on standard input: lines with the number that a sync printed.
@@ -1562,7 +1565,7 @@ static long pacedTime(const struct state* s, const struct action* actions, int t
             case ACTION_DRAG: ms += pace * (MOTION_PRESS_MS + 2 * DRAG_HOLD_MS + (dragSteps(a) - 1) * DRAG_STEP_MS); break;
             case ACTION_WHEEL:
                 notches = labs(a->dx) + labs(a->dy);
-                ms += notches ? pace * (notches - 1) * WHEEL_GAP_MS : 0;
+                ms += notches ? pace * notches * WHEEL_GAP_MS : 0;
                 break;
             case ACTION_KEY: ms += pace * CHORD_HOLD_MS; break;
             case ACTION_KEYS:

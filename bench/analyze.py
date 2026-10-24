@@ -136,7 +136,8 @@ def pacing(actions):
             moves = min(max(DRAG_MIN_STEPS, math.ceil(step[1] / DRAG_STEP_PX)), DRAG_MAX_STEPS)
             paced += MOTION_PRESS_MS + 2 * DRAG_HOLD_MS + (moves - 1) * DRAG_STEP_MS
         elif verb == "wheel":
-            paced += max(0, step[1] - 1) * WHEEL_GAP_MS
+            # The last notch gets its gap too, before the sender can end.
+            paced += step[1] * WHEEL_GAP_MS
         elif verb == "keys" and step[1]:
             paced += step[2] * (CHORD_MOD_MS + CHORD_HOLD_MS) + (step[2] - 1) * CHORD_GAP_MS
         elif verb == "keys":
