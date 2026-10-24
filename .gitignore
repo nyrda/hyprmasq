@@ -7,3 +7,6 @@ hyprmasq-reaper
 __pycache__/
 /bench/results/
 /mcp/hyprmasq-mcp
+# makepkg
+/*.pkg.tar*
+/hyprmasq-*.log

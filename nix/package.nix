@@ -50,6 +50,7 @@
         "docs"
         "mcp"
         "bench"
+        "PKGBUILD"
         # Left by make in the work tree; a copy would keep make from building it.
         "hyprmasq-input"
         "hyprmasq-reaper"

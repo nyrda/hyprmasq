@@ -9,12 +9,13 @@ load into any other build. Rebuild the plugin whenever Hyprland changes.
 | --- | --- |
 | [NixOS module](#nixos-module) | You run NixOS. The flake pins Hyprland and the plugin together. This is the main, tested path. |
 | [Nix packages](#nix-packages-without-the-module) | You manage the Hyprland package yourself on Nix. |
+| [Arch and Omarchy](#arch-and-omarchy) | You run Arch Linux or Omarchy. `makepkg` builds a pacman package from a clone, against the installed Hyprland. |
 | [Manual build](#manual-build) | You want a local build, for development or another distribution. |
 | [hyprpm](#hyprpm) | Your distribution provides Hyprland 0.56.2 and its headers. |
 
-The methods build these files. `make` builds the first four. The Nix
-package also includes `hyprmasq-mcp`, which a manual build compiles with Go
-(see [Manual build](#manual-build)). hyprpm installs only the plugin.
+The methods build these files. `make` builds the first four. The Nix and
+Arch packages also include `hyprmasq-mcp`, which a manual build compiles with
+Go (see [Manual build](#manual-build)). hyprpm installs only the plugin.
 
 | File | Purpose |
 | --- | --- |
@@ -22,7 +23,7 @@ package also includes `hyprmasq-mcp`, which a manual build compiles with Go
 | `hyprmasq-input` | The libei sender for scripts. |
 | `hyprmasq-launch` | Starts an application on a hidden workspace. Needs `hyprctl` and `jq`. |
 | `hyprmasq-reaper` | The helper that launched commands run under. The plugin finds it next to `hyprmasq.so`, in `../libexec` relative to it, or on `PATH`. |
-| `hyprmasq-mcp` | The [MCP server](mcp.md), built with Go. Included in the Nix package. |
+| `hyprmasq-mcp` | The [MCP server](mcp.md), built with Go. Included in the Nix and Arch packages. |
 
 After installing, [load the plugin](#loading-the-plugin) and
 [register the MCP server](#mcp-server) with your agents.
@@ -107,6 +108,121 @@ The flake's `overlays.default` adds `pkgs.hyprmasq`, built against
 `bin/hyprmasq-mcp`, a wrapper that runs the MCP server with the package's own
 `hyprmasq-input`. The flake's `hyprmasq-mcp` package is the server alone.
 
+## Arch and Omarchy
+
+The repository's `PKGBUILD` builds a pacman package from a clone, against
+the Hyprland that pacman installed:
+
+```sh
+git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
+```
+
+`-s` installs the missing dependencies, such as `go` for the build, and `-i`
+installs the package, both through pacman. Nothing else runs as root: the
+package has no install script and no pacman hook. Arch's `hyprland` package must be 0.56.2,
+the release that hyprmasq supports.
+
+makepkg builds the commit that is checked out, `HEAD`. It leaves out
+uncommitted changes and warns when there are any, so commit a change to build
+it. The only downloads are the Go modules of `hyprmasq-mcp`, whose hashes
+`mcp/go.sum` pins. Go fetches them through `proxy.golang.org`, or from their
+repositories with `GOPROXY=direct makepkg -si`. makepkg builds in
+`build/makepkg` of the clone, or under `BUILDDIR` when you set one, and
+writes the package files to the clone's root.
+
+`pacman -Q hyprmasq` shows a version such as `0.1.0.r100.g5e0bb2a`: the
+`VERSION` file, the number of commits and the commit. The programs report the
+`VERSION`, here `0.1.0`.
+
+### What this installs
+
+| File | Purpose |
+| --- | --- |
+| `/usr/lib/hyprmasq/hyprmasq.so` | The plugin. |
+| `/usr/lib/hyprmasq/hyprmasq-reaper` | The helper that launched commands run under. The plugin finds it next to itself. |
+| `/usr/bin/hyprmasq-mcp` | The [MCP server](mcp.md). |
+| `/usr/bin/hyprmasq-input` | The libei sender for scripts. |
+| `/usr/bin/hyprmasq-launch` | Starts an application on a hidden workspace. |
+| `/etc/xdg/hypr/hyprmasq_plugin.lua` | The loader, one line: `hl.plugin.load("/usr/lib/hyprmasq/hyprmasq.so")`. |
+| `/usr/share/licenses/hyprmasq/LICENSE` | The MIT license. |
+
+With makepkg's `debug` option, which Arch's `makepkg.conf` enables, makepkg
+also builds `hyprmasq-debug` with the debug symbols, and `makepkg -i`
+installs it too. `pacman -Ql hyprmasq` lists the installed files.
+
+The package depends on `hyprland`, on `jq` and `sh` for `hyprmasq-launch`, and
+on the libraries that the plugin and the tools link: `libei`, `libxkbcommon`,
+`libpng`, `libxcb`, `libglvnd`, `libstdc++`, `libgcc` and `glibc`.
+
+### Checking what you build
+
+- Read the `PKGBUILD` before you run `makepkg`. It is short, and its
+  `package()` installs exactly the files above.
+- `git log` and `git show` show the commits that you build, since makepkg
+  builds `HEAD`.
+- The project does not sign its releases yet. Once it does, check out a
+  release tag and verify it with `git verify-tag` before you build.
+- `go` refuses a module whose download does not match its hash in
+  `mcp/go.sum`.
+
+### Loading on Arch
+
+Add the loader to `~/.config/hypr/hyprland.lua`, which Omarchy uses:
+
+```lua
+dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
+```
+
+With `hyprland.conf`, add this line instead:
+
+```ini
+plugin = /usr/lib/hyprmasq/hyprmasq.so
+```
+
+To load the plugin into the running session at once, run
+`hyprctl plugin load /usr/lib/hyprmasq/hyprmasq.so`. Then
+[register the MCP server](#mcp-server) with your agents.
+
+`hyprmasq-mcp` runs `hyprmasq-input` from `PATH`. Remove copies from an
+earlier manual install, for example in `/usr/local/bin` or `~/.local/bin`,
+which come before `/usr/bin` on `PATH`, or pass
+`--input /usr/bin/hyprmasq-input`.
+
+### Hyprland updates
+
+The plugin must be built against the exact Hyprland build that loads it, and
+pacman updates Hyprland with the rest of the system. After every update of the
+`hyprland` package, rebuild from your clone and restart Hyprland:
+
+```sh
+git pull && makepkg -sif
+```
+
+`-f` builds again when the commit has not changed. Without it, makepkg
+installs the package that it built before, against the old Hyprland.
+
+Hyprland itself checks only its plugin API version, which rarely changes, so
+it would load a plugin built for another Hyprland. hyprmasq checks the build
+when it loads: the commit that Hyprland was built from, and the major and
+minor versions of aquamarine, hyprutils, hyprgraphics, hyprcursor and
+hyprlang. When they differ, it refuses to load, before it hooks anything, and
+Hyprland shows "[hyprmasq] Not loaded: it was built for another Hyprland
+build" and runs without it. Rebuild, then restart Hyprland or load the plugin again.
+
+The package depends on `hyprland` without pinning its version. A pin would
+keep `pacman -Syu` from updating Hyprland until you removed hyprmasq, and
+makepkg can build against a new Hyprland only once it is installed.
+
+hyprmasq supports one Hyprland release at a time. When Arch moves to a release
+that hyprmasq does not support yet, the build or the plugin's hooks fail until
+a hyprmasq update supports it.
+
+### Removing
+
+Remove the `dofile` or `plugin` line first: `dofile` of a missing file is an
+error in `hyprland.lua`. Then run `sudo pacman -R hyprmasq`, with
+`hyprmasq-debug` if it is installed.
+
 ## Manual build
 
 With Nix, from a clone:
@@ -180,7 +296,7 @@ Hyprland 0.56.2 supports a Lua configuration, `hyprland.lua`, and the
 hyprlang `hyprland.conf`. The plugin works with either, and the VM test uses a
 Lua configuration.
 
-**Lua**, with the NixOS module:
+**Lua**, with the NixOS module or the [Arch package](#arch-and-omarchy):
 
 ```lua
 dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
@@ -197,6 +313,8 @@ hl.plugin.load("/usr/local/lib/hyprmasq.so")
 ```ini
 plugin = /usr/local/lib/hyprmasq.so
 ```
+
+The Arch package installs the plugin as `/usr/lib/hyprmasq/hyprmasq.so`.
 
 The NixOS module ships only the Lua loader. For `hyprland.conf` on NixOS,
 write the path from the module's package, for example:
@@ -286,7 +404,7 @@ instructions, but the tool descriptions carry every rule, so nothing is lost.
 
 | Symptom | Check |
 | --- | --- |
-| The plugin fails to load with "built for another Hyprland build" | It was compiled against another Hyprland build. Rebuild it against the running one. `hyprctl version` shows that build. |
+| The plugin fails to load with "built for another Hyprland build" | It was compiled against another Hyprland build. Rebuild it against the running one. `hyprctl version` shows that build. On Arch, after a Hyprland update, run `makepkg -sif` in your clone and restart Hyprland. |
 | Loading fails with a hook error | The plugin was built against a Hyprland other than 0.56.2, whose functions differ. |
 | `hyprctl hyprmasq …` says the command is unknown | The plugin is not loaded. Check `hyprctl plugin list`. |
 | `no mapped window 0x…` | Copy the `address` field from `hyprctl -j clients`, including the `0x`. The window must be mapped. |

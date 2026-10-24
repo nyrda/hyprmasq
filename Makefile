@@ -26,17 +26,17 @@ CPPFLAGS += $(VERSION_CPPFLAGS) -DWLR_USE_UNSTABLE $(shell pkg-config --cflags $
 all: $(PLUGIN) $(TOOL) $(REAPER) $(LAUNCHER)
 
 $(PLUGIN): $(OBJ)
-	$(CXX) -shared -fPIC -o $@ $(OBJ) $(shell pkg-config --libs egl glesv2 libpng libeis-1.0 xkbcommon xcb)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -shared -fPIC -o $@ $(OBJ) $(shell pkg-config --libs egl glesv2 libpng libeis-1.0 xkbcommon xcb)
 
 $(BUILD_DIR)/%.o: src/%.cpp VERSION
 	@mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
 $(TOOL): tools/hyprmasq-input.c VERSION
-	$(CC) $(VERSION_CPPFLAGS) $(CFLAGS) $(shell pkg-config --cflags $(TOOL_PKGS)) -o $@ $< $(shell pkg-config --libs $(TOOL_PKGS)) -lm
+	$(CC) $(VERSION_CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(shell pkg-config --cflags $(TOOL_PKGS)) -o $@ $< $(shell pkg-config --libs $(TOOL_PKGS)) -lm
 
 $(REAPER): tools/hyprmasq-reaper.c
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
 
 $(LAUNCHER): tools/hyprmasq-launch VERSION
 	sed 's/@HYPRMASQ_VERSION@/$(VERSION)/g' $< > $@

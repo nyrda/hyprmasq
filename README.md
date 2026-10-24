@@ -46,6 +46,16 @@ build the plugin was compiled against:
 }
 ```
 
+On Arch Linux and Omarchy, build a pacman package from a clone, against the
+installed Hyprland, and build it again with `makepkg -sif` after each
+Hyprland update:
+
+```sh
+git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
+```
+
+Both install a loader for the plugin. Load it from `hyprland.lua`:
+
 ```lua
 -- hyprland.lua
 dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
@@ -68,7 +78,8 @@ hyprctl hyprmasq screenshot "$addr" /tmp/foot.png      # render just that window
 hyprctl hyprmasq eis close "$addr"
 ```
 
-[Installation](docs/installation.md) also covers other Nix setups, a manual
+[Installation](docs/installation.md) also covers what the Arch package
+installs and how it follows Hyprland updates, other Nix setups, a manual
 build, hyprpm, hyprlang configuration, and Codex and pi.
 
 ## How it works
@@ -93,7 +104,8 @@ with user focus and workspace unchanged in all 72.
   be compiled against the exact Hyprland build that loads it.
 - Tested on x86_64 Linux, with a NixOS VM test that covers the plugin, the
   tools and the MCP server.
-- The Nix flake and NixOS module are the primary install path. Manual builds
+- The Nix flake and NixOS module are the primary install path. On Arch and
+  Omarchy, the repository's `PKGBUILD` builds a pacman package. Manual builds
   and hyprpm are supported.
 - Wayland windows are the main target. XWayland and xwayland-satellite
   windows work with [caveats](docs/automation.md#x11-windows).
@@ -113,7 +125,7 @@ only to agents you would trust with your shell. See the
 
 | Document | Contents |
 | --- | --- |
-| [Installation](docs/installation.md) | NixOS module, Nix packages, manual build, hyprpm, loading the plugin, registering the MCP server, troubleshooting |
+| [Installation](docs/installation.md) | NixOS module, Nix packages, Arch and Omarchy, manual build, hyprpm, loading the plugin, registering the MCP server, troubleshooting |
 | [MCP server](docs/mcp.md) | `hyprmasq-mcp`: tools, shots and coordinates, `act`, the focus lease, failures, options, client notes |
 | [Automation](docs/automation.md) | `hyprctl hyprmasq` commands, waiting, `hyprmasq-input`, `hyprmasq-launch`, configuration, security model, limitations |
 | [Development](docs/development.md) | Building, tests, contributing, source layout |

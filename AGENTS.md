@@ -6,7 +6,9 @@ so windows on hidden workspaces can be captured and driven without moving the
 user's focus. `tools/hyprmasq-input.c` is the libei sender,
 `tools/hyprmasq-reaper.c` supervises launched processes, and
 `tools/hyprmasq-launch` is the shell launcher. `mcp/` is the Go MCP server;
-`bench/` has the benchmark runner and task checkers.
+`bench/` has the benchmark runner and task checkers. `PKGBUILD` builds the
+Arch package from a clone. A change to the files it installs updates its
+`package()` and the list in `docs/installation.md`.
 
 Docs: `README.md` is the landing page; `docs/installation.md` covers install,
 loading and MCP registration; `docs/automation.md` is the reference for
