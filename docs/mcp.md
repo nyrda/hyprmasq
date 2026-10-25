@@ -18,7 +18,7 @@ so agents need no further instructions.
 | `windows` | `match`, `wait_ms` (0 to 10000) | List the windows, or those whose class or title contains `match`: address, class, title, workspace, visible or hidden, size, and the capabilities each lacks. When it lists exactly one window, it also returns a shot of it. With `wait_ms`, it first waits for a window that is not there yet. |
 | `launch` | `command` (array), `workspace` (default `hyprmasq`), `timeout_ms` (1000 to 300000, default 30000) | Start an application on a hidden workspace without a shell, wait for its first window to appear and settle, and return its address with a shot. |
 | `screenshot` | `window`, `region` | Take a shot of the window now. With `region`, zoom into part of an earlier shot. |
-| `act` | `window`, `shot`, `actions`, `wait`, `capture`, `deadline_ms` | Send input, wait until the window has drawn the result, and return what changed. See [act](#act). |
+| `act` | `window`, `shot`, `actions`, `next_page`, `wait`, `capture`, `deadline_ms` | Send input, wait until the window has drawn the result, and return what changed. See [act](#act). |
 | `release` | `window` | End the window's focus lease. The window stays open. |
 | `close` | `window` | Ask the window to close, as Hyprland's close dispatcher does, and report within 2 seconds whether it closed and which windows appeared, such as a confirmation dialog. It refuses X11 menus and X11 windows that take no close request, see [X11 menus](#x11-menus). |
 
@@ -65,6 +65,9 @@ the agent never converts anything.
 }
 ```
 
+The shot identifies its window, so `window` is optional when `shot` is given.
+Without a shot, give `window`. An unavailable shot is refused before input.
+
 One `act` call:
 
 1. **Checks** the whole batch before sending anything: arguments,
@@ -74,7 +77,7 @@ One `act` call:
    the window no longer shows what the shot showed around a click or drag
    point, the call fails with `stale_shot`, sends nothing, and returns a
    fresh shot to read coordinates from.
-3. **Sends the input** through one `hyprmasq-input`, paced like a person's.
+3. **Sends the input** through `hyprmasq-input`.
    After a click or drag that more actions follow, it waits for the window to
    answer before sending the rest, and keys after a click start at least
    300 ms after it.
@@ -100,6 +103,65 @@ shows. Tiny changes, such as a blinking caret, are left out and counted.
 `redraw observed` alone does not show that the input changed anything: a
 hidden app that the input wakes, such as a Qt app, redraws once anyway. The
 changes say what changed.
+
+### Compact actions
+
+Actions can use arrays in place of the named-field objects below. A point
+pair `[x, y]` is one left click. All forms send the same input and use the
+same checks. Omit trailing defaults; use an
+object when you need to skip an optional position.
+
+| Action | Array |
+| --- | --- |
+| click | `[x, y]`, or `["click", x, y, button?, count?, modifiers?]` |
+| move | `["move", x, y]` |
+| drag | `["drag", from, to, button?, modifiers?]` |
+| scroll | `["scroll", x, y, dy, unit?, dx?]` |
+| type | `["type", text]` |
+| key | `["key", keys, repeat?]` |
+| pause | `["pause", ms]` |
+
+`keys` accepts a single name such as `"right"`, a chord such as `"ctrl+l"`,
+or an array such as `["ctrl", "l"]`. The question marks above mark optional
+positions; they are not part of a request. Do not use null placeholders.
+For example, `[[412, 88], ["type", "hello"], ["key", "enter"]]`.
+
+### Continuing through a scrollable window
+
+Use ordinary notch scrolling for short moves. `next_page` takes additional captures to
+measure movement and retain overlap when continuing through a long page. Set it in the
+same `act` call as the edits to the visible part:
+
+```json
+{"shot":"s4","actions":[[412,88]],"next_page":{"x":900,"y":600,"direction":"down"}}
+```
+
+Choose a point on the scrolling background, away from controls. `direction`
+defaults to `down`; `up` goes back. Without `actions`, it only scrolls.
+The server sends wheel notches and compares screenshots to measure their
+movement. It aims to expose the next part while retaining about 15% overlap,
+rounded down to whole notches. It uses no application data or PageDown key.
+
+The edits settle and appear before the scroll. When one crop can show all
+changed regions within the image budget, they share that crop. The full new
+view follows it, and supplies the next coordinates. Check the pre-scroll changes to
+verify the edits before continuing from the new view. A page scroll always returns
+that full view. The result's `scroll` reports the notches, measured
+movement and viewport height in logical pixels, and why it stopped.
+
+If the images cannot be aligned confidently, a control takes the wheel, the
+window fails to settle or time runs short, it stops. A failed measurement or
+no movement is not a claim that the page ended. Repeating patterns, animations
+and separate panes can prevent measurement; inspect the returned view and
+use ordinary notch scrolling there.
+
+`deadline_ms` covers the edits and every scrolling step. The checks that hold
+back a trailing scroll after failed or unsettled input apply here too.
+Use `capture: "changes"` or `"window"`; `"none"` and a region are refused
+before input. There can be no earlier scroll in the batch. `next_page` counts
+as its last action. The equivalent explicit action is
+`{"action":"scroll","x":900,"y":600,"dy":1,"unit":"page"}`,
+with `dy` either 1 or -1, last in the batch.
 
 ### A scroll at the end of a batch
 
@@ -145,6 +207,7 @@ page.
 | --- | --- | --- |
 | `window` | required | Window address from `windows` or `launch`. |
 | `shot` | required for coordinates | The shot the coordinates were read from. |
+| `next_page` | absent | After the visible edits, scroll a measured page at `{x,y,direction}`. See [Continuing through a scrollable window](#continuing-through-a-scrollable-window). |
 | `actions` | `[]` | Up to 1000 actions, run in order. An empty list waits for a change since the shot, then captures. |
 | `wait` | | `expect_change` (true), `expect_ms` (1000, at most `deadline_ms` − 1000), `quiet_ms` (200, 1 to 10000). |
 | `capture` | `"changes"` | `"changes"`, `"window"` for a full shot, `"none"`, or a region `{shot, x, y, width, height}`. |
@@ -155,9 +218,9 @@ page.
 | `click` | `x`, `y`, `button` (`left`, `right`, `middle`), `count` (1 to 3), `modifiers` |
 | `move` | `x`, `y`, for hover |
 | `drag` | `from` [x, y], `to` [x, y], `button`, `modifiers` |
-| `scroll` | `x`, `y`, `dx`, `dy`, `unit` (`notch`, a wheel click, or `px`, smooth scrolling). See [A scroll at the end of a batch](#a-scroll-at-the-end-of-a-batch). |
+| `scroll` | `x`, `y`, `dx`, `dy`, `unit` (`page`, a measured page, `notch`, a wheel click, or `px`, smooth scrolling). See [A scroll at the end of a batch](#a-scroll-at-the-end-of-a-batch). |
 | `type` | `text`, typed literally with the active keymap. A line break presses Enter. At most 65536 bytes per batch. |
-| `key` | `keys`, such as `["ctrl", "l"]` or `["ctrl+l"]`, pressed together, and `repeat` (1 to 500). A key alone presses as a typed key does, 15 ms a press, and a chord with modifiers takes 40 ms a press. |
+| `key` | `keys`, such as `["ctrl", "l"]` or `["ctrl+l"]`, pressed together, and `repeat` (1 to 500). A single plain key presses as a typed key does; repeated plain keys have 1 ms gaps between distinct press/release frames, and chords with modifiers take 40 ms. |
 | `pause` | `ms` (0 to 5000) |
 
 `act` also takes the click actions of Anthropic's computer use tool, which

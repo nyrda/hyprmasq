@@ -12,6 +12,9 @@ It logs to stdout after a CLOCK_MONOTONIC timestamp in milliseconds: "configured
 shown" for each xdg_toplevel configure that Qt applies, which it reads from Qt's own log, "exposed 1" or "exposed 0"
 when Qt exposes the window or stops, and "checked 0|1", "slider N", "text T" and "choice C" for each change of a
 widget. Qt's other messages go to stderr.
+
+With --scroll before TITLE it instead shows a fixed check box above 200 rows.
+It logs "scroll VALUE VIEWPORT TOTAL" in logical pixels when the page moves.
 """
 
 import re
@@ -20,6 +23,7 @@ import time
 
 from PySide6.QtCore import QEvent, QLoggingCategory, QObject, QtMsgType, Qt, qInstallMessageHandler
 from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QLineEdit, QMainWindow, QSlider, QWidget
+from PySide6.QtWidgets import QLabel, QScrollArea, QVBoxLayout
 
 PLANETS = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
 # Qt's Wayland backend logs each configure that it applies, with the toplevel's size and whether it is suspended.
@@ -55,8 +59,9 @@ class Exposure(QObject):
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("usage: hyprmasq-qt-probe TITLE", file=sys.stderr)
+    scrolling = len(sys.argv) == 3 and sys.argv[1] == "--scroll"
+    if len(sys.argv) != 2 and not scrolling:
+        print("usage: hyprmasq-qt-probe [--scroll] TITLE", file=sys.stderr)
         sys.exit(2)
     qInstallMessageHandler(message)
     QLoggingCategory.setFilterRules("qt.qpa.wayland.debug=true")
@@ -64,8 +69,29 @@ def main():
     app.setDesktopFileName("hyprmasq-qt-probe")
 
     window = QMainWindow()
-    window.setWindowTitle(sys.argv[1])
+    window.setWindowTitle(sys.argv[-1])
     window.resize(600, 400)
+    if scrolling:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        check = QCheckBox("Enabled")
+        check.toggled.connect(lambda checked: say(f"checked {int(checked)}"))
+        layout.addWidget(check)
+        scroller = QScrollArea()
+        scroller.setWidgetResizable(True)
+        column = QWidget()
+        rows = QVBoxLayout(column)
+        for row in range(200):
+            label = QLabel(f"Row {row}")
+            label.setMinimumHeight(32)
+            rows.addWidget(label)
+        scroller.setWidget(column)
+        layout.addWidget(scroller)
+        bar = scroller.verticalScrollBar()
+        bar.valueChanged.connect(lambda value: say(f"scroll {value} {bar.pageStep()} {bar.maximum()+bar.pageStep()}"))
+        window.setCentralWidget(container)
+        window.show()
+        sys.exit(app.exec())
     page = QWidget()
     window.setCentralWidget(page)
     check = QCheckBox("Amber", page)

@@ -435,6 +435,7 @@ func (s *Server) screenshotTool(ctx context.Context, c *call) *mcp.CallToolResul
 			return simpleError(err)
 		}
 	}
+	firstView := z == nil && s.shots.lastOf(args.Window, st.StableID) == nil
 	sh, png, err := s.capture(ctx, args.Window, st.StableID, z)
 	if err != nil {
 		return simpleError(err)
@@ -460,6 +461,9 @@ func (s *Server) screenshotTool(ctx context.Context, c *call) *mcp.CallToolResul
 	}
 	out.Summary = strings.Join(append([]string{out.Summary}, newWindowLines(out.LateWindows, "late window")...), "\n")
 	out.Hint = joinHints(frameHints(out.Shot), lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
+	if len(out.LateWindows) == 0 {
+		out.Hint = joinHints(out.Hint, initialNavigationHint(sh, firstView))
+	}
 	return newResult(out, out.resultText, images, "")
 }
 

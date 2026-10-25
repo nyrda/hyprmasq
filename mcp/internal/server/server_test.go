@@ -73,7 +73,7 @@ func TestArgumentErrors(t *testing.T) {
 		{"act", `{"window":"0xa1","wait":{"quiet_ms":"300"}}`, "wait.quiet_ms must be an integer, not a string"},
 		{"act", `{"window":"0xa1","wait":{"expect_change":"no"}}`, "wait.expect_change must be true or false, not a string"},
 		{"act", `{"window":"0xa1","deadline_ms":1500.5}`, "deadline_ms must be an integer, not 1500.5"},
-		{"act", `{"window":"0xa1","wiat":{}}`, `unknown argument "wiat"; the arguments are window, shot, actions, wait, capture, deadline_ms`},
+		{"act", `{"window":"0xa1","wiat":{}}`, `unknown argument "wiat"; the arguments are window, shot, actions, next_page, wait, capture, deadline_ms`},
 		// As encoding/json, a name that differs only in case names the field. The first unknown one is named.
 		{"act", `{"window":"0xa1","WAIT":{},"zz":1,"aa":2}`, `unknown argument "zz"; the arguments are`},
 		{"act", `{"window":"0xa1","wait":{"Quiet_MS":300,"b":1}}`, "wait.b is not a field of wait"},

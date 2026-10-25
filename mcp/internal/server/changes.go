@@ -490,6 +490,20 @@ func (s *Server) captureChanges(ctx context.Context, r *actRequest, out *actOut,
 	if reason := s.fullReason(regions, g, changing, base, st.Scale); reason != "" {
 		return whole(reason)
 	}
+	// Before paging, show the edits together when one crop fits within the
+	// image budget. It includes every changed region and retains their layout.
+	// The new view then follows as the only full-window image to act on.
+	if r.joinChanges && len(regions) > 1 && math.Abs(after.Scale-st.Scale) < 1e-6 {
+		var bounds image.Rectangle
+		for _, region := range regions {
+			bounds = bounds.Union(rectOf(region))
+		}
+		joined := []hypr.IntRect{intRectOf(bounds)}
+		pixels := after.pixelsOf(joined[0])
+		if pixels.Dx()*pixels.Dy() <= base.Width*base.Height && (s.cfg.MaxImageSize <= 0 || max(pixels.Dx(), pixels.Dy()) <= s.cfg.MaxImageSize) {
+			regions = joined
+		}
+	}
 
 	sh := &shot{ID: s.shots.newID(), Window: r.window, StableID: base.StableID, Size: st.Size, Frame: base.Frame, Width: base.Width, Height: base.Height,
 		Scale: base.Scale, Base: base.ID, Deltas: base.Deltas + 1, Detail: after, Animated: out.Wait.animatedBoxes()}

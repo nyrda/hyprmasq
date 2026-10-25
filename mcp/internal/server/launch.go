@@ -146,6 +146,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	p.set("capturing")
 	capCtx, capCancel := context.WithTimeout(context.WithoutCancel(ctx), launchSettleMax)
 	defer capCancel()
+	firstView := s.shots.lastOf(window.Address, st.StableID) == nil
 	sh, png, err := s.capture(capCtx, window.Address, st.StableID, nil)
 	if err != nil {
 		return simpleError(err)
@@ -188,6 +189,9 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	}
 	out.Summary = strings.Join(parts, " · ")
 	out.Hint = joinHints(frameHints(out.Shot), resizedHint(window, before, after))
+	if wait.Ended == "quiet" && len(others) == 0 {
+		out.Hint = joinHints(out.Hint, initialNavigationHint(sh, firstView))
+	}
 	return newResult(out, out.resultText, oneImage(png), "")
 }
 

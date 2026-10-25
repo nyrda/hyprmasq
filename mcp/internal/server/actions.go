@@ -90,7 +90,7 @@ var actionRequired = map[string][]string{
 // Limits within those of hyprmasq-input, which gets every action on its command line.
 const (
 	maxPauseMs = 5000
-	// The sender's MAX_REPEAT: 500 presses of a key take 7.5 s at its pace and fit the default deadline, and those of a
+	// The sender's MAX_REPEAT: 500 repeated plain keys take about half a second and fit the default deadline, and those of a
 	// chord with modifiers 20 s, which fit the longest.
 	maxRepeat  = 500
 	maxNotches = 100
@@ -124,6 +124,12 @@ func parseActions(raw []json.RawMessage) ([]action, error) {
 }
 
 func parseAction(raw json.RawMessage, path string) (action, error) {
+	if b := bytes.TrimSpace(raw); len(b) > 0 && b[0] == '[' {
+		var err error
+		if raw, err = expandAction(b, path); err != nil {
+			return action{}, err
+		}
+	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
 		return action{}, invalidf("%s must be an object such as {\"action\":\"click\",\"x\":10,\"y\":20}", path)
@@ -224,8 +230,12 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 				return a, invalidf("%s: dx and dy are at most %d wheel notches", path, maxNotches)
 			}
 		case "px":
+		case "page":
+			if a.DX != 0 || math.Abs(a.DY) != 1 {
+				return a, invalidf("%s: unit page takes dy 1 or -1 and no dx", path)
+			}
 		default:
-			return a, invalidf("%s.unit must be notch or px, not %q", path, a.Unit)
+			return a, invalidf("%s.unit must be notch, px or page, not %q", path, a.Unit)
 		}
 		if a.DX == 0 && a.DY == 0 {
 			return a, invalidf("%s: dx and dy are both 0; positive dy scrolls down", path)
@@ -263,6 +273,47 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 		}
 	}
 	return a, nil
+}
+
+// Arrays are a shorter spelling of named actions. Expanding them first keeps
+// validation, coordinate checks and input delivery identical for both forms.
+func expandAction(raw json.RawMessage, path string) (json.RawMessage, error) {
+	var parts []json.RawMessage
+	if err := json.Unmarshal(raw, &parts); err != nil || len(parts) == 0 {
+		return nil, invalidf("%s must start with an action name", path)
+	}
+	// A point pair is a single left click. Expand it before the ordinary
+	// click parser, so bounds, required numbers and stale checks are shared.
+	if len(parts) == 2 {
+		var x *float64
+		if json.Unmarshal(parts[0], &x) == nil && x != nil {
+			return json.Marshal(map[string]json.RawMessage{"action": json.RawMessage(`"click"`), "x": parts[0], "y": parts[1]})
+		}
+	}
+	var kind string
+	if err := json.Unmarshal(parts[0], &kind); err != nil {
+		return nil, invalidf("%s[0] must be an action name", path)
+	}
+	fields := map[string][]string{
+		"click":  {"x", "y", "button", "count", "modifiers"},
+		"move":   {"x", "y"},
+		"drag":   {"from", "to", "button", "modifiers"},
+		"scroll": {"x", "y", "dy", "unit", "dx"},
+		"type":   {"text"},
+		"key":    {"keys", "repeat"},
+		"pause":  {"ms"},
+	}[kind]
+	if fields == nil || len(parts) > len(fields)+1 {
+		return nil, invalidf("%s has an unknown action or too many arguments", path)
+	}
+	object := map[string]json.RawMessage{"action": parts[0]}
+	for i, p := range parts[1:] {
+		if kind == "key" && i == 0 && len(bytes.TrimSpace(p)) > 0 && bytes.TrimSpace(p)[0] == '"' {
+			p = append(append(json.RawMessage{'['}, p...), ']')
+		}
+		object[fields[i]] = p
+	}
+	return json.Marshal(object)
 }
 
 var keyAliases = map[string]string{

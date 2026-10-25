@@ -20,6 +20,23 @@ def both(actions, text, structured):
 
 
 class SplitFromText(unittest.TestCase):
+    def test_compact_actions_keep_the_report_and_pacing(self):
+        compact = [["click", 10, 20], ["key", "right", 100]]
+        named = [{"action": "click", "x": 10, "y": 20},
+                 {"action": "key", "keys": ["right"], "repeat": 100}]
+        summary = "2/2 delivered · redraw observed · quiet 200 ms · 200 ms · shot s2 640×400"
+        structured = {"actions": {"done": 2, "total": 2, "delivery": "complete"},
+                      "wait": {"ended": "quiet", "elapsed_ms": 200}}
+        self.assertEqual(both(compact, summary, structured), both(named, summary, structured))
+        points = [[10, 20], ["key", "right", 100]]
+        self.assertEqual(both(points, summary, structured), both(named, summary, structured))
+        calls = analyze.report.tool_calls([
+            {"dir": "request", "t": 1, "msg": {"id": 1, "method": "tools/call", "params": {
+                "name": "act", "arguments": {"shot": "s1", "actions": points, "next_page": {"x": 100, "y": 200}}}}},
+            {"dir": "response", "t": 3, "msg": {"id": 1, "result": {"content": []}}},
+        ])
+        self.assertEqual(calls[0]["actions"], ["click", "key", "scroll"])
+
     def test_keys_of_a_partly_typed_action(self):
         actions = [{"action": "type", "text": "hello world"}]
         from_structured, from_text = both(
@@ -115,8 +132,8 @@ class CurrentProtocol(unittest.TestCase):
                                {"actions": [{"action": "type", "text": "a"}]}, {}, 500)
         self.assertEqual(result["wait"], 0)
 
-    def test_keys_without_modifiers_go_at_the_pace_of_typing(self):
-        self.assertEqual(analyze.pacing([{"action": "key", "keys": ["right"], "repeat": 100}]), (1490, 0))
+    def test_plain_repeats_have_their_own_pace(self):
+        self.assertEqual(analyze.pacing([{"action": "key", "keys": ["right"], "repeat": 100}]), (99, 0))
         self.assertEqual(analyze.pacing([{"action": "key", "keys": ["ctrl", "right"], "repeat": 2}]), (65, 0))
 
     def test_clicks_always_wait_for_the_answer(self):

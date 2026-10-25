@@ -54,6 +54,7 @@ ACTION_GAP_MS = 50
 CLICK_HOLD_MS, CLICK_GAP_MS = 50, 80
 CHORD_MOD_MS, CHORD_HOLD_MS, CHORD_GAP_MS = 10, 15, 15
 TYPE_HOLD_MS, TYPE_GAP_MS = 5, 10
+REPEAT_HOLD_MS, REPEAT_GAP_MS = 0, 1
 WHEEL_GAP_MS = 20
 MOTION_PRESS_MS, DRAG_HOLD_MS, DRAG_STEP_MS, DRAG_STEP_PX, DRAG_MIN_STEPS, DRAG_MAX_STEPS = 30, 50, 10, 10, 21, 2000
 CLICK_SETTLE_MS = 300
@@ -146,8 +147,8 @@ def pacing(actions):
         elif verb == "keys" and step[1]:
             paced += step[2] * (CHORD_MOD_MS + CHORD_HOLD_MS) + (step[2] - 1) * CHORD_GAP_MS
         elif verb == "keys":
-            # A key without modifiers goes at the pace of typing.
-            paced += step[2] * TYPE_HOLD_MS + (step[2] - 1) * TYPE_GAP_MS
+            # Repeated plain keys use their own pace; one press keeps typing pace.
+            paced += (step[2] * REPEAT_HOLD_MS + (step[2] - 1) * REPEAT_GAP_MS) if step[2] > 1 else TYPE_HOLD_MS
         elif verb == "text":
             # Every character is a key, and a CR LF one Enter; one typed through Compose takes more.
             keys = len(step[1]) - step[1].count("\r\n")
@@ -180,7 +181,7 @@ def act_tool(tap):
 
 def split(call, a, structured, watch_ms):
     """The seconds of an act call: its wait, its watch, the sender's pacing, the pauses and the rest."""
-    actions = a.get("actions") or []
+    actions = report.named_actions(a)
     wait = structured.get("wait") or {}
     if structured:
         done = structured.get("actions", {})
@@ -290,7 +291,7 @@ def analyze(run_dir):
         if c["tool"] != "act" or c.get("end") is None:
             continue
         a = args.get(c["start"], {})
-        actions = a.get("actions") or []
+        actions = report.named_actions(a)
         wait_acts += not actions
         pauses = sum(x.get("ms", 0) for x in actions if x.get("action") == "pause")
         pause_ms += pauses

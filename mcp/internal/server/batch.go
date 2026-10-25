@@ -151,7 +151,7 @@ func overDeadline(least, deadline time.Duration, resolved, typed bool) error {
 	if enough := deadlineFor(least); enough <= maxDeadline {
 		te.Hint = fmt.Sprintf("Give a deadline_ms of at least %d, or split the batch over several calls.", enough.Milliseconds())
 	} else if !typed {
-		te.Hint = "Split it over several calls: a key alone takes at least 15 ms a press, and a chord with modifiers 40 ms."
+		te.Hint = "Split it over several calls: repeated plain keys have 1 ms gaps, and chords with modifiers 40 ms."
 	} else if resolved {
 		te.Hint = fmt.Sprintf("Split it over several calls: typing takes at least 15 ms %s.", perKey)
 	} else {

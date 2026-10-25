@@ -25,6 +25,31 @@ def load_jsonl(path):
 PHASE_NAMES = {"first_imap_login": "account verified", "first_submission": "reply sent"}
 
 
+def named_actions(arguments):
+    """Read both spellings of act's actions, including its final next_page."""
+    fields = {
+        "click": ("x", "y", "button", "count", "modifiers"), "move": ("x", "y"),
+        "drag": ("from", "to", "button", "modifiers"),
+        "scroll": ("x", "y", "dy", "unit", "dx"), "type": ("text",),
+        "key": ("keys", "repeat"), "pause": ("ms",),
+    }
+    out = []
+    for action in arguments.get("actions") or []:
+        if isinstance(action, list) and len(action) == 2 and isinstance(action[0], (int, float)) and not isinstance(action[0], bool):
+            action = dict(action="click", x=action[0], y=action[1])
+        elif isinstance(action, list) and action and isinstance(action[0], str):
+            action = dict(zip(fields.get(action[0], ()), action[1:]), action=action[0])
+            if action["action"] == "key" and isinstance(action.get("keys"), str):
+                action["keys"] = [action["keys"]]
+        if isinstance(action, dict):
+            out.append(action)
+    if isinstance(arguments.get("next_page"), dict):
+        next_page = arguments["next_page"]
+        out.append(dict(action="scroll", x=next_page.get("x"), y=next_page.get("y"),
+                        dy=-1 if next_page.get("direction") == "up" else 1, unit="page"))
+    return out
+
+
 def tool_calls(tap):
     """The tools/call requests in the MCP log with their responses."""
     pending, calls = {}, []
@@ -44,7 +69,7 @@ def tool_calls(tap):
                 "start": start,
                 "end": entry["t"],
                 "seconds": entry["t"] - start,
-                "actions": [a.get("action") for a in args.get("actions", [])] if isinstance(args.get("actions"), list) else None,
+                "actions": [a.get("action") for a in named_actions(args)],
                 "error": bool(result.get("isError")) or "error" in msg,
                 "summary": text.split("\n", 1)[0][:300],
                 "hint": "\n".join(text.split("\n")[1:])[:600],

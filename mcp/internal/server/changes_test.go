@@ -197,6 +197,50 @@ func TestChangesShotOfSeveralRegions(t *testing.T) {
 	}
 }
 
+// Paging may put distant edits in one crop, but must show both at their native
+// scale. When that crop exceeds the image budget, the separate zooms remain.
+func TestPagingChangesKeepAllRegions(t *testing.T) {
+	for _, limit := range []int{1280, 640} {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			e := newTestEnv(t)
+			e.server.cfg.MaxImageSize = limit
+			e.window("0xa1", "1a", 640, 400)
+			e.screenshot(`{"window":"0xa1"}`)
+			e.paint("0xa1", hypr.Rect{X: 100, Y: 50, Width: 10, Height: 10}, hypr.Rect{X: 450, Y: 250, Width: 10, Height: 10})
+			out := &actOut{}
+			_, data, err := e.server.captureChanges(t.Context(), &actRequest{window: "0xa1", base: e.server.shots.get("s1"), joinChanges: true}, out, "1a")
+			want := 1
+			if limit == 640 {
+				want = 2
+			}
+			if err != nil || len(data) != want || out.Shot == nil || out.Shot.Changes == nil || len(out.Shot.Changes.Regions) != want {
+				t.Fatalf("%d crops, error %v, shot %+v", len(data), err, out.Shot)
+			}
+			points := []image.Point{{105, 55}, {455, 255}}
+			seen := make([]bool, len(points))
+			for i, region := range out.Shot.Changes.Regions {
+				z := e.server.shots.get(region.Shot)
+				img, err := png.Decode(bytes.NewReader(data[i]))
+				if err != nil {
+					t.Fatal(err)
+				}
+				for j, p := range points {
+					x, y := int((float64(p.X)-z.Frame.X)*z.Scale), int((float64(p.Y)-z.Frame.Y)*z.Scale)
+					if image.Pt(x, y).In(img.Bounds()) {
+						if got := color.GrayModel.Convert(img.At(x, y)).(color.Gray).Y; got != 255 {
+							t.Errorf("edit %v is gray %d", p, got)
+						}
+						seen[j] = true
+					}
+				}
+			}
+			if !seen[0] || !seen[1] {
+				t.Fatalf("edits omitted: %v", seen)
+			}
+		})
+	}
+}
+
 // Changes within an animation that the wait did not wait for, where the window keeps changing, are left out and
 // counted, and the summary names the animation's box in the shot's pixels. The window is captured once more for them.
 func TestChangesLeaveOutAnimations(t *testing.T) {

@@ -23,6 +23,7 @@ type actArgs struct {
 	Window     string            `json:"window" args:"required"`
 	Shot       string            `json:"shot"`
 	Actions    []json.RawMessage `json:"actions"`
+	NextPage   json.RawMessage   `json:"next_page"`
 	Wait       json.RawMessage   `json:"wait"`
 	Capture    json.RawMessage   `json:"capture"`
 	DeadlineMs *int              `json:"deadline_ms"`
@@ -53,7 +54,8 @@ type actRequest struct {
 	launch string
 	// The first action of the part of the batch that a send sends and checks: act sends a batch that ends with
 	// scrolling in two parts, see split.go.
-	from int
+	from        int
+	joinChanges bool
 }
 
 // regionShot is the shot of a capture region, or "".
@@ -82,13 +84,40 @@ func parseActArgs(c *call) (*actRequest, int, error) {
 		return nil, 0, err
 	}
 	total := len(args.Actions)
-	window, err := canonicalWindow(args.Window)
-	if err != nil {
-		return nil, total, err
+	window := args.Window
+	var err error
+	if window != "" || args.Shot == "" {
+		if window, err = canonicalWindow(window); err != nil {
+			return nil, total, err
+		}
 	}
 	r := &actRequest{window: window, shotID: args.Shot, expectChange: true}
 	if r.batch, err = parseActions(args.Actions); err != nil {
 		return nil, total, err
+	}
+	if len(args.NextPage) > 0 && string(args.NextPage) != "null" {
+		if len(r.batch) >= maxActions {
+			return nil, total, invalidf("actions and next_page together allow at most %d actions", maxActions)
+		}
+		var next struct {
+			X         *float64 `json:"x"`
+			Y         *float64 `json:"y"`
+			Direction string   `json:"direction"`
+		}
+		if err := decodeStrict(args.NextPage, &next, "next_page"); err != nil {
+			return nil, total, err
+		}
+		if next.X == nil || next.Y == nil {
+			return nil, total, invalidf("next_page needs x and y on the scrolling background, in shot pixels")
+		}
+		dy := 1.0
+		if next.Direction == "up" {
+			dy = -1
+		} else if next.Direction != "" && next.Direction != "down" {
+			return nil, total, invalidf("next_page.direction must be down or up")
+		}
+		r.batch = append(r.batch, action{Kind: "scroll", X: *next.X, Y: *next.Y, DY: dy, Unit: "page"})
+		total++
 	}
 	w := &waitArgs{}
 	if len(args.Wait) > 0 && string(args.Wait) != "null" {
@@ -117,6 +146,11 @@ func parseActArgs(c *call) (*actRequest, int, error) {
 	}
 	if r.captureMode, r.captureRegion, err = parseCapture(args.Capture); err != nil {
 		return nil, total, err
+	}
+	for i, a := range r.batch {
+		if a.Unit == "page" && (i != len(r.batch)-1 || slices.ContainsFunc(r.batch[:i], func(a action) bool { return a.Kind == "scroll" }) || r.captureMode == "none" || r.captureMode == "region") {
+			return nil, total, invalidf("a page scroll must be the last action, with no earlier scroll and capture changes or window")
+		}
 	}
 	if r.shotID == "" {
 		for i, a := range r.batch {
@@ -149,6 +183,15 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 	out := &actOut{Actions: &actionsOut{Total: len(r.batch), Delivery: "none"}, NewWindows: []newWindowOut{}}
 	fail := func(err error) *mcp.CallToolResult {
 		return errorResult(asToolError(err), out, r.batch, nil)
+	}
+	// A shot already binds its coordinates to one window and stable identity.
+	// Never infer a target from the last or active window.
+	if r.window == "" {
+		shown := s.shots.get(r.shotID)
+		if shown == nil {
+			return fail(&toolError{Code: "stale_shot", Message: fmt.Sprintf("there is no shot %s to identify the window", r.shotID), Hint: hintWindows})
+		}
+		r.window = shown.Window
 	}
 	end := start.Add(r.deadline)
 	sendBy := end.Add(-captureReserve)
@@ -188,7 +231,7 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 		}
 	}
 	// What the agent has seen of the window when the call starts.
-	if r.captureMode == "changes" {
+	if r.captureMode == "changes" || endsWithPage(r) {
 		r.base, r.baseReason = s.changesBase(r.window, sh, st)
 	}
 	if err := validateBatch(r.batch, sh, st.Capabilities, r.window); err != nil {
@@ -237,6 +280,9 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 		if k := scrollSplitAt(r, sh, inputBy); k > 0 {
 			return s.actSplit(ctx, sendCtx, splitCall{r: r, at: k, out: out, sh: sh, st: st, start: start, end: end, sendBy: sendBy, region: region,
 				before: before, locale: locale, p: p, failShot: failShot})
+		}
+		if endsWithPage(r) {
+			return s.actPage(ctx, sendCtx, r, out, sh, st, start, end, sendBy, p, before)
 		}
 		actions, cur, err := s.send(ctx, sendCtx, r, steps, sh, st, start, p, locale)
 		out.Actions = actions

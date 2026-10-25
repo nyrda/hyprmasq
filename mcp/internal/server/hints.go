@@ -9,6 +9,17 @@ import (
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
 )
 
+const firstViewNavigationHint = "For a short scroll, use ordinary notch scrolling. For a long page, next_page can follow your visible edits in the same act and retain overlap. Check the returned changes before continuing from the next view."
+
+// Give the navigation guidance on the first usable full view, whichever tool
+// supplied it. Older frames and regions do not invite coordinate input.
+func initialNavigationHint(sh *shot, first bool) string {
+	if first && !sh.Resizing && sh.Starved == nil && sh.Parent == "" {
+		return firstViewNavigationHint
+	}
+	return ""
+}
+
 // joinHints joins the hints that apply to a result into one.
 func joinHints(hints ...string) string {
 	var parts []string

@@ -41,8 +41,11 @@ func scrollSplitAt(r *actRequest, sh *shot, until time.Time) int {
 	for k > 0 && r.batch[k-1].Kind == "scroll" {
 		k--
 	}
-	if r.captureMode != "changes" || k == len(r.batch) || !changesInput(r.batch[:k]) || slices.ContainsFunc(r.batch[:k], func(a action) bool { return a.Kind == "scroll" }) {
+	if r.captureMode != "changes" && !endsWithPage(r) || k == len(r.batch) || !changesInput(r.batch[:k]) && !endsWithPage(r) || slices.ContainsFunc(r.batch[:k], func(a action) bool { return a.Kind == "scroll" }) {
 		return -1
+	}
+	if endsWithPage(r) {
+		return k
 	}
 	need := sendTime(translateBatch(r.batch[:k], sh)) + time.Duration(r.quietMs)*time.Millisecond + splitWaitMin + splitCaptureBudget +
 		sendTime(translateBatch(r.batch[k:], sh))
@@ -147,8 +150,10 @@ func (s *Server) actSplit(ctx, sendCtx context.Context, c splitCall) *mcp.CallTo
 	if reason == "" {
 		c.p.set("capturing the changes before the scroll")
 		headOut := &actOut{Wait: wait}
+		captureRequest := *r
+		captureRequest.joinChanges = endsWithPage(r)
 		capCtx, cancel := context.WithDeadline(ctx, inputBy.Add(-sendTime(tail)))
-		shot, images, err = s.captureChanges(capCtx, r, headOut, st.StableID)
+		shot, images, err = s.captureChanges(capCtx, &captureRequest, headOut, st.StableID)
 		cancel()
 		switch {
 		case err != nil:
@@ -168,7 +173,14 @@ func (s *Server) actSplit(ctx, sendCtx context.Context, c splitCall) *mcp.CallTo
 	scroll := *r
 	scroll.from = k
 	c.p.set("sending the scroll")
-	scrolled, cur, err := s.send(ctx, sendCtx, &scroll, tail, c.sh, st, c.start, c.p, targetLocale{})
+	var scrolled *actionsOut
+	var pageWait *waitOut
+	if endsWithPage(r) {
+		scrolled, cur, pageWait, out.Scroll, err = s.sendPage(ctx, sendCtx, &scroll, c.sh, st, c.start, c.sendBy, c.p, wait)
+		r.captureMode = "window"
+	} else {
+		scrolled, cur, err = s.send(ctx, sendCtx, &scroll, tail, c.sh, st, c.start, c.p, targetLocale{})
+	}
 	scrolled.composeNote = actions.composeNote
 	if scrolled.Delivery == "none" {
 		if errors.Is(err, errCancelled) {
@@ -178,8 +190,10 @@ func (s *Server) actSplit(ctx, sendCtx context.Context, c splitCall) *mcp.CallTo
 		}
 		// Nothing of the scrolls went out: as for a scroll held back, the result shows the window from the call's shot.
 		why := "too little time was left for it"
-		if te := asToolError(err); err != nil && te.Code != "deadline" {
-			why = "it could not be sent: " + te.Message
+		if err != nil {
+			if te := asToolError(err); te.Code != "deadline" {
+				why = "it could not be sent: " + te.Message
+			}
 		}
 		out.BeforeScroll = nil
 		out.Actions = heldBack(actions, k, why)
@@ -187,6 +201,11 @@ func (s *Server) actSplit(ctx, sendCtx context.Context, c splitCall) *mcp.CallTo
 	}
 	s.shots.returned(shot)
 	shot.Animated = mergeAnimated(slices.Clone(shot.Animated), wait.animatedBoxes())
+	for _, a := range wait.animated {
+		if box, ok := shot.pixelBox(a); ok {
+			wait.Animated = append(wait.Animated, box)
+		}
+	}
 	r.base, r.baseReason = shot, ""
 	// From here on, the result's wait is the scroll's: the first part's is in before_scroll.
 	out.Actions, out.beforeImages, out.Wait = scrolled, images, nil
@@ -198,7 +217,11 @@ func (s *Server) actSplit(ctx, sendCtx context.Context, c splitCall) *mcp.CallTo
 		return withError(s.finish(ctx, r, out, st, c.end, c.region, true, c.before), te, out, r.batch)
 	}
 	c.p.set("waiting for the window to settle")
-	wait, err = s.waitForWindow(ctx, r, currentBaseline(cur), dragBaseline(st), c.sendBy)
+	if pageWait != nil {
+		wait = pageWait
+	} else {
+		wait, err = s.waitForWindow(ctx, r, currentBaseline(cur), dragBaseline(st), c.sendBy)
+	}
 	if err != nil {
 		return withError(s.finish(ctx, r, out, st, c.end, c.region, true, c.before), asToolError(err), out, r.batch)
 	}

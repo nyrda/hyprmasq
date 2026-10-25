@@ -32,7 +32,7 @@
 #define MAX_HELD       64
 #define MAX_DRAG_STEPS 2000
 #define EVDEV_OFFSET   8
-// The presses of a key or tag. 500 presses of a key without modifiers take 7.5 s at their pace, and of a chord with
+// The presses of a key or tag. 500 repeated plain keys take about half a second at their pace, and of a chord with
 // modifiers 20 s, which the longest deadline of hyprmasq-mcp still fits: enough for a slider of 360 steps, end to end.
 // hyprmasq-mcp's maxRepeat repeats it. Change them together.
 #define MAX_REPEAT 500
@@ -54,6 +54,8 @@
 #define CHORD_GAP_MS    15
 #define TYPE_HOLD_MS    5
 #define TYPE_GAP_MS     10
+#define REPEAT_HOLD_MS  0
+#define REPEAT_GAP_MS   1
 #define WHEEL_GAP_MS    20
 #define DRAG_HOLD_MS    50
 #define DRAG_STEP_MS    10
@@ -1533,10 +1535,10 @@ static bool typeSteps(struct state* s, const struct steps* steps) {
     return true;
 }
 
-// Whether a keys action names one key, without modifiers, which it presses as typing would: held TYPE_HOLD_MS and
-// TYPE_GAP_MS apart, with any modifier that the keymap needs for it, such as Shift for @, at once before it. Apps took
-// a hundred arrow presses at this pace one step each, in Qt, GTK, Tk and Chromium. Chords with modifiers keep their
-// pace, which gives a shortcut's modifiers time to take effect.
+// Whether a keys action names one key without explicit modifiers. A single press
+// uses typing pace; repeated presses use REPEAT_HOLD_MS and REPEAT_GAP_MS. Any
+// modifier the keymap needs, such as Shift for @, goes down with the key. Chords
+// with explicit modifiers retain the delay that lets their modifiers take effect.
 static bool typedKeys(const struct action* a) {
     return a->type == ACTION_KEYS && !strchr(a->text, '+');
 }
@@ -1572,7 +1574,7 @@ static long pacedTime(const struct state* s, const struct action* actions, int t
             case ACTION_KEY: ms += pace * CHORD_HOLD_MS; break;
             case ACTION_KEYS:
                 if (typedKeys(a))
-                    ms += pace * (a->count * TYPE_HOLD_MS + (a->count - 1) * TYPE_GAP_MS);
+                    ms += pace * (a->count * (a->count > 1 ? REPEAT_HOLD_MS : TYPE_HOLD_MS) + (a->count - 1) * REPEAT_GAP_MS);
                 else
                     ms += pace * (a->count * (mods + CHORD_HOLD_MS) + (a->count - 1) * CHORD_GAP_MS);
                 break;
@@ -1606,8 +1608,8 @@ static bool runAction(struct state* s, const struct action* a) {
         case ACTION_KEYS:
             for (long i = 0; i < a->count; ++i) {
                 const bool typed = typedKeys(a);
-                if ((i && !paceWait(s, typed ? TYPE_GAP_MS : CHORD_GAP_MS)) ||
-                    !pressChord(s, &a->chord, typed ? 0 : CHORD_MOD_MS, typed ? TYPE_HOLD_MS : CHORD_HOLD_MS, i + 1 == a->count))
+                if ((i && !paceWait(s, typed ? REPEAT_GAP_MS : CHORD_GAP_MS)) ||
+                    !pressChord(s, &a->chord, typed ? 0 : CHORD_MOD_MS, typed ? (a->count > 1 ? REPEAT_HOLD_MS : TYPE_HOLD_MS) : CHORD_HOLD_MS, i + 1 == a->count))
                     return false;
             }
             return true;

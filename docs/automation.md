@@ -308,7 +308,8 @@ send it, so `hyprmasq-input` paces its input unless `--no-pace` is given:
 | Press after motion | at least 30 ms |
 | Button held | 50 ms |
 | Chords with modifiers | the key 10 ms after its modifiers, held 15 ms, 15 ms apart |
-| Typed keys, and `keys` that names one key | held 5 ms, 10 ms apart |
+| Typed keys, and a single press with `keys` | held 5 ms, 10 ms apart |
+| Repeated plain keys | distinct press/release frames with 1 ms gaps |
 | Wheel notches | 20 ms apart, then 20 ms after the last notch |
 | Smooth scrolls | 20 ms after each |
 | Drags | steps of at most 10 logical pixels, 10 ms apart |

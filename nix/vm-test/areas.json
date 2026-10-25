@@ -20,6 +20,7 @@
   { "name": "suspended", "requires": ["core"] },
   { "name": "key-pace", "requires": ["core"] },
   { "name": "scrolling", "requires": ["core"] },
+  { "name": "paging", "requires": ["core", "input"] },
   { "name": "unload", "requires": ["core", "waits", "suspended"] },
   { "name": "compositor-log", "requires": ["drag"] }
 ]

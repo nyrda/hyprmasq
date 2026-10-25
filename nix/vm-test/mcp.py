@@ -12,6 +12,7 @@ def probe_leaves(start):
 
 
 with subtest("hyprmasq-mcp introduces itself and its tools"):
+    navigation_hint = "For a short scroll, use ordinary notch scrolling. For a long page, next_page can follow your visible edits in the same act and retain overlap. Check the returned changes before continuing from the next view."
     focus_workspace(4)
     wait_for("focus back", lambda: snapshot() == (4, visible))
     mcp = Mcp("a")
@@ -32,8 +33,10 @@ with subtest("hyprmasq-mcp introduces itself and its tools"):
     windows_schema = tools["windows"]["inputSchema"]
     assert set(windows_schema["properties"]) == {"match", "wait_ms"} and windows_schema["properties"]["wait_ms"]["maximum"] == 10000, windows_schema
     act_schema = tools["act"]["inputSchema"]
-    assert act_schema["required"] == ["window"], act_schema
-    assert set(act_schema["properties"]) == {"window", "shot", "actions", "wait", "capture", "deadline_ms"}, act_schema
+    assert not act_schema.get("required"), act_schema
+    assert set(act_schema["properties"]) == {"window", "shot", "actions", "next_page", "wait", "capture", "deadline_ms"}, act_schema
+    assert {form["type"] for form in act_schema["properties"]["actions"]["items"]["anyOf"]} == {"object", "array"}, act_schema
+    assert act_schema["properties"]["next_page"]["required"] == ["x", "y"], act_schema
     assert tools["screenshot"]["inputSchema"]["required"] == ["window"], tools["screenshot"]
     assert tools["launch"]["inputSchema"]["required"] == ["command"], tools["launch"]
 
@@ -56,8 +59,9 @@ with subtest("hyprmasq-mcp launches a window on a hidden workspace"):
     assert launch_result.data["wait"]["ended"] == "quiet" and launch_result.data["new_windows"] == [], launch_result
     assert (launch_shot["width"], launch_shot["height"], launch_shot["frame"]) == (640, 480, region(0, 0, 640, 480)), launch_result
     assert re.fullmatch(
-        rf'launched {shell} foot "hm-m-shell" · pid {shell_pid} · workspace hm-m · settled after \d+ ms · shot {launch_shot["id"]} 640×480', launch_result.text
+        rf'launched {shell} foot "hm-m-shell" · pid {shell_pid} · workspace hm-m · settled after \d+ ms · shot {launch_shot["id"]} 640×480', launch_result.data["summary"]
     ), launch_result
+    assert launch_result.data["hint"] == navigation_hint and launch_result.text == launch_result.data["summary"] + "\n" + navigation_hint, launch_result
     assert len(launch_result.images) == 1 and pixels(launch_result.images[0])[-1] == (640, 480), launch_result
     keep(launch_result, "launched")
     assert client("hm-m-shell")["workspace"]["name"] == "hm-m" and snapshot() == before_focus
@@ -112,7 +116,7 @@ with subtest("hyprmasq-mcp gives Claude Code the text in place of structured con
     # It lists one window, which comes with its shot.
     matched = claude.call("windows", {"match": "HM-M-SHELL"})
     assert matched.data is None and len(matched.images) == 1, matched
-    assert re.fullmatch(rf'{shell} · foot "hm-m-shell" · workspace hm-m \(hidden\) · 640×480\nshot s\d+ 640×480 of window {shell}', matched.text), matched
+    assert re.fullmatch(rf'{shell} · foot "hm-m-shell" · workspace hm-m \(hidden\) · 640×480\nshot s\d+ 640×480 of window {shell}\n' + re.escape(navigation_hint), matched.text), matched
     none = claude.call("windows", {"match": "hm-m-nothing"})
     assert none.data is None and re.fullmatch(r'no window has "hm-m-nothing" in its class or title, of \d+ windows', none.text), none
     shot = claude.call("screenshot", {"window": shell})
@@ -164,10 +168,10 @@ with subtest("hyprmasq-mcp clicks at the shot pixel, also at scale 2 and in a zo
     overview = mcp.call("screenshot", {"window": "0x00" + probe[2:].upper()})
     overview_id = overview.data["shot"]["id"]
     assert overview.data["shot"] == {"id": overview_id, "width": 640, "height": 480, "frame": region(0, 0, 640, 480)}, overview
-    assert overview.text == f"shot {overview_id} 640×480 · window {probe} 640×480" and len(overview.images) == 1, overview
+    assert overview.text == f"shot {overview_id} 640×480 · window {probe} 640×480\n{navigation_hint}" and len(overview.images) == 1, overview
     # The probe draws nothing in answer to input, so the wait finds no redraw.
     start = len(probe_events("m-probe"))
-    clicked = mcp.call("act", {"window": probe, "shot": overview_id, "actions": [{"action": "click", "x": 123, "y": 77}]})
+    clicked = mcp.call("act", {"shot": overview_id, "actions": [[123, 77]]})
     assert not clicked.is_error and clicked.data["wait"]["ended"] == "no_redraw" and clicked.data["wait"]["summary"] == "no_change", clicked
     # Nothing changed since the shot, so there is no image, and the hint points at the shot the window still shows. A
     # click may also have opened a window of another process that maps later, which the hint says too.
@@ -183,7 +187,7 @@ with subtest("hyprmasq-mcp clicks at the shot pixel, also at scale 2 and in a zo
     # At scale 2, a shot pixel is half a logical pixel.
     monitor_scale(2, 320)
     wait_for("probe at scale 2", lambda: client("hm-m-probe")["size"] == [320, 240])
-    stale = mcp.call("act", {"window": probe, "shot": overview_id, "actions": [{"action": "click", "x": 123, "y": 77}]})
+    stale = mcp.call("act", {"shot": overview_id, "actions": [[123, 77]]})
     refused(stale, "stale_shot")
     assert stale.data["error"]["message"] == f"the window was resized from 640×480 to 320×240 since shot {overview_id}", stale
     doubled = mcp.call("screenshot", {"window": probe})
@@ -200,7 +204,7 @@ with subtest("hyprmasq-mcp clicks at the shot pixel, also at scale 2 and in a zo
     assert zoom.text == f"shot {zoom_id} 100×60 · zoom of {doubled_id} at 200,140 100×60 · window {probe} 320×240", zoom
     assert pixels(keep(zoom, "zoom"))[-1] == (100, 60) and near(pixels(zoom.images[0], (50, 30))[0], window_rgb)
     start = len(probe_events("m-probe"))
-    clicked = mcp.call("act", {"window": probe, "shot": zoom_id, "actions": [{"action": "click", "x": 31, "y": 17}], "wait": {"expect_change": False}})
+    clicked = mcp.call("act", {"shot": zoom_id, "actions": [[31, 17]], "wait": {"expect_change": False}})
     assert not clicked.is_error and clicked.data["shot"]["width"] == 640, clicked
     assert probe_motions(start) == [(115.5, 78.5)], probe_events("m-probe", start)
     monitor_scale(1, 640)

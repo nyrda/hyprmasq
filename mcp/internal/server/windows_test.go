@@ -31,8 +31,8 @@ func TestWindowsShotOfOneWindow(t *testing.T) {
 
 	res := e.windowsWith(`{"match":"mail"}`)
 	id, _ := get(t, res, "windows.0.shot.id").(string)
-	if res.IsError || id != "s1" || get(t, res, "windows.0.shot.may_be_stale") != nil || get(t, res, "hint") != nil || len(res.Content) != 2 ||
-		text(res) != "0xa1 · test.app \"Mail\" · workspace 1 (visible) · 640×400\nshot s1 1280×800 of window 0xa1" {
+	if res.IsError || id != "s1" || get(t, res, "windows.0.shot.may_be_stale") != nil || get(t, res, "hint") != firstViewNavigationHint || len(res.Content) != 2 ||
+		text(res) != "0xa1 · test.app \"Mail\" · workspace 1 (visible) · 640×400\nshot s1 1280×800 of window 0xa1\n"+firstViewNavigationHint {
 		t.Fatalf("one window: %s", text(res))
 	}
 	// The capture fed the starved window frame callbacks and gave it a second to draw, as screenshot does.
@@ -156,7 +156,7 @@ func TestWindowsWaitsForAWindow(t *testing.T) {
 	if res.IsError || get(t, res, "wait.ended") != "found" || elapsed < 350 || elapsed > 4000 || get(t, res, "windows.0.window") != "0xd1" || get(t, res, "windows.0.shot") == nil {
 		t.Fatalf("mapped: %s", text(res))
 	}
-	if lines := strings.Split(text(res), "\n"); len(lines) != 3 || lines[1] != fmt.Sprintf("found after waiting %d ms", int(elapsed)) || !strings.HasSuffix(lines[2], " of window 0xd1") {
+	if lines := strings.Split(text(res), "\n"); len(lines) != 4 || lines[3] != firstViewNavigationHint || lines[1] != fmt.Sprintf("found after waiting %d ms", int(elapsed)) || !strings.HasSuffix(lines[2], " of window 0xd1") {
 		t.Errorf("mapped: %q", text(res))
 	}
 	if waits := e.fake.requestsMatching("j/hyprmasq wait 0xd1"); len(waits) != 1 || waitArgsOf(t, waits[0])["quiet"] != "200" {
@@ -368,11 +368,11 @@ func TestWindowsMatch(t *testing.T) {
 	}
 	// One window comes with its shot.
 	res, got := windows(`{"match":"inbox"}`)
-	if !reflect.DeepEqual(got, []string{"0xb2"}) || text(res) != "0xb2 · org.gnome.Evolution \"Inbox (3 unread)\" · workspace 1 (visible) · 640×480\nshot s1 1280×960 of window 0xb2" ||
+	if !reflect.DeepEqual(got, []string{"0xb2"}) || text(res) != "0xb2 · org.gnome.Evolution \"Inbox (3 unread)\" · workspace 1 (visible) · 640×480\nshot s1 1280×960 of window 0xb2\n"+firstViewNavigationHint ||
 		get(t, res, "windows.0.shot.id") != "s1" || get(t, res, "summary") != "shot s1 1280×960 of window 0xb2" || len(res.Content) != 2 {
 		t.Errorf("title with inbox: %v %q", got, text(res))
 	}
-	if res, _ := windows(`{"match":"monolith"}`); text(res) != "0xa1 · Spotify \"Monolith - Crossfaith\" · workspace 1 (visible) · 1264×687 · xwayland · lacks lease, dnd · keyboard x11-focus\nshot s2 2528×1374 of window 0xa1" {
+	if res, _ := windows(`{"match":"monolith"}`); text(res) != "0xa1 · Spotify \"Monolith - Crossfaith\" · workspace 1 (visible) · 1264×687 · xwayland · lacks lease, dnd · keyboard x11-focus\nshot s2 2528×1374 of window 0xa1\n"+firstViewNavigationHint {
 		t.Errorf("an X11 window: %q", text(res))
 	}
 	if res, _ := windows(`{"match":"SPOT"}`); get(t, res, "summary") != nil {

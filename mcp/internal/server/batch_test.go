@@ -233,10 +233,10 @@ func TestMinSendTime(t *testing.T) {
 		// A smooth scroll gets a wheel's gap after it.
 		{steps([]string{"scroll", "0", "-40.5"}), 20},
 		// A chord with modifiers presses its key 10 ms after them, holds it 15 ms and repeats 15 ms apart. A key alone
-		// is typed: held 5 ms, 10 ms apart, also one that the keymap reaches with Shift.
+		// is held 5 ms once, or repeated with 1 ms gaps, also through keymap Shift.
 		{steps([]string{"keys", "ctrl+l", "3"}), 105},
-		{steps([]string{"keys", "right", "100"}), 1490},
-		{steps([]string{"keys", "A", "2"}), 20},
+		{steps([]string{"keys", "right", "100"}), 99},
+		{steps([]string{"keys", "A", "2"}), 1},
 		{steps([]string{"text", "aé\r\nc"}), 50},
 		{steps([]string{"sleep", "250"}, []string{"keys", "enter", "1"}), 305},
 		// A sync takes the place of the gap after the action before it, and lasts at least its MIN.
@@ -267,8 +267,8 @@ func TestBatchesThatTheDeadlineCannotFit(t *testing.T) {
 		// The most presses of a chord with modifiers fit the longest deadline, and of keys alone four times as many do not.
 		{`"actions":[{"action":"key","keys":["ctrl","right"],"repeat":500}]`, "at least 19985 ms to send, about 21983 ms with round trips; deadline_ms 15000 leaves 12750 ms for it",
 			"Give a deadline_ms of at least 29000"},
-		{`"actions":[` + strings.Repeat(`{"action":"key","keys":["right"],"repeat":500},`, 3) + `{"action":"key","keys":["left"],"repeat":500}],"deadline_ms":30000`,
-			"at least 30110 ms to send", "Split it over several calls: a key alone takes at least 15 ms a press, and a chord with modifiers 40 ms."},
+		{`"actions":[` + strings.Repeat(`{"action":"key","keys":["right"],"repeat":500},`, 54) + `{"action":"key","keys":["left"],"repeat":500}],"deadline_ms":30000`,
+			"at least 30145 ms to send", "Split it over several calls: repeated plain keys have 1 ms gaps, and chords with modifiers 40 ms."},
 		// Input ends early enough for a sender that the deadline stops to report before the capture.
 		{`"actions":[{"action":"key","keys":["a"]}],"deadline_ms":2000`, "deadline_ms 2000 leaves 0 ms for it", "Give a deadline_ms of at least 4000"},
 		{`"actions":[{"action":"type","text":"` + strings.Repeat("x", 1000) + `"}]`, "at least 14990 ms to send, about 16489 ms with round trips; deadline_ms 15000 leaves 12750 ms for it",

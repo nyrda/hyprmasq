@@ -139,32 +139,38 @@ func TestScrollIsHeldBack(t *testing.T) {
 				}
 			}},
 	} {
-		t.Run(c.name, func(t *testing.T) {
-			e := newTestEnv(t)
-			e.window("0xa1", "1a", 320, 200)
-			e.screenshot(`{"window":"0xa1"}`)
-			paintOnWaits(e, c.answer(e), tick)
-			res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":10,"y":10},{"action":"scroll","x":10,"y":10,"dy":3}]}`)
-			if res.IsError {
-				t.Fatal(text(res))
-			}
-			if got := e.inputs(); !reflect.DeepEqual(got, [][]string{{"move", "5", "5", "click", "left", "1", "-"}}) {
-				t.Errorf("inputs %q", got)
-			}
-			if got := get(t, res, "actions"); !reflect.DeepEqual(got, map[string]any{"done": 1.0, "total": 2.0, "delivery": "partial", "failed_index": 1.0, "held_back": c.reason}) {
-				t.Errorf("actions %v", got)
-			}
-			if summary := summaryOf(t, res); !strings.HasPrefix(summary, "1/2 delivered, scroll held back · "+c.wait) || strings.Contains(summary, "before the scroll") {
-				t.Errorf("summary %q", summary)
-			}
-			if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, heldBackHint(&actionsOut{HeldBack: c.reason})) {
-				t.Errorf("hint %q", hint)
-			}
-			// The shot is of the click's changes against the call's shot, as for the click alone.
-			if get(t, res, "before_scroll") != nil || get(t, res, "shot.changes.base") != "s1" && get(t, res, "shot.full_shot") == nil {
-				t.Errorf("shot %v, before_scroll %v", get(t, res, "shot"), get(t, res, "before_scroll"))
-			}
-		})
+		for _, unit := range []string{"notch", "page"} {
+			t.Run(c.name+"/"+unit, func(t *testing.T) {
+				e := newTestEnv(t)
+				e.window("0xa1", "1a", 320, 200)
+				e.screenshot(`{"window":"0xa1"}`)
+				paintOnWaits(e, c.answer(e), tick)
+				scroll := `{"action":"scroll","x":10,"y":10,"dy":3}`
+				if unit == "page" {
+					scroll = `{"action":"scroll","x":10,"y":10,"dy":1,"unit":"page"}`
+				}
+				res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":10,"y":10},` + scroll + `]}`)
+				if res.IsError {
+					t.Fatal(text(res))
+				}
+				if got := e.inputs(); !reflect.DeepEqual(got, [][]string{{"move", "5", "5", "click", "left", "1", "-"}}) {
+					t.Errorf("inputs %q", got)
+				}
+				if got := get(t, res, "actions"); !reflect.DeepEqual(got, map[string]any{"done": 1.0, "total": 2.0, "delivery": "partial", "failed_index": 1.0, "held_back": c.reason}) {
+					t.Errorf("actions %v", got)
+				}
+				if summary := summaryOf(t, res); !strings.HasPrefix(summary, "1/2 delivered, scroll held back · "+c.wait) || strings.Contains(summary, "before the scroll") {
+					t.Errorf("summary %q", summary)
+				}
+				if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, heldBackHint(&actionsOut{HeldBack: c.reason})) {
+					t.Errorf("hint %q", hint)
+				}
+				// The shot is of the click's changes against the call's shot, as for the click alone.
+				if get(t, res, "before_scroll") != nil || get(t, res, "shot.changes.base") != "s1" && get(t, res, "shot.full_shot") == nil {
+					t.Errorf("shot %v, before_scroll %v", get(t, res, "shot"), get(t, res, "before_scroll"))
+				}
+			})
+		}
 	}
 }
 

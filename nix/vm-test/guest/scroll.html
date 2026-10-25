@@ -24,6 +24,14 @@
         clearTimeout(resting);
         resting = setTimeout(() => say("scroll", Math.round(scrollY)), 300);
       });
+      // Count actual DOM events independently of the sender's delivery result.
+      let downs = 0, ups = 0, repeats = 0, keysRest;
+      const keyReport = () => {
+        clearTimeout(keysRest);
+        keysRest = setTimeout(() => say("keys", downs, ups, repeats), 100);
+      };
+      addEventListener("keydown", event => { downs++; repeats += Number(event.repeat); keyReport(); });
+      addEventListener("keyup", () => { ups++; keyReport(); });
       say("ready");
     </script>
   </body>

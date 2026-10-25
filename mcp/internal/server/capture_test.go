@@ -256,7 +256,7 @@ func TestShotsOfAWindowThatHasNotCaughtUpWithAResize(t *testing.T) {
 	e := newTestEnv(t)
 	w := e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Resizing = true })
 	res := e.screenshot(`{"window":"0xa1"}`)
-	if res.IsError || get(t, res, "shot.resizing") != nil || get(t, res, "hint") != nil {
+	if res.IsError || get(t, res, "shot.resizing") != nil || get(t, res, "hint") != firstViewNavigationHint {
 		t.Fatalf("after catching up: %s", text(res))
 	}
 	waits := e.fake.requestsMatching("j/hyprmasq wait")
@@ -327,7 +327,7 @@ func TestShotsOfAStarvedWindow(t *testing.T) {
 	e := newTestEnv(t)
 	w := e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Starved = true })
 	res := e.screenshot(`{"window":"0xa1"}`)
-	if res.IsError || get(t, res, "shot.may_be_stale") != nil || get(t, res, "hint") != nil {
+	if res.IsError || get(t, res, "shot.may_be_stale") != nil || get(t, res, "hint") != firstViewNavigationHint {
 		t.Fatalf("after drawing: %s", text(res))
 	}
 	waits := e.fake.requestsMatching("j/hyprmasq wait")

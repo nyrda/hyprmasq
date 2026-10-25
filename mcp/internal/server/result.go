@@ -289,6 +289,7 @@ type actOut struct {
 	// For a batch that ended with scrolling after other input, which act sent in two parts, what the input before the
 	// scroll did. Wait and Shot are then the scroll's. See split.go.
 	BeforeScroll *beforeScrollOut `json:"before_scroll,omitempty"`
+	Scroll       *pageScrollOut   `json:"scroll,omitempty"`
 	// The images of BeforeScroll's shot, which come before the others.
 	beforeImages [][]byte
 	// Why the shot shows the whole window instead of the capture region, for the hint.

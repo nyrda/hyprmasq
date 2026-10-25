@@ -401,6 +401,7 @@ func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	// The one window listed comes with its shot, as from screenshot, since that is what an agent takes next.
 	if len(out.Windows) == 1 && out.Windows[0].Shot == nil {
 		o, w := &out.Windows[0], shown[0]
+		firstView := s.shots.lastOf(w.Address, w.StableID) == nil
 		// A late window past the limit of shots, whose claim keepLate released, is claimed again for this shot, which
 		// reports it as a late window, unless another call has claimed or reported it meanwhile.
 		var reclaimed *newWindowOut
@@ -421,6 +422,7 @@ func (s *Server) windowsTool(ctx context.Context, c *call) *mcp.CallToolResult {
 			// The capture gives a window that has not caught up with a resize time to draw first, so its shot is newer.
 			o.Resizing = o.Shot.Resizing
 			images = append([][]byte{png}, images...)
+			hints = append(hints, initialNavigationHint(sh, firstView && reclaimed == nil))
 			if reclaimed != nil {
 				// The late window's line and hints name it, with this shot.
 				reclaimed.Shot = o.Shot

@@ -67,6 +67,8 @@ const (
 	chordGapMs    = 15
 	typeHoldMs    = 5
 	typeGapMs     = 10
+	repeatHoldMs  = 0
+	repeatGapMs   = 1
 	wheelGapMs    = 20
 	dragHoldMs    = 50
 	dragStepMs    = 10
@@ -119,12 +121,17 @@ func minSendTime(steps []inputStep) time.Duration {
 			// So does a smooth scroll.
 			ms += wheelGapMs
 		case "keys":
-			// A chord of one key is typed, and one with modifiers goes down after them.
+			// Plain repeats use distinct press/release pairs; a single key keeps
+			// typing pace, and a chord goes down after its modifiers.
 			repeat := int(value(argv[2]))
 			if strings.Contains(argv[1], "+") {
 				ms += repeat*(chordModMs+chordHoldMs) + (repeat-1)*chordGapMs
 			} else {
-				ms += repeat*typeHoldMs + (repeat-1)*typeGapMs
+				if repeat > 1 {
+					ms += repeat*repeatHoldMs + (repeat-1)*repeatGapMs
+				} else {
+					ms += typeHoldMs
+				}
 			}
 		case "text":
 			// Every character is at least one key press, and a CR LF is one Enter.

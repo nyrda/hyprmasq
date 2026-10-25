@@ -41,6 +41,9 @@ func summaryLine(out *actOut, batch []action) string {
 		lines = append(lines, "after the scroll: "+joinParts(waitText(out.Wait), resultShotText(out)))
 	}
 	lines = append(lines, changesLines(out.Shot)...)
+	if out.Scroll != nil {
+		lines = append(lines, out.Scroll.text())
+	}
 	lines = append(lines, sourceLines(out.Source)...)
 	lines = append(lines, newWindowLines(out.NewWindows, "new window")...)
 	return strings.Join(append(lines, newWindowLines(out.LateWindows, "late window")...), "\n")
