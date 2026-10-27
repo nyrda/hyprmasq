@@ -457,17 +457,22 @@ it stays. A woken application may redraw once, also when the input changed
 nothing. X11 windows have no such state, and neither have the windows of
 clients that bind `xdg_wm_base` below version 6.
 
-**Shared connections.** Two windows of one program, such as two windows of
-one browser, can share a Wayland connection, and a connection has one
-keyboard and pointer focus. When the target shares a connection with your
-window, the plugin lends the target the connection's focus for each input
-frame and gives it back before your next input. Your own keys and clicks
-always reach your window. Drags, held keys and clicks with modifiers are then
-unreliable (`hold` is false), and a shortcut the app runs more than a quarter
-of a second late may run in your window or not at all. A separate instance of
-the app avoids this. While you hold a button or key in a window of the
-target's connection, emulated input waits, and after a second it pauses with
-`input_paused`.
+**Shared connections.** Two windows of one program, such as two windows of one
+browser, can share a Wayland connection, and a connection has one keyboard and
+pointer focus. When the target shares a connection with your window, the
+plugin lends the target the connection's focus for each input frame and gives
+it back before your next input. Your own keys and clicks always reach your
+window. A connection also has one set of modifiers, which apps apply to all of
+its pointer input. The target's clicks, scrolls and drags come with the
+sender's modifiers, and the connection gets yours back right after each of
+their frames, before your next key, while your window keeps the keyboard
+focus. So a Shift or Ctrl that you hold while you type does not turn a click
+of the sender's into a Shift- or Ctrl-click, or its scroll into a zoom. Drags,
+held keys and clicks with modifiers are then unreliable (`hold` is false), and
+a shortcut the app runs more than a quarter of a second late may run in your
+window or not at all. A separate instance of the app avoids this. While you
+hold a button or key in a window of the target's connection, emulated input
+waits, and after a second it pauses with `input_paused`.
 
 ### New windows
 

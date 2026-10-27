@@ -106,6 +106,27 @@ namespace hyprmasq::input {
             return found;
         }
 
+        // The modifiers of the user's keyboards as the window with the user's keyboard focus has them: those of
+        // Hyprland's current keyboard, together with the ones held on every keyboard that shares its state.
+        struct SModifiers {
+            uint32_t depressed = 0, latched = 0, locked = 0, group = 0;
+        };
+        std::optional<SModifiers> userModifiers() {
+            auto kb = g_pSeatManager->m_keyboard.lock();
+            if (!kb)
+                return std::nullopt;
+            const auto& state = kb->m_modifiersState;
+            SModifiers  m{.depressed = state.depressed, .latched = state.latched, .locked = state.locked, .group = state.group};
+            for (const auto& other : g_pInputManager->m_keyboards) {
+                if (!other->m_enabled || !other->shareStates() || (other->isVirtual() && g_pInputManager->shouldIgnoreVirtualKeyboard(other)))
+                    continue;
+                m.depressed |= other->m_modifiersState.depressed;
+                m.latched |= other->m_modifiersState.latched;
+                m.locked |= other->m_modifiersState.locked;
+            }
+            return m;
+        }
+
         // Keys whose effect an app may apply only after a round trip, as Chromium runs a shortcut once the page has let its
         // key go by: keys pressed with Ctrl, Alt or Super held, function keys, Escape and media keys. The state is the
         // one before the key.
@@ -285,7 +306,9 @@ namespace hyprmasq::input {
         auto s = wlSeat();
         if (s && scrollBaseline == s->client())
             scrollBaseline = nullptr;
-        if (s && enteredPointer)
+        if (s && enteredPointer) {
+            // The sender's releases come with its modifiers too, see lendModifiers.
+            const bool lent = !buttons.empty() && lendModifiers(s);
             for (auto& p : s->m_pointers)
                 if (p) {
                     // Release explicitly: Hyprland's sendLeave also releases held buttons.
@@ -294,6 +317,9 @@ namespace hyprmasq::input {
                     p->sendLeave();
                     p->sendFrame();
                 }
+            if (lent)
+                returnModifiers(s);
+        }
         enteredPointer.reset();
         buttons.clear();
     }
@@ -415,13 +441,16 @@ namespace hyprmasq::input {
         }
         auto s = enteredPointer && !buttons.empty() ? wlSeat() : nullptr;
         if (s) {
-            const auto now = Time::millis(Time::steadyNow());
+            const auto now  = Time::millis(Time::steadyNow());
+            const bool lent = lendModifiers(s);
             for (auto& p : s->m_pointers)
                 if (p) {
                     for (auto button : buttons)
                         p->sendButton(now, button, WL_POINTER_BUTTON_STATE_RELEASED);
                     p->sendFrame();
                 }
+            if (lent)
+                returnModifiers(s);
         }
         buttons.clear();
     }
@@ -655,17 +684,8 @@ namespace hyprmasq::input {
             if (k) {
                 k->sendLeave();
                 k->sendEnter(real, &arr);
-                if (auto kb = g_pSeatManager->m_keyboard.lock()) {
-                    auto m = kb->m_modifiersState;
-                    for (const auto& other : g_pInputManager->m_keyboards) {
-                        if (!other->m_enabled || !other->shareStates() || (other->isVirtual() && g_pInputManager->shouldIgnoreVirtualKeyboard(other)))
-                            continue;
-                        m.depressed |= other->m_modifiersState.depressed;
-                        m.latched |= other->m_modifiersState.latched;
-                        m.locked |= other->m_modifiersState.locked;
-                    }
-                    k->sendMods(m.depressed, m.latched, m.locked, m.group);
-                }
+                if (const auto m = userModifiers())
+                    k->sendMods(m->depressed, m->latched, m->locked, m->group);
             }
         wl_array_release(&arr);
         enteredKeyboard.reset();
@@ -689,6 +709,22 @@ namespace hyprmasq::input {
                 k->sendMods(dep, lat, lock, group);
         if (toSender)
             eis_device_keyboard_send_xkb_modifiers(keyboard, dep, lat, lock, group);
+    }
+
+    bool SSession::lendModifiers(const SP<CWLSeatResource>& s) {
+        if (modifiersLent || enteredKeyboard || !sharesKeyboardFocus())
+            return false;
+        mods(s, false);
+        modifiersLent = true;
+        return true;
+    }
+
+    void SSession::returnModifiers(const SP<CWLSeatResource>& s) {
+        modifiersLent = false;
+        const auto m  = userModifiers().value_or(SModifiers{});
+        for (auto& k : s->m_keyboards)
+            if (k)
+                k->sendMods(m.depressed, m.latched, m.locked, m.group);
     }
 
     void SSession::rememberPress(uint32_t serial, uint32_t button) {
@@ -778,6 +814,9 @@ namespace hyprmasq::input {
             hold();
             return;
         }
+        // Pointer input beside the user's window comes with the sender's modifiers, see lendModifiers. The user's come
+        // back after the frame, and after the releases that the pointer's return to the user's window sends.
+        const bool lent = !isKeyboard && lendModifiers(s);
         // Resource focus is client-local. Restore it before the event loop can dispatch real input.
         SFrame frame{.window = w, .seat = s, .time = Time::millis(Time::steadyNow()), .restore = restore};
         for (auto* e : pending) {
@@ -806,6 +845,8 @@ namespace hyprmasq::input {
             } else
                 restorePointer(s, real);
         }
+        if (lent)
+            returnModifiers(s);
         // The user's window on the connection gets the user's clipboard back after a press, which kept the
         // keyboard focus there.
         if (!isKeyboard && presses && sharesKeyboardFocus())

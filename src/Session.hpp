@@ -79,7 +79,8 @@ namespace hyprmasq::input {
         bool keepingKeyboard = false, keepingPointer = false;
         // While the window keeps the emulated keyboard focus on the connection of the real focus, see keepKeyboard:
         // that connection's seat, and when it gives it back without further keys.
-        bool                         keyboardKept = false;
+        bool                         keyboardKept  = false;
+        bool                         modifiersLent = false; // see lendModifiers
         WP<CWLSeatResource>          keptSeat;
         Time::steady_tp              keysSettled;
         Time::steady_tp              lastCommand;     // the last press of a commandKey
@@ -173,6 +174,16 @@ namespace hyprmasq::input {
         void returnKeyboard(bool byUser);
         void restoreKeyboard(const SP<CWLSeatResource>& s, const SP<CWLSurfaceResource>& real);
         void mods(const SP<CWLSeatResource>& s, bool toSender = true);
+        // A connection has one set of modifiers, the user's while their window has its keyboard focus, and apps apply
+        // them to all of its pointer input: a Shift that the user holds for a capital would make a click of the
+        // sender's into the window a Shift-click. So pointer input to a window of the connection with the real
+        // keyboard focus, while the user's window keeps that focus, comes with the sender's modifiers: lendModifiers
+        // sends them to the connection, and is false if it did not, as when the window has the keyboard focus and
+        // the sender's modifiers already, or has lent them already. returnModifiers sends the user's again, in the
+        // same dispatch of Hyprland's, so that none of the user's input comes in between and the keyboard focus never
+        // moves.
+        bool lendModifiers(const SP<CWLSeatResource>& s);
+        void returnModifiers(const SP<CWLSeatResource>& s);
         void rememberPress(uint32_t serial, uint32_t button);
         // Input to a window of the connection with the real focus first takes that focus from the user's window, and
         // gives it back after the frame. A pointer's leave releases every button that it holds, as Hyprland's

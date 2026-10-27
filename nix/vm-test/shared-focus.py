@@ -275,6 +275,77 @@ with subtest("the user's held key in a window of the agent's connection survives
         dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
     wait_for("hold probe closed", lambda: client("hm-hb-agent") is None and client("hm-hb-user") is None)
 
+with subtest("the agent's pointer input beside the user's window has the agent's modifiers, not the ones the user holds"):
+    # A connection has one set of modifiers, the user's while their window has its keyboard focus, and apps apply them
+    # to all of the connection's pointer input: a Shift held for a capital would make the agent's click a Shift-click,
+    # which in Chromium extends the page's selection into another field, and a Ctrl would make it a Ctrl-click and its
+    # scroll a zoom. The connection gets the agent's modifiers right before each frame of its pointer input and the
+    # user's right after it, while the keyboard focus stays in the user's window.
+    pm_user, pm_agent, pm_path, _ = hold_probe("pm", "hm-pm-user", "hm-pm-agent", 101, 102)
+
+    def modifiers_before(events, index):
+        """The modifiers that the probe's connection had last been sent before the event at index."""
+        return next(int(e.split()[-1]) for _, e in reversed(events[:index]) if e.startswith("modifiers "))
+
+    def while_held(key, code, *input):
+        """The probe's events while the user holds key, whose evdev code is code, through QEMU's keyboard and the
+        agent's input goes meanwhile, up to the release of the key."""
+        start = len(probe_events("pm"))
+        machine.send_monitor_command(f"sendkey {key} 1500")
+        wait_for(f"the user's {key}", lambda: f"key hm-pm-user {code} 1" in [e for _, e in probe_events("pm", start)], timeout=10)
+        send(pm_path, *input)
+        wait_for(f"the release of {key}", lambda: f"key hm-pm-user {code} 0" in [e for _, e in probe_events("pm", start)], timeout=10)
+        return probe_events("pm", start)
+
+    def agent_events(events, prefix):
+        return [i for i, (_, e) in enumerate(events) if e.startswith(prefix)]
+
+    # Shift, mask 1: the agent's plain click comes without it, and the user's window has it back right after.
+    events = while_held("shift", 42, "move", 30, 30, "click")
+    press, release = index_of(events, lambda e: e == "button hm-pm-agent 1"), index_of(events, lambda e: e == "button hm-pm-agent 0")
+    assert press is not None and release is not None and release < index_of(events, lambda e: e == "key hm-pm-user 42 0"), events
+    assert modifiers_before(events, press) == 0 and modifiers_before(events, release) == 0, events
+    assert next(e for _, e in events[release:] if e.startswith("modifiers ")) == "modifiers hm-pm-user 1", events
+    assert not any(e.startswith("keyboard ") for _, e in events), events
+    # Ctrl, mask 4: neither the click nor a wheel or smooth scroll comes with it.
+    events = while_held("ctrl", 29, "move", 30, 30, "click", "wheel", 0, 2, "scroll", 0, 30)
+    buttons, axes = agent_events(events, "button hm-pm-agent "), agent_events(events, "axis hm-pm-agent ")
+    assert len(buttons) == 2 and axes, events
+    assert all(modifiers_before(events, i) == 0 for i in buttons + axes), events
+    assert next(e for _, e in events[max(buttons + axes) :] if e.startswith("modifiers ")) == "modifiers hm-pm-user 4", events
+    assert not any(e.startswith("keyboard ") for _, e in events), events
+
+    # The user types capitals into their window during the agent's clicks: their keys reach their window alone, each
+    # letter with Shift exactly when it is a capital, and no click of the agent's has Shift.
+    user_text = "QwErTyUiOpAsDfGh"
+    start = len(probe_events("pm"))
+    clicks = " ".join(["click sleep 30"] * 16)
+    spawn("sh -c " + shlex.quote(f"sleep 0.2; hyprmasq-input --socket {pm_path} move 30 30 {clicks}"), "pm-sender")
+    machine.send_chars(user_text, delay=0.04)
+    wait_for("the agent's clicks", lambda: [e for _, e in probe_events("pm", start)].count("button hm-pm-agent 0") == 16, timeout=15)
+    events = probe_events("pm", start)
+    letters = [(i, int(e.split()[2])) for i, (_, e) in enumerate(events) if e.startswith("key hm-pm-user ") and e.endswith(" 1") and e.split()[2] != "42"]
+    assert [code for _, code in letters] == [letter_codes[c.lower()] for c in user_text], events
+    assert [modifiers_before(events, i) & 1 for i, _ in letters] == [int(c.isupper()) for c in user_text], events
+    assert keys_of(events, "hm-pm-agent") == [] and not any(e.startswith("keyboard ") for _, e in events), events
+    assert all(modifiers_before(events, i) == 0 for i in agent_events(events, "button hm-pm-agent ")), events
+
+    # The agent's own Ctrl-click has Ctrl, alone: its Ctrl waits until the user lets go of their Shift, and the user's
+    # window gets its modifiers back with the keyboard focus.
+    start = len(probe_events("pm"))
+    machine.send_monitor_command("sendkey shift 800")
+    wait_for("the user's shift", lambda: "key hm-pm-user 42 1" in [e for _, e in probe_events("pm", start)], timeout=10)
+    send(pm_path, "move", 30, 30, "click", "left", 1, "ctrl")
+    wait_for("the keyboard back in the user's window", lambda: "keyboard enter hm-pm-user" in [e for _, e in probe_events("pm", start)], timeout=10)
+    events = probe_events("pm", start)
+    press, back = index_of(events, lambda e: e == "button hm-pm-agent 1"), index_of(events, lambda e: e == "keyboard enter hm-pm-user")
+    assert index_of(events, lambda e: e == "key hm-pm-user 42 0") < press < back and modifiers_before(events, press) == 4, events
+    assert events[back + 1][1] == "modifiers hm-pm-user 0", events
+    assert snapshot() == (101, pm_user)
+    for title in ["hm-pm-agent", "hm-pm-user"]:
+        dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
+    wait_for("modifier probe closed", lambda: client("hm-pm-agent") is None and client("hm-pm-user") is None)
+
 with subtest("the user's keys take the keyboard back from a window that keeps it also through an input method"):
     # With an input method's keyboard grab, as fcitx5 or ibus have, Hyprland sends the user's keys to the input
     # method instead of the seat, which then commits text to the window with the real focus. The keys still take
