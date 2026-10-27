@@ -29,7 +29,7 @@ def named_actions(arguments):
     """Read both spellings of act's actions, including its final next_page."""
     fields = {
         "click": ("x", "y", "button", "count", "modifiers"), "move": ("x", "y"),
-        "drag": ("from", "to", "button", "modifiers"),
+        "drag": ("from", "to", "button", "modifiers"), "path": ("points", "curve", "button", "modifiers"),
         "scroll": ("x", "y", "dy", "unit", "dx"), "type": ("text",),
         "key": ("keys", "repeat"), "pause": ("ms",),
     }

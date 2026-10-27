@@ -136,6 +136,15 @@ class CurrentProtocol(unittest.TestCase):
         self.assertEqual(analyze.pacing([{"action": "key", "keys": ["right"], "repeat": 100}]), (99, 0))
         self.assertEqual(analyze.pacing([{"action": "key", "keys": ["ctrl", "right"], "repeat": 2}]), (65, 0))
 
+    def test_a_path_with_a_button_is_paced_as_a_drag(self):
+        # 100 px: a drag's 21 steps, the press after the motion and the holds; without a button, a gap every step.
+        drag = analyze.pacing([{"action": "drag", "from": [0, 0], "to": [100, 0]}])
+        self.assertEqual(drag, (330, 0))
+        self.assertEqual(analyze.pacing([{"action": "path", "points": [[0, 0], [100, 0]]}]), drag)
+        self.assertEqual(analyze.pacing([{"action": "path", "points": [[0, 0], [100, 0]], "button": "none"}]), (210, 0))
+        # Two segments of 500 px: 100 steps of DRAG_STEP_PX, the press after the motion and the holds.
+        self.assertEqual(analyze.pacing([{"action": "path", "points": [[0, 0], [500, 0], [500, 500]]}]), (1120, 0))
+
     def test_clicks_always_wait_for_the_answer(self):
         # move, click, sync, move, click: two normal gaps and the sync's 150 ms minimum.
         self.assertEqual(analyze.pacing([{"action": "click"}, {"action": "click"}]), (350, 0))

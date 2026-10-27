@@ -7,6 +7,8 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import actlog  # noqa: E402
 import attribute  # noqa: E402
 import check  # noqa: E402
 
@@ -145,14 +147,15 @@ class Run:
         self.t += 1
 
     def drag(self, label, to_photo=None, to_client=None, landed=None, seen=True, dropped=True, done=None,
-             result_shot=None, shot="s1", via_shot=None, text=None):
-        """An act drag from LABEL's chip to a point, and what the page logs for it."""
+             result_shot=None, shot="s1", via_shot=None, text=None, path=False):
+        """An act drag from LABEL's chip to a point, and what the page logs for it. With path, the act is a path of
+        the two points, which moves a label as a drag does."""
         chip = CHIPS[label]
         start_client = [(chip[0] + chip[2]) / 2, (chip[1] + chip[3]) / 2]
         to_client = to_client or client_of_photo(to_photo)
         from_shot, to_shot = (via_shot or shot_of_client)(start_client), (via_shot or shot_of_client)(to_client)
-        start = self.act([{"action": "drag", "from": from_shot, "to": to_shot}], shot=shot, done=done,
-                         result_shot=result_shot, text=text)
+        action = {"action": "path", "points": [from_shot, to_shot]} if path else {"action": "drag", "from": from_shot, "to": to_shot}
+        start = self.act([action], shot=shot, done=done, result_shot=result_shot, text=text)
         if not seen or done == 0:
             return
         self.page_event(start + 0.1, "pointerdown", x=start_client[0], y=start_client[1], label=label)
@@ -190,20 +193,24 @@ class Attribute(unittest.TestCase):
             return attribute.attribute(run.write(d, final))
 
     def test_wait_only_call_has_no_delivery_prefix(self):
-        content = attribute.text_content("act", {"actions": []},
+        content = actlog.text_content("act", {"actions": []},
                                          "redraw observed · quiet 200 ms · 123 ms · no change", {}, {})
         self.assertEqual(content["actions"]["done"], 0)
 
     def test_unparseable_summaries_are_reported(self):
         for tool in ("act", "screenshot", "windows"):
             with self.subTest(tool=tool), self.assertRaisesRegex(ValueError, "Unparseable"):
-                attribute.text_content(tool, {"actions": [{"action": "click"}]}, "changed summary wording", {}, {})
+                actlog.text_content(tool, {"actions": [{"action": "click"}]}, "changed summary wording", {}, {})
 
     def test_correct_drags_and_calibration(self):
         out = self.run_of(lambda r: [r.drag(label, point) for label, point in CORRECT.items()], CORRECT)
         self.assertEqual(out["calibration"]["offset"], [0, 85.5])
         self.assertEqual([d["outcome"] for d in out["drags"]], ["correct"] * 9)
         self.assertTrue(all(v["blame"] is None for v in out["labels"].values()))
+
+    def test_labels_moved_by_paths(self):
+        out = self.run_of(lambda r: [r.drag(label, point, path=True) for label, point in CORRECT.items()], CORRECT)
+        self.assertEqual([d["outcome"] for d in out["drags"]], ["correct"] * 9)
 
     def test_label_dropped_on_the_ram_module_is_the_models(self):
         def build(r):

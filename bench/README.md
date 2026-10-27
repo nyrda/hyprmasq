@@ -6,7 +6,7 @@ agents use logged-in Claude Code and Codex. API-backed agents need their provide
 
 Agents complete a task in an offline NixOS VM through `hyprmasq-mcp`. The benchmark grades the VM's state,
 measures time on both sides of the MCP connection, and asks the agent for a debrief. It measures how agents
-use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, forgejo, form and thunderbird.
+use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, forgejo, form, thunderbird and trace.
 
 Run results are in [docs/benchmarks.md](../docs/benchmarks.md). `export.py` turns results directories into the
 datasets that page is generated from, and `render.py` draws its figures and tables; see
@@ -28,8 +28,8 @@ To build a VM driver without running an agent:
 
 ```sh
 nix-build bench/default.nix -A driver
-# For another task, add --argstr task calc, forgejo, board or form. Board also needs --argstr variant dnd or pointer,
-# and form its number of questions, such as --argstr variant 25.
+# For another task, add --argstr task calc, forgejo, board, form or trace. Board also needs --argstr variant dnd or
+# pointer, form its number of questions, such as --argstr variant 25, and trace its figure, river or rack.
 ```
 
 See [By hand](#by-hand) to boot that driver and probe MCP without an agent.
@@ -57,8 +57,9 @@ the task, its variant and the display; `run.py` refuses to add runs to a directo
 of them.
 
 `--variant NAME` picks one of a task's variants, which `tasks/TASK/variants` lists, one a line. A task with that
-file needs it, unless a line there is `NAME default`, which it then takes; others refuse it. `default.nix` gives it to the task's `vm.nix` as `benchVariant`; the default
-results directory and the driver's name carry it.
+file needs it, unless a line there is `NAME default`, which it then takes; others refuse it. A variant's directory,
+`tasks/TASK/NAME`, may hold a `prompt.md` of its own, which the agent then gets. `default.nix` gives it to the
+task's `vm.nix` as `benchVariant`; the default results directory and the driver's name carry it.
 
 `--display WIDTHxHEIGHT@SCALE` sets the VM's monitor, in device pixels, by default `1920x1080@1`. Shots fit
 within 1280 pixels and zooms come at the monitor's scale, so what agents can read depends on it. The VM draws
@@ -119,9 +120,11 @@ python3 bench/dispatch.py --host ... --reps 0              # only ship the commi
 
 It takes `run.py`'s options, `--source` and `--out` repeatable, and a `--host` for each machine:
 
-- `local`, this machine, or an SSH destination such as `user@machine`, which this machine reaches with its keys
-  and without a prompt; `,slots=N` runs N VMs there at once (by default one, as runs on one machine compete for
-  its CPU, see below); `,cid=N` is the vsock CID of the first slot's VM, by default 4242, the next slot's one more;
+- `local`, this machine, or an SSH destination such as `user@machine`, which this machine reaches with its keys and
+  without a prompt; `,slots=N` runs N VMs there at once (by default one, as runs on one machine compete for its CPU,
+  see below); `,cid=N` is the vsock CID of the first slot's VM, by default 4242, the next slot's one more. Each
+  run's VM keeps its disk and sockets in `$XDG_RUNTIME_DIR/hyprmasq-bench-vm-CID`, so that the slots' VMs do not
+  share them;
 - `,lock=FILE`: `run.py --lock FILE` on that machine, a lock that its other VM users take there;
 - `,local-lock=FILE`: a lock on this machine that the dispatcher holds while that machine's VM is up, for a machine
   whose other VM users take their lock here, such as VM tests that this machine runs on a remote Nix store;
@@ -160,9 +163,9 @@ resumes, as `run.py` does, with the runs that have no `summary.json`. A machine 
 with its local lock held, until it answers and its run has ended.
 
 A machine needs Nix with KVM (`/dev/kvm`) and vsock (`/dev/vhost-vsock`), `git`, `rsync`, `python3`, `setsid`,
-and the harnesses of the agents it takes logged in for its user, as for `run.py`, and the memory for the VM, 6 GiB, and the agent.
-Its user need not be trusted by Nix. A non-interactive SSH session may lack the user's PATH: the dispatcher adds
-`~/.local/bin`, mise's shims, and Nix's profiles at the end of it.
+`pkill`, and the harnesses of the agents it takes logged in for its user, as for `run.py`, and the memory for the
+VM, 6 GiB, and the agent. Its user need not be trusted by Nix. A non-interactive SSH session may lack the user's
+PATH: the dispatcher adds `~/.local/bin`, mise's shims, and Nix's profiles at the end of it.
 
 Each `run.json` records the machine, and the report adds a table per agent and machine when the runs come from
 more than one, and names the machine and the harness's version of every run. The wall time, the time in tools and
@@ -325,10 +328,10 @@ partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |
 | `start-*.png`, `end-*.png` | Screenshots of every window and of the screen. |
-| `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json`, `vm-form-state.json` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board), the questionnaire's answers, submissions and changes (form). |
+| `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json`, `vm-form-state.json`, `vm-trace-strokes.json` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board), the questionnaire's answers, submissions and changes (form), the drawing (trace). |
 | `vm-events.log` | Hyprland's events (`socket2`), each with the VM's time. |
-| `vm-*.log`, `vm-*.jsonl` | Hyprland, hyprmasq-mcp, socat, and the task's servers and apps, such as the intranet's requests and the watch of the sheet (Calc), or the page's events and saves (board). |
-| `attribution.json` | Board: who each drag's outcome is due to, written by `tasks/board/attribute.py`. |
+| `vm-*.log`, `vm-*.jsonl` | Hyprland, hyprmasq-mcp, socat, and the task's servers and apps, such as the intranet's requests and the watch of the sheet (Calc), or the page's events and saves (board, trace). |
+| `attribution.json` | Board and trace: who each drag's or stroke's outcome is due to, written by the task's `attribute.py`. |
 | `debrief-prompt.md`, `debrief.md`, `debrief.jsonl` | The debrief. |
 | `transcript-*.jsonl` | The harness's own transcript of the session. |
 | `driver.log` | The test driver and the VM's console. |
@@ -563,6 +566,96 @@ slider.
 - `setup.py`: the app, started with its state file, its window and its workspace, root's log of Hyprland's events,
   and in `collect()` the app's state, asked of the app's own process, its logs and the grade.
 - `variants`, `prompt.md`, `debrief.md`: the numbers of questions, 25 the default, and what the agent is told.
+
+### trace
+
+Mara is writing a blog post and marks up its figure, a photo, with a brush in her Firefox 157: the prompt asks the
+agent to draw a line along a line of the photo, and nothing else. It names no tools and gives no coordinates. Firefox
+is started like a user would, on the visible workspace, and moved to the hidden workspace `web`; the user stays on
+workspace 1 with the terminal. The task's variants are the figures, each a directory with its photo, the line to
+trace (`track.json`), the page's texts (`figure.json`) and its prompt (`prompt.md`):
+
+- `river`, the default: a river from above, where it bends through a gorge, 731×600 pixels. The agent draws along
+  the left bank where it lies in the shadow of the hill, where the water meets the shore. The waterline is a sharp
+  edge between the water and the stones, and the page shows the photo at about 1.5 times its size at 1920×1080.
+- `rack`: a rack railway, 239×476 pixels, which the page scales up about twice. The agent draws over the rack, the
+  toothed rail between the running rails, from the bottom edge to where it leaves the photo at the top. Near the top
+  the rack is a ridge 2 pixels wide a few pixels from a brighter rail, so the variant tests recognition as much as
+  aim: agents slide onto the rail there.
+
+The task exercises what board does not: precise input along a curve. On the river, one straight drag along the
+shadowed bank covers 30% of it and two chords pass, so the variant measures aim more than following a curve; on the
+rack, one straight drag covers 14%, five chords 90%, and eight pass. Without `act`'s `path` action, which presses
+once and moves through a line or a spline of points, the agent finds its own way: chained drags, Shift+click lines
+or dots, and how many of them. The photo is scaled to fit the window, the same on every load, and the page does not
+scroll.
+
+The page draws with pointer events on a canvas, as a figure editor would: a drag draws a stroke along every pointer
+position Firefox reports, a click a dot, and Shift and a click a straight line from where the last stroke ended. Undo
+(or Ctrl+Z) takes back the last stroke and Clear removes them all. The brush is 3 photo pixels wide. The panel beside
+the photo says all of this, the way an editor shows its tips. Firefox reports one pointer position a frame: the
+positions between, which `getCoalescedEvents()` would give, it gives only to a secure context, and the blog is plain
+http. Allowing it as one (`dom.securecontext.allowlist`) makes Firefox block the page's own http requests as mixed
+content. A stroke thus has a point about every 16 ms, about every second step of the pointer, which along these curves
+stays within a tenth of a photo pixel of the pointer's path.
+
+- `vm.nix`: the blog on `blog.example.test:80` with the variant's figure, and Firefox with policies against first-run
+  pages.
+- `figure.py STATE-DIR TARGET-DIR`: the blog's server and the figure's page. Every change is saved on the server, in
+  `strokes.json` (each stroke's kind and its points in photo pixels), and logged with the time, the change and the
+  whole drawing in `saves.jsonl`, so the grade comes from the server, not from the screen. The page also logs every
+  pointer and key event it gets, its layout after every change (the photo's and the panel's box, the scale,
+  `devicePixelRatio` and `mozInnerScreenX/Y`), and each stroke it draws, with its start and end in client pixels and
+  its points in photo pixels, in `events.jsonl`.
+- `VARIANT/track.json`: the line every second row of the photo, in photo pixels, with its half-width, and the rows
+  that the drawing must cover, `required`. The line is measured, not drawn by eye: by eye, the rack's top and the
+  river's waterline are easily placed on a neighbouring, brighter edge.
+- `river/trace.py PHOTO`: the waterline, scanned in each row from the open water to the first pixels that differ
+  from the water, smoothed with a median over 31 rows, which the few rows where piles of stones or a jetty pull the
+  scan inland cannot move, and a mean over as many: the bank is a smooth curve at this scale. The line is a band
+  from 10 pixels inland, over the strip of stones between the water and the path, to 2 pixels into the water: a
+  stroke along the embankment anywhere on it is on the line. Below row 480 a band of dark rocks of the water's
+  colour lies in front of the stones, which some agents read as the waterline, so the band reaches 30 pixels into
+  the water there. The rows required are 230 to 480, where the shadow lies on the bank. The line above them, in the
+  sun, may be drawn but need not be.
+- `rack/trace.py PHOTO [--start X0,X1] [--end Y] [--overlay OUT.png]`: the rack, following its two edges row by row
+  from the bottom up, from where `--start` says they are in the bottom row, to row `--end`, and smoothed. Its overlay
+  shows the trace on the photo enlarged, to check by eye before committing. Both scripts need Pillow and NumPy.
+- `check.py [--target DIR]`: measures the drawing against the variant's line. A point is on the line within its
+  half-width there plus the variant's slack, in `figure.json`: 5 pixels of the agent's 1280×720 screenshot at the
+  default display, 1920×1080, where the page scales the photo to fit, since an agent aims in the screenshot's
+  pixels. That is 4.9 photo pixels on the river and 3.9 on the rack. It passes when the strokes cover at least 95%
+  of the required rows and at most 10% of the drawing's length, relative to the required part's, lies off the line.
+  Drawing along the line outside the required rows is neither required nor off it. A failure names the rows left
+  uncovered or how much lies off the line and where: `the drawing covers 30% of the waterline; it leaves the
+  waterline uncovered at y 262 to 436`. It also reports the mean and largest distance from the line, the strokes of
+  each kind and the changes. Its milestones are `first stroke`, `line drawn` and `last change`.
+- `attribute.py RUN-DIR | RESULTS-DIR`: who each stroke's outcome is due to, from `mcp.jsonl` and the page's events,
+  against the run's variant. It maps each drawing action of `act` (a drag, a click on the photo, a Shift+click, a
+  path) from shot pixels to the page as board's attribution does, with the shared code in `bench/actlog.py`, which
+  reads actions in every form `act` takes (objects, arrays that start with the name, point pairs) and calls that
+  name only their shot, on that shot's window. It finds the stroke the page drew for its press, and classifies the
+  outcome: `on the line` (it started and ended where the agent aimed, on the line), `model` (where the agent aimed,
+  but partly off the line, or a press beside the photo), `hyprmasq` (the page saw no press, drew no stroke for it,
+  or the stroke started or ended more than 6 CSS pixels from where the agent aimed), `not sent` or `unmapped`. For a
+  Shift+click line only its end is the agent's. It also counts how the agent drew: the drawing actions of each `act`
+  call, the actions of each kind, undos and clears, the largest distance of a stroke from where it was aimed, and
+  which strokes did not last to the end, the work the agent took back or redid. It prints a table per run and writes
+  `attribution.json`.
+- `check_test.py`: `python3 bench/tasks/trace/check_test.py` checks the grade on constructed drawings of the rack
+  (the centre line, one straight line, five and twelve chords, a line beside the rack, one that stops short, a
+  scribble beside a complete line, lines and dots, nothing) and of the river (the waterline, the part in the sun
+  alone, a line on the stones and one on the path), the milestones and the server's check of a saved drawing, and
+  the attribution on constructed logs: chained drags in one call, a chord across the bend, a stroke that ends far
+  from where it was aimed, a press the page never saw, Shift+click lines with Undo, a stroke taken back and drawn
+  again, a spline path after a hover path, actions in array form without a window, a refused batch, and results with
+  only their text.
+- `setup.py`: the profile, Firefox's window and its workspace, and the grade with the page's logs in `collect()`.
+  With `HYPRMASQ_BENCH_WAYLAND_DEBUG` set in the driver's environment, Firefox logs its Wayland protocol to
+  `vm-firefox.log`.
+- `user.js`: no first-run pages, tips or telemetry in Firefox.
+- `variants`, `debrief.md`: the figures, `river` the default, and the debrief, which also asks how the agent drew
+  along the curve.
 
 ## Adding a task
 

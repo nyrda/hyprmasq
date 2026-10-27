@@ -373,6 +373,16 @@ def move_transcript(harness, session, cwd, run_dir, sessions=None):
         os.rmdir(project)
 
 
+def vm_runtime_dir(cid):
+    """A directory of its own for the VM of the run on vsock CID cid. The test driver keeps the VM's disk and sockets
+    in $XDG_RUNTIME_DIR/vm-state-machine, which runs on one machine would share, and the run that starts second
+    would remove the first's. The CID tells the runs on a machine apart, and keeps the sockets' paths short."""
+    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir(), f"hyprmasq-bench-vm-{cid}")
+    shutil.rmtree(path, ignore_errors=True)
+    os.makedirs(path, mode=0o700)
+    return path
+
+
 def stop_driver(proc, run_dir, timeout=300):
     """Waits for the driver to grade and stop the VM; kills the VM if it does not."""
     deadline = time.time() + timeout
@@ -448,8 +458,10 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         api_env = {"PI_CODING_AGENT_DIR": agent_dir}
     agent, leaked = {"session": None}, []
     try:
+        runtime = vm_runtime_dir(cid)
         env = dict(without_api_keys(os.environ), HYPRMASQ_BENCH_OUT=run_dir, HYPRMASQ_BENCH_CID=str(cid),
-                   TMPDIR=os.path.join(run_dir, "tmp"), HYPRMASQ_BENCH_TIMEOUT=str(timeout + 120))
+                   TMPDIR=os.path.join(run_dir, "tmp"), XDG_RUNTIME_DIR=runtime,
+                   HYPRMASQ_BENCH_TIMEOUT=str(timeout + 120))
         log = open(os.path.join(run_dir, "driver.log"), "w")
         print(f"{label} booting the VM", flush=True)
         driver_proc = subprocess.Popen(
@@ -463,7 +475,9 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
                     raise RuntimeError(f"the VM did not get ready, see {run_dir}/driver.log")
                 time.sleep(1)
 
-            prompt = open(os.path.join(task_dir, "prompt.md")).read()
+            # A variant can have a prompt of its own, in its directory.
+            own = os.path.join(task_dir, variant or "", "prompt.md")
+            prompt = open(own if variant and os.path.exists(own) else os.path.join(task_dir, "prompt.md")).read()
             command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort)
             print(f"{label} agent running", flush=True)
             agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
@@ -471,6 +485,9 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         finally:
             open(os.path.join(run_dir, "agent-done"), "w").close()
             stop_driver(driver_proc, run_dir)
+            # A driver that failed can leave its QEMU running; the run's own directory names it.
+            subprocess.run(["pkill", "-KILL", "-f", f"{runtime}/vm-state-"], check=False)
+            shutil.rmtree(runtime, ignore_errors=True)
 
         run = {
             "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,

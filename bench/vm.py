@@ -5,7 +5,7 @@
 #   agent-done      written by run.py when the agent has finished
 #   vm-result.json  written here after grading; the driver then stops the VM
 #
-# TASK_DIR is set by default.nix before this file runs. The task's setup.py defines prepare() and collect(), and
+# TASK_DIR and VARIANT, the task's variant or "", are set by default.nix before this file runs. The task's setup.py defines prepare() and collect(), and
 # may define HYPRLAND_ENV, variables for Hyprland's environment and so for every app it starts, and during(stop),
 # which runs in a thread while the agent works, until the threading.Event stop is set: the user's own activity.
 import base64

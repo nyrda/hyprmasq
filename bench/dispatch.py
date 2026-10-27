@@ -338,7 +338,7 @@ class Remote:
         harnesses = sorted({run.executable(h) for h, m, e in self.agents if host.takes(h, m, e)})
         say(f"[{host}] preparing")
         info = self.sh(host, f"""
-            for tool in git nix-build python3 rsync setsid {' '.join(harnesses)}; do
+            for tool in git nix-build pkill python3 rsync setsid {' '.join(harnesses)}; do
                 command -v $tool > /dev/null || {{ echo "$tool is not on PATH ($PATH)"; exit 1; }}
             done
             mkdir -p {shlex.quote(host.dir)} && cd {shlex.quote(host.dir)} && pwd

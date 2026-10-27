@@ -9,7 +9,10 @@ if [[ "${1:-}" == --help ]]; then
 fi
 driver=$1 dir=$2 cid=${3:-4242}
 rm -rf "$dir" && mkdir -p "$dir/tmp" "$dir/driver-out"
-HYPRMASQ_BENCH_OUT=$dir TMPDIR=$dir/tmp HYPRMASQ_BENCH_CID=$cid HYPRMASQ_BENCH_TIMEOUT=3600 \
+# The VM's own runtime directory, as run.py gives it: the test driver keeps the VM's disk and sockets there.
+runtime=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/hyprmasq-bench-vm-$cid
+rm -rf "$runtime" && mkdir -m 700 -p "$runtime"
+HYPRMASQ_BENCH_OUT=$dir TMPDIR=$dir/tmp XDG_RUNTIME_DIR=$runtime HYPRMASQ_BENCH_CID=$cid HYPRMASQ_BENCH_TIMEOUT=3600 \
     setsid nohup "$driver/bin/nixos-test-driver" -o "$dir/driver-out" > "$dir/driver.log" 2>&1 &
 pid=$!
 echo "$pid" > "$dir/driver.pid"

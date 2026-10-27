@@ -164,6 +164,7 @@ pkgs.testers.runNixOSTest {
 
   testScript = ''
     TASK_DIR = "${./tasks + "/${task}"}"
+    VARIANT = "${variant}"
     exec(open("${./vm.py}").read())
   '';
 }

@@ -77,8 +77,8 @@ def events(run_dir, offset):
 
 
 def sender_steps(actions):
-    """The sender's steps of a batch, as act's translateBatch makes them: a click or drag that more actions follow
-    gets a sync after it, which lasts until keys or text come CLICK_SETTLE_MS after it."""
+    """The sender's steps of a batch, as act's translateBatch makes them: a click, drag or path with a button that more
+    actions follow gets a sync after it, which lasts until keys or text come CLICK_SETTLE_MS after it."""
     steps, sync, since = [], None, 0
     for i, a in enumerate(actions):
         kind = a.get("action")
@@ -91,6 +91,11 @@ def sender_steps(actions):
             # modifiers go down while the press waits for the motion, which takes no longer.
             (x1, y1), (x2, y2) = a.get("from", (0, 0)), a.get("to", (0, 0))
             seq = [["drag", math.hypot(x2 - x1, y2 - y1)]]
+        elif kind == "path":
+            # The segments' lengths through the points given, in the shot's pixels: a spline is sampled from them
+            # and a little longer, which the sender's steps along it hardly change.
+            points = a.get("points") or []
+            seq = [["path", [math.dist(p, q) for p, q in zip(points, points[1:])], a.get("button") != "none"]]
         elif kind == "scroll":
             if a.get("unit", "notch") == "notch":
                 seq = [["move"], ["wheel", int(abs(a.get("dx", 0)) + abs(a.get("dy", 0)))]]
@@ -114,7 +119,7 @@ def sender_steps(actions):
                 elif step[0] == "sleep":
                     since += step[1]
             steps.append(step)
-        if kind in ("click", "drag") and i < len(actions) - 1:
+        if (kind in ("click", "drag") or kind == "path" and a.get("button") != "none") and i < len(actions) - 1:
             steps.append(["sync", 0])
             sync, since = len(steps) - 1, 0
     return steps
@@ -138,6 +143,17 @@ def pacing(actions):
         elif verb == "drag":
             moves = min(max(DRAG_MIN_STEPS, math.ceil(step[1] / DRAG_STEP_PX)), DRAG_MAX_STEPS)
             paced += MOTION_PRESS_MS + 2 * DRAG_HOLD_MS + (moves - 1) * DRAG_STEP_MS
+        elif verb == "path":
+            # As hyprmasq-input steps a path: as long as a drag's steps, DRAG_STEP_PX, shorter so that DRAG_MIN_STEPS of
+            # them cover it and longer so that DRAG_MAX_STEPS do, and at least one a segment. Without a button, every
+            # step waits its gap, and there is no press or release.
+            length = sum(step[1])
+            size = max(min(length / DRAG_MIN_STEPS, DRAG_STEP_PX), length / DRAG_MAX_STEPS) if length else DRAG_STEP_PX
+            moves = sum(max(1, math.ceil(s / size - 1e-9)) for s in step[1]) if step[1] else 1
+            if step[2]:
+                paced += MOTION_PRESS_MS + 2 * DRAG_HOLD_MS + (moves - 1) * DRAG_STEP_MS
+            else:
+                paced += moves * DRAG_STEP_MS
         elif verb == "wheel":
             # The last notch gets its gap too, before the sender can end.
             paced += step[1] * WHEEL_GAP_MS
@@ -159,10 +175,10 @@ def pacing(actions):
 
 
 def opens_windows(actions):
-    """Whether act watches for a redraw and new windows after the batch: a click, drag or key, or text with a line
-    break."""
+    """Whether act watches for a redraw and new windows after the batch: a click, drag, path or key, or text with a
+    line break."""
     for a in actions:
-        if a.get("action") in ("click", "drag", "key") or a.get("action") == "type" and re.search("[\r\n]", a.get("text", "")):
+        if a.get("action") in ("click", "drag", "path", "key") or a.get("action") == "type" and re.search("[\r\n]", a.get("text", "")):
             return True
     return False
 
