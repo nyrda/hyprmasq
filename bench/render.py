@@ -21,6 +21,8 @@ theme, which a <picture> element picks between. Views:
 - costs: a table of the tokens and the cost of each agent's runs.
 - table: a table of the medians of TASK's runs, a row per agent and effort.
 - kinds-table: a table of the form task's seconds per question of each kind.
+- compare: a table of each task's runs passed and medians, beside those of the dataset TASK names, an earlier
+  build's: `<!-- render AFTER compare BEFORE -->`.
 
 --check renders in memory and fails when a Markdown block or figure differs from what is on disk, or when a figure
 is drawn by no block; without it, render.py writes them and removes such figures. The figures use
@@ -43,6 +45,7 @@ from report import fmt  # noqa: E402
 NAMES = {
     "gpt-6.1-sol": "gpt-6.1-sol",
     "gpt-6-astra": "gpt-6-astra",
+    "gpt-6.1-terra": "gpt-6.1-terra",
     "claude-opus-5-5": "Opus 5.5",
     "claude-sonnet-5-5": "Sonnet 5.5",
     "claude-haiku-5-5": "Haiku 5.5",
@@ -640,6 +643,26 @@ def kinds_table(data):
                           + ["Corrections"], rows)
 
 
+def compare_table(data, before):
+    """Each task's runs passed and medians over all of them, before and after, as "before → after"."""
+    old = before["runs"]
+    rows = []
+    for task in tasks(data):
+        a = [r for r in data["runs"] if r["task"] == task]
+        b = [r for r in old if r["task"] == task]
+        if not b:
+            raise SystemExit(f"render.py: compare: the earlier dataset has no task {task}")
+
+        def both(key, digits=0):
+            return " → ".join(f"{v:.{digits}f}" if v is not None else "–"
+                              for v in (median(r[key] for r in b), median(r[key] for r in a)))
+
+        rows.append([task, f"{sum(r['passed'] for r in b)}/{len(b)} → {sum(r['passed'] for r in a)}/{len(a)}",
+                     both("wall_s"), both("tools_s"), both("turn_s", 1), both("calls"), both("actions"),
+                     both("images")])
+    return markdown_table(["Task", "Passed", "Wall s", "In tools s", "Turn s", "Calls", "Actions", "Images"], rows)
+
+
 TABLES = {"costs": costs_table, "table": task_table, "kinds-table": kinds_table}
 
 
@@ -653,6 +676,10 @@ def render_block(markdown_path, dataset, view, arg, files):
     """The Markdown of one block, adding its figures' files to files."""
     doc_dir = os.path.dirname(os.path.abspath(markdown_path))
     data = load(os.path.join(doc_dir, "benchmarks", "data"), dataset)
+    if view == "compare":
+        if not arg:
+            raise SystemExit(f"render.py: {markdown_path}: compare names the dataset to compare {dataset} with")
+        return compare_table(data, load(os.path.join(doc_dir, "benchmarks", "data"), arg)) + "\n"
     if (view == "table" or arg) and arg not in tasks(data):
         raise SystemExit(f"render.py: {markdown_path}: {dataset} has no task {arg}. It has {', '.join(tasks(data))}.")
     if view in TABLES:

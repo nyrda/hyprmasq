@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """The dataset of benchmark runs that docs/benchmarks.md is rendered from.
 
-    export.py --out docs/benchmarks/data/NAME.json [--fail RUN=REASON]... RESULTS-DIR...
+    export.py --out docs/benchmarks/data/NAME.json [--several-machines] [--fail RUN=REASON]... RESULTS-DIR...
 
 computes each finished run of the results directories again from its raw files, as report.py does, and writes
 the measures render.py draws: no transcripts, answers, paths, host names or accounts. RUN is a run's directory
 name, such as codex-gpt-6.1-sol-medium-2, or RESULTS-DIR's name and it, such as calc/codex-gpt-6.1-sol-medium-2.
 --fail counts a run that the VM's check passed as failed, with the reason the docs give, such as a provider's
-limit that ended it before the agent finished.
+limit that ended it before the agent finished. A task that ran in several variants is named by its variant too, such
+as board-dnd. --several-machines takes runs of several machines into one dataset, each run with its CPU, for runs
+that the dispatcher spread over them: their times compare only where each build ran on the same machines.
 """
 
 import argparse
@@ -20,7 +22,7 @@ import analyze
 import report
 
 
-def run_record(results_dir, name, fail):
+def run_record(results_dir, name, fail, task):
     run_dir = os.path.join(results_dir, name)
     with open(os.path.join(run_dir, "run.json")) as f:
         run = json.load(f)
@@ -31,7 +33,7 @@ def run_record(results_dir, name, fail):
     act = analyze.analyze(run_dir) if s["calls"] else {part + "_s": 0.0 for part in ("input", "wait", "watch", "pause", "rest")}
     record = {
         "run": f"{os.path.basename(os.path.normpath(results_dir))}/{name}",
-        "task": s["task"],
+        "task": task,
         "harness": s["harness"],
         "model": s["model"],
         # The harness's default when the run asked for none.
@@ -58,7 +60,8 @@ def run_record(results_dir, name, fail):
         "act_s": {part: act[part + "_s"] for part in ("input", "wait", "watch", "pause", "rest")},
     }
     kinds = (s.get("checks") or {}).get("kinds")
-    if kinds:
+    # The form task's kinds of question, with their times; the trace task counts its kinds of stroke there.
+    if kinds and all(isinstance(v, dict) for v in kinds.values()):
         record["kinds"] = {k: {"items": v["items"], "seconds": v["seconds"], "corrections": v["corrections"]}
                            for k, v in kinds.items()}
     reason = fail.get(record["run"]) or fail.get(name)
@@ -67,10 +70,11 @@ def run_record(results_dir, name, fail):
         record["passed"] = False
         record["counted_failed"] = reason
     machine = s.get("machine") or {}
+    record["cpu"] = machine.get("cpu")
     return record, tuple(machine.get(k) for k in ("cpu", "threads", "memory_gib"))
 
 
-def export(results_dirs, fail):
+def export(results_dirs, fail, several_machines=False):
     names = [os.path.basename(os.path.normpath(d)) for d in results_dirs]
     if len(set(names)) < len(names):
         sys.exit("export.py: the results directories' names must differ, as runs are named by them: "
@@ -80,23 +84,29 @@ def export(results_dirs, fail):
         with open(os.path.join(results_dir, "source.json")) as f:
             source = json.load(f)
         sources.append({k: source.get(k) for k in ("commit", "dirty", "task", "variant", "display")})
+    variants = {}
+    for s in sources:
+        variants.setdefault(s["task"], set()).add(s["variant"])
+    for results_dir, s in zip(results_dirs, sources):
+        if len(variants[s["task"]]) > 1:
+            s["task"] = f"{s['task']}-{s['variant']}"
         for name in sorted(os.listdir(results_dir)):
             if os.path.exists(os.path.join(results_dir, name, "summary.json")):
-                record, machine = run_record(results_dir, name, fail)
+                record, machine = run_record(results_dir, name, fail, s["task"])
                 runs.append(record)
                 machines.add(machine)
     # The figures take medians by task, agent and effort, and times depend on the build and the machine: a dataset
-    # holds one of each per task.
+    # holds one of each per task, a task that ran in several variants named by its variant.
     builds = {}
     for s in sources:
-        builds.setdefault(s["task"], set()).add(tuple(s[k] for k in ("variant", "commit", "dirty", "display")))
+        builds.setdefault(s["task"], set()).add(tuple(s[k] for k in ("commit", "dirty", "display")))
     mixed = sorted(task for task, b in builds.items() if len(b) > 1)
     if mixed:
-        sys.exit(f"export.py: the results directories hold several variants, commits or displays of "
+        sys.exit(f"export.py: the results directories hold several commits or displays of "
                  f"{', '.join(mixed)}. Export each to its own dataset.")
-    if len(machines) > 1:
+    if len(machines) > 1 and not several_machines:
         sys.exit("export.py: the runs ran on several machines, whose times differ. Export each machine's runs to "
-                 "its own dataset.")
+                 "its own dataset, or pass --several-machines.")
     used = {r["run"] for r in runs} | {r["run"].split("/", 1)[1] for r in runs}
     unknown = sorted(set(fail) - used)
     if unknown:
@@ -120,6 +130,7 @@ def main(argv):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", required=True)
     parser.add_argument("--fail", action="append", default=[], metavar="RUN=REASON")
+    parser.add_argument("--several-machines", action="store_true")
     parser.add_argument("results", nargs="+")
     args = parser.parse_args(argv)
     fail = {}
@@ -128,7 +139,7 @@ def main(argv):
         if not sep or not reason:
             parser.error(f"--fail {item}: expected RUN=REASON")
         fail[run] = reason
-    data = export(args.results, fail)
+    data = export(args.results, fail, args.several_machines)
     with open(args.out, "w", encoding="utf-8", newline="") as f:
         f.write(dumps(data))
     print(f"{args.out}: {len(data['runs'])} runs")

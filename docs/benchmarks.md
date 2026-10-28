@@ -351,6 +351,130 @@ requests would cost on OpenAI's API at its list prices. The set took 1h 39m from
 first agent's start to the last one's end. Agent wall time totalled 1h 12m, 34m of it in
 tools.
 
+## Path and enlarged zooms
+
+Two changes to `hyprmasq-mcp` ran against the build before them: `act`'s `path`
+action, one press through a line or spline of points, which replaced `drag`
+([#88](https://github.com/nyrda/hyprmasq/pull/88)), and zooms under 768 pixels
+coming enlarged by a whole factor
+([#90](https://github.com/nyrda/hyprmasq/pull/90)). Four agents ran each task on
+each build, three times, and calc, forgejo and thunderbird twice. Board ran in both
+its variants, and the trace task, which draws along a curve, in both of its: a
+river's waterline (`river`) and a rack railway's rack (`rack`).
+
+The table puts each task's runs passed and medians over all agents before and after,
+as before → after.
+
+<!-- render path-zoom-after compare path-zoom-before -->
+| Task | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| board-dnd | 12/12 → 11/12 | 33 → 35 | 13 → 13 | 3.9 → 3.5 | 4 → 4 | 9 → 9 | 10 → 8 |
+| board-pointer | 9/12 → 9/12 | 43 → 39 | 13 → 13 | 3.7 → 4.4 | 6 → 5 | 9 → 9 | 10 → 7 |
+| calc | 8/8 → 8/8 | 60 → 53 | 18 → 16 | 2.0 → 1.8 | 16 → 16 | 19 → 16 | 24 → 24 |
+| forgejo | 8/8 → 8/8 | 53 → 52 | 20 → 21 | 1.8 → 1.8 | 15 → 15 | 22 → 22 | 20 → 20 |
+| form | 12/12 → 12/12 | 78 → 79 | 37 → 35 | 1.9 → 2.1 | 18 → 18 | 62 → 62 | 36 → 26 |
+| thunderbird | 7/8 → 8/8 | 80 → 83 | 33 → 31 | 2.0 → 2.1 | 18 → 20 | 26 → 28 | 22 → 24 |
+| trace-river | 12/12 → 11/12 | 34 → 25 | 8 → 3 | 4.2 → 4.0 | 4 → 4 | 20 → 1 | 6 → 6 |
+| trace-rack | 8/12 → 10/12 | 31 → 27 | 5 → 3 | 3.8 → 3.0 | 4 → 5 | 11 → 1 | 7 → 6 |
+<!-- /render -->
+
+- 76 of 84 runs passed before and 77 after. After the change, the logs show no stroke
+  or drop that hyprmasq carried out other than the agent aimed it.
+- Every board failure, on both builds and in both variants, was the same model
+  error: gpt-6.1-sol or gpt-6.1-terra put the CPU power headers' label on the 5-pin
+  header beside the memory slots, where they aimed it. After the change, board's
+  agents moved every label with `path`.
+- Trace took one `path` action a run instead of a median of 11 to 20 clicks and
+  strokes, and its median time in tools fell from 5–8 s to 3 s. Rack passed 10 of
+  12 runs instead of 8. Its failures, before and after, left part of the rack's upper half
+  uncovered. The one river failure, by Sonnet, covered 92% of the waterline and
+  left its lowest 19 rows uncovered.
+- The other tasks took about as long as before. Thunderbird's one failure before was
+  a reply that left out the room.
+
+<!-- render path-zoom-after table trace-river -->
+<details><summary>Numbers</summary>
+
+| Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images | Input k | Cached % | Output k | Cost $ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.1-sol | medium | 3/3 | 34 (28–56) | 3 (3–5) | 4.1 (2.7–6.6) | 4 (4–5) | 1 (1–3) | 4 (3–5) | 83 (82–101) | 82 (81–84) | 1 (1–1) | 0.046 (0.040–0.061) |
+| gpt-6.1-terra | high | 3/3 | 20 (20–22) | 3 (2–4) | 4.2 (4.2–4.5) | 3 (3–3) | 1 (1–1) | 6 (3–6) | 65 (65–65) | 80 (66–80) | 1 (1–1) | – |
+| Opus 5.5 | medium | 3/3 | 35 (31–39) | 3 (3–3) | 4.0 (3.7–4.3) | 6 (5–7) | 1 (1–1) | 8 (7–9) | 92 (73–110) | 89 (88–90) | 2 (2–3) | 0.146 (0.120–0.159) |
+| Sonnet 5.5 | medium | 2/3 | 14 (12–21) | 3 (2–5) | 2.6 (2.0–2.6) | 3 (3–4) | 1 (1–3) | 6 (6–8) | 43 (43–58) | 88 (88–89) | 1 (1–1) | 0.031 (0.031–0.045) |
+
+</details>
+<!-- /render -->
+
+<!-- render path-zoom-after table trace-rack -->
+<details><summary>Numbers</summary>
+
+| Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images | Input k | Cached % | Output k | Cost $ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.1-sol | medium | 3/3 | 28 (26–39) | 3 (3–3) | 3.2 (2.4–3.7) | 5 (5–5) | 1 (1–1) | 4 (4–7) | 98 (97–99) | 83 (82–84) | 1 (1–1) | 0.048 (0.047–0.051) |
+| gpt-6.1-terra | high | 1/3 | 20 (18–28) | 3 (2–5) | 3.8 (2.8–3.9) | 3 (3–5) | 1 (1–3) | 3 (3–5) | 66 (65–100) | 80 (76–80) | 1 (1–1) | – |
+| Opus 5.5 | medium | 3/3 | 43 (27–83) | 5 (3–12) | 3.1 (2.5–4.0) | 8 (6–19) | 3 (1–10) | 14 (9–25) | 127 (89–401) | 91 (91–94) | 3 (2–5) | 0.165 (0.115–0.370) |
+| Sonnet 5.5 | medium | 3/3 | 14 (12–17) | 3 (2–3) | 2.4 (1.9–2.7) | 3 (3–4) | 1 (1–1) | 6 (6–7) | 42 (42–57) | 89 (88–89) | 1 (1–1) | 0.030 (0.029–0.041) |
+
+</details>
+<!-- /render -->
+
+### Setup
+
+Before at commit [41ae05e](https://github.com/nyrda/hyprmasq/commit/41ae05e), after at
+`5102b23`, both changes merged on it, whose code is that of main at
+[9685fcf](https://github.com/nyrda/hyprmasq/commit/9685fcf), where they landed. Run on 2026-10-28 in offline VMs at
+`1920x1080@1`. `bench/dispatch.py` spread the runs over three machines, an AMD Ryzen 7
+5800X3D, a Ryzen 5 5600X and a Ryzen 7 PRO 4750U, and ran each task's runs of an agent
+on the same machines for both builds, so their times compare.
+
+- Codex with a ChatGPT login: `gpt-6.1-sol` at `medium` and `gpt-6.1-terra` at `high`.
+- Claude Code with a claude.ai login: `claude-opus-5-5` and `claude-sonnet-5-5`, both at
+  `medium`.
+
+Every run ran at the effort it asked for. The harness versions differ by machine: Codex
+CLI 0.163.0 to 0.165.0 and Claude Code 2.1.302 to 2.1.312. Cost $ is Claude Code's own
+figure, and for Codex what the same requests would cost on OpenAI's API at its list
+prices. `bench/report.py` has no list price for gpt-6.1-terra, so its runs show none.
+
+<!-- render path-zoom-after compare path-zoom-before -->
+| Task | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| board-dnd | 12/12 → 11/12 | 33 → 35 | 13 → 13 | 3.9 → 3.5 | 4 → 4 | 9 → 9 | 10 → 8 |
+| board-pointer | 9/12 → 9/12 | 43 → 39 | 13 → 13 | 3.7 → 4.4 | 6 → 5 | 9 → 9 | 10 → 7 |
+| calc | 8/8 → 8/8 | 60 → 53 | 18 → 16 | 2.0 → 1.8 | 16 → 16 | 19 → 16 | 24 → 24 |
+| forgejo | 8/8 → 8/8 | 53 → 52 | 20 → 21 | 1.8 → 1.8 | 15 → 15 | 22 → 22 | 20 → 20 |
+| form | 12/12 → 12/12 | 78 → 79 | 37 → 35 | 1.9 → 2.1 | 18 → 18 | 62 → 62 | 36 → 26 |
+| thunderbird | 7/8 → 8/8 | 80 → 83 | 33 → 31 | 2.0 → 2.1 | 18 → 20 | 26 → 28 | 22 → 24 |
+| trace-river | 12/12 → 11/12 | 34 → 25 | 8 → 3 | 4.2 → 4.0 | 4 → 4 | 20 → 1 | 6 → 6 |
+| trace-rack | 8/12 → 10/12 | 31 → 27 | 5 → 3 | 3.8 → 3.0 | 4 → 5 | 11 → 1 | 7 → 6 |
+<!-- /render -->
+
+<!-- render path-zoom-after table trace-river -->
+<details><summary>Numbers</summary>
+
+| Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images | Input k | Cached % | Output k | Cost $ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.1-sol | medium | 3/3 | 34 (28–56) | 3 (3–5) | 4.1 (2.7–6.6) | 4 (4–5) | 1 (1–3) | 4 (3–5) | 83 (82–101) | 82 (81–84) | 1 (1–1) | 0.046 (0.040–0.061) |
+| gpt-6.1-terra | high | 3/3 | 20 (20–22) | 3 (2–4) | 4.2 (4.2–4.5) | 3 (3–3) | 1 (1–1) | 6 (3–6) | 65 (65–65) | 80 (66–80) | 1 (1–1) | – |
+| Opus 5.5 | medium | 3/3 | 35 (31–39) | 3 (3–3) | 4.0 (3.7–4.3) | 6 (5–7) | 1 (1–1) | 8 (7–9) | 92 (73–110) | 89 (88–90) | 2 (2–3) | 0.146 (0.120–0.159) |
+| Sonnet 5.5 | medium | 2/3 | 14 (12–21) | 3 (2–5) | 2.6 (2.0–2.6) | 3 (3–4) | 1 (1–3) | 6 (6–8) | 43 (43–58) | 88 (88–89) | 1 (1–1) | 0.031 (0.031–0.045) |
+
+</details>
+<!-- /render -->
+
+<!-- render path-zoom-after table trace-rack -->
+<details><summary>Numbers</summary>
+
+| Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images | Input k | Cached % | Output k | Cost $ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.1-sol | medium | 3/3 | 28 (26–39) | 3 (3–3) | 3.2 (2.4–3.7) | 5 (5–5) | 1 (1–1) | 4 (4–7) | 98 (97–99) | 83 (82–84) | 1 (1–1) | 0.048 (0.047–0.051) |
+| gpt-6.1-terra | high | 1/3 | 20 (18–28) | 3 (2–5) | 3.8 (2.8–3.9) | 3 (3–5) | 1 (1–3) | 3 (3–5) | 66 (65–100) | 80 (76–80) | 1 (1–1) | – |
+| Opus 5.5 | medium | 3/3 | 43 (27–83) | 5 (3–12) | 3.1 (2.5–4.0) | 8 (6–19) | 3 (1–10) | 14 (9–25) | 127 (89–401) | 91 (91–94) | 3 (2–5) | 0.165 (0.115–0.370) |
+| Sonnet 5.5 | medium | 3/3 | 14 (12–17) | 3 (2–3) | 2.4 (1.9–2.7) | 3 (3–4) | 1 (1–1) | 6 (6–7) | 42 (42–57) | 89 (88–89) | 1 (1–1) | 0.030 (0.029–0.041) |
+
+</details>
+<!-- /render -->
+
 ## Updating the results
 
 [benchmarks/data](benchmarks/data) holds one JSON file per set of runs, with one run a
@@ -365,7 +489,9 @@ python3 bench/export.py --out docs/benchmarks/data/release-0.2.0.json \
 ```
 
 `--fail` counts a run as failed although the VM's check passed it, and records the
-reason. `python3 bench/render.py` generates each block of this page between
+reason. A task that ran in several variants is named by its variant too, such as
+`board-dnd`. `--several-machines` takes runs that `bench/dispatch.py` spread over
+several machines into one dataset, each run with its CPU. `python3 bench/render.py` generates each block of this page between
 `<!-- render DATASET VIEW [TASK] -->` and `<!-- /render -->` from a dataset. It also
 writes the figures in [benchmarks](benchmarks), one for GitHub's light theme and one for
 its dark theme. Its docstring lists the views. CI runs `python3 bench/render.py --check`,

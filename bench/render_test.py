@@ -88,6 +88,17 @@ class Page(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.dir.name, "benchmarks", "set-time.svg")))
         main("--check", self.page)
 
+    def test_compare_puts_each_task_before_and_after(self):
+        before = [run("gpt-6.1-sol", 1, False, 80, 20), run("gpt-6.1-sol", 2, True, 100, 30)]
+        with open(os.path.join(self.dir.name, "benchmarks", "data", "old.json"), "w") as f:
+            json.dump({"sources": [], "runs": before}, f)
+        with open(self.page, "w") as f:
+            f.write("<!-- render set compare old -->\n<!-- /render -->\n")
+        main(self.page)
+        self.assertIn("| board | 1/2 → 2/3 | 90 → 50 | 25 → 12 | 3.0 → 3.0 | 5 → 5 | 9 → 9 | 7 → 7 |",
+                      self.read("results.md"))
+        main("--check", self.page)
+
 
 if __name__ == "__main__":
     unittest.main()
