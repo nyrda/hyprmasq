@@ -206,21 +206,19 @@ const instructions = `hyprmasq: see, click and type in Hyprland windows without 
 Loop: windows or launch → screenshot → act with coordinates in that shot's pixels → read the changes or the shot that act returns → act again.
 Read each result's summary, and its hint when it has one, before the next call.`
 
-var actDescription = fmt.Sprintf(`Act, wait for redraw, and show changes. Scroll small moves in notches. For measured paging with overlap, combine next_page with visible edits; verify their changes before using the new view. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
-Coordinates are shot pixels. The shot identifies the window; pass window only without a shot.
-Use compact action arrays: [x,y] clicks, ["move",x,y], ["drag",from,to], ["scroll",x,y,dy,unit], ["type",text], ["key",keys,repeat], ["pause",ms]. keys is "right" or ["ctrl","l"]; repeat is optional. Named-field objects also work.
+var actDescription = `Act, wait for redraw, and show changes. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
+Coordinates are pixels of the shot you pass, as they are: a full shot, or a zoom from screenshot region, whose own pixels act takes without conversion. The shot identifies the window; pass window only without a shot.
+Use compact action arrays: [x,y] clicks, ["move",x,y], ["path",points,curve], ["scroll",x,y,dy,unit], ["type",text], ["key",keys,repeat], ["pause",ms]. keys: "right" or ["ctrl","l"], repeat optional. Named objects also work.
+path presses once, moves through its points [[x,y],...] and releases, as one stroke: a drag is a path of two points. curve "line", the default, goes straight from point to point. "spline" passes through every point but curves between them, so for a precise trace give points close together, and use line where the target bends sharply or the points are sparse. button "none" moves without pressing.
 The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box. A full shot comes when it serves better, saying why; capture "window" asks for one.
-next_page {x,y,direction:down|up} scrolls over background with measured overlap.
-Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; keys you know, like arrows and enter in a menu, may follow. Whether a menu is still open shows in the shot: if it is, click its entry, as clicking its opener closes it; if it closed, open it and pick by keyboard in one batch.
-drag, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability, an app's drag-and-drop also dnd.
-type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form use a key like shift+enter. At 15 ms a key, more through Compose, a call types about %d characters, or %d with deadline_ms 30000; split longer text.
-Busy apps can drop keys or take them as shortcuts; check typed text.
+Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; known keys, like arrows and enter in a menu, may follow.
+path, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability, an app's drag-and-drop also dnd.
+type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form use shift+enter.
 Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before seeing a fresh shot.
-Example: {"shot":"s4","actions":[[412,88],["type","hello"],["key","enter"]]}`,
-	typedWithin(defaultDeadline), typedWithin(maxDeadline))
+Example: {"shot":"s4","actions":[[412,88],["type","hello"],["key","enter"]]}`
 
 var windowsDescription = fmt.Sprintf(`List the windows, or with match only those whose class or title contains it, ignoring case. Each has its address (pass it as window to the other tools), class, title, workspace, whether it is visible (on a shown workspace) or hidden, and its size in logical pixels. Where they apply, it is also resizing (not yet redrawn at its new size, so a screenshot shows an older frame), xwayland, launched (by this server), opened by your input to another window after that act had returned, or leased, and names the capabilities it lacks, such as "lacks lease, hold" or "keyboard x11-focus"; without them, it has them all.
-capabilities: lease (the emulated focus stays on the window between act calls; without it, the window loses the focus after each call, and what its app closes on focus loss may be gone by the next call), hold (buttons and keys can stay pressed across input frames, needed for drag, for clicks with modifiers, and for key chords that hold a key other than a modifier), dnd (a drag-and-drop that a drag starts in the app, such as moving a card, a file or a tab, runs within the window; without it, hyprmasq cancels such a drag, and only drags that the app draws itself work), keyboard ("yes", or "x11-focus" when X11 keyboard input depends on which window has the focus).
+capabilities: lease (the emulated focus stays on the window between act calls; without it, the window loses the focus after each call, and what its app closes on focus loss may be gone by the next call), hold (buttons and keys can stay pressed across input frames, needed for paths, for clicks with modifiers, and for key chords that hold a key other than a modifier), dnd (a drag-and-drop that a path starts in the app, such as moving a card, a file or a tab, runs within the window; without it, hyprmasq cancels such a drag, and only drags that the app draws itself work), keyboard ("yes", or "x11-focus" when X11 keyboard input depends on which window has the focus).
 When it lists one window, it returns a shot of it, as screenshot does. A window that your input opened after its act had returned comes with a shot too, once. The size is not a coordinate system: act with the pixels of a shot.
 wait_ms (up to %d): when you expect a window that an act's result did not show, such as a file chooser after clicking Upload or Browse, which another process can open a second or two later, wait for it here. With match it waits until a window matches; without match, until a window that your input opened maps. It returns as soon as one is there, at once if one already is, and otherwise once wait_ms has passed, with the list as usual.
 Example: {"match":"firefox"}, or {"wait_ms":5000} after a click that opens a file chooser`, maxWindowsWait.Milliseconds())
@@ -264,35 +262,35 @@ func objectSchema(properties map[string]json.RawMessage, required ...string) jso
 	return out
 }
 
-var namedActionSchema = json.RawMessage(`{
+var namedActionSchema = json.RawMessage(fmt.Sprintf(`{
 	"type": "object",
 	"properties": {
-		"action": {"type": "string", "enum": ["click", "move", "drag", "scroll", "type", "key", "pause"]},
+		"action": {"type": "string", "enum": ["click", "move", "path", "scroll", "type", "key", "pause"]},
 		"x": {"type": "number", "description": "Shot pixels. click, move, scroll."},
 		"y": {"type": "number", "description": "Shot pixels. click, move, scroll."},
-		"button": {"type": "string", "enum": ["left", "right", "middle"], "default": "left", "description": "click, drag."},
+		"button": {"type": "string", "enum": ["left", "right", "middle", "none"], "default": "left", "description": "click, path. none, for path only, moves without pressing, as for a menu that needs a diagonal move, and needs no hold capability."},
 		"count": {"type": "integer", "minimum": 1, "maximum": 3, "default": 1, "description": "click: 2 for a double click."},
-		"modifiers": {"type": "array", "items": {"type": "string"}, "description": "Held around a click or drag: ctrl, alt, shift, super."},
-		"from": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2, "description": "drag: [x, y] in shot pixels."},
-		"to": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2, "description": "drag: [x, y] in shot pixels."},
+		"modifiers": {"type": "array", "items": {"type": "string"}, "description": "Held around a click or path: ctrl, alt, shift, super."},
+		"points": {"type": "array", "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}, "minItems": 2, "maxItems": %d, "description": "path: [[x, y], ...] in shot pixels. It presses once, moves through them in order and releases, as one stroke, such as drawing along a curve."},
+		"curve": {"type": "string", "enum": ["line", "spline"], "default": "line", "description": "path: line goes straight from point to point. spline passes through every point and curves between them, which suits points close together."},
 		"dx": {"type": "number", "description": "scroll: positive scrolls right."},
 		"dy": {"type": "number", "description": "scroll: positive scrolls down."},
 		"unit": {"type": "string", "enum": ["page", "notch", "px"], "default": "notch", "description": "scroll: page moves toward the next view with overlap, dy 1 or -1, last in batch; notch counts wheel clicks; px is app-scaled smooth scrolling."},
 		"text": {"type": "string", "description": "type: the text, typed as given, with no tags or escapes. A line break presses Enter and a tab presses Tab."},
 		"keys": {"type": "array", "items": {"type": "string"}, "description": "key: pressed together in order and released in reverse, such as [\"ctrl\", \"shift\", \"t\"] or [\"ctrl+l\"], which is split at +. Names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus."},
 		"repeat": {"type": "integer", "minimum": 1, "maximum": 500, "default": 1, "description": "key: presses of the chord."},
-		"ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "pause: milliseconds. Actions after a click or drag already wait until the window has drawn its answer, and keys and text until 300 ms have passed since it, while the application moves the focus."}
+		"ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "pause: milliseconds. Actions after a click or path with a button already wait until the window has drawn its answer, and keys and text until 300 ms have passed since it, while the application moves the focus."}
 	},
 	"required": ["action"]
-}`)
+}`, maxPathPoints))
 
 // actSchema is the act tool's input schema for a server that watches for new windows for grace after a wait.
-var actionSchema = json.RawMessage(`{"anyOf":[` + string(namedActionSchema) + `,{"type":"array","description":"A point pair [x,y] is one left click. Other arrays start with an action name: [click,x,y,button?,count?,modifiers?], [move,x,y], [drag,from,to,button?,modifiers?], [scroll,x,y,dy,unit?,dx?], [type,text], [key,keys,repeat?], [pause,ms]. Omit trailing defaults; do not use null placeholders. keys is a string or an array of strings.","minItems":1,"maxItems":6,"items":{}}]}`)
+var actionSchema = json.RawMessage(`{"anyOf":[` + string(namedActionSchema) + `,{"type":"array","description":"A point pair [x,y] is one left click. Other arrays start with an action name: [click,x,y,button?,count?,modifiers?], [move,x,y], [path,points,curve?,button?,modifiers?], [scroll,x,y,dy,unit?,dx?], [type,text], [key,keys,repeat?], [pause,ms]. Omit trailing defaults; do not use null placeholders. keys is a string or an array of strings.","minItems":1,"maxItems":6,"items":{}}]}`)
 
 func actSchema(grace time.Duration) json.RawMessage {
 	watch := ""
 	if grace > 0 {
-		watch = fmt.Sprintf("after a click, drag, key or Enter, act also waits out a redraw that starts within %d ms after it settled, but ", grace.Milliseconds())
+		watch = fmt.Sprintf("after a click, a path with a button, a key or Enter, act also waits out a redraw that starts within %d ms after it settled, but ", grace.Milliseconds())
 	}
 	quiet, _ := json.Marshal("How long the window must stay quiet to count as settled. Quiet means nothing was redrawn for this long, not that loading finished: " +
 		watch + "if the shot still shows loading, act again with no actions.")

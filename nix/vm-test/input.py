@@ -123,7 +123,7 @@ with subtest("hyprmasq-input scrolls in wheel notches and drags in steps"):
     # Press, then motion in steps of at most 10 pixels over at least 200 ms, then release. The press comes at least
     # 30 ms after the first motion, within the one action.
     offset = log_size("hm-i-wev")
-    assert input_json(input_path, "drag", 100, 100, 300, 150) == (0, complete(1))
+    assert input_json(input_path, "path", 2, 100, 100, 300, 150) == (0, complete(1))
     events = wait_wev(offset, {"motion", "button"}, lambda e: bool(e) and e[-1][0] == "button" and e[-1][3] == 0)
     kinds = [e[0] for e in events]
     assert kinds[:2] == ["motion", "button"] and kinds[2:-1] == ["motion"] * (len(kinds) - 3), kinds
@@ -132,6 +132,43 @@ with subtest("hyprmasq-input scrolls in wheel notches and drags in steps"):
     assert len(steps) >= 21 and steps[0] == (100, 100) and steps[-1] == (300, 150), steps
     assert all(((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5 <= 10.5 for a, b in zip(steps, steps[1:])), steps
     assert events[-1][1] - events[1][1] >= 250, events
+    assert snapshot() == before_focus
+
+with subtest("hyprmasq-input moves through the points of a path in one press, or without one"):
+    def on_segments(point, corners):
+        """Whether point lies on the polyline through corners, all of whose segments are horizontal or vertical."""
+        return any(
+            min(a[0], b[0]) <= point[0] <= max(a[0], b[0]) and min(a[1], b[1]) <= point[1] <= max(a[1], b[1])
+            for a, b in zip(corners, corners[1:])
+        )
+
+    # One press, motion straight from point to point in steps of 10 pixels, 20, 15 and 15 of them, and one release.
+    offset = log_size("hm-i-wev")
+    corners = [(100, 100), (300, 100), (300, 250), (150, 250)]
+    assert input_json(input_path, "path", len(corners), *[v for p in corners for v in p]) == (0, complete(1))
+    events = wait_wev(offset, {"motion", "button"}, lambda e: bool(e) and e[-1][0] == "button" and e[-1][3] == 0)
+    kinds = [e[0] for e in events]
+    assert kinds[:2] == ["motion", "button"] and kinds[2:-1] == ["motion"] * (len(kinds) - 3), kinds
+    assert events[1][1] - events[0][1] >= 25, events
+    steps = [e[2:] for e in events if e[0] == "motion"]
+    remaining = iter(steps)
+    assert len(steps) == 51 and all(corner in remaining for corner in corners), steps
+    assert steps[0] == corners[0] and steps[-1] == corners[-1] and all(on_segments(p, corners) for p in steps), steps
+    assert all(((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5 <= 10.5 for a, b in zip(steps, steps[1:])), steps
+    # The press is held 50 ms before the first step and after the last, with the 49 steps 10 ms apart between them.
+    assert events[-1][1] - events[1][1] >= 0.8 * (50 + 49 * 10 + 50), events
+
+    # Without a button, only the pointer moves: 200 pixels take 21 steps as a drag, and with two segments 22.
+    offset = log_size("hm-i-wev")
+    corners = [(50, 50), (150, 50), (150, 150)]
+    assert input_json(input_path, "path", len(corners), *[v for p in corners for v in p], "none") == (0, complete(1))
+    events = wait_wev(offset, {"motion", "button"}, lambda e: bool(e) and e[-1][2:] == corners[-1])
+    time.sleep(0.3)
+    events = wev_events(offset, {"motion", "button"})
+    steps = [e[2:] for e in events]
+    remaining = iter(steps)
+    assert [e[0] for e in events] == ["motion"] * 23 and all(corner in remaining for corner in corners), events
+    assert all(on_segments(p, corners) for p in steps), steps
     assert snapshot() == before_focus
 
 with subtest("hyprmasq-input waits at a sync for its caller's answer, at least MIN and at most MAX"):
@@ -227,7 +264,7 @@ with subtest("hyprmasq-input releases what it holds at the end and on SIGTERM"):
     # SIGTERM during a drag with Ctrl lets go of the button before Ctrl, as the end of the drag would, so the
     # application still sees a drop with Ctrl.
     offset = log_size("hm-i-wev")
-    run_input_background("hm-i-ctrl-drag", input_path, "drag", 10, 10, 630, 470, "left", "ctrl")
+    run_input_background("hm-i-ctrl-drag", input_path, "path", 2, 10, 10, 630, 470, "left", "ctrl")
     drag_pressed = f"tail -c +{offset + 1} /tmp/hyprmasq-hm-i-wev.log | grep -q 'button: 272 (left), state: 1'"
     machine.succeed(f"timeout 30 sh -c {shlex.quote(f'until {drag_pressed}; do sleep 0.01; done')}; pkill -TERM -x hyprmasq-input")
     status, result = input_result("hm-i-ctrl-drag")

@@ -22,7 +22,7 @@ func (s *Server) dragged(ctx context.Context, r *actRequest, st hypr.State, wait
 	if replaced {
 		base, socket, first = ptr(int64(0)), waited, 0
 	}
-	if base == nil || !replaced && !st.Drag.Pending() && !slices.ContainsFunc(r.batch, func(a action) bool { return a.Kind == "click" || a.Kind == "drag" }) {
+	if base == nil || !replaced && !st.Drag.Pending() && !slices.ContainsFunc(r.batch, func(a action) bool { return a.Kind == "click" || a.holdsButton() }) {
 		return nil
 	}
 	cur, err := s.hypr.State(ctx, r.window)
@@ -34,9 +34,10 @@ func (s *Server) dragged(ctx context.Context, r *actRequest, st hypr.State, wait
 		out.Outcome, out.Phase = "pending", cur.Drag.Phase
 	}
 	// The ones that the app started during the call, which a drag still going on before it is not, and the drags of the
-	// batch that started none, such as one whose app did not start its drag-and-drop in time.
+	// batch that started none, such as one whose app did not start its drag-and-drop in time. A path that holds a button
+	// drags too.
 	n := int(cur.Drag.ID - first)
-	none := max(0, countKind(r.batch, "drag")-n)
+	none := max(0, countDrags(r.batch)-n)
 	if (n > 1 || none > 0) && cur.Drag.Ended != nil {
 		out.Count, out.None = n, none
 		for _, e := range cur.Drag.Ended {
@@ -74,11 +75,11 @@ func (s *Server) dragged(ctx context.Context, r *actRequest, st hypr.State, wait
 	return out
 }
 
-// countKind counts the actions of a kind in the batch.
-func countKind(batch []action, kind string) int {
+// countDrags counts the actions of the batch that hold a button while they move: drags, and paths with a button.
+func countDrags(batch []action) int {
 	n := 0
 	for _, a := range batch {
-		if a.Kind == kind {
+		if a.holdsButton() {
 			n++
 		}
 	}

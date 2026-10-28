@@ -190,7 +190,7 @@ func (s *Server) launchTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	out.Summary = strings.Join(parts, " · ")
 	out.Hint = joinHints(frameHints(out.Shot), resizedHint(window, before, after))
 	if wait.Ended == "quiet" && len(others) == 0 {
-		out.Hint = joinHints(out.Hint, initialNavigationHint(sh, firstView))
+		out.Hint = joinHints(out.Hint, firstViewHintFor(sh, firstView))
 	}
 	return newResult(out, out.resultText, oneImage(png), "")
 }

@@ -20,7 +20,7 @@ func TestPointsLeftOfOrAboveTheWindow(t *testing.T) {
 	for _, c := range []struct{ actions, mention string }{
 		{`[{"action":"click","x":10,"y":30}]`, "actions[0] (click): 10,30 of shot s1"},
 		{`[{"action":"type","text":"a"},{"action":"scroll","x":50,"y":10,"dy":1}]`, "actions[1] (scroll): 50,10 of shot s1"},
-		{`[{"action":"drag","from":[50,30],"to":[30,30]}]`, "actions[0] (drag): to 30,30 of shot s1"},
+		{`[{"action":"path","points":[[50,30],[30,30]]}]`, "actions[0] (path): points[1] 30,30 of shot s1"},
 	} {
 		res := e.act(fmt.Sprintf(`{"window":"0xa1","shot":"s1","actions":%s}`, c.actions))
 		if code := errorCode(t, res); code != "out_of_bounds" || !strings.Contains(text(res), c.mention) {
@@ -46,6 +46,11 @@ func TestPointsLeftOfOrAboveTheWindow(t *testing.T) {
 }
 
 func TestValidationSendsNothing(t *testing.T) {
+	var corners []string
+	for i := range maxPathPoints {
+		corners = append(corners, [2]string{"[0,0]", "[319,199]"}[i%2])
+	}
+	zigzag := "[" + strings.Join(corners, ",") + "]"
 	cases := []struct {
 		name, actions, code, mention string
 		noHold                       bool
@@ -63,8 +68,17 @@ func TestValidationSendsNothing(t *testing.T) {
 		{"notch", `[{"action":"scroll","x":1,"y":1,"dy":1.5}]`, "invalid_arguments", "notch", false},
 		{"later action", `[{"action":"type","text":"a"},{"action":"click","x":700,"y":1}]`, "out_of_bounds", "actions[1] (click)", false},
 		{"bottom edge", `[{"action":"click","x":1,"y":400}]`, "out_of_bounds", "1,400", false},
-		{"drag target", `[{"action":"drag","from":[1,1],"to":[1,-1]}]`, "out_of_bounds", "to 1,-1", false},
-		{"drag without hold", `[{"action":"drag","from":[1,1],"to":[5,5]}]`, "unsupported", "hold", true},
+		{"path of one point", `[{"action":"path","points":[[1,1]]}]`, "invalid_arguments", "actions[0].points must have 2 to 500 points", false},
+		{"path point", `[{"action":"path","points":[[1,1],[2]]}]`, "invalid_arguments", "actions[0].points[1] must be [x, y]", false},
+		{"path curve", `[{"action":"path","points":[[1,1],[2,2]],"curve":"bezier"}]`, "invalid_arguments", "actions[0].curve must be line or spline", false},
+		{"click without a button", `[{"action":"click","x":1,"y":1,"button":"none"}]`, "invalid_arguments", "actions[0].button must be left, right or middle", false},
+		{"path target", `[{"action":"path","points":[[1,1],[5,5],[1,-1]]}]`, "out_of_bounds", "points[2] 1,-1", false},
+		{"path without hold", `[{"action":"path","points":[[1,1],[5,5]]}]`, "unsupported", "actions[0] (path) needs the hold capability", true},
+		{"hover path with modifiers without hold", `[{"action":"path","points":[[1,1],[5,5]],"button":"none","modifiers":["shift"]}]`, "unsupported",
+			"actions[0] (path) with modifiers needs the hold capability", true},
+		// 499 segments across the window are more than 2000 samples of a spline each, and 500 points of a line.
+		{"spline samples", `[{"action":"path","points":` + zigzag + `},{"action":"path","curve":"spline","points":` + zigzag + `},{"action":"path","curve":"spline","points":` + zigzag + `}]`,
+			"invalid_arguments", "actions[2] (path): the paths of the batch move through more than 4000 points", false},
 		{"modifiers without hold", `[{"action":"click","x":1,"y":1},{"action":"click","x":1,"y":1,"modifiers":["ctrl"]}]`, "unsupported", "actions[1] (click) with modifiers needs the hold capability", true},
 		{"chord without hold", `[{"action":"key","keys":["a","b"]}]`, "unsupported", "actions[0] (key) holding a while it presses b needs the hold capability, which window 0xa1 lacks", true},
 		{"held key after a modifier", `[{"action":"key","keys":["enter"]},{"action":"key","keys":["ctrl+Shift_L","space","x"]}]`, "unsupported",
@@ -126,6 +140,49 @@ func TestChordsOfModifiersNeedNoHold(t *testing.T) {
 	}
 }
 
+// A path of two points replaced the drag action, which models still reach for by name, as do those that know
+// Anthropic's computer use tool by left_click_drag. act refuses it in either form, sends nothing, and says how to send
+// the same input as a path.
+func TestDragIsAPath(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	e.screenshot(`{"window":"0xa1"}`)
+	for _, c := range []struct {
+		actions, name string
+		index         int
+	}{
+		{`[{"action":"drag","from":[10,10],"to":[100,50]}]`, "drag", 0},
+		{`[["drag",[10,10],[100,50]]]`, "drag", 0},
+		{`[{"action":"click","x":5,"y":5},{"action":"left_click_drag","x":100,"y":50}]`, "left_click_drag", 1},
+	} {
+		res := e.act(`{"window":"0xa1","shot":"s1","actions":` + c.actions + `}`)
+		message := fmt.Sprintf(`actions[%d]: %s is a path of two points: ["path",[from,to]]`, c.index, c.name)
+		if code := errorCode(t, res); code != "invalid_arguments" || get(t, res, "error.message") != message || get(t, res, "hint") != hintDragIsPath {
+			t.Errorf("%s: code %q: %s", c.actions, code, text(res))
+		}
+		if get(t, res, "actions.delivery") != "none" {
+			t.Errorf("%s: delivery %v", c.actions, get(t, res, "actions.delivery"))
+		}
+	}
+	if got := e.inputs(); got != nil {
+		t.Errorf("sent %q", got)
+	}
+}
+
+// A path without a button only moves the pointer, which needs no hold, as a move does not.
+func TestHoverPathNeedsNoHold(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Caps.Hold = false })
+	e.screenshot(`{"window":"0xa1"}`)
+	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"path","points":[[10,10],[100,10],[100,100]],"button":"none"}],"capture":"none"}`)
+	if res.IsError || get(t, res, "actions.delivery") != "complete" {
+		t.Fatal(text(res))
+	}
+	if got := e.inputs(); !reflect.DeepEqual(got, [][]string{{"path", "3", "5", "5", "50", "5", "50", "50", "none", "-"}}) {
+		t.Errorf("inputs %q", got)
+	}
+}
+
 func TestTranslate(t *testing.T) {
 	identity := func(x, y float64) (float64, float64) { return x/2 - 1, y/2 + 0.25 }
 	cases := []struct {
@@ -141,7 +198,10 @@ func TestTranslate(t *testing.T) {
 		{`{"action":"right_click","x":10,"y":20}`, [][]string{{"move", "4", "10.25"}, {"click", "right", "1", "-"}}},
 		{`{"action":"middle_click","x":10,"y":20}`, [][]string{{"move", "4", "10.25"}, {"click", "middle", "1", "-"}}},
 		{`{"action":"move","x":3,"y":5}`, [][]string{{"move", "0.5", "2.75"}}},
-		{`{"action":"drag","from":[0,0],"to":[10,10],"button":"middle","modifiers":["super"]}`, [][]string{{"drag", "-1", "0.25", "4", "5.25", "middle", "super"}}},
+		{`{"action":"path","points":[[0,0],[10,10],[20,0]],"button":"right","modifiers":["shift"]}`, [][]string{{"path", "3", "-1", "0.25", "4", "5.25", "9", "0.25", "right", "shift"}}},
+		{`{"action":"path","points":[[0,0],[10,10]],"button":"none"}`, [][]string{{"path", "2", "-1", "0.25", "4", "5.25", "none", "-"}}},
+		// A spline that does not move still sends the two points that hyprmasq-input needs at least.
+		{`{"action":"path","points":[[0,0],[0,0],[0,0]],"curve":"spline"}`, [][]string{{"path", "2", "-1", "0.25", "-1", "0.25", "left", "-"}}},
 		{`{"action":"scroll","x":2,"y":2,"dy":3}`, [][]string{{"move", "0", "1.25"}, {"wheel", "0", "3"}}},
 		{`{"action":"scroll","x":2,"y":2,"dx":-40.5,"unit":"px"}`, [][]string{{"move", "0", "1.25"}, {"scroll", "-40.5", "0"}}},
 		{`{"action":"key","keys":["Ctrl+Shift","T"],"repeat":3}`, [][]string{{"keys", "ctrl+shift+T", "3"}}},
@@ -185,7 +245,9 @@ func TestClickSettle(t *testing.T) {
 		{click + `,{"action":"scroll","x":1,"y":1,"dy":1},{"action":"pause","ms":100},` + key, []string{"0 move", "0 click", "1 sync 50 1000", "1 move", "1 wheel", "2 sleep 100", "3 keys"}},
 		{click + "," + typed + "," + key, []string{"0 move", "0 click", "1 sync 300 1000", "1 text", "2 keys"}},
 		{click + "," + click + "," + key, []string{"0 move", "0 click", "1 sync 0 1000", "1 move", "1 click", "2 sync 300 1000", "2 keys"}},
-		{`{"action":"drag","from":[1,1],"to":[5,5]},` + key, []string{"0 drag", "1 sync 300 1000", "1 keys"}},
+		{`{"action":"path","points":[[1,1],[5,5],[9,1]]},` + key, []string{"0 path", "1 sync 300 1000", "1 keys"}},
+		// A path without a button is motion, as a move is.
+		{`{"action":"path","points":[[1,1],[5,5]],"button":"none"},` + key, []string{"0 path", "1 keys"}},
 		{`{"action":"click","x":1,"y":1,"count":2},{"action":"scroll","x":1,"y":1,"dy":1}`, []string{"0 move", "0 click", "1 sync 0 1000", "1 move", "1 wheel"}},
 		{`{"action":"scroll","x":1,"y":1,"dy":1},` + key, []string{"0 move", "0 wheel", "1 keys"}},
 		{key + "," + typed, []string{"0 keys", "1 text"}},
@@ -226,8 +288,19 @@ func TestMinSendTime(t *testing.T) {
 	}{
 		{steps([]string{"move", "1", "2"}, []string{"click", "left", "1", "-"}), 100},
 		{steps([]string{"click", "left", "2", "ctrl"}), 190},
-		{steps([]string{"drag", "0", "0", "300", "400", "left", "-"}), 620},
-		{steps([]string{"drag", "0", "0", "5", "0", "left", "shift"}), 340},
+		// A path of two points takes the steps of the drag it replaced: 50 of 10 px, or 21 for a short one, with the
+		// modifiers' 10 ms.
+		{steps([]string{"path", "2", "0", "0", "300", "400", "left", "-"}), 620},
+		{steps([]string{"path", "2", "0", "0", "5", "0", "left", "shift"}), 340},
+		// 30 and 40 steps of 10 px, as two drags would take, between one press and release.
+		{steps([]string{"path", "3", "0", "0", "300", "0", "300", "400", "left", "-"}), 820},
+		// 21 steps as for a short drag, and one for the segment that does not move.
+		{steps([]string{"path", "3", "0", "0", "100", "0", "100", "0", "left", "-"}), 340},
+		// Without a button, 21 steps 10 ms apart, the first one 10 ms after the first point, and the modifiers' 10 ms.
+		{steps([]string{"path", "2", "0", "0", "5", "0", "none", "shift"}), 220},
+		// At most 2000 steps, as for a drag, and a step for each segment that does not move.
+		{steps([]string{"path", "2", "0", "0", "30000", "0", "left", "-"}), 20120},
+		{steps([]string{"path", "3", "0", "0", "0", "0", "0", "0", "left", "-"}), 140},
 		// Five notches, 20 ms apart and 20 ms after the last, which XWayland needs before the sender's end leaves.
 		{steps([]string{"wheel", "2", "-3"}), 100},
 		// A smooth scroll gets a wheel's gap after it.

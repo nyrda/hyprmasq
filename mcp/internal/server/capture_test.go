@@ -43,6 +43,10 @@ func TestActMapsShotPixelsWithNegativeFrameAndZoom(t *testing.T) {
 		t.Fatal(text(res))
 	}
 	zoom := shotID(t, res)
+	// Its line, where the coordinates for the next act are read, says that act takes them as they are.
+	if line := strings.Split(text(res), "\n")[0]; !strings.HasSuffix(line, " · window 0xa1 320×200 · act takes "+zoom+"'s own pixels") {
+		t.Errorf("zoom line %q", line)
+	}
 	shots := e.fake.requestsMatching("j/hyprmasq screenshot")
 	if last := shots[len(shots)-1]; !strings.HasSuffix(last, " 0 0 50 25 popups") {
 		t.Errorf("zoom request %q", last)
@@ -256,7 +260,7 @@ func TestShotsOfAWindowThatHasNotCaughtUpWithAResize(t *testing.T) {
 	e := newTestEnv(t)
 	w := e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Resizing = true })
 	res := e.screenshot(`{"window":"0xa1"}`)
-	if res.IsError || get(t, res, "shot.resizing") != nil || get(t, res, "hint") != firstViewNavigationHint {
+	if res.IsError || get(t, res, "shot.resizing") != nil || get(t, res, "hint") != firstViewHint {
 		t.Fatalf("after catching up: %s", text(res))
 	}
 	waits := e.fake.requestsMatching("j/hyprmasq wait")
@@ -327,7 +331,7 @@ func TestShotsOfAStarvedWindow(t *testing.T) {
 	e := newTestEnv(t)
 	w := e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Starved = true })
 	res := e.screenshot(`{"window":"0xa1"}`)
-	if res.IsError || get(t, res, "shot.may_be_stale") != nil || get(t, res, "hint") != firstViewNavigationHint {
+	if res.IsError || get(t, res, "shot.may_be_stale") != nil || get(t, res, "hint") != firstViewHint {
 		t.Fatalf("after drawing: %s", text(res))
 	}
 	waits := e.fake.requestsMatching("j/hyprmasq wait")

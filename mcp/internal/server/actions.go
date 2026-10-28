@@ -17,8 +17,9 @@ type action struct {
 	Kind string
 	// Shot pixels, for click, move and scroll.
 	X, Y float64
-	// Shot pixels, for drag.
-	From, To  [2]float64
+	// Shot pixels, for path, and its curve: line or spline.
+	Points    [][2]float64
+	Curve     string
 	Button    string
 	Count     int
 	Modifiers []string
@@ -32,10 +33,16 @@ type action struct {
 
 func (a *action) hasCoordinates() bool {
 	switch a.Kind {
-	case "click", "move", "drag", "scroll":
+	case "click", "move", "path", "scroll":
 		return true
 	}
 	return false
+}
+
+// holdsButton tells whether the action holds a button down while the pointer moves, as a path with a button does: a
+// drag, which can start an app's drag-and-drop.
+func (a *action) holdsButton() bool {
+	return a.Kind == "path" && a.Button != "none"
 }
 
 // points returns the shot coordinates of the action, named for messages.
@@ -43,8 +50,12 @@ func (a *action) points() []namedPoint {
 	switch a.Kind {
 	case "click", "move", "scroll":
 		return []namedPoint{{"", a.X, a.Y}}
-	case "drag":
-		return []namedPoint{{"from ", a.From[0], a.From[1]}, {"to ", a.To[0], a.To[1]}}
+	case "path":
+		out := make([]namedPoint, len(a.Points))
+		for i, p := range a.Points {
+			out[i] = namedPoint{fmt.Sprintf("points[%d] ", i), p[0], p[1]}
+		}
+		return out
 	}
 	return nil
 }
@@ -57,7 +68,7 @@ type namedPoint struct {
 var actionFields = map[string][]string{
 	"click":  {"x", "y", "button", "count", "modifiers"},
 	"move":   {"x", "y"},
-	"drag":   {"from", "to", "button", "modifiers"},
+	"path":   {"points", "curve", "button", "modifiers"},
 	"scroll": {"x", "y", "dx", "dy", "unit"},
 	"type":   {"text"},
 	"key":    {"keys", "repeat"},
@@ -77,10 +88,19 @@ var clickAliases = map[string]struct {
 	"middle_click": {"middle", 1},
 }
 
+// The names of a drag that models reach for, the action that path replaced, and that of Anthropic's computer use tool.
+// act refuses them with how to send the same input as a path.
+var dragNames = map[string]bool{"drag": true, "left_click_drag": true}
+
+// dragRefused refuses a drag, which is a path of two points, saying how to send it.
+func dragRefused(path, name string) *toolError {
+	return &toolError{Code: "invalid_arguments", Message: fmt.Sprintf(`%s: %s is a path of two points: ["path",[from,to]]`, path, name), Hint: hintDragIsPath}
+}
+
 var actionRequired = map[string][]string{
 	"click":  {"x", "y"},
 	"move":   {"x", "y"},
-	"drag":   {"from", "to"},
+	"path":   {"points"},
 	"scroll": {"x", "y"},
 	"type":   {"text"},
 	"key":    {"keys"},
@@ -137,13 +157,16 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 	var a action
 	kindRaw, ok := fields["action"]
 	if !ok {
-		return a, invalidf("%s.action is missing; it is one of click, move, drag, scroll, type, key, pause", path)
+		return a, invalidf("%s.action is missing; it is one of click, move, path, scroll, type, key, pause", path)
 	}
 	var named string
 	err := json.Unmarshal(kindRaw, &named)
 	alias, isAlias := clickAliases[named]
+	if dragNames[named] {
+		return a, dragRefused(path, named)
+	}
 	if err != nil || actionFields[named] == nil && !isAlias {
-		return a, invalidf("%s.action must be one of click, move, drag, scroll, type, key, pause, not %s", path, kindRaw)
+		return a, invalidf("%s.action must be one of click, move, path, scroll, type, key, pause, not %s", path, kindRaw)
 	}
 	a.Kind = named
 	allowed := actionFields[a.Kind]
@@ -177,11 +200,11 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 		}
 		return nil
 	}
-	a.Button, a.Count, a.Repeat, a.Unit = "left", 1, 1, "notch"
+	a.Button, a.Count, a.Repeat, a.Unit, a.Curve = "left", 1, 1, "notch", "line"
 	var modifiers []string
-	var from, to []float64
+	var points [][]float64
 	errs := []error{
-		field("x", &a.X), field("y", &a.Y), field("from", &from), field("to", &to),
+		field("x", &a.X), field("y", &a.Y), field("points", &points), field("curve", &a.Curve),
 		field("button", &a.Button), field("count", &a.Count), field("modifiers", &modifiers),
 		field("dx", &a.DX), field("dy", &a.DY), field("unit", &a.Unit), field("text", &a.Text),
 		field("repeat", &a.Repeat), field("ms", &a.Ms),
@@ -195,21 +218,28 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 		a.Button, a.Count = alias.button, alias.count
 	}
 
-	if a.Kind == "drag" {
-		for _, p := range []struct {
-			name  string
-			value []float64
-			out   *[2]float64
-		}{{"from", from, &a.From}, {"to", to, &a.To}} {
-			if len(p.value) != 2 {
-				return a, invalidf("%s.%s must be [x, y] in shot pixels, not %s", path, p.name, fields[p.name])
+	if a.Kind == "path" {
+		if len(points) < 2 || len(points) > maxPathPoints {
+			return a, invalidf("%s.points must have 2 to %d points [x, y] in shot pixels, not %d", path, maxPathPoints, len(points))
+		}
+		for i, p := range points {
+			if len(p) != 2 {
+				given, _ := json.Marshal(p)
+				return a, invalidf("%s.points[%d] must be [x, y] in shot pixels, not %s", path, i, given)
 			}
-			*p.out = [2]float64{p.value[0], p.value[1]}
+			a.Points = append(a.Points, [2]float64{p[0], p[1]})
+		}
+		if a.Curve != "line" && a.Curve != "spline" {
+			return a, invalidf("%s.curve must be line or spline, not %q", path, a.Curve)
 		}
 	}
 	switch a.Kind {
-	case "click", "drag":
-		if a.Button != "left" && a.Button != "right" && a.Button != "middle" {
+	case "click", "path":
+		switch {
+		case a.Kind == "path" && a.Button == "none":
+		case a.Kind == "path" && a.Button != "left" && a.Button != "right" && a.Button != "middle":
+			return a, invalidf("%s.button must be left, right, middle or none, not %q", path, a.Button)
+		case a.Button != "left" && a.Button != "right" && a.Button != "middle":
 			return a, invalidf("%s.button must be left, right or middle, not %q", path, a.Button)
 		}
 		if a.Count < 1 || a.Count > 3 {
@@ -294,10 +324,13 @@ func expandAction(raw json.RawMessage, path string) (json.RawMessage, error) {
 	if err := json.Unmarshal(parts[0], &kind); err != nil {
 		return nil, invalidf("%s[0] must be an action name", path)
 	}
+	if dragNames[kind] {
+		return nil, dragRefused(path, kind)
+	}
 	fields := map[string][]string{
 		"click":  {"x", "y", "button", "count", "modifiers"},
 		"move":   {"x", "y"},
-		"drag":   {"from", "to", "button", "modifiers"},
+		"path":   {"points", "curve", "button", "modifiers"},
 		"scroll": {"x", "y", "dy", "unit", "dx"},
 		"type":   {"text"},
 		"key":    {"keys", "repeat"},
@@ -450,9 +483,12 @@ func translate(index int, a action, toLogical func(x, y float64) (float64, float
 		}
 	case "move":
 		return []inputStep{step(append([]string{"move"}, point(a.X, a.Y)...)...)}
-	case "drag":
-		argv := append([]string{"drag"}, point(a.From[0], a.From[1])...)
-		argv = append(argv, point(a.To[0], a.To[1])...)
+	case "path":
+		points := pathInput(a, toLogical)
+		argv := []string{"path", strconv.Itoa(len(points))}
+		for _, p := range points {
+			argv = append(argv, formatNumber(p[0]), formatNumber(p[1]))
+		}
 		return []inputStep{step(append(argv, a.Button, joinModifiers(a.Modifiers))...)}
 	case "scroll":
 		verb := "wheel"

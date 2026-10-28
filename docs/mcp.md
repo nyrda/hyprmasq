@@ -9,7 +9,8 @@ The server speaks MCP over stdio, so each agent session starts its own.
 [Installation](installation.md#mcp-server) covers registering it. The tool
 descriptions carry every rule an agent needs, such as to drive only windows
 the user named or the agent launched and to ask before anything irreversible,
-so agents need no further instructions.
+and the [first view](#the-first-view-of-a-window) of each window adds what an
+agent needs once before acting on it, so agents need no further instructions.
 
 ## Tools
 
@@ -42,7 +43,10 @@ the agent never converts anything.
 - A **zoom** is a shot of part of an earlier shot, captured again at the
   monitor's full scale: `screenshot` with
   `region: {shot, x, y, width, height}`. It reads small text and hits small
-  targets, and `act` accepts its pixels too.
+  targets, and `act` takes its own pixels as they are, with the zoom as
+  `shot`. Its summary line says so, where the agent reads its next
+  coordinates:
+  `shot s3 465×921 · zoom of s1 at 10,96 310×614 · window 0x55d1c0a3e4b0 1280×800 · act takes s3's own pixels`.
 - Before each capture, the server waits briefly, at most 1.5 s, for a window
   that has not yet redrawn at a new size, or a hidden window that has not
   drawn yet. A shot taken anyway is marked stale or "may be stale" in the
@@ -50,6 +54,18 @@ the agent never converts anything.
 - The server keeps the 64 most recently used shots of each window, as files
   under `$XDG_RUNTIME_DIR/hyprmasq/<instance>/mcp/<pid>/`, and deletes them
   when the session ends.
+
+### The first view of a window
+
+The first usable full shot of each window, from `windows`, `screenshot` or
+`launch`, comes with a note of what an agent needs once before it acts on
+that window: notch scrolling for short moves and `next_page` for long pages,
+how an open menu behaves, how much one `act` types, and that a zoom of the
+hardest part of precise work shows whether it landed. The note states facts
+about the tools rather than orders, since models weigh orders in a tool's
+result less than facts. Keeping it out of `act`'s description leaves that
+description to what applies to every call, within the 2048 characters that
+Claude Code keeps of a tool description.
 
 ## act
 
@@ -74,13 +90,13 @@ One `act` call:
    coordinates against the shot, the window's capabilities, key names and
    whether the keymap can type every character.
 2. **Refuses stale targets.** If the window was resized since the shot, or
-   the window no longer shows what the shot showed around a click or drag
-   point, the call fails with `stale_shot`, sends nothing, and returns a
-   fresh shot to read coordinates from.
+   the window no longer shows what the shot showed around a click point, or
+   the ends of a path with a button, the call fails with `stale_shot`, sends
+   nothing, and returns a fresh shot to read coordinates from.
 3. **Sends the input** through `hyprmasq-input`.
-   After a click or drag that more actions follow, it waits for the window to
-   answer before sending the rest, and keys after a click start at least
-   300 ms after it.
+   After a click, or a path with a button, that more actions follow, it waits
+   for the window to answer before sending the rest, and keys after a click start at
+   least 300 ms after it.
 4. **Waits** until the window has drawn the result: first for a redraw
    (`expect_ms`), then until it has been quiet for `quiet_ms`. It does not
    wait for animations, such as a spinner, or the overlay scrollbar that
@@ -115,7 +131,7 @@ object when you need to skip an optional position.
 | --- | --- |
 | click | `[x, y]`, or `["click", x, y, button?, count?, modifiers?]` |
 | move | `["move", x, y]` |
-| drag | `["drag", from, to, button?, modifiers?]` |
+| path | `["path", points, curve?, button?, modifiers?]` |
 | scroll | `["scroll", x, y, dy, unit?, dx?]` |
 | type | `["type", text]` |
 | key | `["key", keys, repeat?]` |
@@ -165,8 +181,8 @@ with `dy` either 1 or -1, last in the batch.
 
 ### A scroll at the end of a batch
 
-A batch that ends with one or more `scroll` actions after a click, drag, key
-or text runs in two parts, so that the agent sees what its input did before
+A batch that ends with one or more `scroll` actions after a click, a path
+with a button, a key or text runs in two parts, so that the agent sees what its input did before
 the page moves on. `act` sends the actions before the scroll, waits for the
 window and captures what changed since the shot. Then it sends the scroll,
 waits again and captures what changed since that capture: a full shot once
@@ -217,7 +233,7 @@ page.
 | --- | --- |
 | `click` | `x`, `y`, `button` (`left`, `right`, `middle`), `count` (1 to 3), `modifiers` |
 | `move` | `x`, `y`, for hover |
-| `drag` | `from` [x, y], `to` [x, y], `button`, `modifiers` |
+| `path` | `points`, 2 to 500 points [[x, y], …], `curve` (`line` or `spline`, default `line`), `button` (also `none`), `modifiers` |
 | `scroll` | `x`, `y`, `dx`, `dy`, `unit` (`page`, a measured page, `notch`, a wheel click, or `px`, smooth scrolling). See [A scroll at the end of a batch](#a-scroll-at-the-end-of-a-batch). |
 | `type` | `text`, typed literally with the active keymap. A line break presses Enter. At most 65536 bytes per batch. |
 | `key` | `keys`, such as `["ctrl", "l"]` or `["ctrl+l"]`, pressed together, and `repeat` (1 to 500). A single plain key presses as a typed key does; repeated plain keys have 1 ms gaps between distinct press/release frames, and chords with modifiers take 40 ms. |
@@ -233,8 +249,29 @@ A batch saves round trips but runs without looking, so agents batch only
 targets that are visible in the shot. A menu or dialog that opens needs a new
 shot before anything in it is clicked.
 
-Drags, clicks with modifiers, and chords that hold a key other than a
-modifier need the window's `hold` capability. A drag can start an app's own
+A `path` presses the button once, moves through its points in order and
+releases once, so an app that draws along the motion draws one stroke, such
+as a line along a curve in a paint tool. A drag is a path of two points,
+`["path", [from, to]]`, so there is no separate drag action. `act` refuses
+`drag`, and `left_click_drag` of Anthropic's computer use tool, with
+`invalid_arguments`, sends nothing, and says how to send it as a path.
+
+With `curve` `line` a path moves straight from point to point. With `spline`
+it follows a smooth curve that passes through every point, a centripetal
+Catmull-Rom spline that the server samples into steps of up to 10 logical
+pixels. Points are where the stroke goes, not control handles. Between the
+points a spline curves, so it can leave a thin target there. Points close
+together keep a precise trace on target, and `line` suits a target that
+bends sharply or sparse points. `line` is the default, so a polygon, such as
+a lasso around a box, keeps its corners unless the agent asks for a curve.
+With `button` `none` the path only moves the pointer, for example along the
+diagonal that a submenu needs. A path is paced like a hand's drag: a press,
+50 ms, steps 10 ms apart, 50 ms and a release. A spline's samples count as
+points, and the paths of one batch move through at most 4000 points.
+
+Paths with a button, clicks with modifiers, and chords that hold a key other
+than a modifier need the window's `hold` capability. A path without a button
+needs it only with modifiers. A path with a button can start an app's own
 drag-and-drop, which runs privately inside the window when the window has the
 `dnd` capability. See [Drag-and-drop](automation.md#drag-and-drop).
 
@@ -385,7 +422,8 @@ launches. See [Installation](installation.md#mcp-server).
 
 **pi** needs `"exposure": "direct"` so that the model sees the tools
 themselves. pi then shows the model none of the server's instructions, which
-loses nothing: the tool descriptions carry every rule.
+loses nothing: the tool descriptions and the [first view](#the-first-view-of-a-window)
+carry every rule.
 
 ## Limits
 

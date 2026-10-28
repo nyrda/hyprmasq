@@ -44,7 +44,7 @@ func TestLaunch(t *testing.T) {
 	if args := waitArgsOf(t, e.fake.requestsMatching("j/hyprmasq wait 0xe1")[0]); args["expect"] != "" || args["quiet"] != "300" {
 		t.Errorf("settle wait %v", args)
 	}
-	if !strings.HasPrefix(text(res), `launched 0xe1 foot "it's" · pid 5000`) || get(t, res, "hint") != firstViewNavigationHint {
+	if !strings.HasPrefix(text(res), `launched 0xe1 foot "it's" · pid 5000`) || get(t, res, "hint") != firstViewHint {
 		t.Errorf("text %q", text(res))
 	}
 
@@ -126,7 +126,7 @@ func TestLaunchNamesResizedWindows(t *testing.T) {
 	if res.IsError {
 		t.Fatal(text(res))
 	}
-	if hint := get(t, res, "hint"); hint != joinHints("The new window resized the windows on its workspace (0xa1), so their earlier shots are stale: take a new screenshot before clicking in one.", firstViewNavigationHint) {
+	if hint := get(t, res, "hint"); hint != joinHints("The new window resized the windows on its workspace (0xa1), so their earlier shots are stale: take a new screenshot before clicking in one.", firstViewHint) {
 		t.Errorf("hint %v", hint)
 	}
 }

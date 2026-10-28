@@ -31,7 +31,9 @@
 #define MAX_CHORD_MODS 8
 #define MAX_HELD       64
 #define MAX_DRAG_STEPS 2000
-#define EVDEV_OFFSET   8
+// The points of a path. hyprmasq-mcp sends at most this many in a batch: maxPathMotion in mcp/internal/server/path.go.
+#define MAX_PATH_POINTS 4000
+#define EVDEV_OFFSET    8
 // The presses of a key or tag. 500 repeated plain keys take about half a second at their pace, and of a chord with
 // modifiers 20 s, which the longest deadline of hyprmasq-mcp still fits: enough for a slider of 360 steps, end to end.
 // hyprmasq-mcp's maxRepeat repeats it. Change them together.
@@ -60,7 +62,7 @@
 #define DRAG_HOLD_MS    50
 #define DRAG_STEP_MS    10
 #define DRAG_STEP_PX    10
-// 20 intervals of DRAG_STEP_MS spread a drag over at least 200 ms.
+// 20 intervals of DRAG_STEP_MS spread a path over at least 200 ms.
 #define DRAG_MIN_STEPS 21
 
 #define MS(ms) ((uint64_t)(ms) * 1000000u)
@@ -124,7 +126,7 @@ enum actionType {
     ACTION_CLICK,
     ACTION_DOWN,
     ACTION_UP,
-    ACTION_DRAG,
+    ACTION_PATH,
     ACTION_SCROLL,
     ACTION_WHEEL,
     ACTION_KEY,
@@ -143,7 +145,7 @@ static const struct {
     [ACTION_CLICK]  = {"click", "click [BUTTON [COUNT [MODS]]], COUNT 1 to 3"},
     [ACTION_DOWN]   = {"down", "down BUTTON"},
     [ACTION_UP]     = {"up", "up BUTTON"},
-    [ACTION_DRAG]   = {"drag", "drag X1 Y1 X2 Y2 [BUTTON [MODS]]"},
+    [ACTION_PATH]   = {"path", "path N X1 Y1 ... XN YN [BUTTON [MODS]], N 2 to 4000, BUTTON also none"},
     [ACTION_SCROLL] = {"scroll", "scroll DX DY"},
     [ACTION_WHEEL]  = {"wheel", "wheel DX DY, whole notches up to 100"},
     [ACTION_KEY]    = {"key", "key CODE"},
@@ -165,14 +167,15 @@ struct steps {
 
 struct action {
     enum actionType type;
-    double          x, y, x2, y2;
-    uint32_t        code;   // the button or the key code
-    long            count;  // clicks, repeats or milliseconds, the least of sync
+    double          x, y;
+    uint32_t        code;   // the button or the key code, 0 for a path without a button
+    long            count;  // clicks, repeats, points of path or milliseconds, the least of sync
     long            limit;  // the most milliseconds of sync
     long            dx, dy; // wheel notches
     const char*     text;   // the text of type and text, the chord of keys
-    const char*     mods;   // the modifiers of click and drag
-    struct chord    chord;  // the chord of keys, the modifiers of click and drag
+    char**          points; // the coordinates of path, X1 Y1 X2 Y2 and so on, checked by parseAction
+    const char*     mods;   // the modifiers of click and path
+    struct chord    chord;  // the chord of keys, the modifiers of click and path
     struct steps    steps;  // the keys of type and text
     long            keysAt; // the keys sent before the action started, or -1
 };
@@ -217,7 +220,8 @@ static void help(void) {
           "  move X Y                          Move the pointer.\n"
           "  click [BUTTON [COUNT [MODS]]]     Click 1 to 3 times. Default: left, 1.\n"
           "  down BUTTON / up BUTTON           Press / release a button.\n"
-          "  drag X1 Y1 X2 Y2 [BUTTON [MODS]]  Press, move in steps, release.\n"
+          "  path N X1 Y1 ... [BUTTON [MODS]]  Press once, move through N points, 2 to\n"
+          "                                    4000, in steps, release once.\n"
           "  scroll DX DY                      Smooth scroll in logical pixels.\n"
           "  wheel DX DY                       Scroll whole notches, -100 to 100.\n"
           "  key CODE                          Press and release an evdev key code.\n"
@@ -231,7 +235,8 @@ static void help(void) {
           "                                    most MAX milliseconds, 0 <= MIN <= MAX <=\n"
           "                                    3600000.\n\n"
           "Coordinates are window-local logical pixels within the pointer regions.\n"
-          "BUTTON is left, right, middle or an evdev code, e.g. 0x113.\n"
+          "BUTTON is left, right, middle or an evdev code, e.g. 0x113. path also takes\n"
+          "none, which moves without pressing.\n"
           "MODS joins modifiers with +, e.g. ctrl+shift; - means none.\n"
           "CHORD joins key names with +, e.g. ctrl+shift+t or enter; use plus for +.\n"
           "Text uses the server's keymap and the target locale's Compose table.\n\n"
@@ -554,7 +559,7 @@ static bool checkPoint(struct state* s, double x, double y) {
     return false;
 }
 
-// Interpolated points of a drag that leave the region are skipped, as libei would.
+// Interpolated points of a path that leave the region are skipped, as libei would.
 static bool sendMotion(struct state* s, double x, double y, bool exact) {
     if (!usePointer(s))
         return false;
@@ -580,7 +585,7 @@ static bool sendButton(struct state* s, uint32_t button, bool press) {
 }
 
 // Releases every key and button still pressed, also after a failure or a signal. Buttons go first, as at the end of a
-// click or drag, so that the modifiers held around them still apply to the release.
+// click or path, so that the modifiers held around them still apply to the release.
 static void releaseAll(struct state* s) {
     while (s->heldButtonCount) {
         const uint32_t button = s->heldButtons[--s->heldButtonCount];
@@ -1307,7 +1312,8 @@ static int parseAction(int argc, char** argv, struct action* a) {
     }
     *a = (struct action){.type = type, .code = BTN_LEFT, .count = 1, .keysAt = -1};
     // The arguments each action requires, which are all checked below; optional ones are checked as they come.
-    static const int required[ACTION_TYPES] = {[ACTION_MOVE] = 2, [ACTION_DOWN] = 1, [ACTION_UP] = 1,   [ACTION_DRAG] = 4, [ACTION_SCROLL] = 2, [ACTION_WHEEL] = 2,
+    // path requires N here, and its points below.
+    static const int required[ACTION_TYPES] = {[ACTION_MOVE] = 2, [ACTION_DOWN] = 1, [ACTION_UP] = 1,   [ACTION_PATH] = 1, [ACTION_SCROLL] = 2, [ACTION_WHEEL] = 2,
                                                [ACTION_KEY] = 1,  [ACTION_KEYS] = 1, [ACTION_TYPE] = 1, [ACTION_TEXT] = 1, [ACTION_SLEEP] = 1,  [ACTION_SYNC] = 2};
     unsigned long    code;
     char*            end = NULL;
@@ -1316,10 +1322,17 @@ static int parseAction(int argc, char** argv, struct action* a) {
     switch (ok ? (int)a->type : -1) {
         case ACTION_MOVE:
         case ACTION_SCROLL: ok = parseDouble(argv[1], &a->x) && parseDouble(argv[2], &a->y); break;
-        case ACTION_DRAG:
-            ok = parseDouble(argv[1], &a->x) && parseDouble(argv[2], &a->y) && parseDouble(argv[3], &a->x2) && parseDouble(argv[4], &a->y2);
-            if (ok && hasOptional(argc, argv, i))
-                ok = parseButton(argv[i++], &a->code) && (!hasOptional(argc, argv, i) || parseMods(a, argv[i++]));
+        case ACTION_PATH:
+            ok        = parseCount(argv[1], 2, MAX_PATH_POINTS, &a->count) && argc >= (i = 2 + 2 * a->count);
+            a->points = argv + 2;
+            for (long j = 0; ok && j < 2 * a->count; ++j) {
+                double value;
+                ok = parseDouble(a->points[j], &value);
+            }
+            if (ok && hasOptional(argc, argv, i)) {
+                const char* button = argv[i++];
+                ok                 = (!strcmp(button, "none") ? (a->code = 0, true) : parseButton(button, &a->code)) && (!hasOptional(argc, argv, i) || parseMods(a, argv[i++]));
+            }
             break;
         case ACTION_CLICK:
             if (hasOptional(argc, argv, i))
@@ -1356,6 +1369,42 @@ static int parseAction(int argc, char** argv, struct action* a) {
     return 0;
 }
 
+static double pathX(const struct action* a, long i) {
+    return strtod(a->points[2 * i], NULL);
+}
+
+static double pathY(const struct action* a, long i) {
+    return strtod(a->points[2 * i + 1], NULL);
+}
+
+static double segmentLength(const struct action* a, long i) {
+    return hypot(pathX(a, i) - pathX(a, i - 1), pathY(a, i) - pathY(a, i - 1));
+}
+
+// The length of a path's steps: DRAG_STEP_PX, shorter for a path that DRAG_MIN_STEPS of them would not cover, and longer
+// for one that would take more than MAX_DRAG_STEPS. hyprmasq-mcp counts them as pathStep and
+// segmentMoves in mcp/internal/server/path.go do.
+static double pathStep(const struct action* a) {
+    double length = 0;
+    for (long i = 1; i < a->count; ++i)
+        length += segmentLength(a, i);
+    const double step = length / DRAG_MIN_STEPS < DRAG_STEP_PX ? length / DRAG_MIN_STEPS : DRAG_STEP_PX;
+    return length / MAX_DRAG_STEPS > step ? length / MAX_DRAG_STEPS : step;
+}
+
+// The steps of a segment of a path: at least one, so that every point is reached.
+static long segmentSteps(double length, double step) {
+    return length > 0 ? (long)ceil(length / step - 1e-9) : 1;
+}
+
+static long pathSteps(const struct action* a) {
+    const double step  = pathStep(a);
+    long         steps = 0;
+    for (long i = 1; i < a->count; ++i)
+        steps += segmentSteps(segmentLength(a, i), step);
+    return steps;
+}
+
 static bool needsKeymap(const struct action* a) {
     return a->type == ACTION_KEYS || a->type == ACTION_TYPE || a->type == ACTION_TEXT || a->mods;
 }
@@ -1366,8 +1415,9 @@ static bool resolveAction(struct state* s, struct action* a) {
         return false;
     switch (a->type) {
         case ACTION_MOVE: return checkPoint(s, a->x, a->y);
-        case ACTION_DRAG:
-            if (!checkPoint(s, a->x, a->y) || !checkPoint(s, a->x2, a->y2))
+        case ACTION_PATH:
+            // Its ends must lie in the regions, and points and steps between them that leave the regions are skipped.
+            if (!checkPoint(s, pathX(a, 0), pathY(a, 0)) || !checkPoint(s, pathX(a, a->count - 1), pathY(a, a->count - 1)))
                 return false;
             break;
         case ACTION_KEYS: return resolveChord(s, a->text, false, &a->chord);
@@ -1391,25 +1441,28 @@ static bool click(struct state* s, const struct action* a) {
     return releaseMods(s, &a->chord);
 }
 
-// Steps of at most DRAG_STEP_PX, at least DRAG_MIN_STEPS and at most MAX_DRAG_STEPS of them.
-static long dragSteps(const struct action* a) {
-    const double dx = a->x2 - a->x, dy = a->y2 - a->y;
-    const double steps = ceil(hypot(dx, dy) / DRAG_STEP_PX);
-    return steps < DRAG_MIN_STEPS ? DRAG_MIN_STEPS : steps > MAX_DRAG_STEPS ? MAX_DRAG_STEPS : (long)steps;
-}
-
-static bool drag(struct state* s, const struct action* a) {
-    if (!sendMotion(s, a->x, a->y, true) || !pressMods(s, &a->chord, CHORD_MOD_MS) || !sendButton(s, a->code, true) || !paceWait(s, DRAG_HOLD_MS))
+// A path presses once, moves through its points in steps and releases once. Without a button, it moves a step after
+// its first point.
+static bool path(struct state* s, const struct action* a) {
+    const bool press = a->code != 0;
+    if (!sendMotion(s, pathX(a, 0), pathY(a, 0), true) || !pressMods(s, &a->chord, CHORD_MOD_MS) || (press && (!sendButton(s, a->code, true) || !paceWait(s, DRAG_HOLD_MS))))
         return false;
-    const double dx = a->x2 - a->x, dy = a->y2 - a->y;
-    const long   steps = dragSteps(a);
-    for (long i = 1; i <= steps; ++i) {
-        const bool last = i == steps;
-        if ((i > 1 && !paceWait(s, DRAG_STEP_MS)) || !sendMotion(s, last ? a->x2 : a->x + dx * i / steps, last ? a->y2 : a->y + dy * i / steps, last))
-            return false;
+    const double step  = pathStep(a);
+    bool         first = true;
+    for (long i = 1; i < a->count; ++i) {
+        const double x0 = pathX(a, i - 1), y0 = pathY(a, i - 1), x1 = pathX(a, i), y1 = pathY(a, i);
+        const long   steps = segmentSteps(hypot(x1 - x0, y1 - y0), step);
+        for (long j = 1; j <= steps; ++j) {
+            const bool end = j == steps, last = end && i == a->count - 1;
+            if ((!first || !press) && !paceWait(s, DRAG_STEP_MS))
+                return false;
+            if (!sendMotion(s, end ? x1 : x0 + (x1 - x0) * j / steps, end ? y1 : y0 + (y1 - y0) * j / steps, last))
+                return false;
+            first = false;
+        }
     }
     s->releasing = true;
-    return paceWait(s, DRAG_HOLD_MS) && sendButton(s, a->code, false) && releaseMods(s, &a->chord);
+    return (!press || (paceWait(s, DRAG_HOLD_MS) && sendButton(s, a->code, false))) && releaseMods(s, &a->chord);
 }
 
 static bool scroll(struct state* s, const struct action* a) {
@@ -1564,8 +1617,13 @@ static long pacedTime(const struct state* s, const struct action* actions, int t
         ms += gap;
         switch (a->type) {
             case ACTION_CLICK: ms += pace * (mods + a->count * CLICK_HOLD_MS + (a->count - 1) * CLICK_GAP_MS); break;
-            // The modifiers go down while the press waits for the motion.
-            case ACTION_DRAG: ms += pace * (MOTION_PRESS_MS + 2 * DRAG_HOLD_MS + (dragSteps(a) - 1) * DRAG_STEP_MS); break;
+            // The modifiers of a path with a button go down while the press waits for the motion.
+            case ACTION_PATH:
+                if (a->code)
+                    ms += pace * (MOTION_PRESS_MS + 2 * DRAG_HOLD_MS + (pathSteps(a) - 1) * DRAG_STEP_MS);
+                else
+                    ms += pace * (mods + pathSteps(a) * DRAG_STEP_MS);
+                break;
             case ACTION_WHEEL:
                 notches = labs(a->dx) + labs(a->dy);
                 ms += notches ? pace * notches * WHEEL_GAP_MS : 0;
@@ -1601,7 +1659,7 @@ static bool runAction(struct state* s, const struct action* a) {
         case ACTION_CLICK: return click(s, a);
         case ACTION_DOWN:
         case ACTION_UP: return sendButton(s, a->code, a->type == ACTION_DOWN);
-        case ACTION_DRAG: return drag(s, a);
+        case ACTION_PATH: return path(s, a);
         case ACTION_SCROLL: return scroll(s, a);
         case ACTION_WHEEL: return wheel(s, a);
         case ACTION_KEY: return pressChord(s, &(struct chord){.code = a->code}, 0, CHORD_HOLD_MS, true);

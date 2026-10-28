@@ -12,7 +12,12 @@ def probe_leaves(start):
 
 
 with subtest("hyprmasq-mcp introduces itself and its tools"):
-    navigation_hint = "For a short scroll, use ordinary notch scrolling. For a long page, next_page can follow your visible edits in the same act and retain overlap. Check the returned changes before continuing from the next view."
+    first_view_hint = (
+        "For a short scroll, notch scrolling is enough; for a long page, next_page can follow your visible edits in the same act and keeps an overlap, and its changes show the edits before the next view. "
+        "A menu that is still open shows in the shot: clicking its entry picks it, clicking its opener closes it, and a closed menu can be opened and picked by keyboard in one batch. "
+        "Typing takes 15 ms a key, more through Compose: one act types about 600 characters, or 1400 with deadline_ms 30000. "
+        "A busy app can drop keys or take them as shortcuts, which the changes show, and after drawing or placing something precise, a zoom of its hardest part shows whether it landed."
+    )
     focus_workspace(4)
     wait_for("focus back", lambda: snapshot() == (4, visible))
     mcp = Mcp("a")
@@ -61,7 +66,7 @@ with subtest("hyprmasq-mcp launches a window on a hidden workspace"):
     assert re.fullmatch(
         rf'launched {shell} foot "hm-m-shell" · pid {shell_pid} · workspace hm-m · settled after \d+ ms · shot {launch_shot["id"]} 640×480', launch_result.data["summary"]
     ), launch_result
-    assert launch_result.data["hint"] == navigation_hint and launch_result.text == launch_result.data["summary"] + "\n" + navigation_hint, launch_result
+    assert launch_result.data["hint"] == first_view_hint and launch_result.text == launch_result.data["summary"] + "\n" + first_view_hint, launch_result
     assert len(launch_result.images) == 1 and pixels(launch_result.images[0])[-1] == (640, 480), launch_result
     keep(launch_result, "launched")
     assert client("hm-m-shell")["workspace"]["name"] == "hm-m" and snapshot() == before_focus
@@ -116,7 +121,7 @@ with subtest("hyprmasq-mcp gives Claude Code the text in place of structured con
     # It lists one window, which comes with its shot.
     matched = claude.call("windows", {"match": "HM-M-SHELL"})
     assert matched.data is None and len(matched.images) == 1, matched
-    assert re.fullmatch(rf'{shell} · foot "hm-m-shell" · workspace hm-m \(hidden\) · 640×480\nshot s\d+ 640×480 of window {shell}\n' + re.escape(navigation_hint), matched.text), matched
+    assert re.fullmatch(rf'{shell} · foot "hm-m-shell" · workspace hm-m \(hidden\) · 640×480\nshot s\d+ 640×480 of window {shell}\n' + re.escape(first_view_hint), matched.text), matched
     none = claude.call("windows", {"match": "hm-m-nothing"})
     assert none.data is None and re.fullmatch(r'no window has "hm-m-nothing" in its class or title, of \d+ windows', none.text), none
     shot = claude.call("screenshot", {"window": shell})
@@ -168,7 +173,7 @@ with subtest("hyprmasq-mcp clicks at the shot pixel, also at scale 2 and in a zo
     overview = mcp.call("screenshot", {"window": "0x00" + probe[2:].upper()})
     overview_id = overview.data["shot"]["id"]
     assert overview.data["shot"] == {"id": overview_id, "width": 640, "height": 480, "frame": region(0, 0, 640, 480)}, overview
-    assert overview.text == f"shot {overview_id} 640×480 · window {probe} 640×480\n{navigation_hint}" and len(overview.images) == 1, overview
+    assert overview.text == f"shot {overview_id} 640×480 · window {probe} 640×480\n{first_view_hint}" and len(overview.images) == 1, overview
     # The probe draws nothing in answer to input, so the wait finds no redraw.
     start = len(probe_events("m-probe"))
     clicked = mcp.call("act", {"shot": overview_id, "actions": [[123, 77]]})
@@ -201,7 +206,7 @@ with subtest("hyprmasq-mcp clicks at the shot pixel, also at scale 2 and in a zo
     zoom = mcp.call("screenshot", {"window": probe, "region": {"shot": doubled_id, "x": 200, "y": 140, "width": 100, "height": 60}})
     zoom_id = zoom.data["shot"]["id"]
     assert zoom.data["shot"] == {"id": zoom_id, "width": 100, "height": 60, "frame": region(100, 70, 50, 30)}, zoom
-    assert zoom.text == f"shot {zoom_id} 100×60 · zoom of {doubled_id} at 200,140 100×60 · window {probe} 320×240", zoom
+    assert zoom.text == f"shot {zoom_id} 100×60 · zoom of {doubled_id} at 200,140 100×60 · window {probe} 320×240 · act takes {zoom_id}'s own pixels", zoom
     assert pixels(keep(zoom, "zoom"))[-1] == (100, 60) and near(pixels(zoom.images[0], (50, 30))[0], window_rgb)
     start = len(probe_events("m-probe"))
     clicked = mcp.call("act", {"shot": zoom_id, "actions": [[31, 17]], "wait": {"expect_change": False}})
@@ -221,6 +226,32 @@ with subtest("hyprmasq-mcp takes the click actions of Anthropic's computer use t
     assert probe_motions(start) == [(210, 120)], probe_events("m-probe", start)
     buttons = [e for _, e in probe_input(start) if e.startswith("button ")]
     assert buttons == ["button hm-m-probe 1", "button hm-m-probe 0"] * 3, probe_events("m-probe", start)
+    assert snapshot() == before_focus
+
+with subtest("hyprmasq-mcp draws a spline path as one stroke through its points"):
+    # A curve such as a rail in a photo, with turns of 38 and 28 degrees at its points, which a line would show as
+    # corners, in the compact form of an action.
+    points = [(100, 400), (150, 220), (300, 110), (500, 80)]
+    shot_id = mcp.call("screenshot", {"window": probe}).data["shot"]["id"]
+    start = len(probe_events("m-probe"))
+    drawn = mcp.call("act", {"window": probe, "shot": shot_id, "actions": [["path", points, "spline"]], "wait": {"expect_change": False}})
+    assert not drawn.is_error and drawn.data["actions"]["delivery"] == "complete", drawn
+    events = probe_input(start)
+    kinds = [e.split()[0] for _, e in events]
+    assert kinds[:2] == ["motion", "button"] and kinds[-1] == "button" and kinds[2:-1] == ["motion"] * (len(kinds) - 3), events
+    assert [e for _, e in events if e.startswith("button ")] == ["button hm-m-probe 1", "button hm-m-probe 0"], events
+    motions = probe_motions(start)
+    remaining = iter(motions)
+    assert motions[0] == points[0] and motions[-1] == points[-1] and all(p in remaining for p in points), motions
+    steps = [(b[0] - a[0], b[1] - a[1]) for a, b in zip(motions, motions[1:])]
+    assert all(math.hypot(*s) <= 10.5 for s in steps), motions
+    # It stays close to the box of the points, and turns smoothly, also at the points: a few degrees a step.
+    assert all(95 <= x <= 505 and 75 <= y <= 405 for x, y in motions), motions
+    turns = [abs(math.degrees(math.atan2(a[0] * b[1] - a[1] * b[0], a[0] * b[0] + a[1] * b[1]))) for a, b in zip(steps, steps[1:])]
+    assert max(turns) < 10, turns
+    # About 590 pixels in steps of 10 ms between one press and one release, which three drags would make three strokes.
+    held = events[-1][0] - events[1][0]
+    assert 0.8 * (50 + 10 * (len(motions) - 2) + 50) <= held < 1500, (held, len(motions))
     assert snapshot() == before_focus
 
 with subtest("hyprmasq-mcp sends nothing for a batch it refuses"):
@@ -245,10 +276,10 @@ with subtest("hyprmasq-mcp sends nothing for a batch it refuses"):
     refused(outside, "out_of_bounds")
     assert outside.data["error"]["message"] == f"actions[0] (click): 300,50 lies outside shot {fresh['id']} (300×200)", outside
     assert outside.data["hint"] == f"Coordinates are pixels of shot {fresh['id']}, from 0,0 to 299,199. Nothing was sent.", outside
-    actions = [{"action": "key", "keys": ["a"]}, {"action": "drag", "from": [10, 10], "to": [10, 250]}]
+    actions = [{"action": "key", "keys": ["a"]}, {"action": "path", "points": [[10, 10], [10, 250]]}]
     outside = mcp.call("act", {"window": probe, "shot": fresh["id"], "actions": actions})
     refused(outside, "out_of_bounds")
-    assert outside.data["error"]["message"] == f"actions[1] (drag): to 10,250 lies outside shot {fresh['id']} (300×200)", outside
+    assert outside.data["error"]["message"] == f"actions[1] (path): points[1] 10,250 lies outside shot {fresh['id']} (300×200)", outside
 
     # Arguments are checked by name.
     for bad, message in [
@@ -258,7 +289,9 @@ with subtest("hyprmasq-mcp sends nothing for a batch it refuses"):
         ({"wait": {"quiet_ms": 0}}, "wait.quiet_ms must be 1 to 10000, not 0"),
         ({"actions": [{"action": "move", "x": 10, "y": 10}]}, "shot is missing: actions[0] (move) has coordinates"),
         ({"shot": fresh["id"], "actions": [{"action": "click", "x": None, "y": 10}]}, "actions[0].x must be a number, not null"),
-        ({"shot": fresh["id"], "actions": [{"action": "drag", "from": [10, None], "to": [20, 20]}]}, "actions[0].from[1] must be a number, not null"),
+        ({"shot": fresh["id"], "actions": [{"action": "path", "points": [[10, None], [20, 20]]}]}, "actions[0].points[0][1] must be a number, not null"),
+        # A drag is a path of two points, which the refusal says.
+        ({"shot": fresh["id"], "actions": [["drag", [10, 10], [20, 20]]]}, 'actions[0]: drag is a path of two points: ["path",[from,to]]'),
     ]:
         result = mcp.call("act", {"window": probe, **bad})
         refused(result, "invalid_arguments")
@@ -321,9 +354,9 @@ with subtest("hyprmasq-mcp sends nothing for a batch it refuses"):
     entry, _ = listed(mcp, shared_hidden)
     assert entry["capabilities"] == {"lease": False, "hold": False, "dnd": False, "keyboard": "yes"}, entry
     shared_shot = mcp.call("screenshot", {"window": shared_hidden}).data["shot"]["id"]
-    drag = mcp.call("act", {"window": shared_hidden, "shot": shared_shot, "actions": [{"action": "drag", "from": [20, 20], "to": [200, 20]}]})
+    drag = mcp.call("act", {"window": shared_hidden, "shot": shared_shot, "actions": [["path", [[20, 20], [200, 20]]]]})
     refused(drag, "unsupported")
-    assert drag.data["error"]["message"] == f"actions[0] (drag) needs the hold capability, which window {shared_hidden} lacks", drag
+    assert drag.data["error"]["message"] == f"actions[0] (path) needs the hold capability, which window {shared_hidden} lacks", drag
     assert drag.data["hint"].startswith("This window has the user's keyboard or pointer focus, or shares its Wayland connection"), drag
     # A click would get the user's modifiers instead of its own.
     modified = mcp.call("act", {"window": shared_hidden, "shot": shared_shot, "actions": [{"action": "click", "x": 20, "y": 20, "modifiers": ["ctrl"]}]})
@@ -445,7 +478,7 @@ with subtest("hyprmasq-mcp drags in a hidden app's own drag-and-drop, and says h
     entry, line = listed(mcp, m_dnd)
     assert entry["capabilities"] == {"lease": True, "hold": True, "dnd": True, "keyboard": "yes"} and "lacks" not in line, (entry, line)
     dnd_shot = mcp.call("screenshot", {"window": m_dnd}).data["shot"]["id"]
-    dropped = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [{"action": "drag", "from": [50, 100], "to": [300, 100]}]})
+    dropped = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [["path", [[50, 100], [300, 100]]]]})
     assert not dropped.is_error and dropped.data["actions"]["drag_and_drop"] == {"outcome": "finished", "private": True}, dropped
     assert dropped.text.startswith("1/1 delivered · drag-and-drop finished · redraw observed · "), dropped
     events = dnd_events("m-dnd")
@@ -455,7 +488,7 @@ with subtest("hyprmasq-mcp drags in a hidden app's own drag-and-drop, and says h
     # A drop that the app refuses is cancelled, and the hint says why.
     m_dnd, _ = dnd_probe("m-dnd-refused", "hm-m-dnd-refused", "accept=none", workspace=83)
     dnd_shot = mcp.call("screenshot", {"window": m_dnd}).data["shot"]["id"]
-    refused_drop = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [{"action": "drag", "from": [50, 100], "to": [300, 100]}]})
+    refused_drop = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [["path", [[50, 100], [300, 100]]]]})
     assert refused_drop.data["actions"]["drag_and_drop"] == {"outcome": "cancelled", "private": True, "reason": "rejected"}, refused_drop
     assert " · drag-and-drop cancelled (rejected) · " in refused_drop.text, refused_drop
     assert refused_drop.data["hint"].startswith("The app's drag-and-drop was cancelled, since it ended over a place that took none of its types or actions"), refused_drop
@@ -464,7 +497,7 @@ with subtest("hyprmasq-mcp drags in a hidden app's own drag-and-drop, and says h
     # the summary says so, the hint says what to do instead, and the wait ends without waiting for a redraw.
     m_dnd, _ = dnd_probe("m-dnd-serial", "hm-m-dnd-serial", "serial=enter", workspace=83)
     dnd_shot = mcp.call("screenshot", {"window": m_dnd}).data["shot"]["id"]
-    protected = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [{"action": "drag", "from": [50, 100], "to": [300, 100]}]})
+    protected = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [["path", [[50, 100], [300, 100]]]]})
     assert protected.data["actions"]["drag_and_drop"] == {"outcome": "cancelled", "private": False, "reason": "serial"}, protected
     assert protected.text.startswith("1/1 delivered · drag-and-drop cancelled to protect the user's input · no redraw · quiet "), protected
     assert protected.data["wait"]["ended"] == "quiet" and protected.data["wait"]["elapsed_ms"] < 900, protected

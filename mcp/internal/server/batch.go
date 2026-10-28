@@ -11,6 +11,7 @@ import (
 
 // validateBatch checks coordinates and capabilities before anything is sent.
 func validateBatch(batch []action, sh *shot, caps hypr.Capabilities, address string) error {
+	motion := 0
 	for i, a := range batch {
 		for _, pt := range a.points() {
 			if !sh.contains(pt.X, pt.Y) {
@@ -25,15 +26,22 @@ func validateBatch(batch []action, sh *shot, caps hypr.Capabilities, address str
 					Hint: hintUnreachable}
 			}
 		}
+		// The points of a spline are known once it is sampled, which a batch of long paths would do at length.
+		if a.Kind == "path" {
+			if motion += len(pathInput(a, sh.inputPoint)); motion > maxPathMotion {
+				return invalidf("%s: the paths of the batch move through more than %d points, given or sampled from a spline, which at 10 ms a step take longer than the largest deadline_ms; split them over several calls",
+					describe(i, a), maxPathMotion)
+			}
+		}
 	}
 	return checkCapabilities(batch, caps, address)
 }
 
 // checkCapabilities checks the batch against what the window can do now. Without hold, the plugin gives the user's
-// pointer focus back after every input frame, which releases a drag's button, and the keyboard focus once the keys are
-// up and a shortcut among them has settled, or at once when the user's own input to the app comes, which gives a click
-// the user's modifiers and releases the keys that a chord holds, except for modifiers, whose state the plugin sends
-// again with every frame.
+// pointer focus back after every input frame, which releases the button of a path, and the keyboard focus once the keys
+// are up and a shortcut among them has settled, or at once when the user's own input to the app comes, which gives a
+// click the user's modifiers and releases the keys that a chord holds, except for modifiers, whose state the plugin
+// sends again with every frame.
 func checkCapabilities(batch []action, caps hypr.Capabilities, address string) error {
 	if caps.Hold {
 		return nil
@@ -41,8 +49,8 @@ func checkCapabilities(batch []action, caps hypr.Capabilities, address string) e
 	for i, a := range batch {
 		what, hint := describe(i, a), hintHoldMissing
 		switch {
-		case a.Kind == "drag":
-		case a.Kind == "click" && len(a.Modifiers) > 0:
+		case a.holdsButton():
+		case (a.Kind == "click" || a.Kind == "path") && len(a.Modifiers) > 0:
 			what += " with modifiers"
 		case a.Kind == "key" && heldKey(a.Keys) != "":
 			what += fmt.Sprintf(" holding %s while it presses %s", heldKey(a.Keys), a.Keys[len(a.Keys)-1])
@@ -55,17 +63,18 @@ func checkCapabilities(batch []action, caps hypr.Capabilities, address string) e
 	return nil
 }
 
-// clickSettleMs is the least time in milliseconds from the end of a click or drag to the first key or typed text after
-// it in the same batch. Applications move the keyboard focus a moment after a click, and keys that come sooner may
-// reach the window's shortcuts instead of the field: Spotify, clicked into its empty search field, took a space typed
-// 200 ms after the click as play/pause, and inserted the same space when it came 350 ms after the click.
+// clickSettleMs is the least time in milliseconds from the end of a click, or of a path that holds a button, to the
+// first key or typed text after it in the same batch. Applications move the keyboard focus a moment after a click, and
+// keys that come sooner may reach the window's shortcuts instead of the field: Spotify, clicked into its empty search
+// field, took a space typed 200 ms after the click as play/pause, and inserted the same space when it came 350 ms after
+// the click.
 const clickSettleMs = 300
 
-// A click or drag that more actions of the batch follow gets the window's answer before they go: the sender stops at a
-// sync after it, and act waits meanwhile with the plugin's wait for a change since the counter before the input, then
-// for quiet (see answerClick). In the benchmark VM at 1920×1080 and 2560×1440, Chromium drew its answer to a click,
-// such as a menu of the page or a caret, within 20 ms of the release, before such a wait starts, and nothing after it;
-// a click on empty space drew nothing.
+// A click, or a path that holds a button, that more actions of the batch follow gets the window's answer before they
+// go: the sender stops at a sync after it, and act waits meanwhile with the plugin's wait for a change since the
+// counter before the input, then for quiet (see answerClick). In the benchmark VM at 1920×1080 and 2560×1440, Chromium
+// drew its answer to a click, such as a menu of the page or a caret, within 20 ms of the release, before such a wait
+// starts, and nothing after it; a click on empty space drew nothing.
 const (
 	// How long the window gets to start drawing, from the start of the wait, before the batch goes on without a redraw.
 	answerExpectMs = 150
@@ -78,15 +87,15 @@ const (
 	answerMaxMs = 1000
 )
 
-// translateBatch turns the batch into hyprmasq-input actions, with the points mapped from the shot's pixels. A click or
-// drag that more actions follow gets a sync after it, which belongs to the next action and takes the place of the gap
-// between them: the sender waits there while act waits for the window. The sync lasts at least until keys or text
-// after the click come clickSettleMs after its end. That time counts the sender's gap before every action and the
-// sleeps, but not how long motion or scrolling take, which can only make the wait longer.
+// translateBatch turns the batch into hyprmasq-input actions, with the points mapped from the shot's pixels. A click,
+// or a path that holds a button, that more actions follow gets a sync after it, which belongs to the next action and
+// takes the place of the gap between them: the sender waits there while act waits for the window. The sync lasts at
+// least until keys or text after the click come clickSettleMs after its end. That time counts the sender's gap before
+// every action and the sleeps, but not how long motion or scrolling take, which can only make the wait longer.
 func translateBatch(batch []action, sh *shot) []inputStep {
 	var steps []inputStep
-	sync := -1      // the index of the sync after the last click or drag, while no keys followed it
-	sinceClick := 0 // ms from the end of that click or drag to the next sender action, without the sync
+	sync := -1      // the index of the sync after the last click or held-button path, while no keys followed it
+	sinceClick := 0 // ms from the end of that click or path to the next sender action, without the sync
 	for i, a := range batch {
 		for _, step := range translate(i, a, func(x, y float64) (float64, float64) { return sh.inputPoint(x, y) }) {
 			verb := step.Argv[0]
@@ -106,7 +115,7 @@ func translateBatch(batch []action, sh *shot) []inputStep {
 			}
 			steps = append(steps, step)
 		}
-		if (a.Kind == "click" || a.Kind == "drag") && i < len(batch)-1 {
+		if (a.Kind == "click" || a.holdsButton()) && i < len(batch)-1 {
 			steps = append(steps, inputStep{Batch: i + 1, Argv: []string{"sync", "0", strconv.Itoa(answerMaxMs)}})
 			sync, sinceClick = len(steps)-1, 0
 		}
@@ -181,14 +190,14 @@ func batchHasCoordinates(batch []action) bool {
 }
 
 // opensWindows tells whether a batch has input that can open a window, after which act watches for new windows: a
-// click, a drag, a key, or text with a line break, which presses Enter. Text that only types characters, scrolling,
-// motion and pauses do not, as the plugin counts emulated input.
+// click, a path that holds a button, a key, or text with a line break, which presses Enter. Text that only types
+// characters, scrolling, motion and pauses do not, as the plugin counts emulated input.
 func opensWindows(batch []action) bool {
 	for _, a := range batch {
-		switch a.Kind {
-		case "click", "drag", "key":
+		switch {
+		case a.Kind == "click" || a.Kind == "key" || a.holdsButton():
 			return true
-		case "type":
+		case a.Kind == "type":
 			if strings.ContainsAny(a.Text, "\r\n") {
 				return true
 			}

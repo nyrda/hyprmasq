@@ -391,11 +391,11 @@ with subtest("hyprmasq-mcp gives a window time to catch up with a resize, and ta
     assert not launched.is_error and launched.data["hint"] == (
         f"The new window resized the windows on its workspace ({catching}), so their earlier shots are stale: "
         "take a new screenshot before clicking in one."
-    ) + " " + navigation_hint, launched
+    ) + " " + first_view_hint, launched
     neighbour = launched.data["window"]["window"]
     machine.wait_until_succeeds("grep -qx 'drew 320 480' /tmp/hyprmasq-m-resize.log", timeout=10)
     halved = mcp.call("screenshot", {"window": catching})
-    assert (halved.data["shot"]["width"], halved.data["shot"]["height"]) == (320, 480) and halved.data["hint"] == navigation_hint, halved
+    assert (halved.data["shot"]["width"], halved.data["shot"]["height"]) == (320, 480) and halved.data["hint"] == first_view_hint, halved
 
     # Closing its neighbour on the hidden workspace gives it the whole workspace, which it holds back.
     machine.succeed(toggle)
@@ -468,7 +468,7 @@ with subtest("hyprmasq-mcp lets a starved window draw before its first shot, and
 
     # The first shot sends the probe frame callbacks and waits for it to draw.
     first = mcp.call("screenshot", {"window": starving})
-    assert not first.is_error and "may_be_stale" not in first.data["shot"] and first.data["hint"] == navigation_hint, first
+    assert not first.is_error and "may_be_stale" not in first.data["shot"] and first.data["hint"] == first_view_hint, first
     assert near(pixels(keep(first, "frames-first"), (100, 100))[0], content_rgb), (first, machine.succeed("tail -n 80 /tmp/hyprmasq-hm-m-frames.log"))
     assert not window_state(starving)["starved"]
     # Its socket has sent it frame callbacks, so the next shot does not wait for a frame that does not come.
@@ -489,7 +489,7 @@ with subtest("hyprmasq-mcp lets a starved window draw before its first shot, and
 
     # launch waits for its window with frame callbacks, so its shot shows the content too.
     launched = mcp.call("launch", {"command": ["hyprmasq-focus-probe", "frames", "hm-m-frames-launched", "3"], "workspace": "hm-m-frames-launched"})
-    assert not launched.is_error and "may_be_stale" not in launched.data["shot"] and launched.data["hint"] == navigation_hint, launched
+    assert not launched.is_error and "may_be_stale" not in launched.data["shot"] and launched.data["hint"] == first_view_hint, launched
     assert near(pixels(keep(launched, "frames-launched"), (100, 100))[0], content_rgb), launched
     for window in [starving, frozen, launched.data["window"]["window"]]:
         assert mcp.call("close", {"window": window}).data["closed"]

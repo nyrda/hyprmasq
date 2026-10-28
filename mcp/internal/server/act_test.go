@@ -180,7 +180,7 @@ func TestWindowReadAgainAfterTheLocks(t *testing.T) {
 	}{
 		{"baseline", `[{"action":"key","keys":["a"]}]`, func(w *fakeWindow) { w.Commits = 77 }, ""},
 		{"size", `[{"action":"click","x":5,"y":5}]`, func(w *fakeWindow) { w.Width = 400 }, "stale_shot"},
-		{"capabilities", `[{"action":"drag","from":[5,5],"to":[50,50]}]`, func(w *fakeWindow) { w.Caps.Hold = false }, "unsupported"},
+		{"capabilities", `[["path",[[5,5],[50,50]]]]`, func(w *fakeWindow) { w.Caps.Hold = false }, "unsupported"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

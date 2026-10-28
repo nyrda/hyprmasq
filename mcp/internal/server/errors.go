@@ -42,6 +42,7 @@ const (
 	hintPluginUser     = "Tell the user. hyprmasq cannot work until this is fixed."
 	hintUncertain      = "The sender lost its connection before the plugin confirmed the input, so any action may or may not have been applied."
 	hintCannotType     = "Leave the character out, or ask the user how to enter it."
+	hintDragIsPath     = `A path with a button presses once, moves through its points and releases, as a drag does: send ["path",[[x1,y1],[x2,y2]]], or {"action":"path","points":[[x1,y1],[x2,y2]]}, with the same button and modifiers. Nothing was sent.`
 	hintHoldMissing    = "This window has the user's keyboard or pointer focus, or shares its Wayland connection with the window that has it, so buttons and modifiers cannot stay pressed between input frames. Use the keyboard instead, for example shift and the arrow keys to select, or a click without modifiers."
 	hintUnreachable    = "Pointer input reaches the window and the area right of and below it. Click the part of the popup that lies over the window, or use the keyboard, for example the arrow keys and enter in a menu."
 	hintOutsideRegions = "Pointer input reaches the window and the area right of and below it up to the edges of its monitor; the window may have moved since the shot."

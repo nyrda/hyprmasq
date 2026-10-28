@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-var inputArity = map[string]int{"move": 2, "click": 3, "drag": 6, "wheel": 2, "scroll": 2, "keys": 2, "text": 1, "sleep": 1, "sync": 2}
+var inputArity = map[string]int{"move": 2, "click": 3, "wheel": 2, "scroll": 2, "keys": 2, "text": 1, "sleep": 1, "sync": 2}
 
 // fakeInput logs its arguments and prints the reply that FAKE_INPUT_MODE asks for:
 //
@@ -73,6 +73,11 @@ func fakeInput() int {
 		case "--socket", "--budget", "--locale":
 			i++
 		case "--json", "--no-pace":
+		case "path":
+			// path N X1 Y1 … XN YN BUTTON MODS
+			actions = append(actions, args[i])
+			n, _ := strconv.Atoi(args[i+1])
+			i += 1 + 2*n + 2
 		default:
 			actions = append(actions, args[i])
 			i += inputArity[args[i]]

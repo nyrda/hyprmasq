@@ -105,11 +105,20 @@ func minSendTime(steps []inputStep) time.Duration {
 			if argv[3] != "-" {
 				ms += chordModMs
 			}
-		case "drag":
-			distance := math.Hypot(value(argv[3])-value(argv[1]), value(argv[4])-value(argv[2]))
-			moves := min(max(dragMinSteps, int(math.Ceil(distance/dragStepPx))), dragMaxSteps)
-			ms += motionPressMs + 2*dragHoldMs + (moves-1)*dragStepMs
-			if argv[6] != "-" {
+		case "path":
+			// path N X1 Y1 … XN YN BUTTON MODS. Without a button, it moves a step after its first point.
+			n := int(value(argv[1]))
+			points := make([][2]float64, n)
+			for i := range points {
+				points[i] = [2]float64{value(argv[2+2*i]), value(argv[3+2*i])}
+			}
+			moves := pathMoves(points)
+			if argv[2+2*n] == "none" {
+				ms += moves * dragStepMs
+			} else {
+				ms += motionPressMs + 2*dragHoldMs + (moves-1)*dragStepMs
+			}
+			if argv[3+2*n] != "-" {
 				ms += chordModMs
 			}
 		case "wheel":

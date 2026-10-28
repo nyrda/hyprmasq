@@ -456,13 +456,17 @@ func (s *Server) screenshotTool(ctx context.Context, c *call) *mcp.CallToolResul
 		out.Summary += fmt.Sprintf(" · zoom of %s at %s,%s %s×%s", asked.Shot, formatNumber(asked.X), formatNumber(asked.Y), formatNumber(asked.Width), formatNumber(asked.Height))
 	}
 	out.Summary += fmt.Sprintf(" · window %s %s", args.Window, formatSize(sh.Size))
+	// A zoom's line is where an agent reads the coordinates for its next act, which takes them as they are.
+	if asked != nil {
+		out.Summary += fmt.Sprintf(" · act takes %s's own pixels", sh.ID)
+	}
 	if text := lateWindowsText(out.LateWindows); text != "" {
 		out.Summary += " · " + text
 	}
 	out.Summary = strings.Join(append([]string{out.Summary}, newWindowLines(out.LateWindows, "late window")...), "\n")
 	out.Hint = joinHints(frameHints(out.Shot), lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
 	if len(out.LateWindows) == 0 {
-		out.Hint = joinHints(out.Hint, initialNavigationHint(sh, firstView))
+		out.Hint = joinHints(out.Hint, firstViewHintFor(sh, firstView))
 	}
 	return newResult(out, out.resultText, images, "")
 }

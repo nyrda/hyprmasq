@@ -9,13 +9,21 @@ import (
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
 )
 
-const firstViewNavigationHint = "For a short scroll, use ordinary notch scrolling. For a long page, next_page can follow your visible edits in the same act and retain overlap. Check the returned changes before continuing from the next view."
+// firstViewHint tells what an agent needs once, before it acts on a window: how to scroll, menus, how much one act
+// types, and how to see whether input landed. It comes with the first usable full view of each window, whichever tool
+// gives it, so that act's description keeps to what applies to every call. It states facts, since models take orders
+// in a tool's result for less than facts about the tools.
+var firstViewHint = fmt.Sprintf("For a short scroll, notch scrolling is enough; for a long page, next_page can follow your visible edits in the same act and keeps an overlap, and its changes show the edits before the next view. "+
+	"A menu that is still open shows in the shot: clicking its entry picks it, clicking its opener closes it, and a closed menu can be opened and picked by keyboard in one batch. "+
+	"Typing takes 15 ms a key, more through Compose: one act types about %d characters, or %d with deadline_ms 30000. "+
+	"A busy app can drop keys or take them as shortcuts, which the changes show, and after drawing or placing something precise, a zoom of its hardest part shows whether it landed.",
+	typedWithin(defaultDeadline), typedWithin(maxDeadline))
 
-// Give the navigation guidance on the first usable full view, whichever tool
-// supplied it. Older frames and regions do not invite coordinate input.
-func initialNavigationHint(sh *shot, first bool) string {
+// firstViewHintFor gives firstViewHint with the first usable full view of a window, whichever tool supplied it. Older
+// frames and regions do not invite coordinate input.
+func firstViewHintFor(sh *shot, first bool) string {
 	if first && !sh.Resizing && sh.Starved == nil && sh.Parent == "" {
-		return firstViewNavigationHint
+		return firstViewHint
 	}
 	return ""
 }
@@ -29,6 +37,21 @@ func joinHints(hints ...string) string {
 		}
 	}
 	return strings.Join(parts, " ")
+}
+
+// lastKind is the kind of the batch's last action that is no pause, with a path that holds no button taken for a move,
+// as the hover it is, or "".
+func lastKind(batch []action) string {
+	kind := ""
+	for _, a := range batch {
+		switch {
+		case a.Kind == "path" && !a.holdsButton():
+			kind = "move"
+		case a.Kind != "pause":
+			kind = a.Kind
+		}
+	}
+	return kind
 }
 
 // waitHint explains a wait outcome that needs a decision. A commit only shows that the window drew, so the hints say
@@ -45,13 +68,7 @@ func waitHint(w *waitOut, batch []action, shotID string, actions *actionsOut, sh
 			return "The call was cancelled while the input was sent. " + look + " before repeating anything."
 		}
 	case "no_redraw":
-		kind := ""
-		for _, a := range batch {
-			if a.Kind != "pause" {
-				kind = a.Kind
-			}
-		}
-		switch kind {
+		switch lastKind(batch) {
 		case "":
 			// Without a shot, the baseline is read when the call starts, and the window may have drawn before.
 			since := "during this call"
@@ -98,12 +115,7 @@ func noChangeHint(out *actOut, batch []action) string {
 	if !unchanged(out.Shot) || out.Actions == nil || out.Actions.Delivery == "none" || out.Wait == nil || out.Wait.Ended != "quiet" {
 		return ""
 	}
-	kind := ""
-	for _, a := range batch {
-		if a.Kind != "pause" {
-			kind = a.Kind
-		}
-	}
+	kind := lastKind(batch)
 	// Motion, as for hover, may change nothing, but not other input before it that can open a window.
 	if kind == "" || kind == "move" && !opensWindows(batch) {
 		return ""

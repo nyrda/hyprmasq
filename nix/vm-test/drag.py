@@ -132,7 +132,7 @@ with subtest("drags in quick succession each run privately, also when the app st
     expected, pointer = snapshot(), cursor()
     burst = []
     for y in (30, 70, 110, 150):
-        burst += ["drag", 50, y, 300, y]
+        burst += ["path", 2, 50, y, 300, y]
     send(path, *burst)
     wait_for("four finishes", lambda: dnd_events("dnd-burst").count("source finished") == 4, timeout=30)
     events = dnd_events("dnd-burst")

@@ -34,8 +34,9 @@ type beforeScrollOut struct {
 }
 
 // scrollSplitAt is the index of the first of the scroll actions that end the batch, when act sends the actions before
-// them first, or -1 when the batch runs as one: without capture "changes", without a click, drag, key or text before the
-// scrolls, with a scroll among them, or without the time to input for both parts and a wait and a capture between them.
+// them first, or -1 when the batch runs as one: without capture "changes", without a click, pressing path, key or text
+// before the scrolls, with a scroll among them, or without the time to input for both parts and a wait and a capture
+// between them.
 func scrollSplitAt(r *actRequest, sh *shot, until time.Time) int {
 	k := len(r.batch)
 	for k > 0 && r.batch[k-1].Kind == "scroll" {
@@ -55,12 +56,13 @@ func scrollSplitAt(r *actRequest, sh *shot, until time.Time) int {
 	return k
 }
 
-// changesInput tells whether the actions include input that can change what the window shows: a click, a drag, a key or
-// text. Motion, as for hover, and pauses before a scroll run with it.
+// changesInput tells whether the actions include input that can change what the window shows: a click, a path that
+// holds a button, a key or text. Motion, as for hover along a path without a button, and pauses before a scroll
+// run with it.
 func changesInput(batch []action) bool {
 	for _, a := range batch {
-		switch a.Kind {
-		case "click", "drag", "key", "type":
+		switch {
+		case a.Kind == "click" || a.Kind == "key" || a.Kind == "type" || a.holdsButton():
 			return true
 		}
 	}

@@ -182,6 +182,7 @@ func TestBatchesWithAScrollThatRunAsOne(t *testing.T) {
 		{"a scroll in the middle", `"actions":[{"action":"click","x":10,"y":10},{"action":"scroll","x":10,"y":10,"dy":3},{"action":"key","keys":["a"]}]`},
 		{"a scroll in the middle and at the end", `"actions":[{"action":"click","x":10,"y":10},{"action":"scroll","x":10,"y":10,"dy":3},{"action":"key","keys":["a"]},{"action":"scroll","x":10,"y":10,"dy":1}]`},
 		{"hover before the scroll", `"actions":[{"action":"move","x":20,"y":20},{"action":"scroll","x":10,"y":10,"dy":3}]`},
+		{"a hover path before the scroll", `"actions":[["path",[[20,20],[60,40]],"line","none"],{"action":"scroll","x":10,"y":10,"dy":3}]`},
 		{"capture window", `"actions":[{"action":"click","x":10,"y":10},{"action":"scroll","x":10,"y":10,"dy":3}],"capture":"window"`},
 		{"capture none", `"actions":[{"action":"click","x":10,"y":10},{"action":"scroll","x":10,"y":10,"dy":3}],"capture":"none"`},
 		{"capture region", `"actions":[{"action":"click","x":10,"y":10},{"action":"scroll","x":10,"y":10,"dy":3}],"capture":{"shot":"s1","x":0,"y":0,"width":100,"height":100}`},

@@ -13,11 +13,11 @@ import (
 const geometryPoll = 25 * time.Millisecond
 
 // watchesGeometry tells whether a resize while the batch runs can make coordinates wrong that are still to be sent:
-// those of an action after the first, of a drag, which moves over time, or of the only action, which goes out once
+// those of an action after the first, of a path, which moves over time, or of the only action, which goes out once
 // hyprmasq-input has connected. A resize while keys follow a first click or scroll does not stop the batch, since the
 // keys themselves may cause it.
 func watchesGeometry(batch []action) bool {
-	return (len(batch) > 1 && batchHasCoordinates(batch[1:])) || (len(batch) > 0 && (batch[0].Kind == "drag" || (len(batch) == 1 && batch[0].hasCoordinates())))
+	return (len(batch) > 1 && batchHasCoordinates(batch[1:])) || (len(batch) > 0 && (batch[0].Kind == "path" || (len(batch) == 1 && batch[0].hasCoordinates())))
 }
 
 // send takes the send lock, checks the window again, and runs the batch in one hyprmasq-input, which checks every
@@ -332,7 +332,7 @@ func (s *Server) senderError(clientCtx, sendCtx context.Context, reply senderRep
 	case "invalid_arguments":
 		// The server checks every other argument of these, so the point lies outside the pointer's regions, which end
 		// at the edges of the window's monitor. The window may have moved since the shot.
-		if step == "move" || step == "drag" {
+		if step == "move" || step == "path" {
 			return &toolError{Code: "out_of_bounds", Message: fmt.Sprintf("%s lies outside the area that pointer input reaches: %s", where, message),
 				Hint: hintOutsideRegions + " " + hintScreenshot, ShotHint: hintOutsideRegions + " " + hintScreenshotShot}
 		}

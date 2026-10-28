@@ -124,8 +124,11 @@ func TestTargetsThatMovedSinceTheShot(t *testing.T) {
 			actions: `[{"action":"click","x":240,"y":190}]`, refused: "actions[0] (click) at 240,190", captures: 2, request: " popups"},
 		{name: "a later click of the batch", before: []hypr.Rect{button, elsewhere}, after: []hypr.Rect{moved(button, 60), elsewhere},
 			actions: `[{"action":"click","x":540,"y":330},{"action":"type","text":"x"},{"action":"click","x":240,"y":190}]`, refused: "actions[2] (click) at 240,190", captures: 2},
-		{name: "the end of a drag", before: []hypr.Rect{button, elsewhere}, after: []hypr.Rect{button, moved(elsewhere, -40)},
-			actions: `[{"action":"drag","from":[240,190],"to":[540,330]}]`, refused: "actions[0] (drag) to 540,330", captures: 2},
+		{name: "the end of a path", before: []hypr.Rect{button, elsewhere}, after: []hypr.Rect{button, moved(elsewhere, -40)},
+			actions: `[{"action":"path","points":[[240,190],[400,260],[540,330]]}]`, refused: "actions[0] (path) points[2] 540,330", captures: 2},
+		// What a path moves over between its ends, such as a canvas that its strokes draw on, is not its target.
+		{name: "a change under a path between its ends", before: []hypr.Rect{button}, after: []hypr.Rect{button, elsewhere},
+			actions: `[{"action":"path","points":[[240,190],[540,330],[100,350]]}]`, captures: 1},
 		{name: "an edge that crosses the box", before: []hypr.Rect{{X: 0, Y: 90, Width: 320, Height: 1}}, after: []hypr.Rect{{X: 0, Y: 108, Width: 320, Height: 1}},
 			actions: `[{"action":"click","x":440,"y":200}]`, refused: "actions[0] (click) at 440,200", captures: 2},
 		{name: "the faint border of an empty field", shot: func(t *testing.T, e *testEnv, w *fakeWindow, f *form) string {
@@ -290,7 +293,7 @@ func TestTargetsOfAWindowThatDidNotDrawAreNotCaptured(t *testing.T) {
 	formWindow(e, f)
 	e.screenshot(`{"window":"0xa1"}`)
 	before := len(e.fake.requestsMatching("j/hyprmasq screenshot"))
-	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":240,"y":190},{"action":"drag","from":[240,190],"to":[10,10]}],"capture":"none"}`)
+	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"click","x":240,"y":190},{"action":"path","points":[[240,190],[10,10]]}],"capture":"none"}`)
 	if res.IsError || get(t, res, "actions.delivery") != "complete" {
 		t.Fatal(text(res))
 	}

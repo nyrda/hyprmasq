@@ -39,7 +39,7 @@ func TestDragCancelledToProtectTheUsersInput(t *testing.T) {
 		})
 	}
 	cancelOnWait("")
-	res := e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"drag","from":[10,10],"to":[200,100]}],"capture":"none"}`)
+	res := e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"path","points":[[10,10],[200,100]]}],"capture":"none"}`)
 	if res.IsError || get(t, res, "actions.delivery") != "complete" || get(t, res, "actions.drag_and_drop.outcome") != "cancelled" ||
 		get(t, res, "actions.drag_and_drop.reason") != "shared_focus" || get(t, res, "actions.drag_and_drop.private") != false || get(t, res, "actions.drag_and_drop.count") != nil {
 		t.Fatalf("%s", text(res))
@@ -68,7 +68,7 @@ func TestDragCancelledToProtectTheUsersInput(t *testing.T) {
 	}
 	// A shot that shows nothing changed adds no guess about a missed input: the cancel says why.
 	cancelOnWait("")
-	res = e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"drag","from":[10,10],"to":[200,100]}],"capture":"changes"}`)
+	res = e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"path","points":[[10,10],[200,100]]}],"capture":"changes"}`)
 	if res.IsError || get(t, res, "hint") != dragHint(&dragOut{Outcome: "cancelled", Reason: "shared_focus"}, &shotOut{}) {
 		t.Errorf("%s", text(res))
 	}
@@ -88,7 +88,7 @@ func TestDragCancelledToProtectTheUsersInput(t *testing.T) {
 	}
 	// A record of a socket that replaced the one the input went to says nothing about that input.
 	cancelOnWait("another")
-	res = e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"drag","from":[10,10],"to":[200,100]}],"capture":"none"}`)
+	res = e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"path","points":[[10,10],[200,100]]}],"capture":"none"}`)
 	if res.IsError || get(t, res, "actions.drag_and_drop") != nil {
 		t.Errorf("%s", text(res))
 	}
@@ -101,7 +101,7 @@ func TestDragCancelledToProtectTheUsersInput(t *testing.T) {
 				"commitsSince": 1, "quietMs": 200, "elapsedMs": 210, "resizing": false})
 		}
 	})
-	res = e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"drag","from":[10,10],"to":[200,100]}],"capture":"none"}`)
+	res = e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"path","points":[[10,10],[200,100]]}],"capture":"none"}`)
 	if _, ok := waits[len(waits)-1]["drags"]; res.IsError || ok || get(t, res, "actions.drag_and_drop") != nil {
 		t.Errorf("%v %s", waits, text(res))
 	}
@@ -133,7 +133,7 @@ func TestPrivateDragAndDropOutcomes(t *testing.T) {
 		})
 	}
 	drag := func() *mcp.CallToolResult {
-		return e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"drag","from":[10,10],"to":[200,100]}],"capture":"none"}`)
+		return e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"path","points":[[10,10],[200,100]]}],"capture":"none"}`)
 	}
 
 	ends(hypr.Drag{Phase: "finished", Private: true, Started: 1, Finished: 1})
@@ -227,7 +227,7 @@ func TestDragsOfABatchAreCountedOneByOne(t *testing.T) {
 	drags := func(n int) *mcp.CallToolResult {
 		var actions []string
 		for i := range n {
-			actions = append(actions, fmt.Sprintf(`{"action":"drag","from":[10,%d],"to":[300,%d]}`, 10+20*i, 10+20*i))
+			actions = append(actions, fmt.Sprintf(`{"action":"path","points":[[10,%d],[300,%d]]}`, 10+20*i, 10+20*i))
 		}
 		return e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[` + strings.Join(actions, ",") + `],"capture":"none"}`)
 	}
@@ -284,7 +284,7 @@ func TestBusyDragReportsItsOwnRefusal(t *testing.T) {
 				"commitsSince": 1, "quietMs": 200, "elapsedMs": 900, "resizing": false})
 		}
 	})
-	res := e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"drag","from":[10,10],"to":[200,100]}],"capture":"none"}`)
+	res := e.act(`{"window":"0xa1","shot":"` + shotID(t, e.screenshot(`{"window":"0xa1"}`)) + `","actions":[{"action":"path","points":[[10,10],[200,100]]}],"capture":"none"}`)
 	if res.IsError || drags != "4" || get(t, res, "actions.drag_and_drop.outcome") != "cancelled" || get(t, res, "actions.drag_and_drop.reason") != "busy" ||
 		get(t, res, "actions.drag_and_drop.count") != nil || !strings.HasPrefix(get(t, res, "summary").(string), "1/1 delivered · drag-and-drop cancelled to protect the user's input · ") ||
 		get(t, res, "hint") != dragHint(&dragOut{Outcome: "cancelled", Reason: "busy"}, nil) {

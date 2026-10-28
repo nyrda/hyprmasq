@@ -45,6 +45,14 @@ func TestWording(t *testing.T) {
 			"The window closed while the input was sent, maybe because of it, for example through a quit shortcut or a close button. Call windows to see what is open now."},
 		{"hintCaptureFailed", hintCaptureFailed,
 			"The input was applied, but the screenshot failed. Take a screenshot before repeating anything."},
+		// What an agent needs once before it acts on a window, with its first full view of it, as facts about the tools.
+		{"firstViewHint", firstViewHint,
+			"For a short scroll, notch scrolling is enough; for a long page, next_page can follow your visible edits in the same act and keeps an overlap, and its changes show the edits before the next view. " +
+				"A menu that is still open shows in the shot: clicking its entry picks it, clicking its opener closes it, and a closed menu can be opened and picked by keyboard in one batch. " +
+				"Typing takes 15 ms a key, more through Compose: one act types about 600 characters, or 1400 with deadline_ms 30000. " +
+				"A busy app can drop keys or take them as shortcuts, which the changes show, and after drawing or placing something precise, a zoom of its hardest part shows whether it landed."},
+		{"hintDragIsPath", hintDragIsPath,
+			`A path with a button presses once, moves through its points and releases, as a drag does: send ["path",[[x1,y1],[x2,y2]]], or {"action":"path","points":[[x1,y1],[x2,y2]]}, with the same button and modifiers. Nothing was sent.`},
 		{"hintLateShortcut", hintLateShortcut,
 			"This app shares its keyboard focus between this window and the user's, which gets it back about 250 ms after a shortcut or function key, so one that the app handles later may not have run. Use a menu or a button instead, or launch a separate instance of the app with launch."},
 		{"after input, with a shot", finalHint(&toolError{Code: "internal"}, delivered(&shotOut{ID: "s2"})),

@@ -11,8 +11,8 @@ import (
 )
 
 func TestCompactActionsSendTheSameEvents(t *testing.T) {
-	named := `[{"action":"click","x":40,"y":50,"button":"right","count":2,"modifiers":["ctrl"]},{"action":"move","x":60,"y":70},{"action":"drag","from":[20,20],"to":[80,90]},{"action":"scroll","x":100,"y":100,"dy":3,"unit":"notch","dx":-1},{"action":"type","text":"hello\nworld"},{"action":"key","keys":["ctrl","a"]},{"action":"key","keys":["right"],"repeat":7},{"action":"pause","ms":0}]`
-	compact := `[["click",40,50,"right",2,["ctrl"]],["move",60,70],["drag",[20,20],[80,90]],["scroll",100,100,3,"notch",-1],["type","hello\nworld"],["key",["ctrl","a"]],["key","right",7],["pause",0]]`
+	named := `[{"action":"click","x":40,"y":50,"button":"right","count":2,"modifiers":["ctrl"]},{"action":"move","x":60,"y":70},{"action":"path","points":[[20,20],[80,90]]},{"action":"scroll","x":100,"y":100,"dy":3,"unit":"notch","dx":-1},{"action":"type","text":"hello\nworld"},{"action":"key","keys":["ctrl","a"]},{"action":"key","keys":["right"],"repeat":7},{"action":"pause","ms":0}]`
+	compact := `[["click",40,50,"right",2,["ctrl"]],["move",60,70],["path",[[20,20],[80,90]]],["scroll",100,100,3,"notch",-1],["type","hello\nworld"],["key",["ctrl","a"]],["key","right",7],["pause",0]]`
 	var inputs [][][]string
 	for _, actions := range []string{named, compact} {
 		e := newTestEnv(t)

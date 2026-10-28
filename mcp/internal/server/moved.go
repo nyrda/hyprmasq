@@ -52,17 +52,22 @@ type target struct {
 	box   hypr.IntRect
 }
 
-// targetsOf returns the points of the clicks and drags of the batch from index from on. Motion and scrolling go out at
-// the shot's coordinates too, but hover only shows something, and a scroll at a moved point scrolls what lies there,
-// which its result shows.
+// targetsOf returns the points of the clicks of the batch from index from on, and the first and last points of its
+// paths that hold a button, where they press and release: what a path moves over between them, such as a canvas it
+// draws on, may change with its strokes. Motion and scrolling go out at the shot's coordinates too, but hover only
+// shows something, and a scroll at a moved point scrolls what lies there, which its result shows.
 func targetsOf(batch []action, from int, sh *shot) []target {
 	var out []target
 	for i := from; i < len(batch); i++ {
 		a := &batch[i]
-		if a.Kind != "click" && a.Kind != "drag" {
+		if a.Kind != "click" && !a.holdsButton() {
 			continue
 		}
-		for _, pt := range a.points() {
+		points := a.points()
+		if a.Kind == "path" {
+			points = []namedPoint{points[0], points[len(points)-1]}
+		}
+		for _, pt := range points {
 			x, y := sh.toLogical(pt.X, pt.Y)
 			cx, cy := int(math.Floor(x)), int(math.Floor(y))
 			out = append(out, target{index: i, point: pt, box: hypr.IntRect{X: cx - targetMargin, Y: cy - targetMargin, Width: 2*targetMargin + 1, Height: 2*targetMargin + 1}})

@@ -22,7 +22,7 @@ func TestBatchRunsInOneSender(t *testing.T) {
 	res := e.act(`{"window":"0xa1","shot":"s1","actions":[
 		{"action":"click","x":20,"y":20},{"action":"type","text":"hi there"},{"action":"key","keys":["enter"]},
 		{"action":"scroll","x":40,"y":40,"dy":2},{"action":"pause","ms":10},
-		{"action":"drag","from":[0,0],"to":[100,100]}]}`)
+		{"action":"path","points":[[0,0],[100,100]]}]}`)
 	if res.IsError {
 		t.Fatal(text(res))
 	}
@@ -30,7 +30,7 @@ func TestBatchRunsInOneSender(t *testing.T) {
 	// waits for the window's answer to the click, and at least until the click has settled.
 	want := [][]string{{
 		"move", "10", "10", "click", "left", "1", "-", "sync", "300", "1000", "text", "hi there", "keys", "enter", "1",
-		"move", "20", "20", "wheel", "0", "2", "sleep", "10", "drag", "0", "0", "50", "50", "left", "-",
+		"move", "20", "20", "wheel", "0", "2", "sleep", "10", "path", "2", "0", "0", "50", "50", "left", "-",
 	}}
 	if got := e.inputs(); !reflect.DeepEqual(got, want) {
 		t.Errorf("inputs %q\nwant %q", got, want)
@@ -193,7 +193,7 @@ func TestHoldIsCheckedAgainAfterTheLock(t *testing.T) {
 			}
 		}
 	})
-	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"drag","from":[1,1],"to":[50,50]}]}`)
+	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"path","points":[[1,1],[50,50]]}]}`)
 	if code := errorCode(t, res); code != "unsupported" || get(t, res, "actions.delivery") != "none" {
 		t.Fatalf("code %q: %s", code, text(res))
 	}
@@ -267,7 +267,7 @@ func TestResizeDuringASingleDragStopsIt(t *testing.T) {
 			}
 		}
 	})
-	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"drag","from":[5,5],"to":[300,300]}]}`)
+	res := e.act(`{"window":"0xa1","shot":"s1","actions":[{"action":"path","points":[[5,5],[300,300]]}]}`)
 	if code := errorCode(t, res); code != "stale_shot" || !e.senderLogged("sigterm") {
 		t.Fatalf("code %q: %s", code, text(res))
 	}

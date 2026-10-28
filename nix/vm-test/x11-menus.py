@@ -59,7 +59,7 @@ with subtest("a GTK 3 menu on X11 on a hidden workspace opens and picks by point
 
     # And a press on the combo box, a drag onto an item and the release, with Four over the combo box.
     start = len(probe_events("x-combo"))
-    send(combo_path, "drag", 50, 215, 50, 215 + items["One"][1] - items["Four"][1])
+    send(combo_path, "path", 2, 50, 215, 50, 215 + items["One"][1] - items["Four"][1])
     wait_for("One", lambda: "changed One" in combo_events(start), timeout=10)
     wait_for("the menu closed", lambda: combo_menu() is None)
 

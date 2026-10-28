@@ -224,7 +224,7 @@ hyprctl hyprmasq lease "$addr" release my-script
 | Capability | True when |
 | --- | --- |
 | `lease` | The window can hold a focus lease: a Wayland window that does not share its connection with the window that has your keyboard focus. |
-| `hold` | Buttons and keys can stay pressed across input frames, which drags, clicks with modifiers and chords like `a+b` need. False while the window shares its Wayland connection with your keyboard or pointer focus. |
+| `hold` | Buttons and keys can stay pressed across input frames, which paths with a button, clicks with modifiers and chords like `a+b` need. False while the window shares its Wayland connection with your keyboard or pointer focus. |
 | `dnd` | The window is the active window, whose drag-and-drop Hyprland runs with your pointer. |
 | `privateDnd` | A drag-and-drop that emulated input starts runs privately inside the window. See [Drag-and-drop](#drag-and-drop). |
 | `keyboard` | `x11-focus` for X11 windows not opened with `force`, whose keys depend on the X focus. Otherwise `yes`. |
@@ -264,7 +264,7 @@ Options come before the first action.
 | `move X Y` | Move the pointer to X,Y. Fractions are allowed. |
 | `click [BUTTON [COUNT [MODS]]]` | Click BUTTON (default `left`) COUNT times (1 to 3, default 1), holding MODS such as `ctrl+shift`, or `-` for none. |
 | `down BUTTON`, `up BUTTON` | Press or release a button. |
-| `drag X1 Y1 X2 Y2 [BUTTON [MODS]]` | Press at X1,Y1, move to X2,Y2 in steps, release. |
+| `path N X1 Y1 … XN YN [BUTTON [MODS]]` | Press at the first of N points (2 to 4000), move through the others in steps, release at the last. A drag is `path 2 X1 Y1 X2 Y2`. BUTTON `none` moves without pressing. |
 | `scroll DX DY` | Smooth scroll by DX and DY, as a touchpad does. Apps scale it as they like, and some X11 apps ignore it, so prefer `wheel`. Positive DY scrolls down. |
 | `wheel DX DY` | Scroll whole wheel notches, -100 to 100 per axis. |
 | `key CODE` | Press and release a Linux evdev key code, such as `28` for Enter. |
@@ -285,13 +285,16 @@ such as `F5` or `XF86AudioMute`. The plus key is `plus`. A chord has at most
 ```sh
 hyprmasq-input --socket "$socket" move 120 40 click text 'hello world' keys enter
 hyprmasq-input --socket "$socket" move 200 80 click left 2 keys ctrl+c
-hyprmasq-input --socket "$socket" drag 50 50 300 50 wheel 0 3
+hyprmasq-input --socket "$socket" path 2 50 50 300 50 wheel 0 3
+hyprmasq-input --socket "$socket" path 4 20 200 120 60 220 60 320 200 left
 ```
 
 **Checks.** Every action is checked before anything is sent: the syntax
 before connecting, then every point against the window's pointer regions and
 every key and character against the keymap. Any problem fails the whole run
-with exit status 2 and nothing sent.
+with exit status 2 and nothing sent. Of a path, only the first and last
+points are checked. Its steps and points between them that leave the regions
+are skipped, as libei would drop them.
 
 **Text.** `type` and `text` use the keymap of Hyprland's active keyboard,
 which the plugin sends to the sender. Characters without a key of their own,
@@ -312,7 +315,7 @@ send it, so `hyprmasq-input` paces its input unless `--no-pace` is given:
 | Repeated plain keys | distinct press/release frames with 1 ms gaps |
 | Wheel notches | 20 ms apart, then 20 ms after the last notch |
 | Smooth scrolls | 20 ms after each |
-| Drags | steps of at most 10 logical pixels, 10 ms apart |
+| Paths | steps of at most 10 logical pixels, 10 ms apart. A path takes 21 to 2000 steps by its length, so they are shorter under 210 pixels and longer over 20000, and at least one per segment. |
 
 **Releases.** `hyprmasq-input` leaves nothing pressed. After a failure, and on
 SIGINT or SIGTERM, it releases every button and key it holds and exits within
@@ -509,8 +512,10 @@ that X server, where your X11 apps of the same server can paste it.
 
 ### Drag-and-drop
 
-A drag-and-drop that emulated input starts in a window that is not the active
-window never runs through Hyprland's drag, which would follow your pointer.
+A `path` with a button, from `hyprmasq-input` or `act`, starts an app's
+drag-and-drop as a hand's drag does. A drag-and-drop that emulated input
+starts in a window that is not the active window never runs through
+Hyprland's drag, which would follow your pointer.
 When `privateDnd` is true, it runs as a private drag inside the window's own
 app: it follows the emulated pointer, drops only on that window's own
 surfaces, and passes the data from the app to itself. Your pointer, touch or
