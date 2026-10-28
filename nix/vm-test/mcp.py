@@ -202,14 +202,15 @@ with subtest("hyprmasq-mcp clicks at the shot pixel, also at scale 2 and in a zo
     clicked = mcp.call("act", {"window": probe, "shot": doubled_id, "actions": [{"action": "click", "x": 201, "y": 151}], "wait": {"expect_change": False}})
     assert not clicked.is_error and clicked.data["actions"]["delivery"] == "complete", clicked
     assert probe_motions(start) == [(100.5, 75.5)], probe_events("m-probe", start)
-    # A zoom shot is a region of an earlier shot, captured at the monitor's scale, with pixels of its own.
+    # A zoom shot is a region of an earlier shot, captured at the monitor's scale, with pixels of its own. Its 100×60
+    # pixels are enlarged 4 times, so a zoom pixel is an eighth of a logical pixel.
     zoom = mcp.call("screenshot", {"window": probe, "region": {"shot": doubled_id, "x": 200, "y": 140, "width": 100, "height": 60}})
     zoom_id = zoom.data["shot"]["id"]
-    assert zoom.data["shot"] == {"id": zoom_id, "width": 100, "height": 60, "frame": region(100, 70, 50, 30)}, zoom
-    assert zoom.text == f"shot {zoom_id} 100×60 · zoom of {doubled_id} at 200,140 100×60 · window {probe} 320×240 · act takes {zoom_id}'s own pixels", zoom
-    assert pixels(keep(zoom, "zoom"))[-1] == (100, 60) and near(pixels(zoom.images[0], (50, 30))[0], window_rgb)
+    assert zoom.data["shot"] == {"id": zoom_id, "width": 400, "height": 240, "frame": region(100, 70, 50, 30)}, zoom
+    assert zoom.text == f"shot {zoom_id} 400×240 · zoom of {doubled_id} at 200,140 100×60 · window {probe} 320×240 · act takes {zoom_id}'s own pixels", zoom
+    assert pixels(keep(zoom, "zoom"))[-1] == (400, 240) and near(pixels(zoom.images[0], (200, 120))[0], window_rgb)
     start = len(probe_events("m-probe"))
-    clicked = mcp.call("act", {"shot": zoom_id, "actions": [[31, 17]], "wait": {"expect_change": False}})
+    clicked = mcp.call("act", {"shot": zoom_id, "actions": [[124, 68]], "wait": {"expect_change": False}})
     assert not clicked.is_error and clicked.data["shot"]["width"] == 640, clicked
     assert probe_motions(start) == [(115.5, 78.5)], probe_events("m-probe", start)
     monitor_scale(1, 640)

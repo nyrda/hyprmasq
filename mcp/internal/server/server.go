@@ -33,6 +33,11 @@ var Version = "dev"
 // less. Zoom shots still show small areas in full detail.
 const DefaultMaxImageSize = 1280
 
+// DefaultMinZoomSize is the default of --min-zoom-size. A vision model places points coarsely in a small image, whose
+// encoder works in patches many pixels wide: in a benchmark of tracing a thin line in a photo, Opus 5.5 passed 9 of 12
+// runs with zooms enlarged to it, and 1 of 6 without.
+const DefaultMinZoomSize = 768
+
 // The values of Config.StructuredContent and --structured-content.
 const (
 	StructuredAuto   = "auto"
@@ -53,7 +58,10 @@ type Config struct {
 	Input string
 	// Fit overview and zoom shots within this many pixels on the long side, or 0 for the monitor's scale.
 	MaxImageSize int
-	LeaseMs      int
+	// Enlarge a zoom that the agent asks for to this many pixels on the long side when it is smaller, by a whole
+	// factor (see magnification), or 0 to leave zooms as captured.
+	MinZoomSize int
+	LeaseMs     int
 	// How long act goes on watching for new windows after its wait, when it delivered input.
 	NewWindowGrace time.Duration
 	// Whether results carry structured content: StructuredAlways, StructuredNever, or StructuredAuto or "", which
@@ -223,15 +231,20 @@ When it lists one window, it returns a shot of it, as screenshot does. A window 
 wait_ms (up to %d): when you expect a window that an act's result did not show, such as a file chooser after clicking Upload or Browse, which another process can open a second or two later, wait for it here. With match it waits until a window matches; without match, until a window that your input opened maps. It returns as soon as one is there, at once if one already is, and otherwise once wait_ms has passed, with the list as usual.
 Example: {"match":"firefox"}, or {"wait_ms":5000} after a click that opens a file chooser`, maxWindowsWait.Milliseconds())
 
-// screenshotDescription describes the screenshot tool of a server whose images fit within maxImage pixels, or 0.
-func screenshotDescription(maxImage int) string {
+// screenshotDescription describes the screenshot tool of a server whose images fit within maxImage pixels, or 0, and
+// whose zooms are enlarged to minZoom pixels, or 0.
+func screenshotDescription(maxImage, minZoom int) string {
 	scale := "at the monitor's full scale"
 	if maxImage > 0 {
 		scale = fmt.Sprintf("at the monitor's full scale, shrunk only to fit within %d pixels on the long side", maxImage)
 	}
+	enlarged := ""
+	if minZoom > 0 {
+		enlarged = fmt.Sprintf(" A zoom under %d pixels on the long side comes enlarged by a whole factor, each captured pixel a square block, and act maps its pixels to fractions of the captured ones, so you can aim finer.", minZoom)
+	}
 	return fmt.Sprintf(`Take a screenshot of a window now and return it as a shot such as "s5"; it waits only for a window that has not yet redrawn at a new size, or not yet drawn on its hidden workspace, for up to %g s. Coordinates in later act calls are pixels of the returned image, with 0,0 at its top left; the window's open popups are included.
-region zooms in: {shot, x, y, width, height} in pixels of an earlier shot of the same window. The area is captured again %s, and becomes a new shot whose own pixels act accepts. Use it to read small text or to hit small targets.
-Example: {"window":"0x55d1c0a3e4b0","region":{"shot":"s4","x":380,"y":60,"width":200,"height":80}}`, catchUpMax.Seconds(), scale)
+region zooms in: {shot, x, y, width, height} in pixels of an earlier shot of the same window. The area is captured again %s, and becomes a new shot whose own pixels act accepts.%s Use it to read small text or to hit small targets.
+Example: {"window":"0x55d1c0a3e4b0","region":{"shot":"s4","x":380,"y":60,"width":200,"height":80}}`, catchUpMax.Seconds(), scale, enlarged)
 }
 
 const launchDescription = `Start an application on a hidden workspace, without changing the user's visible workspace or focus. Waits up to timeout_ms milliseconds (default 30000) for its first window and for that window to settle, and returns the window's address with a shot; act takes coordinates in that shot's pixels. Close the windows you launch when you are done.
@@ -326,7 +339,7 @@ func (s *Server) Register(srv *mcp.Server) {
 				maxWindowsWait.Milliseconds())),
 		})}, s.handle(s.windowsTool))
 	// screenshot opens the window's socket, which stays open, so the plugin treats the window as driven from then on.
-	srv.AddTool(&mcp.Tool{Name: "screenshot", Description: screenshotDescription(s.cfg.MaxImageSize), Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
+	srv.AddTool(&mcp.Tool{Name: "screenshot", Description: screenshotDescription(s.cfg.MaxImageSize, s.cfg.MinZoomSize), Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		InputSchema: objectSchema(map[string]json.RawMessage{"window": windowProperty, "region": regionSchema}, "window")}, s.handle(s.screenshotTool))
 	srv.AddTool(&mcp.Tool{Name: "act", Description: actDescription, InputSchema: actSchema(s.cfg.NewWindowGrace)}, s.handle(s.actTool))
 	srv.AddTool(&mcp.Tool{Name: "launch", Description: launchDescription, Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},

@@ -95,6 +95,9 @@ func formatSize(size hypr.Size) string {
 type zoom struct {
 	rect hypr.IntRect
 	from *shot
+	// The agent asked for the zoom, so a small one is enlarged (see magnification). The zooms into changes keep the
+	// captured pixels, which fullReason counts.
+	asked bool
 }
 
 // zoomResized fails the capture of a zoom whose shot no longer has the window's size.
@@ -120,7 +123,7 @@ func (s *Server) resolveRegion(r regionArgs, window string, st hypr.State, field
 	}
 	width := math.Min(r.Width, float64(sh.Width)-r.X)
 	height := math.Min(r.Height, float64(sh.Height)-r.Y)
-	return &zoom{rect: sh.logicalRegion(r.X, r.Y, width, height), from: sh}, nil
+	return &zoom{rect: sh.logicalRegion(r.X, r.Y, width, height), from: sh, asked: true}, nil
 }
 
 // How often capture tries to get an image with the window's size the same before and after.
@@ -280,6 +283,16 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 			}
 			sh = &shot{ID: id, Window: window, StableID: pre.StableID, Size: post.Size, Frame: reply.Region,
 				Width: reply.Width, Height: reply.Height, Scale: reply.Scale, Resizing: reply.Resizing, Path: path}
+			// A small zoom is enlarged for the agent, which places points more precisely in a larger image. The shot's
+			// pixels map to the window through its scale, so act takes those of the enlarged image, while the file and
+			// the reference image keep the captured pixels.
+			if k := magnification(reply.Width, reply.Height, s.cfg.MinZoomSize, s.cfg.MaxImageSize); z.asked && k > 1 {
+				if png, err = magnify(png, k); err != nil {
+					os.Remove(path)
+					return nil, nil, err
+				}
+				sh.Width, sh.Height, sh.Scale = reply.Width*k, reply.Height*k, reply.Scale*float64(k)
+			}
 			sh.setCommits(reply, pre)
 			sh.Parent = z.from.ID
 			if z.from.Parent != "" {

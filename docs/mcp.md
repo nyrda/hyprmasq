@@ -42,11 +42,20 @@ the agent never converts anything.
   (`--max-image-size`).
 - A **zoom** is a shot of part of an earlier shot, captured again at the
   monitor's full scale: `screenshot` with
-  `region: {shot, x, y, width, height}`. It reads small text and hits small
-  targets, and `act` takes its own pixels as they are, with the zoom as
-  `shot`. Its summary line says so, where the agent reads its next
-  coordinates:
+  `region: {shot, x, y, width, height}`, or `act` with such a `capture`
+  region. It reads small text and hits small targets, and `act` takes its own
+  pixels as they are, with the zoom as `shot`. Its summary line says so, where
+  the agent reads its next coordinates:
   `shot s3 465×921 · zoom of s1 at 10,96 310×614 · window 0x55d1c0a3e4b0 1280×800 · act takes s3's own pixels`.
+- A zoom whose long side is under 768 pixels (`--min-zoom-size`) comes
+  enlarged by the smallest whole factor that reaches 768, at most 4, and
+  within `--max-image-size`. Each captured pixel becomes a square block, so a
+  point in the enlarged image divided by the factor is the pixel it shows,
+  and `act` maps it to a fraction of that pixel. Enlarging adds no detail, but
+  a vision model, whose encoder works in patches many pixels wide, aims finer
+  in the larger image. A zoom between 641 and 767 pixels long stays as
+  captured with the default `--max-image-size` of 1280, since doubling it would
+  pass 1280. The zooms that `act` returns for changes are not enlarged.
 - Before each capture, the server waits briefly, at most 1.5 s, for a window
   that has not yet redrawn at a new size, or a hidden window that has not
   drawn yet. A shot taken anyway is marked stale or "may be stale" in the
@@ -386,6 +395,7 @@ run `hyprmasq-input` directly take no locks.
 | --- | --- | --- |
 | `--input PATH` | `hyprmasq-input` on `PATH` | The sender to run for each batch. The Nix package's `hyprmasq-mcp` wrapper puts its own `hyprmasq-input` first on `PATH`. |
 | `--max-image-size N` | `1280` | Fit shots, zooms included, within N pixels on their long side. `0` keeps the monitor's scale. |
+| `--min-zoom-size N` | `768` | Enlarge a zoom that `screenshot` or `act`'s `capture` asks for, when its long side is under N pixels, by the smallest whole factor that reaches N, at most 4 and within `--max-image-size`. `0` leaves zooms as captured. |
 | `--lease-ms MS` | `60000` | Length of the focus lease that each `act` starts or renews, 1 to 600000. |
 | `--new-window-grace-ms MS` | `500` | How long `act` keeps watching for new windows after its wait, when it delivered input, 0 to 5000. |
 | `--structured-content auto\|always\|never` | `auto` | Whether results carry MCP structured content next to the text. `auto` leaves it out for clients named `claude-code`, which would show it to the model instead of the shorter text. |

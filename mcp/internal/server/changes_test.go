@@ -569,7 +569,7 @@ func TestChangesFallBackToAFullShot(t *testing.T) {
 // A shot shrunk to fit --max-image-size gets a detail image at logical pixels, which the comparison uses.
 func TestChangesOfAShrunkShot(t *testing.T) {
 	e := newTestEnv(t)
-	e.server.cfg.MaxImageSize = 320
+	e.server.cfg.MaxImageSize, e.server.cfg.MinZoomSize = 320, 768
 	e.window("0xa1", "1a", 640, 400)
 	e.screenshot(`{"window":"0xa1"}`)
 	// One render gives the overview and the detail image.
@@ -590,7 +590,7 @@ func TestChangesOfAShrunkShot(t *testing.T) {
 	if detail := shots[1]; !regexp.MustCompile(`/f2\.raw max 320 popups raw detail \S+/f2-detail\.raw$`).MatchString(detail) {
 		t.Errorf("detail request %q", detail)
 	}
-	// The zoom is at the monitor's scale, and listed in the overview's pixels.
+	// The zoom is at the monitor's scale, not enlarged as a zoom the agent asks for, and listed in the overview's pixels.
 	if want := "zoom s3 108×108 of s2 at 137,87 28×28"; !strings.HasSuffix(summaryOf(t, res), want) {
 		t.Errorf("summary %q, want the end %q", summaryOf(t, res), want)
 	}

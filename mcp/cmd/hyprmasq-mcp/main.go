@@ -23,6 +23,7 @@ func main() {
 	log.SetPrefix("hyprmasq-mcp: ")
 	input := flag.String("input", "", "the hyprmasq-input binary (default: hyprmasq-input from PATH)")
 	maxImage := flag.Int("max-image-size", server.DefaultMaxImageSize, "fit screenshots within `N` pixels on the long side; 0 keeps the monitor's scale")
+	minZoom := flag.Int("min-zoom-size", server.DefaultMinZoomSize, "enlarge zooms smaller than `N` pixels on the long side by a whole factor, at most 4; 0 leaves them as captured")
 	leaseMs := flag.Int("lease-ms", 60000, "length of the focus lease each act starts or renews, in milliseconds")
 	graceMs := flag.Int("new-window-grace-ms", 500, "how long act goes on watching for new windows after its wait, in milliseconds, when it delivered input")
 	structured := flag.String("structured-content", server.StructuredAuto,
@@ -34,7 +35,7 @@ func main() {
 		return
 	}
 	validStructured := *structured == server.StructuredAuto || *structured == server.StructuredAlways || *structured == server.StructuredNever
-	if flag.NArg() > 0 || *maxImage < 0 || *leaseMs < 1 || *leaseMs > 600000 || *graceMs < 0 || *graceMs > 5000 || !validStructured {
+	if flag.NArg() > 0 || *maxImage < 0 || *minZoom < 0 || *leaseMs < 1 || *leaseMs > 600000 || *graceMs < 0 || *graceMs > 5000 || !validStructured {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -62,6 +63,7 @@ func main() {
 		StateDir:          stateDir,
 		Input:             *input,
 		MaxImageSize:      *maxImage,
+		MinZoomSize:       *minZoom,
 		LeaseMs:           *leaseMs,
 		NewWindowGrace:    time.Duration(*graceMs) * time.Millisecond,
 		StructuredContent: *structured,

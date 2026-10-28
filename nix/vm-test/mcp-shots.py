@@ -102,12 +102,13 @@ with subtest("hyprmasq-mcp captures a region after the input"):
     quiet = {"expect_change": False}
     zoomed = mcp.call("act", {"window": probe, "shot": shot_id, "actions": [{"action": "click", "x": 30, "y": 40}], "wait": quiet,
                               "capture": {"shot": shot_id, "x": 20, "y": 30, "width": 100, "height": 60}})
+    # The zoom of 100×60 pixels comes enlarged 4 times.
     zoom_shot = zoomed.data["shot"]
-    assert not zoomed.is_error and (zoom_shot["width"], zoom_shot["height"], zoom_shot["frame"]) == (100, 60, region(20, 30, 100, 60)), zoomed
-    assert re.fullmatch(r"1/1 delivered · no redraw · quiet \d+ ms · \d+ ms · shot s\d+ 100×60 · lease \d+ s", zoomed.text), zoomed
-    assert pixels(keep(zoomed, "act-region"))[-1] == (100, 60)
+    assert not zoomed.is_error and (zoom_shot["width"], zoom_shot["height"], zoom_shot["frame"]) == (400, 240, region(20, 30, 100, 60)), zoomed
+    assert re.fullmatch(r"1/1 delivered · no redraw · quiet \d+ ms · \d+ ms · shot s\d+ 400×240 · lease \d+ s", zoomed.text), zoomed
+    assert pixels(keep(zoomed, "act-region"))[-1] == (400, 240)
     # Its pixels are coordinates of their own. Without a capture there is no shot.
-    again = mcp.call("act", {"window": probe, "shot": zoom_shot["id"], "actions": [{"action": "click", "x": 50, "y": 20}], "wait": quiet, "capture": "none"})
+    again = mcp.call("act", {"window": probe, "shot": zoom_shot["id"], "actions": [{"action": "click", "x": 200, "y": 80}], "wait": quiet, "capture": "none"})
     assert not again.is_error and not again.images and "shot" not in again.data, again
     assert probe_motions(start) == [(30, 40), (70, 50)], probe_events("m-probe", start)
     # A region is window-local, so after a resize during the call it would show another part of the window. act
@@ -335,12 +336,48 @@ with subtest("hyprmasq-mcp fits shots within --max-image-size"):
     clicked = small.call("act", {"window": probe, "shot": fitted_id, "actions": [{"action": "click", "x": 60, "y": 35}], "wait": {"expect_change": False}})
     assert not clicked.is_error and clicked.data["shot"]["width"] == 150, clicked
     assert probe_motions(start) == [(120, 70)], probe_events("m-probe", start)
-    # Zooms are fitted too, and one that fits keeps the monitor's scale.
+    # Zooms are fitted too, and one that fits keeps the monitor's scale, also when it is small: enlarged twice, it
+    # would not fit.
     whole = small.call("screenshot", {"window": probe, "region": {"shot": fitted_id, "x": 0, "y": 0, "width": 150, "height": 100}})
     assert (whole.data["shot"]["width"], whole.data["shot"]["height"], whole.data["shot"]["frame"]) == (150, 100, region(0, 0, 300, 200)), whole
     part = small.call("screenshot", {"window": probe, "region": {"shot": fitted_id, "x": 10, "y": 10, "width": 40, "height": 30}})
     assert (part.data["shot"]["width"], part.data["shot"]["height"], part.data["shot"]["frame"]) == (80, 60, region(20, 20, 80, 60)), part
     assert small.stop() == 0
+
+with subtest("hyprmasq-mcp enlarges a small zoom, and takes coordinates between its captured pixels"):
+    # focus-probe's shift mode draws a light button at 40,40 of 160×40, with a dark label at 60,55 of 80×10.
+    command = "exec hyprmasq-focus-probe shift hm-m-zoom 0 > /tmp/hyprmasq-m-zoom.log 2>&1"
+    launched = mcp.call("launch", {"command": ["sh", "-c", command], "workspace": "hm-m-zoom"})
+    assert not launched.is_error, launched
+    window, shot = launched.data["window"]["window"], launched.data["shot"]["id"]
+    # A zoom of 100×40 pixels at scale 1 comes enlarged by 4, the most, each captured pixel a block of 4×4: the label
+    # at 10,15 of 80×10 in the region is at 40,60 of 320×40 in the zoom.
+    asked = {"shot": shot, "x": 50, "y": 40, "width": 100, "height": 40}
+    zoom = mcp.call("screenshot", {"window": window, "region": asked})
+    zoom_shot = zoom.data["shot"]
+    assert not zoom.is_error and (zoom_shot["width"], zoom_shot["height"], zoom_shot["frame"]) == (400, 160, region(50, 40, 100, 40)), zoom
+    assert zoom.text.startswith(f"shot {zoom_shot['id']} 400×160 · zoom of {shot} at 50,40 100×40 · "), zoom
+    path = keep(zoom, "zoom-enlarged")
+    assert pixels(path)[-1] == (400, 160) and color_box(path, (0x22, 0x22, 0x22)) == [40, 60, 360, 100], zoom
+    # A point of the zoom is a quarter of a pixel, and the stale-target check compares the window with the captured
+    # pixels, which have not changed.
+    start = len(probe_events("m-zoom"))
+    clicked = mcp.call("act", {"window": window, "shot": zoom_shot["id"], "actions": [{"action": "click", "x": 42, "y": 62}],
+                               "wait": {"expect_change": False}, "capture": asked})
+    assert not clicked.is_error and clicked.data["actions"]["delivery"] == "complete", clicked
+    wait_for("the click in the zoom", lambda: "button hm-m-zoom 0" in [e for _, e in probe_events("m-zoom", start)], timeout=10)
+    assert "motion hm-m-zoom 60.5 55.5" in [e for _, e in probe_events("m-zoom", start)], probe_events("m-zoom", start)
+    # act's capture region is enlarged alike.
+    assert (clicked.data["shot"]["width"], clicked.data["shot"]["height"]) == (400, 160) and pixels(clicked.images[0])[-1] == (400, 160), clicked
+    # --min-zoom-size 0 leaves zooms as captured.
+    plain = Mcp("z", "--min-zoom-size", "0")
+    plain.initialize()
+    own = plain.call("screenshot", {"window": window}).data["shot"]["id"]
+    kept = plain.call("screenshot", {"window": window, "region": {**asked, "shot": own}})
+    assert (kept.data["shot"]["width"], kept.data["shot"]["height"]) == (100, 40) and pixels(kept.images[0])[-1] == (100, 40), kept
+    assert plain.stop() == 0
+    assert mcp.call("close", {"window": window}).data["closed"]
+    assert snapshot() == before_focus
 
 with subtest("hyprmasq-mcp types through the Compose table of the window's locale"):
     # The server runs in pt_BR.UTF-8, whose Compose table has no ć on a German layout, and the windows in
