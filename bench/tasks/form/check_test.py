@@ -1,9 +1,12 @@
 """Tests the form task's grader on constructed states of the questionnaire: python3 check_test.py"""
 
+import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check  # noqa: E402
@@ -209,6 +212,39 @@ class OtherWindows(unittest.TestCase):
             f.flush()
             opened = check.other_windows(f.name, "0xbbb", START)
         self.assertEqual(opened, [{"class": "", "title": "", "workspace": "form"}] * 2)
+
+
+class NoDropdowns(unittest.TestCase):
+    """A variant without dropdowns, such as 25-no-dropdowns: setup.py runs the grade with the kinds that vm.nix names
+    in $HYPRMASQ_FORM_KINDS, as it starts the app."""
+
+    KINDS = {"HYPRMASQ_FORM_KINDS": "checkbox,slider,text"}
+
+    def grade(self, values, env):
+        """check.py's grade, as setup.py runs it, or None when it exits with an error."""
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "state.json"), "w") as f:
+                json.dump(state(values), f)
+            open(os.path.join(d, "windows.log"), "w").close()
+            out = subprocess.run(
+                [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "check.py"),
+                 "--state", os.path.join(d, "state.json"), "--count", "25", "--window", "0xbbb",
+                 "--events", os.path.join(d, "windows.log"), "--since", str(START)],
+                env=dict(os.environ, **env), capture_output=True, text=True)
+        return json.loads(out.stdout) if out.returncode == 0 else None
+
+    def test_the_grade_asks_the_kinds_of_its_environment(self):
+        with mock.patch.dict(os.environ, self.KINDS):
+            right = answers(25)
+        result = self.grade(right, self.KINDS)
+        self.assertTrue(result["passed"], result["failures"])
+        self.assertEqual(result["checks"]["correct"], 25)
+        self.assertEqual(sorted(result["checks"]["kinds"]), ["checkbox", "slider", "text"])
+        # Question 4 is the second checkbox, where the questionnaire with dropdowns asks its first dropdown.
+        result = self.grade({**right, "4": []}, self.KINDS)
+        self.assertEqual(result["failures"], ["Question 4 (checkbox) is nothing ticked; expected ticked 7"])
+        # Without the kinds, the grade asks the questionnaire with dropdowns, which these answers do not fit.
+        self.assertFalse((self.grade(right, {}) or {}).get("passed"))
 
 
 if __name__ == "__main__":

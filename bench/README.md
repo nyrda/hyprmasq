@@ -70,6 +70,7 @@ python3 bench/run.py --task forgejo                     # another task: a direct
 python3 bench/run.py --display 2560x1440@1              # another monitor: WIDTHxHEIGHT@SCALE
 python3 bench/run.py --task board --variant pointer     # a task's variant: one of tasks/TASK/variants
 python3 bench/run.py --task form --variant 10           # a quick probe: 10 questions instead of the default 25
+python3 bench/run.py --task form --variant 25-no-dropdowns  # the form without dropdowns
 python3 bench/run.py --rep 2 --rep 3                    # only these repetitions, instead of --reps
 python3 bench/report.py bench/results/my-run            # the report again
 ```
@@ -82,8 +83,9 @@ of them.
 
 `--variant NAME` picks one of a task's variants, which `tasks/TASK/variants` lists, one a line. A task with that
 file needs it, unless a line there is `NAME default`, which it then takes; others refuse it. A variant's directory,
-`tasks/TASK/NAME`, may hold a `prompt.md` of its own, which the agent then gets. `default.nix` gives it to the
-task's `vm.nix` as `benchVariant`; the default results directory and the driver's name carry it.
+`tasks/TASK/NAME`, may hold a `prompt.md` and a `debrief.md` of its own, which the agent then gets. `default.nix`
+gives the variant to the task's `vm.nix` as `benchVariant`; the default results directory and the driver's name
+carry it.
 
 `--display WIDTHxHEIGHT@SCALE` sets the VM's monitor, in device pixels, by default `1920x1080@1`. Shots fit
 within 1280 pixels and zooms come at the monitor's scale, so what agents can read depends on it. The VM draws
@@ -226,8 +228,8 @@ run.py ─ starts ─▶ nixos-test-driver ─ boots ──▶  Hyprland + hyprm
    VM over vsock and logs every message with the host time. The agent has no other tools.
 3. When the agent exits, `run.py` writes `agent-done`. The VM grades the run with the task's checker,
    collects screenshots and logs, writes `vm-result.json` and stops.
-4. `run.py` resumes the agent's session with the debrief (`tasks/*/debrief.md`), which tells it the grade and
-   what was measured and asks where hyprmasq slowed it down, without tools.
+4. `run.py` resumes the agent's session with the debrief (`tasks/*/debrief.md`, or the variant's own), which
+   tells it the grade and what was measured and asks where hyprmasq slowed it down, without tools.
 
 The debrief is no evidence for or against a change. An agent knows only the run it had: it cannot compare with a
 run without a feature, or tell which result saved it a call, and asked for a loss it names one. Judge a change by
@@ -571,10 +573,20 @@ ways, which is what the questionnaire in several of them tests. The questions, t
 same on every run. The wheel over a slider scrolls the page, as over the other questions, and does not move the
 slider.
 
+A variant that ends in `-no-dropdowns`, `25-no-dropdowns` in GTK 4 and `qt-25-no-dropdowns` in Qt, asks no
+dropdowns: the first 25 of the 30 checkboxes, sliders and texts, in the same order and numbered from 1. That is the
+form without dropdowns of [docs/comparison.md](../docs/comparison.md), which `bench/laptop` runs with
+`--no-dropdowns`: the same questions and the same grade, so the VM's runs and the comparison's measure the same
+questionnaire. The prompt is the task's own, which, like the comparison's, does not name the kinds of question.
+`vm.nix` names the kinds, `checkbox,slider,text`, and `setup.py` gives them to the app and to `check.py` in
+`$HYPRMASQ_FORM_KINDS`, which `items.py` reads. The variant's debrief, in its directory, does not ask about
+dropdowns. `render.py` names its runs Form without dropdowns, as the comparison does, and leaves them out of the
+toolkit views.
+
 - `vm.nix`: the app of the variant's toolkit (`hyprmasq-bench-form STATE-DIR COUNT [STATE-FD]`), and the number of
-  questions from the variant. Its comment says what every toolkit's app must do: record its process id, which
-  `setup.py` signals, show the questions in a window titled "Questionnaire", log the changes and submissions as
-  `form.py` does, and write its state on SIGUSR1.
+  questions and their kinds from the variant. Its comment says what every toolkit's app must do: record its process
+  id, which `setup.py` signals, show the questions in a window titled "Questionnaire", log the changes and
+  submissions as `form.py` does, and write its state on SIGUSR1.
 - `toolkits/`: a file per toolkit that builds its app: `gtk4.nix` for `form.py`, `qt.nix` for `form_qt.py`,
   `gtk3.nix` for `form_gtk3.py` in GTK 3 on Wayland, `gtk3-x11.nix` for the same app on X11, and `tk.nix` for
   `form_tk.py` in Tk, which runs on X11 only. For the HTML app, `electron.nix` and `cef.nix` run it on Wayland,
@@ -610,12 +622,15 @@ slider.
 - `check_test.py`: `python3 bench/tasks/form/check_test.py` checks the grade, the corrections and the milestones on
   constructed states: right and wrong answers of each kind, no submission, a submission from before the agent's
   start, changes after the last one, a drag, keys after a click, a checkbox ticked by mistake, another window, a
-  window of the questionnaire's process, and no log of the windows.
-- `setup.py`: the app, started with its state file, its window and its workspace, root's log of Hyprland's events,
-  and in `collect()` the app's state, asked of the app's own process, its logs and the grade.
+  window of the questionnaire's process, no log of the windows, and the grade of a questionnaire without dropdowns,
+  run as `setup.py` runs it.
+- `setup.py`: the app, started with its state file and the variant's kinds, its window and its workspace, root's
+  log of Hyprland's events, and in `collect()` the app's state, asked of the app's own process, its logs and the
+  grade.
 - `windows.py`: root's log of Hyprland's events, with the process of each window that opens, which it asks
   Hyprland for.
 - `variants`, `prompt.md`, `debrief.md`: the numbers of questions, 25 the default, and what the agent is told.
+  `25-no-dropdowns/debrief.md` is the debrief without dropdowns, which `qt-25-no-dropdowns/` links to.
 
 The HTML app is one page, `form.html`, with the same questions, layout and records as `form.py`: checkboxes,
 `<input type=range>` sliders with their caption and read-only value, text fields, native `<select>` dropdowns,

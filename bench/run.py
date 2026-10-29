@@ -438,6 +438,12 @@ def files_holding(run_dir, secret):
     return found
 
 
+def task_file(task_dir, variant, name):
+    """A task's prompt.md or debrief.md: a variant's own, in its directory, or else the task's."""
+    own = os.path.join(task_dir, variant or "", name)
+    return own if variant and os.path.exists(own) else os.path.join(task_dir, name)
+
+
 def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief):
     task_dir = os.path.join(BENCH, "tasks", task)
     run_dir = os.path.join(out, run_name(harness, model, rep, effort))
@@ -476,9 +482,7 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
                     raise RuntimeError(f"the VM did not get ready, see {run_dir}/driver.log")
                 time.sleep(1)
 
-            # A variant can have a prompt of its own, in its directory.
-            own = os.path.join(task_dir, variant or "", "prompt.md")
-            prompt = open(own if variant and os.path.exists(own) else os.path.join(task_dir, "prompt.md")).read()
+            prompt = open(task_file(task_dir, variant, "prompt.md")).read()
             command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort)
             print(f"{label} agent running", flush=True)
             agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
@@ -515,7 +519,7 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         resume = session_file if harness == "pi" else agent["session"]
         if debrief and resume:
             calls = report.tool_calls(report.load_jsonl(os.path.join(run_dir, "mcp.jsonl")))
-            text = open(os.path.join(task_dir, "debrief.md")).read().replace(
+            text = open(task_file(task_dir, variant, "debrief.md")).read().replace(
                 "{report}", report.debrief_report(summary, calls))
             with open(os.path.join(run_dir, "debrief-prompt.md"), "w") as f:
                 f.write(text)

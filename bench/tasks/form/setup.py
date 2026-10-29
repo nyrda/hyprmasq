@@ -4,7 +4,8 @@
 # and moved to the hidden workspace `form`, not with hyprmasq's launch. The user stays on workspace 1 with the
 # terminal. collect() asks the app for its state (SIGUSR1 to the process its launcher recorded in app.pid) and
 # grades it, with the windows that opened from root's own log of Hyprland's events, but for the X11 classes of the
-# app's own popups, which vm.nix names.
+# app's own popups, which vm.nix names. A variant without dropdowns gives the app and the grade the kinds of question
+# that vm.nix names, in $HYPRMASQ_FORM_KINDS; the others set nothing and ask all four.
 #
 # The app writes its state to a file that only root can open, which root opens and passes to the app as its file
 # descriptor 3: no other process of the user's, such as one the agent started, can write it.
@@ -15,7 +16,7 @@ STATE = "/tmp/hyprmasq-bench-form"
 # programs, which the agent can start, cannot change them.
 WINDOWS = "/var/log/hyprmasq-bench-form-windows.log"
 SNAPSHOT = "/var/log/hyprmasq-bench-form-state.json"
-form_count = form_window = form_pid = None
+form_count = form_kinds = form_window = form_pid = None
 
 
 def snapshot_written():
@@ -27,16 +28,18 @@ def snapshot_written():
 
 
 def prepare():
-    global form_count, form_window, form_pid
+    global form_count, form_kinds, form_window, form_pid
     # The variant, from vm.nix.
     form_count = int(machine.succeed("cat /etc/hyprmasq-bench/form-count"))
+    kinds = machine.succeed("cat /etc/hyprmasq-bench/form-kinds").strip()
+    form_kinds = f"HYPRMASQ_FORM_KINDS={shlex.quote(kinds)} " if kinds else ""
     machine.succeed(
         f"nohup python3 {ETC}/windows.py {RUNTIME}/hypr/{instance}/.socket2.sock {WINDOWS} "
         "> /tmp/hyprmasq-bench-form-windows.log 2>&1 &"
     )
     alice(f"mkdir -p {STATE}")
     machine.succeed(f"install -m 600 /dev/null {SNAPSHOT}")
-    command = f"{client_env} exec hyprmasq-bench-form {STATE} {form_count} 3"
+    command = f"{client_env} {form_kinds}exec hyprmasq-bench-form {STATE} {form_count} 3"
     machine.succeed(
         f"nohup su - alice -c {shlex.quote(command)} 3>{SNAPSHOT} > /tmp/hyprmasq-bench-form.log 2>&1 &"
     )
@@ -67,7 +70,7 @@ def collect():
     popups = "".join(f" --popup {shlex.quote(c)}"
                      for c in machine.succeed("cat /etc/hyprmasq-bench/form-popups").split())
     check = json.loads(machine.succeed(
-        f"python3 {ETC}/check.py --state {SNAPSHOT} --count {form_count} --window {form_window} "
+        f"{form_kinds}python3 {ETC}/check.py --state {SNAPSHOT} --count {form_count} --window {form_window} "
         f"--events {WINDOWS} --since {vm_time}{popups}"
     ))
     for path, name in [

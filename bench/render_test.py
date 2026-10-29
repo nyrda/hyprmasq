@@ -229,6 +229,55 @@ class Toolkits(unittest.TestCase):
                 main(page)
             self.assertIn("one number of questions, not 10, 25", str(cm.exception))
 
+    def test_the_form_without_dropdowns_is_a_task_of_its_own(self):
+        def kinds(names):
+            return {k: {"items": 5, "seconds": 20.0, "corrections": 0} for k in names}
+
+        runs = [dict(run(model, rep, True, wall, 30), task="form", variant=variant, kinds=kinds(names),
+                     phases={"all answered correctly": wall - 5})
+                for variant, wall, names in (("25", 120, render.KINDS), ("25-no-dropdowns", 70, render.KINDS[:3]))
+                for model in ("gpt-6.1-sol", "claude-sonnet-5-5") for rep in (1, 2)]
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "benchmarks", "data"))
+            with open(os.path.join(d, "benchmarks", "data", "f.json"), "w") as f:
+                json.dump({"sources": [], "runs": runs}, f)
+            page = os.path.join(d, "benchmarks.md")
+            with open(page, "w") as f:
+                f.write("# T\n\n<!-- render f time -->\n<!-- /render -->\n\n"
+                        "<!-- render f table form-no-dropdowns -->\n<!-- /render -->\n\n"
+                        "<!-- render f kinds-table form-no-dropdowns -->\n<!-- /render -->\n\n"
+                        "<!-- render f kinds-table form -->\n<!-- /render -->\n\n"
+                        "<!-- render f toolkits-table -->\n<!-- /render -->\n")
+            main(page)
+            with open(page) as f:
+                text = f.read()
+            with open(os.path.join(d, "benchmarks", "f-time.svg")) as f:
+                svg = f.read()
+            self.assertIn(">Form</text>", svg)
+            self.assertIn(">Form without dropdowns</text>", svg)
+            self.assertIn("<summary>Numbers: Form without dropdowns</summary>", text)
+            self.assertIn("| gpt-6.1-sol | medium | 2/2 | 70 (70–70) |", text)
+            self.assertIn("All right at s |", text)
+            # Each kinds table asks its own questionnaire's kinds.
+            self.assertIn("| Agent | Checkbox s | Slider s | Text s | Corrections |", text)
+            self.assertIn("| Agent | Checkbox s | Slider s | Text s | Dropdown s | Corrections |", text)
+            # The toolkits compare the questionnaire with dropdowns alone.
+            self.assertIn("| GTK 4 | gpt-6.1-sol | 2/2 | 120 (120–120) |", text)
+
+            with open(page, "w") as f:
+                f.write("# T\n\n<!-- render f kinds -->\n<!-- /render -->\n")
+            with self.assertRaises(SystemExit) as cm:
+                main(page)
+            self.assertIn("name one of form, form-no-dropdowns", str(cm.exception))
+
+            # Its variants in several toolkits are named by the rest of their names.
+            more = runs + [dict(r, variant="qt-25-no-dropdowns") for r in runs if r["variant"] == "25-no-dropdowns"]
+            with open(os.path.join(d, "benchmarks", "data", "f.json"), "w") as f:
+                json.dump({"sources": [], "runs": more}, f)
+            data = render.load(os.path.join(d, "benchmarks", "data"), "f")
+            self.assertEqual(render.tasks(data), ["form", "form-no-dropdowns-25", "form-no-dropdowns-qt-25"])
+            self.assertEqual(render.task_title("form-no-dropdowns-qt-25"), "Form without dropdowns-qt-25")
+
 
 def tool_run(task, model, backend, rep, passed, wall, platform="hyprland", focus=0.0, popups=None, dialogs=0):
     """A run as bench/laptop/analyze.py writes it."""
