@@ -1,11 +1,16 @@
 """Tests dispatch.py's planning and scheduling, and run.py's choice of runs, without machines: python3 dispatch_test.py"""
 
 import argparse
+import collections
+import fcntl
 import os
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dispatch  # noqa: E402
@@ -91,7 +96,9 @@ class Hosts(unittest.TestCase):
         h = dispatch.Host("me@box,slots=2,lock=/tmp/a,local-lock=/tmp/b,cid=5000")
         self.assertEqual((h.target, h.slots, h.lock, h.local_lock, h.cid, h.local), ("me@box", 2, "/tmp/a", "/tmp/b", 5000, False))
         self.assertTrue(dispatch.Host("local").local)
-        for bad in ("box,slots=0", "box,colour=red", "box,lock", ",slots=1", "box,agents=pi", "box,agents=codex+claude-api:x"):
+        self.assertEqual(dispatch.Host("box,slots=3,cores=2").cores, 2)
+        for bad in ("box,slots=0", "box,colour=red", "box,lock", ",slots=1", "box,agents=pi", "box,agents=codex+claude-api:x",
+                    "box,cores=0"):
             with self.assertRaises(ValueError, msg=bad):
                 dispatch.Host(bad)
 
@@ -111,6 +118,105 @@ class Hosts(unittest.TestCase):
                                                   ("claude", "opus", "high"), ("claude", "opus", "low"),
                                                   ("claude", "opus", None))],
                          [True, True, True, False, False])
+
+
+# The thread_siblings_list of each CPU of an 8-core SMT machine, such as a Ryzen 7 5800X3D: core k is CPUs k and k+8.
+EIGHT_CORES = [f"{cpu % 8},{cpu % 8 + 8}\n" for cpu in range(16)]
+
+
+class Cores(unittest.TestCase):
+    def test_slots_get_whole_cores_of_their_own_from_the_last_down(self):
+        cores = run.physical_cores(EIGHT_CORES)
+        self.assertEqual(len(cores), 8)
+        self.assertEqual([run.format_cpus(c) for c in run.slot_cpus(cores, 3, 2)],
+                         ["6-7,14-15", "4-5,12-13", "2-3,10-11"])
+        self.assertEqual(run.parse_cpus("6-7,14-15"), [6, 7, 14, 15])
+        # Without SMT, a core is one CPU.
+        self.assertEqual(run.slot_cpus(run.physical_cores([f"{c}\n" for c in range(4)]), 1, 2), [[2, 3]])
+
+    def test_slots_that_would_take_every_core_are_refused(self):
+        cores = run.physical_cores(EIGHT_CORES)
+        for slots, per_slot in ((4, 2), (2, 4), (1, 0)):
+            with self.assertRaises(ValueError, msg=(slots, per_slot)):
+                run.slot_cpus(cores, slots, per_slot)
+        for bad in ("", "a", "3-1", "1,"):
+            with self.assertRaises(ValueError, msg=bad):
+                run.parse_cpus(bad)
+
+
+def hold(path, operation, hold_seconds, done):
+    """A process that takes a flock of path, as `flock FILE` does, holds it, and writes the time it let go to done."""
+    return subprocess.Popen([sys.executable, "-c", f"""
+import fcntl, sys, time
+f = open({path!r}, "a")
+fcntl.flock(f, {operation})
+time.sleep({hold_seconds})
+open({done!r}, "w").write(str(time.time()))
+"""])
+
+
+class Lock(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.dir.name, "vm.lock")
+        patch = mock.patch.object(run, "LOCK_POLL_SECONDS", 0.05)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.addCleanup(self.dir.cleanup)
+
+    def wait_until(self, predicate):
+        deadline = time.time() + 10
+        while not predicate():
+            self.assertLess(time.time(), deadline)
+            time.sleep(0.02)
+
+    def test_runs_share_the_lock_and_an_exclusive_holder_keeps_them_out(self):
+        with run.vm_lock(self.path), run.vm_lock(self.path):  # two slots at once
+            with open(self.path) as f:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        done = os.path.join(self.dir.name, "done")
+        vm_test = hold(self.path, "fcntl.LOCK_EX", 0.3, done)
+        self.addCleanup(vm_test.wait)
+        self.wait_until(lambda: os.path.exists(self.path) and self.locked())
+        with run.vm_lock(self.path):
+            self.assertTrue(os.path.exists(done))
+            took = time.time()
+        self.assertGreaterEqual(took, float(open(done).read()))
+
+    def locked(self):
+        with open(self.path) as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.flock(f, fcntl.LOCK_UN)
+            return False
+
+    def test_a_waiting_exclusive_lock_goes_before_new_runs(self):
+        # A slot holds the lock shared; a VM test then waits for it exclusive. Another slot's run, which flock alone
+        # would let in beside the first, waits until the VM test has had its turn.
+        done = os.path.join(self.dir.name, "done")
+        with open(self.path, "a") as slot:
+            fcntl.flock(slot, fcntl.LOCK_SH)
+            vm_test = hold(self.path, "fcntl.LOCK_EX", 0.2, done)
+            self.addCleanup(vm_test.wait)
+            self.wait_until(lambda: run.exclusive_waiting(self.path))
+            took = []
+
+            def second_slot():
+                with run.vm_lock(self.path):
+                    took.append(time.time())
+
+            second = threading.Thread(target=second_slot)
+            second.start()
+            time.sleep(0.3)
+            self.assertEqual(took, [], "a run took the lock while a VM test waited for it")
+            fcntl.flock(slot, fcntl.LOCK_UN)
+        second.join(10)
+        self.assertEqual(len(took), 1)
+        self.assertGreaterEqual(took[0], float(open(done).read()))
+        self.assertFalse(run.exclusive_waiting(self.path))
 
 
 class Scheduling(unittest.TestCase):
@@ -178,6 +284,68 @@ class Scheduling(unittest.TestCase):
                           lambda host: True, execute)
         self.assertEqual(sorted(host for host, harness in ran if harness in ("pi", "claude-api")), ["local", "local"])
         self.assertEqual(len(ran), 4)
+
+    def schedule(self, hosts, agents, reps, balance=False, limits=(), seconds=None):
+        """Runs the agents' repetitions on the hosts; seconds[host] is how long each of its jobs takes. Returns the
+        jobs by host and agent, the most jobs of each limit's pattern that ran at once, and the jobs."""
+        build = dispatch.Build("/nowhere", {"path": "/a", "commit": "a" * 40})
+        units = [dispatch.Unit([dispatch.Job(build, h, m, rep)]) for rep in range(1, reps + 1) for h, m in agents]
+        ran, lock = collections.Counter(), threading.Lock()
+        running, most = collections.Counter(), collections.Counter()
+
+        def execute(host, slot, job):
+            matching = [p for p, n in limits if dispatch.agent_matches(p, job.harness, job.model)]
+            with lock:
+                ran[str(host), job.harness] += 1
+                for p in matching:
+                    running[p] += 1
+                    most[p] = max(most[p], running[p])
+            time.sleep((seconds or {}).get(str(host), 0.01))
+            with lock:
+                for p in matching:
+                    running[p] -= 1
+            return "done"
+
+        dispatch.dispatch(hosts, dispatch.Queue(units, hosts, balance, limits), lambda host: True, execute)
+        return ran, most, [j for u in units for j in u.jobs]
+
+    def test_balance_gives_each_host_an_equal_share_of_each_agent(self):
+        hosts = [dispatch.Host("fast,slots=2"), dispatch.Host("slow")]
+        agents = [("codex", "gpt"), ("claude", "opus")]
+        seconds = {"fast": 0.01, "slow": 0.1}
+        ran, _, _ = self.schedule(hosts, agents, 6, seconds=seconds)
+        self.assertGreater(ran["fast", "codex"], ran["slow", "codex"] + 1)  # whichever is free takes the next
+        ran, _, jobs = self.schedule(hosts, agents, 5, balance=True, seconds=seconds)
+        for harness in ("codex", "claude"):
+            self.assertEqual(sorted([ran["fast", harness], ran["slow", harness]]), [2, 3], harness)
+        self.assertEqual({j.outcome for j in jobs}, {"done"})
+
+    def test_balance_shares_a_dropped_hosts_part_among_the_others(self):
+        build = dispatch.Build("/nowhere", {"path": "/a", "commit": "a" * 40})
+        units = [dispatch.Unit([dispatch.Job(build, "codex", "gpt", rep)]) for rep in range(1, 7)]
+        hosts = [dispatch.Host("a"), dispatch.Host("b"), dispatch.Host("unready")]
+        ran = collections.Counter()
+        dispatch.dispatch(hosts, dispatch.Queue(units, hosts, balance=True), lambda host: str(host) != "unready",
+                          lambda host, slot, job: ran.update([str(host)]) or "done")
+        self.assertEqual(ran, {"a": 3, "b": 3})
+
+    def test_max_concurrent_limits_an_agents_runs_over_all_hosts(self):
+        hosts = [dispatch.Host("a,slots=2"), dispatch.Host("b,slots=2")]
+        ran, most, jobs = self.schedule(hosts, [("codex", "gpt"), ("claude", "opus")], 4,
+                                        limits=[("codex", 1)], seconds={"a": 0.05, "b": 0.05})
+        self.assertEqual(most["codex"], 1)
+        self.assertEqual(sum(n for (host, harness), n in ran.items()), 8)
+        # The codex runs that free slots came for while another ran waited, and say so.
+        self.assertTrue(any(j.waited > 0 for j in jobs if j.harness == "codex"))
+        self.assertTrue(all(j.waited == 0 for j in jobs if j.harness == "claude"))
+
+    def test_max_concurrent_patterns(self):
+        agents = [("codex", "gpt", None), ("claude-api", "sonnet", None)]
+        self.assertEqual(dispatch.parse_limits(["codex=4,claude-api=3", "codex:gpt=2"], agents),
+                         [("codex", 4), ("claude-api", 3), ("codex:gpt", 2)])
+        for bad in ("codex", "codex=0", "=2", "codex=x", "pi=2", "claude=1"):
+            with self.assertRaises(ValueError, msg=bad):
+                dispatch.parse_limits([bad], agents)
 
     def test_a_host_that_cannot_be_prepared_takes_no_jobs(self):
         ran, outcomes, _ = self.dispatch(

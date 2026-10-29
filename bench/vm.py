@@ -8,6 +8,9 @@
 # TASK_DIR and VARIANT, the task's variant or "", are set by default.nix before this file runs. The task's setup.py defines prepare() and collect(), and
 # may define HYPRLAND_ENV, variables for Hyprland's environment and so for every app it starts, and during(stop),
 # which runs in a thread while the agent works, until the threading.Event stop is set: the user's own activity.
+# With HYPRMASQ_BENCH_MEMORY_SECONDS, as calibrate.py sets it, the VM's memory in use is sampled that often while the
+# agent works, and vm-result.json holds its peak; not for a task with during(), since the driver's shell takes one
+# command at a time.
 import base64
 import json
 import os
@@ -17,6 +20,7 @@ import time
 
 OUT = os.environ["HYPRMASQ_BENCH_OUT"]
 AGENT_TIMEOUT = float(os.environ.get("HYPRMASQ_BENCH_TIMEOUT", "2400"))
+MEMORY_SECONDS = float(os.environ.get("HYPRMASQ_BENCH_MEMORY_SECONDS", "0"))
 RUNTIME = "/run/user/1000"
 MCP_PORT = 5000
 
@@ -159,11 +163,24 @@ if "during" in globals():
     user_thread = threading.Thread(target=during, args=(stop_user,), daemon=True)
     user_thread.start()
 
+
+
+def memory_in_use():
+    """The VM's memory in use, in MiB: what it could not free for an app, page cache and buffers aside."""
+    info = {line.split(":")[0]: int(line.split()[1]) for line in machine.succeed("cat /proc/meminfo").splitlines()}
+    return info["MemTotal"] // 1024, (info["MemTotal"] - info["MemAvailable"]) // 1024
+
+
+memory = []
+next_sample = 0
 deadline = time.monotonic() + AGENT_TIMEOUT
 while not os.path.exists(out_path("agent-done")):
     if time.monotonic() > deadline:
         machine.log("the agent did not finish in time")
         break
+    if MEMORY_SECONDS and not user_thread and time.monotonic() >= next_sample:
+        memory.append(memory_in_use())
+        next_sample = time.monotonic() + MEMORY_SECONDS
     time.sleep(0.5)
 
 stop_user.set()
@@ -178,6 +195,9 @@ result = {
     "clients": clients(),
     "task": collect(),
 }
+if memory:
+    result["memory"] = {"total_mib": memory[0][0], "peak_used_mib": max(used for _, used in memory),
+                        "samples": len(memory)}
 for path, name in [
     ("/tmp/hyprmasq-bench-hyprland.log", "vm-hyprland.log"),
     ("/tmp/hyprmasq-bench-mcp.log", "vm-mcp.log"),

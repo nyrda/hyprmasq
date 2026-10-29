@@ -2,7 +2,7 @@
 """Runs a benchmark task: one fresh VM per run, an agent on the host, grading, and a debrief.
 
     run.py [--agent HARNESS:MODEL[@EFFORT]]... [--reps N | --rep N...] [--out DIR] [--timeout SECONDS] [--cid CID]
-           [--no-debrief]
+           [--cpus LIST] [--lock FILE] [--no-debrief]
 
 HARNESS is claude (Claude Code) or codex (Codex CLI), which use the logins of the user running this; claude-api
 (Claude Code billed to the user's Anthropic API key); or pi, with MODEL as PROVIDER/MODEL of the user's pi setup.
@@ -136,6 +136,56 @@ def machine():
     with contextlib.suppress(OSError, ValueError), open("/proc/meminfo") as f:
         memory = round(int(f.readline().split()[1]) / 1024 ** 2)
     return {"host": socket.gethostname(), "cpu": cpu, "threads": os.cpu_count(), "memory_gib": memory}
+
+
+def parse_cpus(text):
+    """The CPUs of a list such as 4-5,12-13, as taskset -c and the kernel write them."""
+    cpus = set()
+    for part in text.split(","):
+        first, sep, last = part.partition("-")
+        if not first.isdigit() or (sep and not last.isdigit()) or int(last if sep else first) < int(first):
+            raise ValueError(f"{text!r} is not a list of CPUs such as 4-5,12-13")
+        cpus.update(range(int(first), int(last if sep else first) + 1))
+    return sorted(cpus)
+
+
+def format_cpus(cpus):
+    """A list of CPUs as parse_cpus reads it, with runs of CPUs as ranges."""
+    parts, cpus = [], sorted(cpus)
+    for cpu in cpus:
+        if parts and parts[-1][1] == cpu - 1:
+            parts[-1][1] = cpu
+        else:
+            parts.append([cpu, cpu])
+    return ",".join(str(a) if a == b else f"{a}-{b}" for a, b in parts)
+
+
+def physical_cores(siblings):
+    """The machine's physical cores, each the tuple of its CPUs, from the lines of the CPUs'
+    topology/thread_siblings_list: an SMT machine has two CPUs a core, such as 0,8."""
+    return sorted({tuple(parse_cpus(line.strip())) for line in siblings if line.strip()})
+
+
+def read_cores():
+    """This machine's physical cores, as physical_cores gives them."""
+    lines = []
+    for path in glob.glob("/sys/devices/system/cpu/cpu[0-9]*/topology/thread_siblings_list"):
+        with open(path) as f:
+            lines.append(f.read())
+    return physical_cores(lines)
+
+
+def slot_cpus(cores, slots, per_slot):
+    """The CPUs of each of a machine's slots, given its physical cores: per_slot whole cores each, with their SMT
+    siblings, from the last cores down, so that the first cores, and the ones no slot takes, stay to the agents and
+    the host. Refuses slots that would take every core."""
+    if per_slot < 1:
+        raise ValueError("a slot needs at least one core")
+    if slots * per_slot >= len(cores):
+        raise ValueError(f"{slots} slots of {per_slot} cores take all {len(cores)} cores of the machine, leaving "
+                         "none to the agents and the host: give fewer slots or cores")
+    return [sorted(cpu for core in cores[len(cores) - (k + 1) * per_slot:len(cores) - k * per_slot] for cpu in core)
+            for k in range(slots)]
 
 
 def tap_command(cid, log):
@@ -444,7 +494,39 @@ def task_file(task_dir, variant, name):
     return own if variant and os.path.exists(own) else os.path.join(task_dir, name)
 
 
-def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief):
+@contextlib.contextmanager
+def booted_vm(driver, run_dir, cid, timeout, cpus=None, env=None):
+    """Boots the VM of a run directory that has tmp/ and driver-out/, and yields its driver once the VM is ready;
+    then has it grade and stop. timeout is how long the VM waits for agent-done. With cpus, the driver and QEMU,
+    every thread of theirs, run on those CPUs alone; env adds to the driver's environment."""
+    runtime = vm_runtime_dir(cid)
+    env = dict(without_api_keys(os.environ), HYPRMASQ_BENCH_OUT=run_dir, HYPRMASQ_BENCH_CID=str(cid),
+               TMPDIR=os.path.join(run_dir, "tmp"), XDG_RUNTIME_DIR=runtime, HYPRMASQ_BENCH_TIMEOUT=str(timeout),
+               **(env or {}))
+    with open(os.path.join(run_dir, "driver.log"), "w") as log:
+        # The affinity is set in the child before it runs the driver, so that QEMU and its threads inherit it.
+        driver_proc = subprocess.Popen(
+            [os.path.join(driver, "bin", "nixos-test-driver"), "-o", os.path.join(run_dir, "driver-out")],
+            cwd=run_dir, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+            preexec_fn=(lambda: os.sched_setaffinity(0, cpus)) if cpus else None,
+        )
+    try:
+        deadline = time.time() + 900
+        while not os.path.exists(os.path.join(run_dir, "ready.json")):
+            if driver_proc.poll() is not None or time.time() > deadline:
+                raise RuntimeError(f"the VM did not get ready, see {run_dir}/driver.log")
+            time.sleep(1)
+        yield driver_proc
+    finally:
+        open(os.path.join(run_dir, "agent-done"), "w").close()
+        stop_driver(driver_proc, run_dir)
+        # A driver that failed can leave its QEMU running; the run's own directory names it.
+        subprocess.run(["pkill", "-KILL", "-f", f"{runtime}/vm-state-"], check=False)
+        shutil.rmtree(runtime, ignore_errors=True)
+
+
+def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief, cpus=None,
+            dispatched=None):
     task_dir = os.path.join(BENCH, "tasks", task)
     run_dir = os.path.join(out, run_name(harness, model, rep, effort))
     label = f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}]"
@@ -465,41 +547,24 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         api_env = {"PI_CODING_AGENT_DIR": agent_dir}
     agent, leaked = {"session": None}, []
     try:
-        runtime = vm_runtime_dir(cid)
-        env = dict(without_api_keys(os.environ), HYPRMASQ_BENCH_OUT=run_dir, HYPRMASQ_BENCH_CID=str(cid),
-                   TMPDIR=os.path.join(run_dir, "tmp"), XDG_RUNTIME_DIR=runtime,
-                   HYPRMASQ_BENCH_TIMEOUT=str(timeout + 120))
-        log = open(os.path.join(run_dir, "driver.log"), "w")
         print(f"{label} booting the VM", flush=True)
-        driver_proc = subprocess.Popen(
-            [os.path.join(driver, "bin", "nixos-test-driver"), "-o", os.path.join(run_dir, "driver-out")],
-            cwd=run_dir, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
-        )
-        try:
-            deadline = time.time() + 900
-            while not os.path.exists(os.path.join(run_dir, "ready.json")):
-                if driver_proc.poll() is not None or time.time() > deadline:
-                    raise RuntimeError(f"the VM did not get ready, see {run_dir}/driver.log")
-                time.sleep(1)
-
+        with booted_vm(driver, run_dir, cid, timeout + 120, cpus):
             prompt = open(task_file(task_dir, variant, "prompt.md")).read()
             command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort)
             print(f"{label} agent running", flush=True)
             agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
                               os.path.join(run_dir, "agent.stderr"), timeout, api_env, api_key=harness == "claude-api")
-        finally:
-            open(os.path.join(run_dir, "agent-done"), "w").close()
-            stop_driver(driver_proc, run_dir)
-            # A driver that failed can leave its QEMU running; the run's own directory names it.
-            subprocess.run(["pkill", "-KILL", "-f", f"{runtime}/vm-state-"], check=False)
-            shutil.rmtree(runtime, ignore_errors=True)
 
         run = {
             "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
             "agent_start": agent["start"], "agent_end": agent["end"], "agent_exit": agent["exit"],
             "timed_out": agent["timed_out"], "session": agent["session"],
             "harness_version": version([executable(harness), "--version"]), "machine": machine(),
+            # The CPUs the VM ran on, or None where it could run on any.
+            "cpus": format_cpus(cpus) if cpus else None,
         }
+        if dispatched:
+            run["dispatch"] = dispatched
         if family(harness) == "claude":
             # Where Claude Code's init event says its credentials came from: ANTHROPIC_API_KEY, or none for a login.
             run["api_key_source"] = agent["api_key_source"]
@@ -561,15 +626,37 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
     )
 
 
+LOCK_POLL_SECONDS = 5
+
+
+def exclusive_waiting(path, locks="/proc/locks"):
+    """Whether a process waits for an exclusive flock of the file, as `flock FILE` does: the kernel lists it in
+    /proc/locks as a blocked WRITE, `-> FLOCK ADVISORY WRITE PID MAJOR:MINOR:INODE ...`, with the device in hex."""
+    st = os.stat(path)
+    device = f"{os.major(st.st_dev):02x}:{os.minor(st.st_dev):02x}:{st.st_ino}"
+    with open(locks) as f:
+        for line in f:
+            fields = line.split()
+            if fields[1:5] == ["->", "FLOCK", "ADVISORY", "WRITE"] and fields[6:7] == [device]:
+                return True
+    return False
+
+
 @contextlib.contextmanager
-def vm_lock(path):
-    """Holds the lock file while a run's VM is up, so that other VMs on the machine, such as VM tests that
-    take the same lock, wait instead of running out of memory."""
+def vm_lock(path, waiting=contextlib.nullcontext):
+    """Holds the lock file shared while a run's VM is up: benchmark VMs share it, and other VMs on the machine, such
+    as VM tests that take it exclusive with `flock FILE`, wait for them instead of running out of memory, and make
+    them wait. flock lets a shared lock in beside another while an exclusive one waits, so slots whose runs overlap
+    could hold it for ever: a run does not take it while an exclusive lock is waited for, and so the slots' runs end
+    and the VM test gets its turn. The waiting context surrounds the wait."""
     if not path:
         yield
         return
     with open(path, "a") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+        with waiting():
+            while exclusive_waiting(path):
+                time.sleep(LOCK_POLL_SECONDS)
+            fcntl.flock(f, fcntl.LOCK_SH)
         try:
             yield
         finally:
@@ -663,9 +750,17 @@ def main():
     parser.add_argument("--out")
     parser.add_argument("--cid", type=int, default=4242)
     parser.add_argument("--source", help="hyprmasq checkout to run in the VM, by default this one")
-    parser.add_argument("--lock", help="lock file to hold during each run, shared with other VM users")
+    parser.add_argument("--lock", help="lock file to hold shared during each run's VM, which VM tests take exclusive")
+    parser.add_argument("--cpus", help="the CPUs to run each run's VM on, such as 4-5,12-13: by default any")
+    parser.add_argument("--dispatch", type=json.loads, help=argparse.SUPPRESS)  # what dispatch.py adds to run.json
     args = parser.parse_args()
     agents, reps = check_run_options(args, parser)
+    try:
+        cpus = parse_cpus(args.cpus) if args.cpus else None
+        if cpus and not set(cpus) <= os.sched_getaffinity(0):
+            raise ValueError(f"CPUs {args.cpus} are not all this machine's: it has {format_cpus(os.sched_getaffinity(0))}")
+    except ValueError as e:
+        parser.error(str(e))
     out = os.path.abspath(args.out or default_out(args.task, args.variant))
     os.makedirs(out, exist_ok=True)
     source = os.path.abspath(args.source) if args.source else None
@@ -679,7 +774,7 @@ def main():
         try:
             with vm_lock(args.lock):
                 run_one(driver, args.task, args.variant, harness, model, effort, rep, out, args.cid, args.timeout,
-                        not args.no_debrief)
+                        not args.no_debrief, cpus, args.dispatch)
         except Exception as e:  # one broken run does not end the benchmark
             print(f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}] error: {e}", flush=True)
     print(report.report(out))

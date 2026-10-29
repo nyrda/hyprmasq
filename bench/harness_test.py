@@ -419,5 +419,31 @@ class ClaudeReport(unittest.TestCase):
         self.assertIsNone(report.context_usage("claude-api", stream[4:5], [], {}))
 
 
+
+class Pinning(unittest.TestCase):
+    def test_the_vm_and_its_processes_run_on_the_slots_cpus(self):
+        # A driver that starts a child, as it starts QEMU, which writes the CPUs it may run on; then gets ready and
+        # waits for agent-done, as bench/vm.py does.
+        before = os.sched_getaffinity(0)
+        cpus = sorted(before)[-1:]
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": tmp}):
+            driver = os.path.join(tmp, "driver")
+            os.makedirs(os.path.join(driver, "bin"))
+            executable(os.path.join(driver, "bin"), "nixos-test-driver", """
+sh -c 'grep Cpus_allowed_list /proc/self/status > "$HYPRMASQ_BENCH_OUT/qemu-cpus"'
+echo '{}' > "$HYPRMASQ_BENCH_OUT/ready.json"
+while [ ! -e "$HYPRMASQ_BENCH_OUT/agent-done" ]; do sleep 0.1; done
+""")
+            run_dir = os.path.join(tmp, "run")
+            os.makedirs(os.path.join(run_dir, "tmp"))
+            os.makedirs(os.path.join(run_dir, "driver-out"))
+            with run.booted_vm(driver, run_dir, 4999, 60, cpus) as proc:
+                self.assertIsNone(proc.poll())
+            self.assertEqual(proc.returncode, 0)
+            with open(os.path.join(run_dir, "qemu-cpus")) as f:
+                self.assertEqual(f.read().split(":")[1].strip(), run.format_cpus(cpus))
+            # run.py, and so the agent it starts, stays on every CPU.
+            self.assertEqual(os.sched_getaffinity(0), before)
+
 if __name__ == "__main__":
     unittest.main()
