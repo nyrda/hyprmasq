@@ -2,9 +2,11 @@
 with it: python3 render_test.py"""
 
 import contextlib
+import html
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -109,7 +111,7 @@ class Page(unittest.TestCase):
             f.write("<!-- render set compare-table old -->\n<!-- /render -->\n\n"
                     "<!-- render set compare old -->\n<!-- /render -->\n")
         main(self.page)
-        self.assertIn("| board | 1/2 → 2/3 | 90 → 50 | 25 → 12 | 3.0 → 3.0 | 5 → 5 | 9 → 9 | 7 → 7 |",
+        self.assertIn("| Board | 1/2 → 2/3 | 90 → 50 | 25 → 12 | 3.0 → 3.0 | 5 → 5 | 9 → 9 | 7 → 7 |",
                       self.read("benchmarks.md"))
         # The figure has a bar for each build, with its median and its runs passed.
         svg = self.read("benchmarks", "set-compare-old.svg")
@@ -253,7 +255,7 @@ class Toolkits(unittest.TestCase):
                 text = f.read()
             with open(os.path.join(d, "benchmarks", "f-time.svg")) as f:
                 svg = f.read()
-            self.assertIn(">Form</text>", svg)
+            self.assertIn(">Form with dropdowns</text>", svg)
             self.assertIn(">Form without dropdowns</text>", svg)
             self.assertIn("<summary>Numbers: Form without dropdowns</summary>", text)
             self.assertIn("| gpt-6.1-sol | medium | 2/2 | 70 (70–70) |", text)
@@ -277,6 +279,86 @@ class Toolkits(unittest.TestCase):
             data = render.load(os.path.join(d, "benchmarks", "data"), "f")
             self.assertEqual(render.tasks(data), ["form", "form-no-dropdowns-25", "form-no-dropdowns-qt-25"])
             self.assertEqual(render.task_title("form-no-dropdowns-qt-25"), "Form without dropdowns-qt-25")
+
+
+# The tasks of a full rerun, as load() names them.
+NINE = ["board", "calc", "forgejo", "thunderbird", "form", "form-no-dropdowns", "trace", "inkscape", "files"]
+# The tasks Opus runs.
+SOME = {"board", "calc", "form"}
+
+
+def task_set(ts, partial=SOME):
+    """Three models' runs of each task, the second of each agent's runs failed, and Opus's of the partial tasks."""
+    models = ["claude-sonnet-5-5", "gpt-6.1-sol", "gpt-6.1-terra", "claude-opus-5-5"]
+    return {"sources": [], "runs": [dict(run(m, rep, rep != 2, 100 + 900 * (rep == 3), 20), task=t)
+                                    for t in ts for m in models for rep in (1, 2, 3)
+                                    if m != "claude-opus-5-5" or t in partial]}
+
+
+def overlaps(svg):
+    """The texts of a figure that run into the next one on their baseline, by the widths render.py estimates."""
+    pattern = r'<text x="([\d.]+)" y="([\d.]+)" class="\w+" font-size="([\d.]+)"( font-weight="600")?>([^<]*)<'
+    texts = sorted((float(y), float(x), html.unescape(s), float(size), bool(bold))
+                   for x, y, size, bold, s in re.findall(pattern, svg))
+    return [(a[2], b[2]) for a, b in zip(texts, texts[1:])
+            if a[0] == b[0] and a[1] + render.text_width(a[2], a[3], a[4]) > b[1]]
+
+
+class Scoreboard(unittest.TestCase):
+    def test_no_text_overlaps_for_any_number_of_tasks(self):
+        for n in range(1, len(NINE) + 1):
+            with self.subTest(tasks=n):
+                svg, _ = render.scoreboard(task_set(NINE[:n]))
+                self.assertEqual(overlaps(svg.render("light", "")), [])
+
+    def test_a_task_an_agent_did_not_run_reads_as_not_run(self):
+        # Two tasks fit as columns of a row per agent, nine take a row each.
+        for ts in (["board", "files"], NINE):
+            with self.subTest(tasks=len(ts)):
+                data = task_set(ts)
+                svg = render.scoreboard(data)[0].render("light", "")
+                self.assertEqual(svg.count(">not run</text>"), len(set(ts) - SOME))
+                # A failed run's ring, and the legend's.
+                self.assertEqual(svg.count('class="fail"'), sum(not r["passed"] for r in data["runs"]) + 1)
+                self.assertIn(f">Opus 5.5 ran {len(set(ts) & SOME)} of the {len(ts)} tasks. An agent&#x27;s "
+                              "runs passed and cost are of the tasks it ran.</text>", svg)
+        self.assertIn("Opus 5.5 ran 3 of the 9 tasks.", render.costs_table(task_set(NINE)))
+        self.assertNotIn("tasks it ran", render.costs_table(task_set(NINE, partial=NINE)))
+        time = render.time_figure(task_set(NINE))[0].render("light", "")
+        self.assertEqual(time.count(">not run</text>"), 6)
+
+    def test_every_view_names_a_task_by_task_names(self):
+        self.assertEqual([render.task_title(t) for t in ("files", "form", "form-no-dropdowns", "board-dnd",
+                                                         "form-no-dropdowns-qt-25", "form-25")],
+                         ["File manager", "Form with dropdowns", "Form without dropdowns", "Board-dnd",
+                          "Form without dropdowns-qt-25", "Form with dropdowns-25"])
+        data = task_set(["files", "form"])
+        for svg in (render.scoreboard(data)[0], render.time_figure(data)[0], render.compare_figure(data, data)[0]):
+            text = svg.render("light", "")
+            self.assertIn(">File manager</text>", text)
+            self.assertNotIn(">Files</text>", text)
+        self.assertIn("| File manager |", render.compare_table(data, data))
+        self.assertEqual(render.table_summary("table", "files"), "Numbers: File manager")
+
+
+class Kinds(unittest.TestCase):
+    def test_a_model_keeps_its_colour_in_each_task(self):
+        def kinds(names):
+            return {k: {"items": 5, "seconds": 20.0, "corrections": 0} for k in names}
+
+        runs = task_set(["form", "form-no-dropdowns"], partial=("form",))["runs"]
+        runs = [dict(r, kinds=kinds(render.KINDS if r["task"] == "form" else render.KINDS[:3]),
+                     passed=r["passed"] or r["model"] != "claude-sonnet-5-5") for r in runs]
+        # Sonnet passes no run of the form with dropdowns.
+        runs = [dict(r, passed=False) if r["model"] == "claude-sonnet-5-5" and r["task"] == "form" else r for r in runs]
+        data = {"runs": runs}
+        with_dropdowns = render.kinds_figure(data, "form")[0].render("light", "")
+        without = render.kinds_figure(data, "form-no-dropdowns")[0].render("light", "")
+        self.assertIn("Sonnet 5.5 passed no run.", with_dropdowns)
+        self.assertNotIn("passed no run", without)
+        # Opus, third of the models, keeps the third colour where Sonnet, fourth, is in the figure in its place.
+        for svg, model, cls in ((with_dropdowns, "Opus 5.5", "s2"), (without, "Sonnet 5.5", "s3")):
+            self.assertRegex(svg, f'class="{cls}" rx="2"/>\n<text [^>]*>{model}</text>')
 
 
 def tool_run(task, model, backend, rep, passed, wall, platform="hyprland", focus=0.0, popups=None, dialogs=0):
