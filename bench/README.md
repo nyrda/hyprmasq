@@ -27,7 +27,7 @@ python3 bench/export.py --out docs/benchmarks/data/next-run.json \
 ```
 
 `--fail` counts a run as failed although the VM's check passed it, and records the reason. Each run records its task's
-variant. `--several-machines` takes runs that `bench/dispatch.py` spread over several machines into one dataset, each
+variant, and its `context` as `summary.json` has it (see [Measures](#measures)). `--several-machines` takes runs that `bench/dispatch.py` spread over several machines into one dataset, each
 run with its CPU. `python3 bench/render.py` generates each block of `docs/benchmarks.md` and `docs/comparison.md`
 between `<!-- render DATASET VIEW [TASK] -->` and `<!-- /render -->` from a dataset. Where a block's data holds
 several variants of a task, it names them by their variant too, such as `board-dnd`, and TASK takes that name. It also
@@ -312,6 +312,7 @@ the run's directory after the debrief, and pi's MCP log, if it wrote one, to `pi
 | `checks` | The checker's details, such as the user's notes for the Forgejo task. |
 | `user` | From Hyprland's events in the VM: windows that opened on the user's visible workspace, the seconds the keyboard focus was away from the user's window, and switches of the visible workspace. `undisturbed` when there were none. |
 | `usage` | Tokens, with the cache reads and writes among the input tokens, and turns for Claude Code and pi (whose tokens and cost include its compaction requests), from the agent's event stream, with its final answer. The cost in USD is the one Claude Code and pi compute. For Codex it is what the run's requests in its transcript would cost at OpenAI's API list prices (`OPENAI_PRICES` in `report.py`), each at the prices for its prompt's length. |
+| `context` | How large the agent's context got, from the prompt tokens of each of the run's requests, cache reads and writes included: `request_count`, `first_input_tokens`, `peak_input_tokens`, `last_input_tokens`, `growth_input_tokens` (last minus first, which a compaction can make negative) and `compactions`, the times the harness compacted the session's history. Codex's come from the `token_count` records of its transcript, the requests until they add up to the run's totals, and the `compacted` records up to the last of them. Claude Code's come from the usage of each assistant message in its stream and its `compact_boundary` events, pi's from the usage of each reply in its stream and its `compaction_end` events. The debrief's requests do not count. `null` where the logs do not give the size of every request, and `compactions` is `null` where Codex announced more compactions than it recorded. `laptop/analyze.py` computes it the same way. |
 
 The per-call log is `mcp.jsonl`; `report.tool_calls()` pairs its requests and responses. The agent's events
 are in `agent.jsonl`, each with the host time it arrived. `report.py` computes the summaries again from these

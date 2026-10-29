@@ -166,27 +166,111 @@ OPENAI_PRICES = {
 LONG_PROMPT = 272_000
 
 
-def codex_requests(transcript, total):
-    """The usage of each request of the run in Codex's transcript: the requests until their sum reaches the run's
-    total, since the debrief resumes the session and adds its own requests to the same transcript. None when they do
-    not add up to it."""
+# Codex's counters of a request's usage, and the names agent_usage() gives them.
+CODEX_COUNTERS = {"input_tokens": "input_tokens", "cached_input_tokens": "cache_read_tokens",
+                  "cache_write_input_tokens": "cache_write_tokens", "output_tokens": "output_tokens"}
+
+
+def codex_request_entries(transcript, total):
+    """The index in Codex's transcript and the usage of each request of the run: the requests until their sum reaches
+    the run's total, since the debrief resumes the session and adds its own requests to the same transcript. None
+    when they do not add up to it."""
     requests, seen = [], None
-    summed = lambda key: sum(u.get(key, 0) for u in requests)
-    for entry in transcript:
+    summed = lambda key: sum(u.get(key, 0) for _, u in requests)
+    for index, entry in enumerate(transcript):
         payload = entry.get("payload") or {}
         info = payload.get("info") or {}
         if payload.get("type") != "token_count" or not info:
             continue
         if requests and all(summed(key) == total.get(key) for key in total):
             break
-        # Codex sends the totals again without a new request, when the rate limits change.
+        # Codex sends the totals again without a new request, when the rate limits change and after a compaction.
         if info.get("total_token_usage") == seen:
             continue
         seen = info.get("total_token_usage")
-        requests.append(info.get("last_token_usage") or {})
+        requests.append((index, info.get("last_token_usage") or {}))
     if not requests or any(summed(key) != total.get(key) for key in total):
         return None
     return requests
+
+
+def codex_requests(transcript, total):
+    """The usage of each request of the run in Codex's transcript, as codex_request_entries() finds them."""
+    requests = codex_request_entries(transcript, total)
+    return [u for _, u in requests] if requests else None
+
+
+def request_context(source, sizes, compactions):
+    """How large the agent's context got: the prompt tokens of each of the run's requests, cache reads and writes
+    included, in order, and the compactions of its history. None without the size of every request."""
+    if not sizes or None in sizes:
+        return None
+    return {"source": source, "request_count": len(sizes), "first_input_tokens": sizes[0],
+            "peak_input_tokens": max(sizes), "last_input_tokens": sizes[-1],
+            "growth_input_tokens": sizes[-1] - sizes[0], "compactions": compactions}
+
+
+def codex_context(usage, transcript):
+    """The context of a Codex run: its requests in the transcript, until they add up to the run's totals, and the
+    compactions it recorded up to the last of them, since the debrief's requests and compactions follow in the same
+    transcript. The compactions are unknown when Codex announced more of them than it recorded."""
+    if not usage or usage.get("input_tokens") is None:
+        return None
+    requests = codex_request_entries(transcript, {k: usage.get(ours) or 0 for k, ours in CODEX_COUNTERS.items()})
+    if not requests:
+        return None
+    task = transcript[:requests[-1][0] + 1]
+    recorded = sum(e.get("type") == "compacted" for e in task)
+    announced = sum((e.get("payload") or {}).get("type") == "context_compacted" for e in task)
+    return request_context("Codex transcript token_count records", [u.get("input_tokens") for _, u in requests],
+                           recorded if announced <= recorded else None)
+
+
+def claude_context(stream):
+    """The context of a Claude Code run: the usage of each assistant message in its stream, once a message, since
+    each of its content blocks comes as an event of its own, and its compactions. The debrief writes a stream of its
+    own."""
+    sizes, seen, compactions = [], set(), 0
+    for e in stream:
+        line = e["line"]
+        if line.get("type") == "system" and line.get("subtype") == "compact_boundary":
+            compactions += 1
+        message = line.get("message") or {}
+        if line.get("type") != "assistant" or message.get("id") in seen or not message.get("usage"):
+            continue
+        seen.add(message.get("id"))
+        u = message["usage"]
+        sizes.append(u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
+                     + u.get("cache_creation_input_tokens", 0))
+    return request_context("Claude Code stream-json assistant usage", sizes, compactions)
+
+
+def pi_context(stream):
+    """The context of a pi run: the usage of each assistant message's request in its stream, and its compactions,
+    whose summary requests are not the agent's. A request that failed before its prompt counted is left out. The
+    debrief writes a stream of its own."""
+    sizes, compactions = [], 0
+    for e in stream:
+        line = e["line"]
+        message = line.get("message") or {}
+        if line.get("type") == "compaction_end" and not line.get("aborted"):
+            compactions += 1
+        elif line.get("type") == "message_end" and message.get("role") == "assistant" and message.get("usage"):
+            u = message["usage"]
+            size = u.get("input", 0) + u.get("cacheRead", 0) + u.get("cacheWrite", 0)
+            if size:
+                sizes.append(size)
+    return request_context("pi stream assistant message_end usage", sizes, compactions)
+
+
+def context_usage(harness, stream, transcript, usage):
+    """How large the agent's context got in a run, from the harness's own logs, the debrief's requests left out.
+    None where they do not give the size of every request."""
+    if harness in ("claude", "claude-api"):
+        return claude_context(stream)
+    if harness == "pi":
+        return pi_context(stream)
+    return codex_context(usage, transcript)
 
 
 def api_cost(model, requests):
@@ -267,9 +351,7 @@ def agent_usage(harness, stream, transcript=()):
                 model = payload["model"]
                 break
         if usage and model:
-            counters = {"input_tokens": "input_tokens", "cached_input_tokens": "cache_read_tokens",
-                        "cache_write_input_tokens": "cache_write_tokens", "output_tokens": "output_tokens"}
-            requests = codex_requests(transcript, {k: usage[ours] or 0 for k, ours in counters.items()})
+            requests = codex_requests(transcript, {k: usage[ours] or 0 for k, ours in CODEX_COUNTERS.items()})
             usage["cost_usd"] = api_cost(model, requests)
             usage["cost_basis"] = f"API list prices for {model}"
         usage["final"] = final
@@ -365,6 +447,7 @@ def metrics(run_dir):
         b["seconds"] = round(b["seconds"] + c["seconds"], 2)
     gaps = model_gaps(timed, start, end)
     check = (vm.get("task") or {}).get("check") or {}
+    usage = agent_usage(run["harness"], stream, transcript)
     return {
         "harness": run["harness"],
         "model": run["model"],
@@ -393,7 +476,8 @@ def metrics(run_dir):
         "phases": phases,
         "checks": check.get("checks", {}),
         "user": user_disturbance(run_dir, ready, start, end, offset),
-        "usage": agent_usage(run["harness"], stream, transcript),
+        "usage": usage,
+        "context": context_usage(run["harness"], stream, transcript, usage),
         "harness_version": run.get("harness_version"),
         "machine": run.get("machine"),
     }

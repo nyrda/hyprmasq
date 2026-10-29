@@ -2,7 +2,7 @@
 """Summarizes a set of laptop runs: analyze.py RESULTS-DIR, with RESULTS-DIR copied from the machine. Writes
 RESULTS-DIR/comparison.json, one entry a run, as docs/comparison/data holds them.
 
-Usage, cost and context come from bench/report.py's Codex parsers, as for the VM runs. Tool calls and their times
+Usage, cost and context come from bench/report.py's parsers, as for the VM runs. Tool calls and their times
 come from the agent's event stream, timed as each line arrived. Focus changes come from Hyprland's events: every
 change of the active window away from the user's terminal, with the tool calls running at that moment.
 """
@@ -15,9 +15,6 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import report  # noqa: E402
-
-COUNTERS = {"input_tokens": "input_tokens", "cached_input_tokens": "cache_read_tokens",
-            "cache_write_input_tokens": "cache_write_tokens", "output_tokens": "output_tokens"}
 
 
 def load_jsonl(path):
@@ -71,44 +68,6 @@ def claude_tool_calls(stream):
                 call["text"] = " ".join(c.get("text", "") for c in content if isinstance(c, dict)
                                         and c.get("type") == "text")[:300] or str(block.get("content"))[:300]
     return sorted((c for c in calls.values() if c["full_name"].startswith("mcp__")), key=lambda c: c["start"])
-
-
-def claude_context(stream):
-    """Request sizes from each assistant message's usage, once per message, and Claude Code's compactions."""
-    sizes, seen, compactions = [], set(), 0
-    for entry in stream:
-        event = entry["event"]
-        if event.get("type") == "system" and event.get("subtype") == "compact_boundary":
-            compactions += 1
-        message = event.get("message") or {}
-        if event.get("type") != "assistant" or message.get("id") in seen or not message.get("usage"):
-            continue
-        seen.add(message.get("id"))
-        u = message["usage"]
-        sizes.append(u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
-                     + u.get("cache_creation_input_tokens", 0))
-    if not sizes:
-        return None
-    return {"source": "Claude Code stream-json assistant usage", "request_count": len(sizes),
-            "first_input_tokens": sizes[0], "peak_input_tokens": max(sizes), "last_input_tokens": sizes[-1],
-            "growth_input_tokens": sizes[-1] - sizes[0], "compactions": compactions}
-
-
-def codex_context(usage, transcript):
-    """Request sizes from Codex's transcript, the requests until they add up to the run's totals, and its
-    compactions."""
-    counters = {"input_tokens": "input_tokens", "cached_input_tokens": "cache_read_tokens",
-                "cache_write_input_tokens": "cache_write_tokens", "output_tokens": "output_tokens"}
-    if not usage or usage.get("input_tokens") is None:
-        return None
-    requests = report.codex_requests(transcript, {k: usage.get(ours) or 0 for k, ours in counters.items()})
-    sizes = [u.get("input_tokens") for u in requests or []]
-    if not sizes or None in sizes:
-        return None
-    return {"source": "Codex transcript token_count records", "request_count": len(sizes),
-            "first_input_tokens": sizes[0], "peak_input_tokens": max(sizes), "last_input_tokens": sizes[-1],
-            "growth_input_tokens": sizes[-1] - sizes[0],
-            "compactions": sum(e.get("type") == "compacted" for e in transcript)}
 
 
 def focus_changes(events_path, terminal, form, start, end, calls):
@@ -228,7 +187,7 @@ def mac_run_metrics(run_dir, summary):
                                                   "output_tokens": usage["output_tokens"]})
     usage["cost_usd"] = report.api_cost(model, requests)
     usage["cost_basis"] = f"API list prices for {model}"
-    context = codex_context(usage, transcript)
+    context = report.codex_context(usage, transcript)
     calls = desktop_calls(transcript, agent["start"])
     focus, popups = mac_disturbance(run_dir, summary.get("user_app", "ChatGPT"), agent["start"], agent["end"])
     final = next((p.get("content") for p in (e.get("payload") or {} for e in reversed(transcript))
@@ -259,19 +218,15 @@ def run_metrics(run_dir):
     transcript = load_jsonl(os.path.join(run_dir, "transcript.jsonl"))
     agent = summary["agent"]
     harness = summary.get("harness", "codex")
-    usage = report.agent_usage("claude-api" if harness == "claude" else "codex",
-                               [{"line": e["event"]} for e in stream], transcript)
+    lines = [{"line": e["event"]} for e in stream]
+    usage = report.agent_usage("claude-api" if harness == "claude" else "codex", lines, transcript)
     # A harness that ended before its usage event reports none: the run's usage is unknown.
     for key in ("input_tokens", "cache_read_tokens", "output_tokens", "cost_usd"):
         usage.setdefault(key, None)
     usage["uncached_input_tokens"] = (usage["input_tokens"] - (usage["cache_read_tokens"] or 0)
                                       if usage["input_tokens"] is not None else None)
-    if harness == "claude":
-        context = claude_context(stream)
-        calls = claude_tool_calls(stream)
-    else:
-        context = codex_context(usage, transcript)
-        calls = tool_calls(stream)
+    context = report.context_usage(harness, lines, transcript, usage)
+    calls = claude_tool_calls(stream) if harness == "claude" else tool_calls(stream)
     by_tool = {}
     for c in calls:
         b = by_tool.setdefault(c["tool"], {"calls": 0, "seconds": 0.0, "errors": 0})
