@@ -6,7 +6,7 @@ agents use logged-in Claude Code and Codex. API-backed agents need their provide
 
 Agents complete a task in an offline NixOS VM through `hyprmasq-mcp`. The benchmark grades the VM's state,
 measures time on both sides of the MCP connection, and asks the agent for a debrief. It measures how agents
-use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, forgejo, form, thunderbird and trace.
+use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, files, forgejo, form, thunderbird and trace.
 
 Run results are in [docs/benchmarks.md](../docs/benchmarks.md). `export.py` turns results directories into the
 datasets that page is generated from, and `render.py` draws its figures and tables; see
@@ -51,7 +51,7 @@ To build a VM driver without running an agent:
 
 ```sh
 nix-build bench/default.nix -A driver
-# For another task, add --argstr task calc, forgejo, board, form or trace. Board also needs --argstr variant dnd or
+# For another task, add --argstr task calc, files, forgejo, board, form or trace. Board also needs --argstr variant dnd or
 # pointer, form its number of questions, such as --argstr variant 25, and trace its figure, river or rack.
 ```
 
@@ -352,7 +352,7 @@ partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |
 | `start-*.png`, `end-*.png` | Screenshots of every window and of the screen. |
-| `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json`, `vm-form-state.json`, `vm-trace-strokes.json` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board), the questionnaire's answers, submissions and changes (form), the drawing (trace). |
+| `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json`, `vm-form-state.json`, `vm-trace-strokes.json`, `vm-files-watch.jsonl` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board), the questionnaire's answers, submissions and changes (form), the drawing (trace), the folder at each change (files). |
 | `vm-events.log` | Hyprland's events (`socket2`), each with the VM's time. |
 | `vm-*.log`, `vm-*.jsonl` | Hyprland, hyprmasq-mcp, socat, and the task's servers and apps, such as the intranet's requests and the watch of the sheet (Calc), or the page's events and saves (board, trace). |
 | `attribution.json` | Board and trace: who each drag's or stroke's outcome is due to, written by the task's `attribute.py`. |
@@ -713,6 +713,42 @@ stays within a tenth of a photo pixel of the pointer's path.
 - `user.js`: no first-run pages, tips or telemetry in Firefox.
 - `variants`, `debrief.md`: the figures, `river` the default, and the debrief, which also asks how the agent drew
   along the curve.
+
+### files
+
+Mara's folder `Project` in Nautilus 50.2.2, GNOME's file manager, on the hidden workspace `files`. It is the file
+manager task of [docs/comparison.md](../docs/comparison.md#file-manager), which [laptop/run_files.py](laptop/run_files.py)
+runs on a real machine in Nautilus 50.3.1, Omarchy's, with the same folder, prompt and grade. Nautilus is started like
+a user would, on the visible workspace, and moved there. The user stays on workspace 1 with the terminal. The prompt
+asks the agent to rename `report-draft.txt` to `report-final.txt` and move it into the folder `Archive`, leaving every
+other file and folder as it is, in that window only. Only its first paragraph differs from the laptop's, and is the
+one of the other tasks: the laptop's says "your desktop tools" and allows the user's focus to be taken if the tools
+need it, for Cua Driver, where the VM's names the hyprmasq tools and asks the agent not to disturb Mara.
+
+The task exercises what the others do not: a file manager's grid of icons, its rename popover, and moving a file
+between folders, by drag-and-drop, cut and paste or its menus, whichever the agent picks.
+
+- `vm.nix`: Nautilus from nixpkgs and nothing else. It needs a session bus, which alice's systemd user manager runs,
+  and finds dconf on it. Without gvfs it has no Network place, and without localsearch no search, which the task does
+  not need.
+- `setup.py`: the folder, made fresh in `/home/alice/Project` from `START` in `check.py`, Nautilus's window and its
+  workspace, root's log of Hyprland's events (the form task's `windows.py`), the watch of the folder, and the grade
+  in `collect()`.
+- `check.py`: passes when the report is in `Archive` under its new name with its contents unchanged, every other file
+  and folder is as it was, with nothing added, and no window of a class other than Nautilus's opened while the agent
+  worked, from root's log of Hyprland's events, without which it fails. Nautilus's own dialogs, such as a rename
+  conflict, are of its class. The grade compares every path and every file's SHA-256 with the folder it wants, and a
+  failure names the path: `missing: Archive/report-final.txt`, `unexpected: report-final.txt`, `changed: notes.txt`.
+  `START` is `run_files.py`'s folder. Its milestones are `first change`, `report renamed` (a `report-final.txt` with
+  the report's contents anywhere), `report moved` (the report's contents in `Archive` under any name) and `folder
+  right`.
+- `watch.py`: root's record of the folder, which it reads four times a second, with a line of the time and every
+  path's SHA-256 whenever it changed, for the milestones.
+- `check_test.py`: `python3 bench/tasks/files/check_test.py` checks the grade on folders it builds: the right
+  result, the folder untouched, renamed but not moved, moved but not renamed, copied instead of moved, the report's
+  contents changed, other files changed, moved or added, a folder removed, another app's window, no log of the
+  windows, and that `START` is the laptop's. It also checks the windows that count and the milestones.
+- `prompt.md`, `debrief.md`: what the agent is told.
 
 ## Adding a task
 
