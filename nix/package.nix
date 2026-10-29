@@ -51,12 +51,16 @@
         "mcp"
         "bench"
         "PKGBUILD"
+        # Moved by the backports of older Hyprland branches, and read by hyprpm only.
+        "hyprpm.toml"
         # Left by make in the work tree; a copy would keep make from building it.
         "hyprmasq-input"
         "hyprmasq-reaper"
       ])
       && path != toString ../hyprmasq-launch
-      && !(lib.hasSuffix ".so" base);
+      && !(lib.hasSuffix ".so" base)
+      # The build reads no Markdown, so a change to the docs does not rebuild the plugin and rerun the VM test.
+      && !(lib.hasSuffix ".md" base);
   },
 }:
 
