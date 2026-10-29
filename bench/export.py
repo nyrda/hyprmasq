@@ -57,6 +57,8 @@ def run_record(results_dir, name, fail, variant):
         "cache_read_tokens": usage.get("cache_read_tokens"),
         "output_tokens": usage.get("output_tokens"),
         "cost_usd": round(usage["cost_usd"], 6) if usage.get("cost_usd") is not None else None,
+        # How large the agent's context got, None where the harness's logs do not tell.
+        "context": s.get("context"),
         # None where the run's events were not recorded.
         "user_undisturbed": (s.get("user") or {}).get("undisturbed"),
         "phases": s.get("phases") or {},

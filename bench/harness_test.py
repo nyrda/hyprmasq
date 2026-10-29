@@ -1,7 +1,7 @@
 """Tests run.py's harnesses without their APIs: python3 harness_test.py
 
 pi's isolation, claude-api's key and its check, the names of runs, the efforts agents run at, and report.py's reading
-of a recorded pi stream.
+of a recorded pi stream and of each harness's usage and context.
 Fake `pi` and `claude` executables on PATH stand in for the real ones."""
 
 import argparse
@@ -291,6 +291,20 @@ class PiReport(unittest.TestCase):
         self.assertEqual((usage["turns"], usage["input_tokens"], usage["output_tokens"], usage["cost_usd"]),
                          (2, 1661 + 150000, 109 + 2000, 0.078994))
 
+    def test_context_is_the_prompt_of_each_reply_and_the_compactions_that_ended(self):
+        stream = report.load_jsonl(os.path.join(BENCH, "testdata", "pi-agent.jsonl"))
+        compaction = {"type": "compaction_end", "aborted": False, "result": {"usage": {"input": 150000}}}
+        aborted = {"type": "compaction_end", "aborted": True}
+        # A request that failed before its prompt counted is no size.
+        failed = {"type": "message_end", "message": {"role": "assistant", "stopReason": "error", "usage": {
+            "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}}
+        stream = stream[:-2] + [{"t": 0, "line": line} for line in (compaction, aborted, failed)] + stream[-2:]
+        self.assertEqual(report.context_usage("pi", stream, [], report.agent_usage("pi", stream)), {
+            "source": "pi stream assistant message_end usage", "request_count": 2, "first_input_tokens": 780,
+            "peak_input_tokens": 881, "last_input_tokens": 881, "growth_input_tokens": 101, "compactions": 1,
+        })
+        self.assertIsNone(report.context_usage("pi", stream[:3], [], {}))
+
 
 class CodexReport(unittest.TestCase):
     @staticmethod
@@ -351,6 +365,31 @@ class CodexReport(unittest.TestCase):
         self.assertIsNone(report.agent_usage("codex", stream, transcript)["cost_usd"])
         self.assertNotIn("cost_usd", report.agent_usage("codex", stream))
 
+    def test_context_is_the_task_requests_and_compactions_without_the_debriefs(self):
+        stream, transcript = self.run_files()
+        compacted = {"type": "compacted", "payload": {"message": "summary", "replacement_history": []}}
+        # A compaction during the task, and the totals Codex sends again after it, and one in the debrief.
+        transcript[2:3] = [compacted, transcript[1]]
+        transcript.insert(-1, compacted)
+        context = report.context_usage("codex", stream, transcript, report.agent_usage("codex", stream, transcript))
+        self.assertEqual(context, {
+            "source": "Codex transcript token_count records", "request_count": 2, "first_input_tokens": 10_000,
+            "peak_input_tokens": 300_000, "last_input_tokens": 300_000, "growth_input_tokens": 290_000,
+            "compactions": 1,
+        })
+
+    def test_context_and_compactions_are_unknown_without_their_evidence(self):
+        stream, transcript = self.run_files()
+        usage = report.agent_usage("codex", stream, transcript)
+        # Codex announced a compaction that it did not record.
+        announced = {"type": "event_msg", "payload": {"type": "context_compacted"}}
+        context = report.context_usage("codex", stream, transcript[:2] + [announced] + transcript[2:], usage)
+        self.assertEqual((context["request_count"], context["compactions"]), (2, None))
+        # A transcript that ends before the requests add up to the run's total, none, and a run without usage.
+        self.assertIsNone(report.context_usage("codex", stream, transcript[:3], usage))
+        self.assertIsNone(report.context_usage("codex", stream, [], usage))
+        self.assertIsNone(report.context_usage("codex", stream[:1], transcript, report.agent_usage("codex", stream[:1])))
+
 
 class ClaudeReport(unittest.TestCase):
     def test_the_cache_reads_and_writes_count_in_the_input(self):
@@ -360,6 +399,24 @@ class ClaudeReport(unittest.TestCase):
         usage = report.agent_usage("claude-api", [{"t": 0, "line": result}])
         self.assertEqual((usage["input_tokens"], usage["cache_read_tokens"], usage["cache_write_tokens"],
                           usage["output_tokens"], usage["cost_usd"]), (54_010, 40_000, 14_000, 2_000, 0.12))
+
+    def test_context_is_the_prompt_of_each_message_once_and_the_compactions(self):
+        def assistant(message_id, cache_read, block):
+            return {"t": 0, "line": {"type": "assistant", "message": {"id": message_id, "content": [block], "usage": {
+                "input_tokens": 5, "cache_read_input_tokens": cache_read, "cache_creation_input_tokens": 1_000}}}}
+        # Each content block of a message comes as an event of its own, with the message's usage.
+        stream = [assistant("m1", 20_000, {"type": "thinking"}), assistant("m1", 20_000, {"type": "tool_use"}),
+                  {"t": 0, "line": {"type": "user", "message": {"content": [{"type": "tool_result"}]}}},
+                  assistant("m2", 60_000, {"type": "tool_use"}),
+                  {"t": 0, "line": {"type": "system", "subtype": "compact_boundary"}},
+                  assistant("m3", 8_000, {"type": "text"})]
+        self.assertEqual(report.context_usage("claude", stream, [], {}), {
+            "source": "Claude Code stream-json assistant usage", "request_count": 3, "first_input_tokens": 21_005,
+            "peak_input_tokens": 61_005, "last_input_tokens": 9_005, "growth_input_tokens": -12_000,
+            "compactions": 1,
+        })
+        # A stream that ended before the first reply.
+        self.assertIsNone(report.context_usage("claude-api", stream[4:5], [], {}))
 
 
 if __name__ == "__main__":
