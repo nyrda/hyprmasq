@@ -97,9 +97,10 @@ on the same commands and compares screenshots to find what changed.
 
 ## Status and requirements
 
-Seven agents passed 73 of 84 [four-task benchmark runs](docs/benchmarks.md#board-calc-forgejo-and-thunderbird),
-with user focus and workspace unchanged in all 84. The charts label the product
-commits and dates of the initial baseline and the newer Terra runs.
+Three models passed 213 of 246 [benchmark runs](docs/benchmarks.md#results) on
+eleven desktop tasks, on one build with Hyprland 0.57.0, and the user's focus
+and workspace stayed unchanged in all of them. Every failed run was the
+model's: hyprmasq delivered its input where the agent aimed.
 
 - Built and tested against **Hyprland v0.57.0** at the release commit `flake.lock`
   pins. A Hyprland plugin must be compiled against the exact Hyprland build
