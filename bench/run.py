@@ -37,7 +37,8 @@ DEFAULT_AGENTS = ["codex:gpt-6.1-sol", "codex:gpt-6.1-terra", "codex:gpt-6-astra
                   "claude:claude-opus-5-5", "claude:claude-sonnet-5-5"]
 
 HARNESSES = ("claude", "claude-api", "codex", "pi")
-# Harnesses that use API keys of this machine: dispatch.py never sends their runs to another one.
+# Harnesses that use API keys of this machine: dispatch.py sends their runs to another one only for claude-api, whose
+# key it passes to a machine named with api-keys; pi reads its keys from its files.
 LOCAL_ONLY = ("claude-api", "pi")
 # The reasoning efforts each harness takes for @EFFORT: Claude Code's --effort, the levels that Codex passes on as
 # model_reasoning_effort and the OpenAI API accepts, and pi's --thinking.
@@ -64,7 +65,7 @@ def build_driver(out, source, task, variant, display):
                "--argstr", "variant", variant or "", "--argstr", "display", display]
     if source:
         command += ["--arg", "source", source]
-    subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, env=without_api_keys(os.environ))
     return link
 
 
@@ -122,7 +123,8 @@ def run_name(harness, model, rep, effort=None):
 
 def version(command):
     try:
-        return subprocess.run(command, capture_output=True, text=True, timeout=30).stdout.strip()
+        return subprocess.run(command, capture_output=True, text=True, timeout=30,
+                              env=without_api_keys(os.environ)).stdout.strip()
     except OSError:
         return None
 
@@ -352,7 +354,8 @@ def is_init(line):
 
 
 def without_api_keys(environ):
-    """An environment without Anthropic credentials, for the processes that need none: the VM driver, and ssh."""
+    """An environment without Anthropic credentials, for the processes that need none: the VM driver, nix-build, the
+    harnesses' --version, and ssh."""
     return {k: v for k, v in environ.items() if not k.startswith(("ANTHROPIC_", "HYPRMASQ_BENCH_ANTHROPIC_"))}
 
 
@@ -521,7 +524,7 @@ def booted_vm(driver, run_dir, cid, timeout, cpus=None, env=None):
         open(os.path.join(run_dir, "agent-done"), "w").close()
         stop_driver(driver_proc, run_dir)
         # A driver that failed can leave its QEMU running; the run's own directory names it.
-        subprocess.run(["pkill", "-KILL", "-f", f"{runtime}/vm-state-"], check=False)
+        subprocess.run(["pkill", "-KILL", "-f", f"{runtime}/vm-state-"], check=False, env=without_api_keys(os.environ))
         shutil.rmtree(runtime, ignore_errors=True)
 
 
@@ -699,9 +702,15 @@ def pending_runs(out, reps, agents):
     ]
 
 
-def add_run_options(parser):
-    """The options that say which runs to make, shared with dispatch.py."""
-    parser.add_argument("--task", default="thunderbird", help="a directory under bench/tasks")
+def add_run_options(parser, tasks=False):
+    """The options that say which runs to make, shared with dispatch.py; with tasks, --task is repeatable and takes
+    TASK[:VARIANT], as dispatch.py takes it."""
+    if tasks:
+        parser.add_argument("--task", action="append", metavar="TASK[:VARIANT]",
+                            help="a directory under bench/tasks, with one of its variants after :, repeatable: a "
+                                 "results directory each; by default thunderbird")
+    else:
+        parser.add_argument("--task", default="thunderbird", help="a directory under bench/tasks")
     parser.add_argument("--variant", help="the task's variant, for a task that has them (bench/tasks/TASK/variants), "
                                            "by default its default if it has one")
     parser.add_argument("--display", default="1920x1080@1", help="the VM's monitor, WIDTHxHEIGHT@SCALE")
@@ -715,6 +724,13 @@ def add_run_options(parser):
 
 def check_run_options(args, parser):
     """The agents and the repetitions of the runs, after checking the task and its variant."""
+    agents, reps = check_runs(args, parser)
+    args.variant = check_task(args.task, args.variant, parser)
+    return agents, reps
+
+
+def check_runs(args, parser):
+    """The agents and the repetitions of the runs."""
     try:
         # Once each: a run of the same name twice would share its directory.
         agents = list(dict.fromkeys(parse_agent(a) for a in args.agent or DEFAULT_AGENTS))
@@ -726,22 +742,35 @@ def check_run_options(args, parser):
                      "letters, digits, ., _ and -, or in the @ of an effort")
     if any(rep < 1 for rep in args.rep or []):
         parser.error("--rep counts from 1")
-    if not os.path.isdir(os.path.join(BENCH, "tasks", args.task)):
-        parser.error(f"no task {args.task} in {os.path.join(BENCH, 'tasks')}")
-    variants, default = task_variants(args.task)
-    if variants and args.variant is None:
-        args.variant = default
-    if variants and args.variant not in variants:
-        parser.error(f"task {args.task} needs --variant, one of {', '.join(variants)}")
-    if not variants and args.variant:
-        parser.error(f"task {args.task} has no variants")
     reps = sorted(set(args.rep)) if args.rep else list(range(1, args.reps + 1))
     return agents, reps
 
 
+def check_task(task, variant, parser):
+    """The variant of a task after checking both: the task's default if it has variants and none is given."""
+    if not os.path.isdir(os.path.join(BENCH, "tasks", task)):
+        parser.error(f"no task {task} in {os.path.join(BENCH, 'tasks')}")
+    variants, default = task_variants(task)
+    if variants and variant is None:
+        variant = default
+    if variants and variant not in variants:
+        parser.error(f"task {task} needs --variant, one of {', '.join(variants)}")
+    if not variants and variant:
+        parser.error(f"task {task} has no variants")
+    return variant
+
+
+def results_name(task, variant):
+    """The name of a task's results directory: TASK, or TASK-VARIANT for a variant."""
+    return task + (f"-{variant}" if variant else "")
+
+
 def default_out(task, variant, suffix=""):
-    name = task + (f"-{variant}" if variant else "")
-    return os.path.join(BENCH, "results", f"{datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{name}{suffix}")
+    return results_dir(results_name(task, variant) + suffix)
+
+
+def results_dir(name):
+    return os.path.join(BENCH, "results", f"{datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{name}")
 
 
 def main():
