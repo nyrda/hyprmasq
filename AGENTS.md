@@ -1,5 +1,11 @@
 # hyprmasq
 
+This is the `hyprland-0.56` branch, maintained while people move to Hyprland
+0.57. `main` targets the latest stable Hyprland. Fixes and MCP changes land on
+`main` first and are ported here, where they must pass this branch's VM test.
+After a change here, point the Hyprland 0.56.2 entry of `commit_pins` in
+`main`'s `hyprpm.toml` at the new head.
+
 A Hyprland plugin (C++, pinned to Hyprland 0.56.2 through `flake.lock`) that
 takes per-window screenshots and gives each window its own libei input socket,
 so windows on hidden workspaces can be captured and driven without moving the

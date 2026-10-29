@@ -2,6 +2,11 @@
 
 **Computer use for Hyprland that stays out of your way.**
 
+> This is the `hyprland-0.56` branch: hyprmasq for **Hyprland 0.56.2**. It gets
+> the fixes and MCP changes of `main` while people move to Hyprland 0.57, and
+> then ends. [`main`](https://github.com/nyrda/hyprmasq) targets the latest
+> stable Hyprland.
+
 hyprmasq is a Hyprland plugin for desktop automation and computer use, by
 scripts or AI agents. Agents can use it to assist you, check their own UI
 work, or automate desktop tasks. It acts on windows even when they are not
@@ -39,7 +44,7 @@ enable the module. It installs the plugin, the tools and the exact Hyprland
 build the plugin was compiled against:
 
 ```nix
-# flake.nix: inputs.hyprmasq.url = "github:nyrda/hyprmasq";
+# flake.nix: inputs.hyprmasq.url = "github:nyrda/hyprmasq/hyprland-0.56";
 { inputs, ... }: {
   imports = [ inputs.hyprmasq.nixosModules.default ];
   programs.hyprmasq.enable = true;
@@ -51,7 +56,7 @@ installed Hyprland, and build it again with `makepkg -sif` after each
 Hyprland update:
 
 ```sh
-git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
+git clone -b hyprland-0.56 https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
 ```
 
 Both install a loader for the plugin. Load it from `hyprland.lua`:

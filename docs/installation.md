@@ -1,5 +1,9 @@
 # Installation
 
+This is the `hyprland-0.56` branch, which gets the fixes and MCP changes of
+`main` while people move to Hyprland 0.57. `main` targets the latest stable
+Hyprland. Every command below uses this branch.
+
 hyprmasq 0.1.0 is built and tested against **Hyprland 0.56.2** on x86_64
 Linux. A Hyprland plugin must be compiled against the exact Hyprland build
 that loads it: hyprmasq compares the build hash when it loads and refuses to
@@ -32,7 +36,7 @@ After installing, [load the plugin](#loading-the-plugin) and
 
 ```nix
 # flake.nix
-inputs.hyprmasq.url = "github:nyrda/hyprmasq";
+inputs.hyprmasq.url = "github:nyrda/hyprmasq/hyprland-0.56";
 ```
 
 Do not add `inputs.nixpkgs.follows = "nixpkgs"` to this input: the plugin
@@ -114,7 +118,7 @@ The repository's `PKGBUILD` builds a pacman package from a clone, against
 the Hyprland that pacman installed:
 
 ```sh
-git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
+git clone -b hyprland-0.56 https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
 ```
 
 `-s` installs the missing dependencies, such as `go` for the build, and `-i`
@@ -228,7 +232,7 @@ error in `hyprland.lua`. Then run `sudo pacman -R hyprmasq`, with
 With Nix, from a clone:
 
 ```sh
-git clone https://github.com/nyrda/hyprmasq.git
+git clone -b hyprland-0.56 https://github.com/nyrda/hyprmasq.git
 cd hyprmasq
 ./dev.sh build                                      # make inside the flake's dev shell
 (cd mcp && nix develop .. -c go build ./cmd/hyprmasq-mcp)
@@ -269,6 +273,9 @@ hyprpm update
 hyprpm add https://github.com/nyrda/hyprmasq
 hyprpm enable hyprmasq
 ```
+
+hyprpm reads `hyprpm.toml` on `main`, whose commit pins pick this branch for
+Hyprland 0.56.2.
 
 and load enabled plugins at startup, in `hyprland.lua`:
 
