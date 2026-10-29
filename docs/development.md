@@ -570,6 +570,7 @@ python3 bench/laptop/run_form_test.py
 python3 bench/laptop/run_mac_form_test.py
 python3 bench/render_test.py
 python3 bench/tasks/board/check_test.py
+python3 bench/tasks/files/check_test.py
 python3 bench/tasks/form/check_test.py
 nix-build bench/tasks/calc/check-test.nix
 ```
