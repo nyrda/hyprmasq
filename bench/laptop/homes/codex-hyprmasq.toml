@@ -1,0 +1,7 @@
+# hyprmasq as docs/installation.md registers it for Codex.
+[mcp_servers.hyprmasq]
+command = "/home/daniel/.local/bin/hyprmasq-mcp"
+# Codex starts MCP servers with a minimal environment: forward the desktop session.
+env_vars = ["XDG_RUNTIME_DIR", "HYPRLAND_INSTANCE_SIGNATURE", "WAYLAND_DISPLAY", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP"]
+default_tools_approval_mode = "approve"
+tool_timeout_sec = 120

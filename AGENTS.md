@@ -12,9 +12,10 @@ so windows on hidden workspaces can be captured and driven without moving the
 user's focus. `tools/hyprmasq-input.c` is the libei sender,
 `tools/hyprmasq-reaper.c` supervises launched processes, and
 `tools/hyprmasq-launch` is the shell launcher. `mcp/` is the Go MCP server;
-`bench/` has the benchmark runner and task checkers. `PKGBUILD` builds the
-Arch package from a clone. A change to the files it installs updates its
-`package()` and the list in `docs/installation.md`.
+`bench/` has the benchmark runner and task checkers, and `bench/laptop/` the
+runner for real machines. `PKGBUILD` builds the Arch package from a clone. A
+change to the files it installs updates its `package()` and the list in
+`docs/installation.md`.
 
 Docs: `README.md` is the landing page; `docs/installation.md` covers install,
 loading and MCP registration; `docs/automation.md` is the reference for
@@ -22,7 +23,9 @@ loading and MCP registration; `docs/automation.md` is the reference for
 and the security model; `docs/mcp.md` covers `hyprmasq-mcp`;
 `docs/development.md` covers builds, tests and contributing;
 `docs/benchmarks.md` holds the release benchmark results, whose figures and
-tables `bench/render.py` generates from `docs/benchmarks/data`. Keep them in step
+tables `bench/render.py` generates from `docs/benchmarks/data`;
+`docs/comparison.md` compares hyprmasq with Cua Driver and OpenAI's computer use,
+its figures and tables generated the same way from `docs/comparison/data`. Keep them in step
 with the code: a changed command, option, default or exit code updates the
 page that documents it. Agents use the MCP tools; there is no agent skill.
 
@@ -57,8 +60,8 @@ CI runs `nix flake check --no-build`, builds `hyprmasq` and `hyprmasq-mcp`
 including the Go tests with `-short`, runs all Go tests with and without
 `-race`, checks C/C++ with clang-format and Go with gofmt, checks the VM
 test's subtest tables (`vm-test-docs`), runs the bench unit tests above,
-including Calc, and checks `docs/benchmarks.md` against its data with
-`bench/render.py --check`. The VM test is a local gate; CI does not run it. Before opening a PR, run it on the commit you push and fill
+including Calc, and checks `docs/benchmarks.md` and `docs/comparison.md` against
+their data with `bench/render.py --check`. The VM test is a local gate; CI does not run it. Before opening a PR, run it on the commit you push and fill
 in the VM test section of
 `.github/pull_request_template.md` with that commit. Before merging, compare
 the PR's head commit with the one it passed on: after new commits, an amend, a

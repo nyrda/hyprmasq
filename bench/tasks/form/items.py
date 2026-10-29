@@ -11,6 +11,8 @@ gets through a chore of input, not what it knows.
 - dropdown: choose the option it names. The dropdown starts at "Choose…", which is no answer.
 """
 
+import os
+
 MIN_ITEMS, MAX_ITEMS, DEFAULT_ITEMS = 10, 40, 25
 PLACEHOLDER = "Choose…"
 
@@ -111,11 +113,25 @@ ITEMS = _build()
 assert len(ITEMS) == MAX_ITEMS
 
 
+KINDS = ("checkbox", "slider", "text", "dropdown")
+
+
+def kinds():
+    """The kinds of question a run asks: all, or those that $HYPRMASQ_FORM_KINDS lists, separated by commas, such as
+    checkbox,slider,text for a questionnaire without dropdowns. The app and the grade read the same variable."""
+    listed = [k.strip() for k in os.environ.get("HYPRMASQ_FORM_KINDS", "").split(",") if k.strip()]
+    unknown = sorted(set(listed) - set(KINDS))
+    if unknown:
+        raise ValueError(f"HYPRMASQ_FORM_KINDS names no kind of question: {', '.join(unknown)}")
+    return tuple(k for k in KINDS if k in listed) if listed else KINDS
+
+
 def items(count):
-    """The questions of a run of count questions."""
-    if not MIN_ITEMS <= count <= MAX_ITEMS:
-        raise ValueError(f"the questionnaire has {MIN_ITEMS} to {MAX_ITEMS} questions, not {count}")
-    return ITEMS[:count]
+    """The questions of a run of count questions: the first count of the kinds asked, numbered from 1."""
+    asked = [item for item in ITEMS if item["kind"] in kinds()]
+    if not MIN_ITEMS <= count <= len(asked):
+        raise ValueError(f"the questionnaire has {MIN_ITEMS} to {len(asked)} questions, not {count}")
+    return [dict(item, number=number) for number, item in enumerate(asked[:count], 1)]
 
 
 def correct(item, value):

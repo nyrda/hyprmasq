@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="277" viewBox="0 0 880 277" role="img" aria-label="Runs passed, wall time and cost. 21 of 24 runs passed. A row per agent shows its runs of each task, their median wall time and the cost per passed run.">
+<title>Runs passed, wall time and cost. 21 of 24 runs passed. A row per agent shows its runs of each task, their median wall time and the cost per passed run.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#1f2328}.t2{fill:#59636e}.m{fill:#818b98}.bg{fill:#ffffff;stroke:#d1d9e0}.grid{stroke:#eff2f5;stroke-width:1}.axis{stroke:#d1d9e0;stroke-width:1}.tools{fill:#2a78d6}.out{fill:#c8d1da}.dot{fill:#424a53;stroke:#ffffff;stroke-width:1.5}.miss{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.pass{fill:#1a7f37}.fail{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.cut{stroke:#ffffff;stroke-width:2}.s0{fill:#2a78d6}.s1{fill:#eb6834}.s2{fill:#1baf7a}.s3{fill:#eda100}.s4{fill:#e87ba4}.s5{fill:#008300}.s6{fill:#6250d6}.s7{fill:#e34948}</style>
+<rect x="0.5" y="0.5" width="879" height="276" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Runs passed, wall time and cost</text>
+<text x="24" y="53" class="t2" font-size="12.5">21 of 24 runs passed. Each dot is one run. The time is the task&#x27;s median wall time.</text>
+<circle cx="29" cy="75" r="4.5" class="pass"/>
+<text x="39" y="79" class="t2" font-size="12">passed</text>
+<circle cx="104.7" cy="75" r="4.5" class="fail"/>
+<text x="114.7" y="79" class="t2" font-size="12">failed</text>
+<text x="123.8" y="109" class="t2" font-size="12" font-weight="600">Passed</text>
+<text x="187.8" y="109" class="t2" font-size="12" font-weight="600">Trace-river</text>
+<text x="421.9" y="109" class="t2" font-size="12" font-weight="600">Trace-rack</text>
+<text x="656" y="109" class="t2" font-size="12" font-weight="600">Cost per passed run</text>
+<line x1="24" y1="121" x2="856" y2="121" class="axis"/>
+<text x="24" y="142.5" class="t" font-size="13" font-weight="600">gpt-6.1-sol</text>
+<text x="123.8" y="142.5" class="t" font-size="13">6/6</text>
+<circle cx="192.8" cy="138" r="5" class="pass"/>
+<circle cx="206.8" cy="138" r="5" class="pass"/>
+<circle cx="220.8" cy="138" r="5" class="pass"/>
+<text x="238.8" y="142.5" class="t2" font-size="12.5">34 s</text>
+<circle cx="426.9" cy="138" r="5" class="pass"/>
+<circle cx="440.9" cy="138" r="5" class="pass"/>
+<circle cx="454.9" cy="138" r="5" class="pass"/>
+<text x="472.9" y="142.5" class="t2" font-size="12.5">28 s</text>
+<path d="M656 133H690.1Q693.1 133 693.1 136V140Q693.1 143 690.1 143H656Z" class="tools"/>
+<text x="701.1" y="142.5" class="t2" font-size="12.5">$0.05</text>
+<line x1="24" y1="155" x2="856" y2="155" class="grid"/>
+<text x="24" y="176.5" class="t" font-size="13" font-weight="600">gpt-6.1-terra</text>
+<text x="123.8" y="176.5" class="t" font-size="13">4/6</text>
+<circle cx="192.8" cy="172" r="5" class="pass"/>
+<circle cx="206.8" cy="172" r="5" class="pass"/>
+<circle cx="220.8" cy="172" r="5" class="pass"/>
+<text x="238.8" y="176.5" class="t2" font-size="12.5">20 s</text>
+<circle cx="426.9" cy="172" r="4.2" class="fail"/>
+<circle cx="440.9" cy="172" r="5" class="pass"/>
+<circle cx="454.9" cy="172" r="4.2" class="fail"/>
+<text x="472.9" y="176.5" class="t2" font-size="12.5">20 s</text>
+<path d="M656 167H679.7Q682.7 167 682.7 170V174Q682.7 177 679.7 177H656Z" class="tools"/>
+<text x="690.7" y="176.5" class="t2" font-size="12.5">$0.04</text>
+<line x1="24" y1="189" x2="856" y2="189" class="grid"/>
+<text x="24" y="210.5" class="t" font-size="13" font-weight="600">Opus 5.5</text>
+<text x="123.8" y="210.5" class="t" font-size="13">6/6</text>
+<circle cx="192.8" cy="206" r="5" class="pass"/>
+<circle cx="206.8" cy="206" r="5" class="pass"/>
+<circle cx="220.8" cy="206" r="5" class="pass"/>
+<text x="238.8" y="210.5" class="t2" font-size="12.5">35 s</text>
+<circle cx="426.9" cy="206" r="5" class="pass"/>
+<circle cx="440.9" cy="206" r="5" class="pass"/>
+<circle cx="454.9" cy="206" r="5" class="pass"/>
+<text x="472.9" y="210.5" class="t2" font-size="12.5">43 s</text>
+<path d="M656 201H789Q792 201 792 204V208Q792 211 789 211H656Z" class="tools"/>
+<text x="800" y="210.5" class="t2" font-size="12.5">$0.18</text>
+<line x1="24" y1="223" x2="856" y2="223" class="grid"/>
+<text x="24" y="244.5" class="t" font-size="13" font-weight="600">Sonnet 5.5</text>
+<text x="123.8" y="244.5" class="t" font-size="13">5/6</text>
+<circle cx="192.8" cy="240" r="5" class="pass"/>
+<circle cx="206.8" cy="240" r="4.2" class="fail"/>
+<circle cx="220.8" cy="240" r="5" class="pass"/>
+<text x="238.8" y="244.5" class="t2" font-size="12.5">14 s</text>
+<circle cx="426.9" cy="240" r="5" class="pass"/>
+<circle cx="440.9" cy="240" r="5" class="pass"/>
+<circle cx="454.9" cy="240" r="5" class="pass"/>
+<text x="472.9" y="244.5" class="t2" font-size="12.5">14 s</text>
+<path d="M656 235H684.6Q687.6 235 687.6 238V242Q687.6 245 684.6 245H656Z" class="tools"/>
+<text x="695.6" y="244.5" class="t2" font-size="12.5">$0.04</text>
+</svg>

@@ -7,9 +7,11 @@ computes each finished run of the results directories again from its raw files, 
 the measures render.py draws: no transcripts, answers, paths, host names or accounts. RUN is a run's directory
 name, such as codex-gpt-6.1-sol-medium-2, or RESULTS-DIR's name and it, such as calc/codex-gpt-6.1-sol-medium-2.
 --fail counts a run that the VM's check passed as failed, with the reason the docs give, such as a provider's
-limit that ended it before the agent finished. A task that ran in several variants is named by its variant too, such
-as board-dnd. --several-machines takes runs of several machines into one dataset, each run with its CPU, for runs
-that the dispatcher spread over them: their times compare only where each build ran on the same machines.
+limit that ended it before the agent finished. Each run records its task and its variant, so that a dataset can
+hold several variants of a task, such as board's two or the form task in each toolkit, as long as they share a commit
+and a display. render.py then names the task by its variant too, such as board-dnd. --several-machines takes runs
+of several machines into one dataset, each run with its CPU, for runs that the dispatcher spread over them: their
+times compare only where each build ran on the same machines.
 """
 
 import argparse
@@ -22,7 +24,7 @@ import analyze
 import report
 
 
-def run_record(results_dir, name, fail, task):
+def run_record(results_dir, name, fail, variant):
     run_dir = os.path.join(results_dir, name)
     with open(os.path.join(run_dir, "run.json")) as f:
         run = json.load(f)
@@ -33,7 +35,8 @@ def run_record(results_dir, name, fail, task):
     act = analyze.analyze(run_dir) if s["calls"] else {part + "_s": 0.0 for part in ("input", "wait", "watch", "pause", "rest")}
     record = {
         "run": f"{os.path.basename(os.path.normpath(results_dir))}/{name}",
-        "task": task,
+        "task": s["task"],
+        "variant": variant,
         "harness": s["harness"],
         "model": s["model"],
         # The harness's default when the run asked for none.
@@ -84,19 +87,14 @@ def export(results_dirs, fail, several_machines=False):
         with open(os.path.join(results_dir, "source.json")) as f:
             source = json.load(f)
         sources.append({k: source.get(k) for k in ("commit", "dirty", "task", "variant", "display")})
-    variants = {}
-    for s in sources:
-        variants.setdefault(s["task"], set()).add(s["variant"])
     for results_dir, s in zip(results_dirs, sources):
-        if len(variants[s["task"]]) > 1:
-            s["task"] = f"{s['task']}-{s['variant']}"
         for name in sorted(os.listdir(results_dir)):
             if os.path.exists(os.path.join(results_dir, name, "summary.json")):
-                record, machine = run_record(results_dir, name, fail, s["task"])
+                record, machine = run_record(results_dir, name, fail, s["variant"])
                 runs.append(record)
                 machines.add(machine)
-    # The figures take medians by task, agent and effort, and times depend on the build and the machine: a dataset
-    # holds one of each per task, a task that ran in several variants named by its variant.
+    # Times depend on the build and the machine: a dataset holds one of each per task. Its runs name their variant,
+    # by which render.py tells a task's variants apart.
     builds = {}
     for s in sources:
         builds.setdefault(s["task"], set()).add(tuple(s[k] for k in ("commit", "dirty", "display")))

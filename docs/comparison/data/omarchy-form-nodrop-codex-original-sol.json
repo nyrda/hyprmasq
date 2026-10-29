@@ -1,0 +1,374 @@
+[
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "platform": "hyprland",
+    "toolkit": "qt",
+    "backend": "hyprmasq",
+    "rep": 1,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 79.2,
+    "tool_seconds": 22.4,
+    "calls": 6,
+    "errors": 0,
+    "images": 13,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.06,
+        "errors": 0
+      },
+      "act": {
+        "calls": 5,
+        "seconds": 22.35,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9641,
+    "usage": {
+      "input_tokens": 131765,
+      "cache_read_tokens": 108544,
+      "cache_write_tokens": 0,
+      "output_tokens": 795,
+      "thinking_tokens": 0,
+      "cost_usd": 0.065246,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 23221
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 8,
+      "first_input_tokens": 9641,
+      "peak_input_tokens": 20690,
+      "last_input_tokens": 20690,
+      "growth_input_tokens": 11049,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/form-no-dropdowns/codex/hyprmasq-1"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "platform": "hyprland",
+    "toolkit": "qt",
+    "backend": "hyprmasq",
+    "rep": 2,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 78.0,
+    "tool_seconds": 22.2,
+    "calls": 6,
+    "errors": 0,
+    "images": 13,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.06,
+        "errors": 0
+      },
+      "act": {
+        "calls": 5,
+        "seconds": 22.13,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9641,
+    "usage": {
+      "input_tokens": 131784,
+      "cache_read_tokens": 118784,
+      "cache_write_tokens": 0,
+      "output_tokens": 796,
+      "thinking_tokens": 0,
+      "cost_usd": 0.045838,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 13000
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 8,
+      "first_input_tokens": 9641,
+      "peak_input_tokens": 20693,
+      "last_input_tokens": 20693,
+      "growth_input_tokens": 11052,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/form-no-dropdowns/codex/hyprmasq-2"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "platform": "hyprland",
+    "toolkit": "qt",
+    "backend": "hyprmasq",
+    "rep": 3,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 140.4,
+    "tool_seconds": 22.6,
+    "calls": 9,
+    "errors": 0,
+    "images": 25,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.08,
+        "errors": 0
+      },
+      "act": {
+        "calls": 8,
+        "seconds": 22.51,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9641,
+    "usage": {
+      "input_tokens": 176138,
+      "cache_read_tokens": 157184,
+      "cache_write_tokens": 0,
+      "output_tokens": 992,
+      "thinking_tokens": 15,
+      "cost_usd": 0.063546,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 18954
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 11,
+      "first_input_tokens": 9641,
+      "peak_input_tokens": 19676,
+      "last_input_tokens": 19676,
+      "growth_input_tokens": 10035,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/form-no-dropdowns/codex/hyprmasq-3"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "platform": "hyprland",
+    "toolkit": "qt",
+    "backend": "hyprmasq",
+    "rep": 4,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 226.3,
+    "tool_seconds": 22.5,
+    "calls": 9,
+    "errors": 0,
+    "images": 25,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.07,
+        "errors": 0
+      },
+      "act": {
+        "calls": 8,
+        "seconds": 22.45,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9641,
+    "usage": {
+      "input_tokens": 176234,
+      "cache_read_tokens": 154240,
+      "cache_write_tokens": 0,
+      "output_tokens": 1018,
+      "thinking_tokens": 12,
+      "cost_usd": 0.069592,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 21994
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 11,
+      "first_input_tokens": 9641,
+      "peak_input_tokens": 19704,
+      "last_input_tokens": 19704,
+      "growth_input_tokens": 10063,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/form-no-dropdowns/codex/hyprmasq-4"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "platform": "hyprland",
+    "toolkit": "qt",
+    "backend": "hyprmasq",
+    "rep": 5,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 283.9,
+    "tool_seconds": 22.2,
+    "calls": 9,
+    "errors": 0,
+    "images": 25,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.07,
+        "errors": 0
+      },
+      "act": {
+        "calls": 8,
+        "seconds": 22.08,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9641,
+    "usage": {
+      "input_tokens": 176190,
+      "cache_read_tokens": 146432,
+      "cache_write_tokens": 0,
+      "output_tokens": 1008,
+      "thinking_tokens": 13,
+      "cost_usd": 0.084239,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 29758
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 11,
+      "first_input_tokens": 9641,
+      "peak_input_tokens": 19694,
+      "last_input_tokens": 19694,
+      "growth_input_tokens": 10053,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/form-no-dropdowns/codex/hyprmasq-5"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "platform": "hyprland",
+    "toolkit": "qt",
+    "backend": "hyprmasq",
+    "rep": 6,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 196.4,
+    "tool_seconds": 22.0,
+    "calls": 9,
+    "errors": 0,
+    "images": 25,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.06,
+        "errors": 0
+      },
+      "act": {
+        "calls": 8,
+        "seconds": 21.99,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9641,
+    "usage": {
+      "input_tokens": 176061,
+      "cache_read_tokens": 152064,
+      "cache_write_tokens": 0,
+      "output_tokens": 983,
+      "thinking_tokens": 0,
+      "cost_usd": 0.07303,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 23997
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 11,
+      "first_input_tokens": 9641,
+      "peak_input_tokens": 19667,
+      "last_input_tokens": 19667,
+      "growth_input_tokens": 10026,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/form-no-dropdowns/codex/hyprmasq-6"
+  }
+]

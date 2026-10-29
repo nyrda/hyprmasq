@@ -102,8 +102,9 @@ on the same commands and compares screenshots to find what changed.
 
 ## Status and requirements
 
-Six agents passed 63 of 72 [release benchmark runs](docs/benchmarks.md#release-010),
-with user focus and workspace unchanged in all 72.
+Seven agents passed 73 of 84 [four-task benchmark runs](docs/benchmarks.md#board-calc-forgejo-and-thunderbird),
+with user focus and workspace unchanged in all 84. The charts label the product
+commits and dates of the initial baseline and the newer Terra runs.
 
 - Built and tested against exactly **Hyprland 0.56.2**. A Hyprland plugin must
   be compiled against the exact Hyprland build that loads it.
@@ -134,7 +135,8 @@ only to agents you would trust with your shell. See the
 | [MCP server](docs/mcp.md) | `hyprmasq-mcp`: tools, shots and coordinates, `act`, the focus lease, failures, options, client notes |
 | [Automation](docs/automation.md) | `hyprctl hyprmasq` commands, waiting, `hyprmasq-input`, `hyprmasq-launch`, configuration, security model, limitations |
 | [Development](docs/development.md) | Building, tests, contributing, source layout |
-| [Benchmarks](docs/benchmarks.md) | How agents are measured with hyprmasq, and release results |
+| [Benchmarks](docs/benchmarks.md) | How agents are measured with hyprmasq, and benchmark results |
+| [Comparisons](docs/comparison.md) | hyprmasq and Cua Driver on an Omarchy laptop, and Cua Driver and OpenAI's computer use on macOS |
 
 ## License
 

@@ -10,7 +10,30 @@ use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, forg
 
 Run results are in [docs/benchmarks.md](../docs/benchmarks.md). `export.py` turns results directories into the
 datasets that page is generated from, and `render.py` draws its figures and tables; see
-[Updating the results](../docs/benchmarks.md#updating-the-results).
+[Updating the results](#updating-the-results). `render.py` draws
+[docs/comparison.md](../docs/comparison.md) as well, from the runs in `docs/comparison/data` that
+[laptop/analyze.py](laptop/README.md) writes.
+
+## Updating the results
+
+[docs/benchmarks/data](../docs/benchmarks/data) holds one JSON file per set of runs, with one run a line.
+`bench/export.py` writes such a file from the results directories that `bench/run.py` filled. It leaves out
+transcripts, answers, paths, host names and accounts:
+
+```sh
+python3 bench/export.py --out docs/benchmarks/data/next-run.json \
+  --fail calc/RUN="agent did not finish" \
+  bench/results/next-run/board-dnd bench/results/next-run/calc
+```
+
+`--fail` counts a run as failed although the VM's check passed it, and records the reason. Each run records its task's
+variant. `--several-machines` takes runs that `bench/dispatch.py` spread over several machines into one dataset, each
+run with its CPU. `python3 bench/render.py` generates each block of `docs/benchmarks.md` and `docs/comparison.md`
+between `<!-- render DATASET VIEW [TASK] -->` and `<!-- /render -->` from a dataset. Where a block's data holds
+several variants of a task, it names them by their variant too, such as `board-dnd`, and TASK takes that name. It also
+writes the figures in `docs/benchmarks` and `docs/comparison`, one for GitHub's light theme and one for its dark
+theme. Its docstring lists the views. CI runs `python3 bench/render.py --check`, which fails when a page or a figure
+no longer matches the data.
 
 ## Tests
 
@@ -79,7 +102,8 @@ test under `flock FILE`, would not fit into memory next to the benchmark's.
   `pi:tensorx/deepseek/deepseek-v4.1-flash-1017`. A run's directory has `_` for every `/` in the model.
 
 `@EFFORT` sets the reasoning effort, such as `codex:gpt-6.1-sol@high`; see [Effort](#effort). The default is
-`codex:gpt-6.1-sol`, `codex:gpt-6-astra`, `claude:claude-opus-5-5` and `claude:claude-sonnet-5-5`.
+`codex:gpt-6.1-sol`, `codex:gpt-6.1-terra`, `codex:gpt-6-astra`, `claude:claude-opus-5-5` and
+`claude:claude-sonnet-5-5`.
 Repetitions go round the agents, so a slow hour of one API does not land on one agent's runs only.
 
 It needs KVM, Nix, and the harnesses of the agents logged in for the user who runs it; it uses those logins as they
@@ -490,27 +514,25 @@ default `gtk-dnd-drag-threshold`.
   part, on a distractor (named), elsewhere, or still in the tray: `Memory slots is on the loose RAM module, at
   (1654.4, 679.8)`. It passes when all nine are correct, and reports the number correct for partial credit, the
   variant and the number of saves. Its milestones are `first label placed`, `all labels placed` and `last change`.
-- `attribute.py RUN-DIR | RESULTS-DIR`: who each drag's outcome is due to, from `mcp.jsonl` and the page's events.
-  It maps each `act` drag's start and end from shot pixels to window-local logical pixels through the shot's frame,
-  zooms included, as hyprmasq does, and to the page's coordinates with the content's offset in the window, which
-  Wayland does not tell the page: the median difference between where the agent's presses (clicks and drag starts)
-  went in the window and where the page saw them, paired in order within each `act` call, with the page's zoom
-  (ctrl+minus) from its `devicePixelRatio`. In the VM, it agrees within a shot pixel with Firefox's
-  `mozInnerScreenY`. It then finds the press the page logged for the drag and
-  what followed, and classifies the outcome: `correct` (the label landed where the agent dropped it, on its part),
-  `model` (where the agent dropped it, but on another part or none; or the drag grabbed no label, dropped it off
-  the photo and the tray, or was too short to be a drag: aimed shorter than 4 CSS pixels in `pointer`, or in `dnd`
-  aimed and seen within Firefox's drag threshold, with the release where aimed and no `dragstart`), `hyprmasq` (the
-  page saw no press, the press or the drop came more than 6 CSS pixels from where the agent aimed, or the drag
-  started on a label and the label did not move), `tray`, or `not sent`
-  (`act` refused the batch). Per label, it names whose the final placement is. It prints a table per run and
-  writes `attribution.json`. Results for Claude Code have no structured content, so it reads their text, which
-  gives no frames: a shot of the whole window gets the size from the last `windows` or `screenshot` text that
-  named the window, if its image has the size of that text's shot, a zoom the region of its shot, and a changes
-  shot the frame of the shot it was compared with.
-  It agrees with the structured content within a logical pixel, which a window's fractional size takes. A
-  drag in a shot whose frame the text does not tell, such as one with popups outside the window or of a new
-  window, is `unmapped`, with why.
+- `attribute.py RUN-DIR | RESULTS-DIR`: who each drag's outcome is due to, from `mcp.jsonl` and the page's events. It
+  maps the start and end of each `act` drag, and the first and last point of each pressing `path`, from shot pixels to
+  window-local logical pixels through the shot's frame, zooms included, as hyprmasq does, and to the page's
+  coordinates with the content's offset in the window, which Wayland does not tell the page: the median difference
+  between where the agent's presses (clicks and drag starts) went in the window and where the page saw them, paired in
+  order within each `act` call, with the page's zoom (ctrl+minus) from its `devicePixelRatio`. In the VM, it agrees
+  within a shot pixel with Firefox's `mozInnerScreenY`. It then finds the press the page logged for the drag and what
+  followed, and classifies the outcome: `correct` (the label landed where the agent dropped it, on its part), `model`
+  (where the agent dropped it, but on another part or none; or the drag grabbed no label, dropped it off the photo and
+  the tray, or was too short to be a drag: aimed shorter than 4 CSS pixels in `pointer`, or in `dnd` aimed and seen
+  within Firefox's drag threshold, with the release where aimed and no `dragstart`), `hyprmasq` (the page saw no
+  press, the press or the drop came more than 6 CSS pixels from where the agent aimed, or the drag started on a label
+  and the label did not move), `tray`, or `not sent` (`act` refused the batch). Per label, it names whose the final
+  placement is. It prints a table per run and writes `attribution.json`. Results for Claude Code have no structured
+  content, so it reads their text, which gives no frames: a shot of the whole window gets the size from the last
+  `windows` or `screenshot` text that named the window, if its image has the size of that text's shot, a zoom the
+  region of its shot, and a changes shot the frame of the shot it was compared with. It agrees with the structured
+  content within a logical pixel, which a window's fractional size takes. A drag in a shot whose frame the text does
+  not tell, such as one with popups outside the window or of a new window, is `unmapped`, with why.
 - `check_test.py`: `python3 bench/tasks/board/check_test.py` checks the grade and the attribution on constructed
   states and logs: a correct board, a label on the RAM module, one on another label's part and one in the tray,
   the milestones, a drop far from where the drag aimed, a drag the page never saw, a cancelled drag-and-drop, a
@@ -524,8 +546,8 @@ default `gtk-dnd-drag-threshold`.
 
 ### form
 
-A questionnaire, a GTK 4 app in Python, on the hidden workspace `form`. It is started like a user would, on the
-visible workspace, and moved there; the user stays on workspace 1 with the terminal. The prompt asks the agent to
+A questionnaire, in one of several UI toolkits, on the hidden workspace `form`. It is started like a user would, on
+the visible workspace, and moved there; the user stays on workspace 1 with the terminal. The prompt asks the agent to
 answer every question as it says and press Submit at the end, in that window only.
 
 The task measures how fast an agent gets through a chore of input, with nothing to work out: each question says its
@@ -540,38 +562,73 @@ targets in a column that scrolls. The questions take turns among four kinds, fro
 | dropdown | Choose the option it names, among four to twelve | a dropdown that starts at "Choose…" |
 
 The task's variants are the number of questions, from 10 to 40, the first that many of the 40 in `items.py`: 25 by
-default, which is the benchmark's, 10 for a quick probe. The questions, their order and their starting values are the
+default, which is the benchmark's, 10 for a quick probe. A variant `N` runs the GTK 4 app, and `TOOLKIT-N` the app of
+`toolkits/TOOLKIT.nix`, such as `qt-25`. Each toolkit's app is the same questionnaire, with the same questions,
+records and state, and `check.py` grades them alike. Toolkits draw, scroll, open popups and take input in their own
+ways, which is what the questionnaire in several of them tests. The questions, their order and their starting values are the
 same on every run. The wheel over a slider scrolls the page, as over the other questions, and does not move the
 slider.
 
-- `vm.nix`: the app with GTK 4's environment (`hyprmasq-bench-form`), and the number of questions from the variant.
+- `vm.nix`: the app of the variant's toolkit (`hyprmasq-bench-form STATE-DIR COUNT [STATE-FD]`), and the number of
+  questions from the variant. Its comment says what every toolkit's app must do: record its process id, which
+  `setup.py` signals, show the questions in a window titled "Questionnaire", log the changes and submissions as
+  `form.py` does, and write its state on SIGUSR1.
+- `toolkits/`: a file per toolkit that builds its app: `gtk4.nix` for `form.py`, `qt.nix` for `form_qt.py`,
+  `gtk3.nix` for `form_gtk3.py` in GTK 3 on Wayland, `gtk3-x11.nix` for the same app on X11, and `tk.nix` for
+  `form_tk.py` in Tk, which runs on X11 only. For the HTML app, `electron.nix` and `cef.nix` run it on Wayland,
+  `electron-x11.nix` and `cef-x11.nix` on X11, and `cef-osr.nix` in CEF rendering off-screen, on X11. `toolkits/html/`
+  has what these share: the Electron app, and cefsimple and cefclient, CEF's sample browsers, built against nixpkgs'
+  `cef-binary`. The X11 apps run on Hyprland's XWayland and
+  take hyprmasq's X11 path. Their dropdowns' lists are windows of their own, which Hyprland reports as it does other
+  windows: the toolkit file names their classes, and `check.py` does not count them as windows other than the
+  questionnaire, nor any window of the questionnaire's own process, since Chromium's lists have no class. As in Qt,
+  the wheel over a GTK 3 or Tk dropdown moves through its choices.
 - `items.py`: the 40 questions and their answers, for the app and the grade.
 - `form.py`: the app. Every change of an answer is logged with the time, and for a slider with how it moved (GTK's
   scroll type: `jump` for the pointer, `step-forward` and the like for keys), and every press of Submit with the
   answers. On SIGUSR1 it writes its state from its memory to its file descriptor 3, a file that only root can open,
   which root opened and passed to it at its start. The grade reads that file, so that only the app's own widgets
   decide it, not a process of the user's that the agent could start.
+- `form_qt.py`: the same app in Qt (PySide6), with the same questions, layout, records and state, which `check.py`
+  grades alike. It names a slider's moves as `form.py` does. It is for platforms where GTK exposes no
+  accessibility, such as macOS, whose GTK builds lack the AccessKit backend, and for comparing tools that read the
+  accessibility tree. The VM runs it for the `qt-N` variants, and [bench/laptop](laptop/README.md) with
+  `--toolkit qt`.
+- `form.html`, `form_html.py`: the same app as an HTML page, for browser engines. See below.
 - `check.py`: passes when Submit was pressed and the last submission answers every question, and no window other
-  than the questionnaire opened while the agent worked, from a log of Hyprland's events that root keeps, out of
-  reach of the programs the agent could start; without that log it fails. A failure names the question: `Question 6 (slider) is at -17;
-  expected at -18`. Per question and per kind, it reports whether the answer is right, the changes, the corrections
-  (for a checkbox the toggles beyond the options named, for the others every setting but the last, where changes less
-  than 2 s apart are one setting, as one `act` call makes them) and the seconds from the previous final answer to its
-  own; for a slider, also how it moved. It also reports answers changed on screen after the last submission. Its
+  than the questionnaire's opened while the agent worked, from a log of Hyprland's events that root keeps, out of
+  reach of the programs the agent could start; without that log it fails. A window of a class that the toolkit
+  file names, or of the questionnaire's own process, such as Chromium's dropdown lists on X11, which have no class,
+  is the questionnaire's. A failure names the question: `Question 6 (slider) is at -17; expected at -18`. Per
+  question and per kind, it reports whether the answer is right, the changes, the corrections (for a checkbox the
+  toggles beyond the options named, for the others every setting but the last, where changes less than 2 s apart
+  are one setting, as one `act` call makes them) and the seconds from the previous final answer to its own; for a
+  slider, also how it moved. It also reports answers changed on screen after the last submission. Its
   milestones are `first answer`, `all answered correctly`, `first submit` and `last submit`.
 - `check_test.py`: `python3 bench/tasks/form/check_test.py` checks the grade, the corrections and the milestones on
   constructed states: right and wrong answers of each kind, no submission, a submission from before the agent's
-  start, changes after the last one, a drag, keys after a click, a checkbox ticked by mistake, another window, and
-  no log of the windows.
+  start, changes after the last one, a drag, keys after a click, a checkbox ticked by mistake, another window, a
+  window of the questionnaire's process, and no log of the windows.
 - `setup.py`: the app, started with its state file, its window and its workspace, root's log of Hyprland's events,
   and in `collect()` the app's state, asked of the app's own process, its logs and the grade.
+- `windows.py`: root's log of Hyprland's events, with the process of each window that opens, which it asks
+  Hyprland for.
 - `variants`, `prompt.md`, `debrief.md`: the numbers of questions, 25 the default, and what the agent is told.
+
+The HTML app is one page, `form.html`, with the same questions, layout and records as `form.py`: checkboxes,
+`<input type=range>` sliders with their caption and read-only value, text fields, native `<select>` dropdowns,
+which open a popup in every engine, and Submit, in one scrolled column. A slider's pointer moves are `jump` and its
+keys `step-forward`, `page-backward`, `start` and the like. `form_html.py` is the process that the launcher starts
+and records. It serves the page on 127.0.0.1 under a random path, gives the page the questions of `items.py`,
+starts the engine on the page's URL as its child, and quits with it. The page sends it every change and every press
+of Submit, in order, and the server keeps the state in its memory, logs it as `form.py` does, and writes it on
+SIGUSR1. The engine does not inherit the state's file descriptor.
 
 ### trace
 
 Mara is writing a blog post and marks up its figure, a photo, with a brush in her Firefox 157: the prompt asks the
 agent to draw a line along a line of the photo, and nothing else. It names no tools and gives no coordinates. Firefox
-is started like a user would, on the visible workspace, and moved to the hidden workspace `web`; the user stays on
+is started like a user would, on the visible workspace, and moved to the hidden workspace `web`. The user stays on
 workspace 1 with the terminal. The task's variants are the figures, each a directory with its photo, the line to
 trace (`track.json`), the page's texts (`figure.json`) and its prompt (`prompt.md`):
 
@@ -584,11 +641,11 @@ trace (`track.json`), the page's texts (`figure.json`) and its prompt (`prompt.m
   aim: agents slide onto the rail there.
 
 The task exercises what board does not: precise input along a curve. On the river, one straight drag along the
-shadowed bank covers 30% of it and two chords pass, so the variant measures aim more than following a curve; on the
-rack, one straight drag covers 14%, five chords 90%, and eight pass. Without `act`'s `path` action, which presses
-once and moves through a line or a spline of points, the agent finds its own way: chained drags, Shift+click lines
-or dots, and how many of them. The photo is scaled to fit the window, the same on every load, and the page does not
-scroll.
+shadowed bank covers 30% of it and two chords pass, so the variant measures aim more than following a curve. On the
+rack, one straight drag covers 14%, five chords 90%, and eight pass. `act`'s `path` action presses once and moves
+through a line or a spline of points, so one action can draw the whole line. The agent may also draw it otherwise,
+with chained paths, Shift+click lines or dots, and the attribution counts how. The photo is scaled to fit the window,
+the same on every load, and the page does not scroll.
 
 The page draws with pointer events on a canvas, as a figure editor would: a drag draws a stroke along every pointer
 position Firefox reports, a click a dot, and Shift and a click a straight line from where the last stroke ended. Undo

@@ -2,13 +2,61 @@
 does from the structured content: python3 analyze_test.py"""
 
 import os
+import json
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import analyze  # noqa: E402
+from laptop import analyze as laptop_analyze  # noqa: E402
+
+
+class MacWindowVisibility(unittest.TestCase):
+    def measure(self, observations):
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "front.jsonl").write_text(json.dumps({"time": 0, "front": "TextEdit"}) + "\n")
+            Path(root, "windows.jsonl").write_text("\n".join(json.dumps(row) for row in observations) + "\n")
+            return laptop_analyze.mac_disturbance(root, "TextEdit", 1, 9)
+
+    def test_normal_layer_overlay_counts_without_a_focus_change(self):
+        focus, visible = self.measure([
+            {"time": 0, "windows": []},
+            {"time": 2, "windows": [{"layer": 0, "over_user": True}]},
+            {"time": 5, "windows": [{"layer": 0, "over_user": False}]},
+        ])
+        self.assertEqual(focus["seconds_away_from_user"], 0)
+        self.assertEqual(visible, {"shown": 1, "seconds_visible": 3.0})
+
+    def test_visible_interval_is_clipped_to_the_agent_run(self):
+        _, visible = self.measure([
+            {"time": 0, "windows": [{"layer": 0, "over_user": True}]},
+            {"time": 12, "windows": []},
+        ])
+        self.assertEqual(visible, {"shown": 0, "seconds_visible": 8.0})
+
+    def test_old_observations_keep_the_positive_layer_fallback(self):
+        _, visible = self.measure([
+            {"time": 0, "windows": [{"layer": 0}]},
+            {"time": 3, "windows": [{"layer": 1, "over_user": False}]},
+            {"time": 6, "windows": []},
+        ])
+        self.assertEqual(visible, {"shown": 1, "seconds_visible": 3.0})
+
+    def test_disturbance_unions_focus_and_visible_windows(self):
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "front.jsonl").write_text("\n".join(json.dumps(row) for row in [
+                {"time": 0, "front": "TextEdit"}, {"time": 2, "front": "Questionnaire"},
+                {"time": 5, "front": "TextEdit"}]) + "\n")
+            Path(root, "windows.jsonl").write_text("\n".join(json.dumps(row) for row in [
+                {"time": 0, "windows": []}, {"time": 4, "windows": [{"layer": 0, "over_user": True}]},
+                {"time": 7, "windows": []}]) + "\n")
+            focus, windows = laptop_analyze.mac_disturbance(root, "TextEdit", 1, 9)
+        self.assertEqual(focus["seconds_away_from_user"], 3.0)
+        self.assertEqual(windows["seconds_visible"], 3.0)
+        self.assertEqual(focus["seconds_disturbed"], 5.0)
 
 
 def both(actions, text, structured):

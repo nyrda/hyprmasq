@@ -1,0 +1,1456 @@
+[
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 1,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 64.2,
+    "tool_seconds": 5.4,
+    "calls": 5,
+    "errors": 0,
+    "images": 11,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.16,
+        "errors": 0
+      },
+      "act": {
+        "calls": 4,
+        "seconds": 5.27,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9653,
+    "usage": {
+      "input_tokens": 96267,
+      "cache_read_tokens": 80000,
+      "cache_write_tokens": 0,
+      "output_tokens": 438,
+      "thinking_tokens": 0,
+      "cost_usd": 0.044914,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 16267
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 7,
+      "first_input_tokens": 9653,
+      "peak_input_tokens": 15532,
+      "last_input_tokens": 15532,
+      "growth_input_tokens": 5879,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-1"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 2,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 37.0,
+    "tool_seconds": 5.5,
+    "calls": 6,
+    "errors": 0,
+    "images": 11,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.16,
+        "errors": 0
+      },
+      "act": {
+        "calls": 4,
+        "seconds": 5.29,
+        "errors": 0
+      },
+      "release": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9653,
+    "usage": {
+      "input_tokens": 111911,
+      "cache_read_tokens": 95232,
+      "cache_write_tokens": 0,
+      "output_tokens": 495,
+      "thinking_tokens": 0,
+      "cost_usd": 0.047831,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 16679
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 8,
+      "first_input_tokens": 9653,
+      "peak_input_tokens": 15628,
+      "last_input_tokens": 15628,
+      "growth_input_tokens": 5975,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-2"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 3,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 38.5,
+    "tool_seconds": 5.4,
+    "calls": 7,
+    "errors": 0,
+    "images": 11,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      },
+      "screenshot": {
+        "calls": 1,
+        "seconds": 0.15,
+        "errors": 0
+      },
+      "act": {
+        "calls": 4,
+        "seconds": 5.25,
+        "errors": 0
+      },
+      "release": {
+        "calls": 1,
+        "seconds": 0.0,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9653,
+    "usage": {
+      "input_tokens": 125514,
+      "cache_read_tokens": 109312,
+      "cache_write_tokens": 0,
+      "output_tokens": 552,
+      "thinking_tokens": 0,
+      "cost_usd": 0.048855,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 16202
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 9,
+      "first_input_tokens": 9653,
+      "peak_input_tokens": 15747,
+      "last_input_tokens": 15747,
+      "growth_input_tokens": 6094,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-3"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 4,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 39.0,
+    "tool_seconds": 5.2,
+    "calls": 6,
+    "errors": 0,
+    "images": 10,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.17,
+        "errors": 0
+      },
+      "act": {
+        "calls": 4,
+        "seconds": 5.02,
+        "errors": 0
+      },
+      "release": {
+        "calls": 1,
+        "seconds": 0.0,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9653,
+    "usage": {
+      "input_tokens": 113799,
+      "cache_read_tokens": 104576,
+      "cache_write_tokens": 0,
+      "output_tokens": 503,
+      "thinking_tokens": 0,
+      "cost_usd": 0.033934,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 9223
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 8,
+      "first_input_tokens": 9653,
+      "peak_input_tokens": 16574,
+      "last_input_tokens": 16574,
+      "growth_input_tokens": 6921,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-4"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 5,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 36.5,
+    "tool_seconds": 5.4,
+    "calls": 6,
+    "errors": 0,
+    "images": 11,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.15,
+        "errors": 0
+      },
+      "act": {
+        "calls": 4,
+        "seconds": 5.28,
+        "errors": 0
+      },
+      "release": {
+        "calls": 1,
+        "seconds": 0.0,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9653,
+    "usage": {
+      "input_tokens": 111868,
+      "cache_read_tokens": 98304,
+      "cache_write_tokens": 0,
+      "output_tokens": 488,
+      "thinking_tokens": 0,
+      "cost_usd": 0.041838,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 13564
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 8,
+      "first_input_tokens": 9653,
+      "peak_input_tokens": 15621,
+      "last_input_tokens": 15621,
+      "growth_input_tokens": 5968,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-5"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 6,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 37.6,
+    "tool_seconds": 5.5,
+    "calls": 7,
+    "errors": 0,
+    "images": 11,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      },
+      "screenshot": {
+        "calls": 1,
+        "seconds": 0.17,
+        "errors": 0
+      },
+      "act": {
+        "calls": 4,
+        "seconds": 5.28,
+        "errors": 0
+      },
+      "release": {
+        "calls": 1,
+        "seconds": 0.0,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9653,
+    "usage": {
+      "input_tokens": 125536,
+      "cache_read_tokens": 116224,
+      "cache_write_tokens": 0,
+      "output_tokens": 562,
+      "thinking_tokens": 0,
+      "cost_usd": 0.035866,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 9312
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 9,
+      "first_input_tokens": 9653,
+      "peak_input_tokens": 15761,
+      "last_input_tokens": 15761,
+      "growth_input_tokens": 6108,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-6"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "cua",
+    "rep": 1,
+    "passed": false,
+    "passed_without_hyprland_dialogs": false,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [
+      "missing: Archive/report-final.txt",
+      "unexpected: report-final.txt",
+      "a window other than the file manager's opened: 592158ef2180,files,xdg-desktop-portal-gtk,Select Move Destination"
+    ],
+    "timed_out": false,
+    "wall_seconds": 175.2,
+    "tool_seconds": 16.9,
+    "calls": 30,
+    "errors": 14,
+    "images": 16,
+    "by_tool": {
+      "list_windows": {
+        "calls": 3,
+        "seconds": 0.04,
+        "errors": 0
+      },
+      "get_window_state": {
+        "calls": 5,
+        "seconds": 2.37,
+        "errors": 1
+      },
+      "run_steps": {
+        "calls": 16,
+        "seconds": 13.98,
+        "errors": 11
+      },
+      "invoke_menu": {
+        "calls": 1,
+        "seconds": 0.51,
+        "errors": 1
+      },
+      "mouse_button_up": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 1
+      },
+      "get_guide": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      },
+      "end_session": {
+        "calls": 2,
+        "seconds": 0.03,
+        "errors": 0
+      },
+      "start_session": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 12358,
+    "usage": {
+      "input_tokens": 1844159,
+      "cache_read_tokens": 1764992,
+      "cache_write_tokens": 0,
+      "output_tokens": 3178,
+      "thinking_tokens": 463,
+      "cost_usd": 0.366613,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 79167
+    },
+    "final": "Renamed to report-final.txt. Moving it is blocked by a desktop input error; it remains in Project.",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 38,
+      "first_input_tokens": 12358,
+      "peak_input_tokens": 83705,
+      "last_input_tokens": 83705,
+      "growth_input_tokens": 71347,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 4,
+      "seconds_away_from_user": 139.4,
+      "events": [
+        {
+          "at": 35.83,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 35.83,
+          "event": "workspacev2",
+          "to": "-1337,files",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 81.96,
+          "event": "activewindowv2",
+          "to": "592158ef2180",
+          "during": [
+            "run_steps"
+          ]
+        },
+        {
+          "at": 97.21,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        }
+      ]
+    },
+    "error_texts": [
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): background_unavailable (client_not_qualified): client_not_qualified\nobservation: full read (no usable earlier",
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): click: AT-SPI activation outcome is unknown for element [8] (pid 1085165); refresh state before another actio",
+      "run_steps: run_steps: step 2 of 2 failed; 1 step(s) ran before it, 0 not run\n1. click ok: Dispatched exact-target Hyprland input; application effect is unverifiable.\n2. press_key ERROR (action): foreground_unava",
+      "invoke_menu: invoke_menu: menu path segment 0 was not found",
+      "run_steps: run_steps: step 1 of 1 failed; 0 step(s) ran before it, 0 not run\n1. right_click ERROR (action): No screenshot frame for window 97999760076848: its latest read had no screenshot and the window changed",
+      "run_steps: run_steps: step 1 of 1 failed; 0 step(s) ran before it, 0 not run\n1. click ERROR (action): foreground_unavailable (primary_target_busy): foreground_grab\nobservation: no change since s00000006 (below) ",
+      "run_steps: run_steps: step 1 of 1 failed; 0 step(s) ran before it, 0 not run\n1. drag ERROR (action): foreground_unavailable: foreground activation or input may have started; final input delivery is unknown\nobser",
+      "run_steps: run_steps: step 1 of 1 failed; 0 step(s) ran before it, 0 not run\n1. right_click ERROR (action): foreground_unavailable (primary_target_busy): foreground_dnd\nobservation: no change since s0000000f (be",
+      "mouse_button_up: No mouse button is currently held for cursor 'mcp-917b76c0-e0e9-4991-97b7-83ce072417b4'.",
+      "run_steps: run_steps: step 1 of 1 failed; 0 step(s) ran before it, 0 not run\n1. press_key ERROR (action): foreground_unavailable (primary_target_busy): foreground_dnd\nobservation: no change since s00000010 (belo",
+      "run_steps: run_steps: step 1 of 1 failed; 0 step(s) ran before it, 0 not run\n1. press_key ERROR (action): background_unavailable: isolated keys address the exact top-level; first click the child explicitly\nobser",
+      "get_window_state: this transport's unnamed session has ended; call start_session without a session label to start a new one",
+      "run_steps: run_steps: step 1 of 1 failed; 0 step(s) ran before it, 0 not run\n1. right_click ERROR (action): Background delivery is not available: the requested target has no focus-free input backend; the remaini",
+      "run_steps: run_steps: step 1 of 1 failed; 0 step(s) ran before it, 0 not run\n1. right_click ERROR (action): foreground_unavailable (primary_target_busy): foreground_dnd\nobservation: no change since s00000014 (be"
+    ]
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "cua",
+    "rep": 2,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 71.1,
+    "tool_seconds": 7.2,
+    "calls": 14,
+    "errors": 3,
+    "images": 4,
+    "by_tool": {
+      "list_windows": {
+        "calls": 2,
+        "seconds": 0.02,
+        "errors": 0
+      },
+      "get_window_state": {
+        "calls": 2,
+        "seconds": 1.44,
+        "errors": 0
+      },
+      "run_steps": {
+        "calls": 9,
+        "seconds": 5.75,
+        "errors": 3
+      },
+      "end_session": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 12358,
+    "usage": {
+      "input_tokens": 718355,
+      "cache_read_tokens": 674816,
+      "cache_write_tokens": 0,
+      "output_tokens": 1315,
+      "thinking_tokens": 81,
+      "cost_usd": 0.16771,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 43539
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 18,
+      "first_input_tokens": 12358,
+      "peak_input_tokens": 50023,
+      "last_input_tokens": 50023,
+      "growth_input_tokens": 37665,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 3,
+      "seconds_away_from_user": 40.9,
+      "events": [
+        {
+          "at": 30.24,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 30.24,
+          "event": "workspacev2",
+          "to": "-1337,files",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 58.45,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        }
+      ]
+    },
+    "error_texts": [
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): background_unavailable (client_not_qualified): client_not_qualified\nobservation: full read (no usable earlier",
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): click: AT-SPI activation outcome is unknown for element [8] (pid 1126856); refresh state before another actio",
+      "run_steps: run_steps: step 2 of 2 failed; 1 step(s) ran before it, 0 not run\n1. click ok: Dispatched exact-target Hyprland input; application effect is unverifiable.\n2. press_key ERROR (action): foreground_unava"
+    ]
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "cua",
+    "rep": 3,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 69.9,
+    "tool_seconds": 6.6,
+    "calls": 14,
+    "errors": 3,
+    "images": 5,
+    "by_tool": {
+      "list_windows": {
+        "calls": 2,
+        "seconds": 0.02,
+        "errors": 0
+      },
+      "get_window_state": {
+        "calls": 4,
+        "seconds": 1.52,
+        "errors": 0
+      },
+      "run_steps": {
+        "calls": 8,
+        "seconds": 5.09,
+        "errors": 3
+      }
+    },
+    "first_prompt_tokens": 12358,
+    "usage": {
+      "input_tokens": 627618,
+      "cache_read_tokens": 561408,
+      "cache_write_tokens": 0,
+      "output_tokens": 1199,
+      "thinking_tokens": 69,
+      "cost_usd": 0.200551,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 66210
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 17,
+      "first_input_tokens": 12358,
+      "peak_input_tokens": 66944,
+      "last_input_tokens": 66944,
+      "growth_input_tokens": 54586,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 3,
+      "seconds_away_from_user": 32.5,
+      "events": [
+        {
+          "at": 37.35,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 37.35,
+          "event": "workspacev2",
+          "to": "-1337,files",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 62.38,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        }
+      ]
+    },
+    "error_texts": [
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): background_unavailable (client_not_qualified): client_not_qualified\nobservation: no change since s00000002 (b",
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): click: AT-SPI activation outcome is unknown for element [8] (pid 1205866); refresh state before another actio",
+      "run_steps: run_steps: step 2 of 2 failed; 1 step(s) ran before it, 0 not run\n1. set_value ok: Set value of element [10] to 'report-final.txt' (path=ax); read back 'report-final.txt'.\n2. press_key ERROR (action):"
+    ]
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "cua",
+    "rep": 4,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 77.3,
+    "tool_seconds": 7.5,
+    "calls": 13,
+    "errors": 5,
+    "images": 6,
+    "by_tool": {
+      "list_windows": {
+        "calls": 2,
+        "seconds": 0.04,
+        "errors": 0
+      },
+      "get_window_state": {
+        "calls": 3,
+        "seconds": 0.88,
+        "errors": 1
+      },
+      "run_steps": {
+        "calls": 8,
+        "seconds": 6.56,
+        "errors": 4
+      }
+    },
+    "first_prompt_tokens": 12358,
+    "usage": {
+      "input_tokens": 682937,
+      "cache_read_tokens": 640768,
+      "cache_write_tokens": 0,
+      "output_tokens": 1516,
+      "thinking_tokens": 118,
+      "cost_usd": 0.163575,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 42169
+    },
+    "final": "Renamed the file to report-final.txt. The file manager closed during the move into Archive, so I couldn\u2019t verify the move completed.",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 18,
+      "first_input_tokens": 12358,
+      "peak_input_tokens": 46971,
+      "last_input_tokens": 46971,
+      "growth_input_tokens": 34613,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 4,
+      "seconds_away_from_user": 46.3,
+      "events": [
+        {
+          "at": 31.04,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 31.04,
+          "event": "workspacev2",
+          "to": "-1337,files",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 60.01,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 65.41,
+          "event": "activewindowv2",
+          "to": "",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        }
+      ]
+    },
+    "error_texts": [
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): background_unavailable (client_not_qualified): client_not_qualified\nobservation: full read (no usable earlier",
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): click: AT-SPI activation outcome is unknown for element [8] (pid 1295128); refresh state before another actio",
+      "run_steps: run_steps: step 2 of 2 failed; 1 step(s) ran before it, 0 not run\n1. click ok: Dispatched exact-target Hyprland input; application effect is unverifiable.\n2. press_key ERROR (action): foreground_unava",
+      "run_steps: run_steps: step 2 of 2 failed; 1 step(s) ran before it, 0 not run\n1. press_key ok: Dispatched exact-target Hyprland input; application effect is unverifiable.\n2. click ERROR (action): No screenshot fr",
+      "get_window_state: Window target pid 1295128, window_id 97999759571680 is stale or no longer running; refresh list_windows."
+    ]
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "cua",
+    "rep": 5,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 75.5,
+    "tool_seconds": 8.9,
+    "calls": 15,
+    "errors": 3,
+    "images": 9,
+    "by_tool": {
+      "list_windows": {
+        "calls": 2,
+        "seconds": 0.03,
+        "errors": 0
+      },
+      "get_window_state": {
+        "calls": 3,
+        "seconds": 2.08,
+        "errors": 0
+      },
+      "run_steps": {
+        "calls": 10,
+        "seconds": 6.8,
+        "errors": 3
+      }
+    },
+    "first_prompt_tokens": 12358,
+    "usage": {
+      "input_tokens": 918264,
+      "cache_read_tokens": 843648,
+      "cache_write_tokens": 0,
+      "output_tokens": 1541,
+      "thinking_tokens": 110,
+      "cost_usd": 0.249007,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 74616
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 19,
+      "first_input_tokens": 12358,
+      "peak_input_tokens": 73763,
+      "last_input_tokens": 73763,
+      "growth_input_tokens": 61405,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 4,
+      "seconds_away_from_user": 45.0,
+      "events": [
+        {
+          "at": 30.51,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 30.51,
+          "event": "workspacev2",
+          "to": "-1337,files",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 57.22,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 71.95,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        }
+      ]
+    },
+    "error_texts": [
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): background_unavailable (client_not_qualified): client_not_qualified\nobservation: full read (no usable earlier",
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): click: AT-SPI activation outcome is unknown for element [8] (pid 1368066); refresh state before another actio",
+      "run_steps: run_steps: step 2 of 2 failed; 1 step(s) ran before it, 0 not run\n1. click ok: Dispatched exact-target Hyprland input; application effect is unverifiable.\n2. press_key ERROR (action): foreground_unava"
+    ]
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "cua",
+    "rep": 6,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 96.8,
+    "tool_seconds": 11.3,
+    "calls": 19,
+    "errors": 3,
+    "images": 9,
+    "by_tool": {
+      "list_windows": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      },
+      "get_window_state": {
+        "calls": 4,
+        "seconds": 2.1,
+        "errors": 0
+      },
+      "run_steps": {
+        "calls": 13,
+        "seconds": 9.22,
+        "errors": 3
+      },
+      "end_session": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 12358,
+    "usage": {
+      "input_tokens": 942249,
+      "cache_read_tokens": 882304,
+      "cache_write_tokens": 0,
+      "output_tokens": 1763,
+      "thinking_tokens": 110,
+      "cost_usd": 0.22575,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 59945
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 22,
+      "first_input_tokens": 12358,
+      "peak_input_tokens": 58060,
+      "last_input_tokens": 58060,
+      "growth_input_tokens": 45702,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 5,
+      "seconds_away_from_user": 66.0,
+      "events": [
+        {
+          "at": 30.77,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 30.77,
+          "event": "workspacev2",
+          "to": "-1337,files",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 49.62,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        },
+        {
+          "at": 66.7,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps"
+          ]
+        },
+        {
+          "at": 82.03,
+          "event": "activewindowv2",
+          "to": "task window",
+          "during": [
+            "run_steps \"foreground\""
+          ]
+        }
+      ]
+    },
+    "error_texts": [
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): background_unavailable (client_not_qualified): client_not_qualified\nobservation: full read (no usable earlier",
+      "run_steps: run_steps: step 1 of 2 failed; 0 step(s) ran before it, 1 not run\n1. click ERROR (action): click: AT-SPI activation outcome is unknown for element [8] (pid 1453525); refresh state before another actio",
+      "run_steps: run_steps: step 2 of 2 failed; 1 step(s) ran before it, 0 not run\n1. set_value ok: Set value of element [10] to 'report-final.txt' (path=ax); read back 'report-final.txt'.\n2. press_key ERROR (action):"
+    ]
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-terra",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 1,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 21.1,
+    "tool_seconds": 5.3,
+    "calls": 6,
+    "errors": 0,
+    "images": 11,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.0,
+        "errors": 0
+      },
+      "screenshot": {
+        "calls": 1,
+        "seconds": 0.17,
+        "errors": 0
+      },
+      "act": {
+        "calls": 4,
+        "seconds": 5.11,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9594,
+    "usage": {
+      "input_tokens": 109460,
+      "cache_read_tokens": 87936,
+      "cache_write_tokens": 0,
+      "output_tokens": 539,
+      "thinking_tokens": 17,
+      "cost_usd": 0.028616,
+      "cost_basis": "API list prices for gpt-6.1-terra",
+      "uncached_input_tokens": 21524
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 8,
+      "first_input_tokens": 9594,
+      "peak_input_tokens": 15650,
+      "last_input_tokens": 15650,
+      "growth_input_tokens": 6056,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-1"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-terra",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 2,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 16.1,
+    "tool_seconds": 4.3,
+    "calls": 5,
+    "errors": 0,
+    "images": 6,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      },
+      "screenshot": {
+        "calls": 1,
+        "seconds": 0.17,
+        "errors": 0
+      },
+      "act": {
+        "calls": 3,
+        "seconds": 4.14,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9594,
+    "usage": {
+      "input_tokens": 93769,
+      "cache_read_tokens": 72576,
+      "cache_write_tokens": 0,
+      "output_tokens": 479,
+      "thinking_tokens": 18,
+      "cost_usd": 0.027217,
+      "cost_basis": "API list prices for gpt-6.1-terra",
+      "uncached_input_tokens": 21193
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 7,
+      "first_input_tokens": 9594,
+      "peak_input_tokens": 15345,
+      "last_input_tokens": 15345,
+      "growth_input_tokens": 5751,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-2"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-terra",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 3,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 21.1,
+    "tool_seconds": 5.3,
+    "calls": 6,
+    "errors": 0,
+    "images": 11,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      },
+      "screenshot": {
+        "calls": 1,
+        "seconds": 0.18,
+        "errors": 0
+      },
+      "act": {
+        "calls": 4,
+        "seconds": 5.12,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9594,
+    "usage": {
+      "input_tokens": 109475,
+      "cache_read_tokens": 89856,
+      "cache_write_tokens": 0,
+      "output_tokens": 546,
+      "thinking_tokens": 30,
+      "cost_usd": 0.026842,
+      "cost_basis": "API list prices for gpt-6.1-terra",
+      "uncached_input_tokens": 19619
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 8,
+      "first_input_tokens": 9594,
+      "peak_input_tokens": 15658,
+      "last_input_tokens": 15658,
+      "growth_input_tokens": 6064,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-3"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-terra",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 4,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 17.4,
+    "tool_seconds": 4.5,
+    "calls": 5,
+    "errors": 0,
+    "images": 6,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      },
+      "screenshot": {
+        "calls": 1,
+        "seconds": 0.17,
+        "errors": 0
+      },
+      "act": {
+        "calls": 3,
+        "seconds": 4.36,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9594,
+    "usage": {
+      "input_tokens": 93764,
+      "cache_read_tokens": 72576,
+      "cache_write_tokens": 0,
+      "output_tokens": 471,
+      "thinking_tokens": 12,
+      "cost_usd": 0.027172,
+      "cost_basis": "API list prices for gpt-6.1-terra",
+      "uncached_input_tokens": 21188
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 7,
+      "first_input_tokens": 9594,
+      "peak_input_tokens": 15327,
+      "last_input_tokens": 15327,
+      "growth_input_tokens": 5733,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-4"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-terra",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 5,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 16.5,
+    "tool_seconds": 4.5,
+    "calls": 4,
+    "errors": 0,
+    "images": 6,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.15,
+        "errors": 0
+      },
+      "act": {
+        "calls": 3,
+        "seconds": 4.34,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9594,
+    "usage": {
+      "input_tokens": 80368,
+      "cache_read_tokens": 67456,
+      "cache_write_tokens": 0,
+      "output_tokens": 398,
+      "thinking_tokens": 11,
+      "cost_usd": 0.018275,
+      "cost_basis": "API list prices for gpt-6.1-terra",
+      "uncached_input_tokens": 12912
+    },
+    "final": "Done.",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 6,
+      "first_input_tokens": 9594,
+      "peak_input_tokens": 15187,
+      "last_input_tokens": 15187,
+      "growth_input_tokens": 5593,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-5"
+  },
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-terra",
+    "task": "files",
+    "platform": "hyprland",
+    "toolkit": null,
+    "backend": "hyprmasq",
+    "rep": 6,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": null,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 13.9,
+    "tool_seconds": 3.7,
+    "calls": 4,
+    "errors": 0,
+    "images": 4,
+    "by_tool": {
+      "windows": {
+        "calls": 1,
+        "seconds": 0.01,
+        "errors": 0
+      },
+      "screenshot": {
+        "calls": 1,
+        "seconds": 0.16,
+        "errors": 0
+      },
+      "act": {
+        "calls": 2,
+        "seconds": 3.52,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 9594,
+    "usage": {
+      "input_tokens": 78240,
+      "cache_read_tokens": 51328,
+      "cache_write_tokens": 0,
+      "output_tokens": 387,
+      "thinking_tokens": 0,
+      "cost_usd": 0.031413,
+      "cost_basis": "API list prices for gpt-6.1-terra",
+      "uncached_input_tokens": 26912
+    },
+    "final": "Done",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 6,
+      "first_input_tokens": 9594,
+      "peak_input_tokens": 14803,
+      "last_input_tokens": 14803,
+      "growth_input_tokens": 5209,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [],
+    "effort": "medium",
+    "source_commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+    "source_run": "runs/files/codex/hyprmasq-6"
+  }
+]

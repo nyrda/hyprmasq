@@ -40,6 +40,21 @@ class Grade(unittest.TestCase):
         self.assertEqual([i["kind"] for i in items.items(10)],
                          ["checkbox", "slider", "text", "dropdown"] * 2 + ["checkbox", "slider"])
 
+    def test_a_questionnaire_without_dropdowns_numbers_and_grades_the_rest(self):
+        os.environ["HYPRMASQ_FORM_KINDS"] = "checkbox,slider,text"
+        try:
+            asked = items.items(25)
+            self.assertEqual([i["kind"] for i in asked[:4]], ["checkbox", "slider", "text", "checkbox"])
+            self.assertEqual([i["number"] for i in asked], list(range(1, 26)))
+            self.assertEqual(asked[3]["question"], "Tick 7.")
+            result = check.grade(state(answers(25)), 25, START)
+            self.assertTrue(result["passed"], result["failures"])
+            self.assertEqual(sorted(result["checks"]["kinds"]), ["checkbox", "slider", "text"])
+            with self.assertRaises(ValueError):
+                items.items(31)
+        finally:
+            del os.environ["HYPRMASQ_FORM_KINDS"]
+
     def test_a_wrong_answer_of_each_kind_is_named(self):
         values = {**answers(10), "1": ["Amber", "Olive"], "2": "38", "3": "Northwind 24", "4": items.PLACEHOLDER}
         result = check.grade(state(values), 10, START)
@@ -165,6 +180,35 @@ class OtherWindows(unittest.TestCase):
             opened = check.other_windows(f.name, "0xbbb", START)
         self.assertEqual(opened, [{"class": "foot", "title": "foot", "workspace": "hyprmasq"}])
         self.assertIsNone(check.other_windows(f.name + ".missing", "0xbbb", START))
+
+    def test_an_x11_apps_popups_of_the_classes_named_do_not_count(self):
+        log = "\n".join([
+            "1001.0 openwindow>>ddd,form,ComboboxPopdown,popdown",
+            "1002.0 openwindow>>eee,form,foot,foot",
+        ])
+        with tempfile.NamedTemporaryFile("w", suffix=".log") as f:
+            f.write(log + "\n")
+            f.flush()
+            named = check.other_windows(f.name, "0xbbb", START, ["ComboboxPopdown"])
+            unnamed = check.other_windows(f.name, "0xbbb", START)
+        self.assertEqual(named, [{"class": "foot", "title": "foot", "workspace": "form"}])
+        self.assertEqual([w["class"] for w in unnamed], ["ComboboxPopdown", "foot"])
+
+    def test_windows_of_the_questionnaires_process_are_its_own(self):
+        log = "\n".join([
+            "1001.0 openwindow>>bbb,form,questionnaire,Questionnaire",
+            "1001.0 windowpid>>0xbbb,42",
+            "1002.0 openwindow>>ccc,form,,",
+            "1002.0 windowpid>>0xccc,42",
+            "1003.0 openwindow>>ddd,form,,",
+            "1003.0 windowpid>>0xddd,43",
+            "1004.0 openwindow>>eee,form,,",
+        ])
+        with tempfile.NamedTemporaryFile("w", suffix=".log") as f:
+            f.write(log + "\n")
+            f.flush()
+            opened = check.other_windows(f.name, "0xbbb", START)
+        self.assertEqual(opened, [{"class": "", "title": "", "workspace": "form"}] * 2)
 
 
 if __name__ == "__main__":

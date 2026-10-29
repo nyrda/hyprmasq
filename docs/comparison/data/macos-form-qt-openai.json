@@ -1,0 +1,182 @@
+[
+  {
+    "harness": "codex-desktop",
+    "model": "gpt-6.1-sol",
+    "task": "form",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "openai-cu",
+    "rep": 1,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 109.4,
+    "tool_seconds": 12.9,
+    "calls": 22,
+    "errors": 0,
+    "images": 7,
+    "by_tool": {
+      "js": {
+        "calls": 22,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 29684,
+    "usage": {
+      "input_tokens": 1226497,
+      "cache_read_tokens": 1170944,
+      "cache_write_tokens": 0,
+      "output_tokens": 1473,
+      "thinking_tokens": 91,
+      "uncached_input_tokens": 55553,
+      "cost_usd": 0.24293,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 23,
+      "first_input_tokens": 29684,
+      "peak_input_tokens": 70897,
+      "last_input_tokens": 70897,
+      "growth_input_tokens": 41213,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 38.0
+    },
+    "popups": {
+      "shown": 10,
+      "seconds_visible": 38.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-desktop",
+    "model": "gpt-6.1-sol",
+    "task": "form",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "openai-cu",
+    "rep": 2,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 118.5,
+    "tool_seconds": 15.5,
+    "calls": 27,
+    "errors": 3,
+    "images": 6,
+    "by_tool": {
+      "js": {
+        "calls": 27,
+        "errors": 3
+      }
+    },
+    "first_prompt_tokens": 29682,
+    "usage": {
+      "input_tokens": 1414128,
+      "cache_read_tokens": 1372160,
+      "cache_write_tokens": 0,
+      "output_tokens": 1815,
+      "thinking_tokens": 219,
+      "uncached_input_tokens": 41968,
+      "cost_usd": 0.239302,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 28,
+      "first_input_tokens": 29682,
+      "peak_input_tokens": 63314,
+      "last_input_tokens": 63314,
+      "growth_input_tokens": 33632,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 80.2
+    },
+    "popups": {
+      "shown": 8,
+      "seconds_visible": 80.2
+    },
+    "error_texts": [
+      "[{\"type\": \"input_text\", \"text\": \"Wall time: 0.0171 seconds\\nOutput:\"}, {\"type\": \"input_text\", \"text\": \"Computer Use server error -10005: cannotClickOffscreenElement\"}]",
+      "[{\"type\": \"input_text\", \"text\": \"Wall time: 0.0192 seconds\\nOutput:\"}, {\"type\": \"input_text\", \"text\": \"Computer Use server error -10005: cannotClickOffscreenElement\"}]",
+      "[{\"type\": \"input_text\", \"text\": \"Wall time: 0.0233 seconds\\nOutput:\"}, {\"type\": \"input_text\", \"text\": \"Computer Use server error -10005: cannotClickOffscreenElement\"}]"
+    ]
+  },
+  {
+    "harness": "codex-desktop",
+    "model": "gpt-6.1-sol",
+    "task": "form",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "openai-cu",
+    "rep": 3,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 74.7,
+    "tool_seconds": 9.0,
+    "calls": 16,
+    "errors": 1,
+    "images": 3,
+    "by_tool": {
+      "js": {
+        "calls": 16,
+        "errors": 1
+      }
+    },
+    "first_prompt_tokens": 29684,
+    "usage": {
+      "input_tokens": 763785,
+      "cache_read_tokens": 732032,
+      "cache_write_tokens": 0,
+      "output_tokens": 1333,
+      "thinking_tokens": 162,
+      "uncached_input_tokens": 31753,
+      "cost_usd": 0.150039,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 17,
+      "first_input_tokens": 29684,
+      "peak_input_tokens": 52350,
+      "last_input_tokens": 52350,
+      "growth_input_tokens": 22666,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 26.6
+    },
+    "popups": {
+      "shown": 8,
+      "seconds_visible": 26.6
+    },
+    "error_texts": [
+      "[{\"type\": \"input_text\", \"text\": \"Wall time: 0.0324 seconds\\nOutput:\"}, {\"type\": \"input_text\", \"text\": \"Computer Use server error -10005: cannotClickOffscreenElement\"}]"
+    ]
+  }
+]

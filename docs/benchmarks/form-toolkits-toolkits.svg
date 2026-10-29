@@ -1,0 +1,313 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="855" viewBox="0 0 880 855" role="img" aria-label="Wall time per run of each agent, a panel per toolkit. Each bar is the median wall time with the median time in hyprmasq&#x27;s tools inside it, and each dot one run.">
+<title>Wall time per run of each agent, a panel per toolkit. Each bar is the median wall time with the median time in hyprmasq&#x27;s tools inside it, and each dot one run.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#1f2328}.t2{fill:#59636e}.m{fill:#818b98}.bg{fill:#ffffff;stroke:#d1d9e0}.grid{stroke:#eff2f5;stroke-width:1}.axis{stroke:#d1d9e0;stroke-width:1}.tools{fill:#2a78d6}.out{fill:#c8d1da}.dot{fill:#424a53;stroke:#ffffff;stroke-width:1.5}.miss{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.pass{fill:#1a7f37}.fail{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.cut{stroke:#ffffff;stroke-width:2}.s0{fill:#2a78d6}.s1{fill:#eb6834}.s2{fill:#1baf7a}.s3{fill:#eda100}.s4{fill:#e87ba4}.s5{fill:#008300}.s6{fill:#6250d6}.s7{fill:#e34948}</style>
+<rect x="0.5" y="0.5" width="879" height="854" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Wall time per run</text>
+<text x="24" y="53" class="t2" font-size="12.5">Each bar is a median wall time, written at the right. Its blue part is the median time in hyprmasq&#x27;s</text>
+<text x="24" y="72" class="t2" font-size="12.5">MCP tools, and the grey part fills the bar up to the median wall time. Each dot is one run.</text>
+<text x="24" y="91" class="t2" font-size="12.5">A dot past the end of its axis is a run off the scale, more than twice its row&#x27;s median.</text>
+<text x="24" y="110" class="t2" font-size="12.5">All runs ran at medium effort.</text>
+<rect x="24" y="127" width="12" height="10" class="tools" rx="2"/>
+<text x="42" y="136" class="t2" font-size="12">median in hyprmasq&#x27;s tools</text>
+<rect x="209" y="127" width="12" height="10" class="out" rx="2"/>
+<text x="227" y="136" class="t2" font-size="12">rest of the median wall time</text>
+<circle cx="400.1" cy="132" r="4.5" class="dot"/>
+<text x="410.1" y="136" class="t2" font-size="12">one run</text>
+<circle cx="477.8" cy="132" r="4.5" class="miss"/>
+<text x="487.8" y="136" class="t2" font-size="12">failed run</text>
+<text x="116.9" y="170" class="t" font-size="13" font-weight="600">GTK 4</text>
+<text x="468.5" y="170" class="m" font-size="12" text-anchor="end">9/9 passed</text>
+<line x1="116.9" y1="182" x2="116.9" y2="260" class="axis"/>
+<text x="116.9" y="275" class="m" font-size="11">0</text>
+<line x1="195.4" y1="182" x2="195.4" y2="260" class="grid"/>
+<text x="195.4" y="275" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="273.9" y1="182" x2="273.9" y2="260" class="grid"/>
+<text x="273.9" y="275" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="352.4" y1="182" x2="352.4" y2="260" class="grid"/>
+<text x="352.4" y="275" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="116.9" y="189" width="56.2" height="12" class="tools"/>
+<path d="M175.1 189H284.9Q287.9 189 287.9 192V198Q287.9 201 284.9 201H175.1Z" class="out"/>
+<circle cx="255.7" cy="195" r="3.5" class="dot"/>
+<circle cx="287.9" cy="195" r="3.5" class="dot"/>
+<circle cx="305.6" cy="195" r="3.5" class="dot"/>
+<text x="468.5" y="199.5" class="t2" font-size="12" text-anchor="end">109 s</text>
+<rect x="116.9" y="215" width="57.6" height="12" class="tools"/>
+<path d="M176.5 215H212.6Q215.6 215 215.6 218V224Q215.6 227 212.6 227H176.5Z" class="out"/>
+<circle cx="215" cy="221" r="3.5" class="dot"/>
+<circle cx="215.6" cy="221" r="3.5" class="dot"/>
+<circle cx="223.5" cy="221" r="3.5" class="dot"/>
+<text x="468.5" y="225.5" class="t2" font-size="12" text-anchor="end">63 s</text>
+<rect x="116.9" y="241" width="55.9" height="12" class="tools"/>
+<path d="M174.8 241H231.8Q234.8 241 234.8 244V250Q234.8 253 231.8 253H174.8Z" class="out"/>
+<circle cx="225.2" cy="247" r="3.5" class="dot"/>
+<circle cx="234.8" cy="247" r="3.5" class="dot"/>
+<circle cx="259.6" cy="247" r="3.5" class="dot"/>
+<text x="468.5" y="251.5" class="t2" font-size="12" text-anchor="end">75 s</text>
+<text x="24" y="199.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="24" y="225.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="24" y="251.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="504.5" y="170" class="t" font-size="13" font-weight="600">GTK 3</text>
+<text x="856" y="170" class="m" font-size="12" text-anchor="end">9/9 passed</text>
+<line x1="504.5" y1="182" x2="504.5" y2="260" class="axis"/>
+<text x="504.5" y="275" class="m" font-size="11">0</text>
+<line x1="582.9" y1="182" x2="582.9" y2="260" class="grid"/>
+<text x="582.9" y="275" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="661.4" y1="182" x2="661.4" y2="260" class="grid"/>
+<text x="661.4" y="275" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="739.9" y1="182" x2="739.9" y2="260" class="grid"/>
+<text x="739.9" y="275" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="504.5" y="189" width="55.6" height="12" class="tools"/>
+<path d="M562 189H643.8Q646.8 189 646.8 192V198Q646.8 201 643.8 201H562Z" class="out"/>
+<circle cx="643.1" cy="195" r="3.5" class="dot"/>
+<circle cx="646.8" cy="195" r="3.5" class="dot"/>
+<circle cx="771.3" cy="195" r="3.5" class="dot"/>
+<text x="856" y="199.5" class="t2" font-size="12" text-anchor="end">91 s</text>
+<rect x="504.5" y="215" width="72.4" height="12" class="tools"/>
+<path d="M578.8 215H639.8Q642.8 215 642.8 218V224Q642.8 227 639.8 227H578.8Z" class="out"/>
+<circle cx="608.5" cy="221" r="3.5" class="dot"/>
+<circle cx="642.8" cy="221" r="3.5" class="dot"/>
+<circle cx="650.9" cy="221" r="3.5" class="dot"/>
+<text x="856" y="225.5" class="t2" font-size="12" text-anchor="end">88 s</text>
+<rect x="504.5" y="241" width="55.1" height="12" class="tools"/>
+<path d="M561.6 241H627.4Q630.4 241 630.4 244V250Q630.4 253 627.4 253H561.6Z" class="out"/>
+<circle cx="624.5" cy="247" r="3.5" class="dot"/>
+<circle cx="630.4" cy="247" r="3.5" class="dot"/>
+<circle cx="648.6" cy="247" r="3.5" class="dot"/>
+<text x="856" y="251.5" class="t2" font-size="12" text-anchor="end">80 s</text>
+<text x="116.9" y="309" class="t" font-size="13" font-weight="600">GTK 3 (X11)</text>
+<text x="468.5" y="309" class="m" font-size="12" text-anchor="end">9/9 passed</text>
+<line x1="116.9" y1="321" x2="116.9" y2="399" class="axis"/>
+<text x="116.9" y="414" class="m" font-size="11">0</text>
+<line x1="195.4" y1="321" x2="195.4" y2="399" class="grid"/>
+<text x="195.4" y="414" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="273.9" y1="321" x2="273.9" y2="399" class="grid"/>
+<text x="273.9" y="414" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="352.4" y1="321" x2="352.4" y2="399" class="grid"/>
+<text x="352.4" y="414" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="116.9" y="328" width="65" height="12" class="tools"/>
+<path d="M183.9 328H304.3Q307.3 328 307.3 331V337Q307.3 340 304.3 340H183.9Z" class="out"/>
+<circle cx="301.4" cy="334" r="3.5" class="dot"/>
+<circle cx="307.3" cy="334" r="3.5" class="dot"/>
+<circle cx="322.1" cy="334" r="3.5" class="dot"/>
+<text x="468.5" y="338.5" class="t2" font-size="12" text-anchor="end">121 s</text>
+<rect x="116.9" y="354" width="70.6" height="12" class="tools"/>
+<path d="M189.5 354H267.1Q270.1 354 270.1 357V363Q270.1 366 267.1 366H189.5Z" class="out"/>
+<circle cx="247.2" cy="360" r="3.5" class="dot"/>
+<circle cx="270.1" cy="360" r="3.5" class="dot"/>
+<circle cx="270.9" cy="360" r="3.5" class="dot"/>
+<text x="468.5" y="364.5" class="t2" font-size="12" text-anchor="end">98 s</text>
+<rect x="116.9" y="380" width="67.2" height="12" class="tools"/>
+<path d="M186.1 380H284.2Q287.2 380 287.2 383V389Q287.2 392 284.2 392H186.1Z" class="out"/>
+<circle cx="279.7" cy="386" r="3.5" class="dot"/>
+<circle cx="287.2" cy="386" r="3.5" class="dot"/>
+<circle cx="345.3" cy="386" r="3.5" class="dot"/>
+<text x="468.5" y="390.5" class="t2" font-size="12" text-anchor="end">108 s</text>
+<text x="24" y="338.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="24" y="364.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="24" y="390.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="504.5" y="309" class="t" font-size="13" font-weight="600">Qt 6</text>
+<text x="856" y="309" class="m" font-size="12" text-anchor="end">9/9 passed</text>
+<line x1="504.5" y1="321" x2="504.5" y2="399" class="axis"/>
+<text x="504.5" y="414" class="m" font-size="11">0</text>
+<line x1="582.9" y1="321" x2="582.9" y2="399" class="grid"/>
+<text x="582.9" y="414" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="661.4" y1="321" x2="661.4" y2="399" class="grid"/>
+<text x="661.4" y="414" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="739.9" y1="321" x2="739.9" y2="399" class="grid"/>
+<text x="739.9" y="414" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="504.5" y="328" width="37.4" height="12" class="tools"/>
+<path d="M543.8 328H621.4Q624.4 328 624.4 331V337Q624.4 340 621.4 340H543.8Z" class="out"/>
+<circle cx="605.9" cy="334" r="3.5" class="dot"/>
+<circle cx="624.4" cy="334" r="3.5" class="dot"/>
+<circle cx="672.3" cy="334" r="3.5" class="dot"/>
+<text x="856" y="338.5" class="t2" font-size="12" text-anchor="end">76 s</text>
+<rect x="504.5" y="354" width="40" height="12" class="tools"/>
+<path d="M546.5 354H572.7Q575.7 354 575.7 357V363Q575.7 366 572.7 366H546.5Z" class="out"/>
+<circle cx="574.6" cy="360" r="3.5" class="dot"/>
+<circle cx="575.7" cy="360" r="3.5" class="dot"/>
+<circle cx="577.4" cy="360" r="3.5" class="dot"/>
+<text x="856" y="364.5" class="t2" font-size="12" text-anchor="end">45 s</text>
+<rect x="504.5" y="380" width="39.4" height="12" class="tools"/>
+<path d="M545.9 380H598.8Q601.8 380 601.8 383V389Q601.8 392 598.8 392H545.9Z" class="out"/>
+<circle cx="590.2" cy="386" r="3.5" class="dot"/>
+<circle cx="601.8" cy="386" r="3.5" class="dot"/>
+<circle cx="636.6" cy="386" r="3.5" class="dot"/>
+<text x="856" y="390.5" class="t2" font-size="12" text-anchor="end">62 s</text>
+<text x="116.9" y="448" class="t" font-size="13" font-weight="600">Tk (X11)</text>
+<text x="468.5" y="448" class="m" font-size="12" text-anchor="end">9/9 passed</text>
+<line x1="116.9" y1="460" x2="116.9" y2="538" class="axis"/>
+<text x="116.9" y="553" class="m" font-size="11">0</text>
+<line x1="195.4" y1="460" x2="195.4" y2="538" class="grid"/>
+<text x="195.4" y="553" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="273.9" y1="460" x2="273.9" y2="538" class="grid"/>
+<text x="273.9" y="553" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="352.4" y1="460" x2="352.4" y2="538" class="grid"/>
+<text x="352.4" y="553" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="116.9" y="467" width="49.3" height="12" class="tools"/>
+<path d="M168.2 467H262.4Q265.4 467 265.4 470V476Q265.4 479 262.4 479H168.2Z" class="out"/>
+<circle cx="248.3" cy="473" r="3.5" class="dot"/>
+<circle cx="265.4" cy="473" r="3.5" class="dot"/>
+<circle cx="272.3" cy="473" r="3.5" class="dot"/>
+<text x="468.5" y="477.5" class="t2" font-size="12" text-anchor="end">95 s</text>
+<rect x="116.9" y="493" width="48" height="12" class="tools"/>
+<path d="M166.9 493H210.8Q213.8 493 213.8 496V502Q213.8 505 210.8 505H166.9Z" class="out"/>
+<circle cx="205.1" cy="499" r="3.5" class="dot"/>
+<circle cx="213.8" cy="499" r="3.5" class="dot"/>
+<circle cx="241.9" cy="499" r="3.5" class="dot"/>
+<text x="468.5" y="503.5" class="t2" font-size="12" text-anchor="end">62 s</text>
+<rect x="116.9" y="519" width="39.4" height="12" class="tools"/>
+<path d="M158.3 519H207.9Q210.9 519 210.9 522V528Q210.9 531 207.9 531H158.3Z" class="out"/>
+<circle cx="209.4" cy="525" r="3.5" class="dot"/>
+<circle cx="210.9" cy="525" r="3.5" class="dot"/>
+<circle cx="234.2" cy="525" r="3.5" class="dot"/>
+<text x="468.5" y="529.5" class="t2" font-size="12" text-anchor="end">60 s</text>
+<text x="24" y="477.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="24" y="503.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="24" y="529.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="504.5" y="448" class="t" font-size="13" font-weight="600">Electron</text>
+<text x="856" y="448" class="m" font-size="12" text-anchor="end">8/9 passed</text>
+<line x1="504.5" y1="460" x2="504.5" y2="538" class="axis"/>
+<text x="504.5" y="553" class="m" font-size="11">0</text>
+<line x1="582.9" y1="460" x2="582.9" y2="538" class="grid"/>
+<text x="582.9" y="553" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="661.4" y1="460" x2="661.4" y2="538" class="grid"/>
+<text x="661.4" y="553" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="739.9" y1="460" x2="739.9" y2="538" class="grid"/>
+<text x="739.9" y="553" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="504.5" y="467" width="37.5" height="12" class="tools"/>
+<path d="M544 467H620.1Q623.1 467 623.1 470V476Q623.1 479 620.1 479H544Z" class="out"/>
+<circle cx="619.4" cy="473" r="3.5" class="dot"/>
+<circle cx="623.1" cy="473" r="3.5" class="dot"/>
+<circle cx="788" cy="473" r="3.5" class="dot"/>
+<text x="856" y="477.5" class="t2" font-size="12" text-anchor="end">76 s</text>
+<rect x="504.5" y="493" width="48.2" height="12" class="tools"/>
+<path d="M554.6 493H590.6Q593.6 493 593.6 496V502Q593.6 505 590.6 505H554.6Z" class="out"/>
+<circle cx="592.5" cy="499" r="3.5" class="dot"/>
+<circle cx="593.6" cy="499" r="3.5" class="dot"/>
+<circle cx="602.9" cy="499" r="3.5" class="dot"/>
+<text x="856" y="503.5" class="t2" font-size="12" text-anchor="end">57 s</text>
+<rect x="504.5" y="519" width="36.1" height="12" class="tools"/>
+<path d="M542.6 519H615.3Q618.3 519 618.3 522V528Q618.3 531 615.3 531H542.6Z" class="out"/>
+<circle cx="582.8" cy="525" r="3.5" class="dot"/>
+<circle cx="618.3" cy="525" r="3" class="miss"/>
+<circle cx="639.6" cy="525" r="3.5" class="dot"/>
+<text x="856" y="529.5" class="t2" font-size="12" text-anchor="end">72 s</text>
+<text x="116.9" y="587" class="t" font-size="13" font-weight="600">Electron (X11)</text>
+<text x="468.5" y="587" class="m" font-size="12" text-anchor="end">9/9 passed</text>
+<line x1="116.9" y1="599" x2="116.9" y2="677" class="axis"/>
+<text x="116.9" y="692" class="m" font-size="11">0</text>
+<line x1="195.4" y1="599" x2="195.4" y2="677" class="grid"/>
+<text x="195.4" y="692" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="273.9" y1="599" x2="273.9" y2="677" class="grid"/>
+<text x="273.9" y="692" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="352.4" y1="599" x2="352.4" y2="677" class="grid"/>
+<text x="352.4" y="692" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="116.9" y="606" width="35.8" height="12" class="tools"/>
+<path d="M154.7 606H211.1Q214.1 606 214.1 609V615Q214.1 618 211.1 618H154.7Z" class="out"/>
+<circle cx="208.9" cy="612" r="3.5" class="dot"/>
+<circle cx="214.1" cy="612" r="3.5" class="dot"/>
+<circle cx="226" cy="612" r="3.5" class="dot"/>
+<text x="468.5" y="616.5" class="t2" font-size="12" text-anchor="end">62 s</text>
+<rect x="116.9" y="632" width="38.6" height="12" class="tools"/>
+<path d="M157.5 632H196.6Q199.6 632 199.6 635V641Q199.6 644 196.6 644H157.5Z" class="out"/>
+<circle cx="197" cy="638" r="3.5" class="dot"/>
+<circle cx="199.6" cy="638" r="3.5" class="dot"/>
+<circle cx="203.7" cy="638" r="3.5" class="dot"/>
+<text x="468.5" y="642.5" class="t2" font-size="12" text-anchor="end">53 s</text>
+<rect x="116.9" y="658" width="40.3" height="12" class="tools"/>
+<path d="M159.2 658H208.9Q211.9 658 211.9 661V667Q211.9 670 208.9 670H159.2Z" class="out"/>
+<circle cx="206.9" cy="664" r="3.5" class="dot"/>
+<circle cx="211.9" cy="664" r="3.5" class="dot"/>
+<circle cx="253.5" cy="664" r="3.5" class="dot"/>
+<text x="468.5" y="668.5" class="t2" font-size="12" text-anchor="end">60 s</text>
+<text x="24" y="616.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="24" y="642.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="24" y="668.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="504.5" y="587" class="t" font-size="13" font-weight="600">CEF</text>
+<text x="856" y="587" class="m" font-size="12" text-anchor="end">9/9 passed</text>
+<line x1="504.5" y1="599" x2="504.5" y2="677" class="axis"/>
+<text x="504.5" y="692" class="m" font-size="11">0</text>
+<line x1="582.9" y1="599" x2="582.9" y2="677" class="grid"/>
+<text x="582.9" y="692" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="661.4" y1="599" x2="661.4" y2="677" class="grid"/>
+<text x="661.4" y="692" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="739.9" y1="599" x2="739.9" y2="677" class="grid"/>
+<text x="739.9" y="692" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="504.5" y="606" width="48.8" height="12" class="tools"/>
+<path d="M555.3 606H668.2Q671.2 606 671.2 609V615Q671.2 618 668.2 618H555.3Z" class="out"/>
+<circle cx="634" cy="612" r="3.5" class="dot"/>
+<circle cx="671.2" cy="612" r="3.5" class="dot"/>
+<circle cx="788" cy="612" r="3.5" class="dot"/>
+<text x="856" y="616.5" class="t2" font-size="12" text-anchor="end">106 s</text>
+<rect x="504.5" y="632" width="50.2" height="12" class="tools"/>
+<path d="M556.7 632H591.1Q594.1 632 594.1 635V641Q594.1 644 591.1 644H556.7Z" class="out"/>
+<circle cx="584.7" cy="638" r="3.5" class="dot"/>
+<circle cx="594.1" cy="638" r="3.5" class="dot"/>
+<circle cx="594.4" cy="638" r="3.5" class="dot"/>
+<text x="856" y="642.5" class="t2" font-size="12" text-anchor="end">57 s</text>
+<rect x="504.5" y="658" width="47.1" height="12" class="tools"/>
+<path d="M553.5 658H621.9Q624.9 658 624.9 661V667Q624.9 670 621.9 670H553.5Z" class="out"/>
+<circle cx="600.2" cy="664" r="3.5" class="dot"/>
+<circle cx="624.9" cy="664" r="3.5" class="dot"/>
+<circle cx="642.1" cy="664" r="3.5" class="dot"/>
+<text x="856" y="668.5" class="t2" font-size="12" text-anchor="end">77 s</text>
+<text x="116.9" y="726" class="t" font-size="13" font-weight="600">CEF (X11)</text>
+<text x="468.5" y="726" class="m" font-size="12" text-anchor="end">9/9 passed</text>
+<line x1="116.9" y1="738" x2="116.9" y2="816" class="axis"/>
+<text x="116.9" y="831" class="m" font-size="11">0</text>
+<line x1="195.4" y1="738" x2="195.4" y2="816" class="grid"/>
+<text x="195.4" y="831" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="273.9" y1="738" x2="273.9" y2="816" class="grid"/>
+<text x="273.9" y="831" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="352.4" y1="738" x2="352.4" y2="816" class="grid"/>
+<text x="352.4" y="831" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="116.9" y="745" width="42.4" height="12" class="tools"/>
+<path d="M161.3 745H235.1Q238.1 745 238.1 748V754Q238.1 757 235.1 757H161.3Z" class="out"/>
+<circle cx="237.6" cy="751" r="3.5" class="dot"/>
+<circle cx="238.1" cy="751" r="3.5" class="dot"/>
+<circle cx="244.5" cy="751" r="3.5" class="dot"/>
+<text x="468.5" y="755.5" class="t2" font-size="12" text-anchor="end">77 s</text>
+<rect x="116.9" y="771" width="45.2" height="12" class="tools"/>
+<path d="M164.1 771H203.7Q206.7 771 206.7 774V780Q206.7 783 203.7 783H164.1Z" class="out"/>
+<circle cx="202.9" cy="777" r="3.5" class="dot"/>
+<circle cx="206.7" cy="777" r="3.5" class="dot"/>
+<circle cx="221.6" cy="777" r="3.5" class="dot"/>
+<text x="468.5" y="781.5" class="t2" font-size="12" text-anchor="end">57 s</text>
+<rect x="116.9" y="797" width="39.4" height="12" class="tools"/>
+<path d="M158.3 797H202.3Q205.3 797 205.3 800V806Q205.3 809 202.3 809H158.3Z" class="out"/>
+<circle cx="190.8" cy="803" r="3.5" class="dot"/>
+<circle cx="205.3" cy="803" r="3.5" class="dot"/>
+<circle cx="219.9" cy="803" r="3.5" class="dot"/>
+<text x="468.5" y="807.5" class="t2" font-size="12" text-anchor="end">56 s</text>
+<text x="24" y="755.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="24" y="781.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="24" y="807.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="504.5" y="726" class="t" font-size="13" font-weight="600">CEF off-screen (X11)</text>
+<text x="856" y="726" class="m" font-size="12" text-anchor="end">9/9 passed</text>
+<line x1="504.5" y1="738" x2="504.5" y2="816" class="axis"/>
+<text x="504.5" y="831" class="m" font-size="11">0</text>
+<line x1="582.9" y1="738" x2="582.9" y2="816" class="grid"/>
+<text x="582.9" y="831" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="661.4" y1="738" x2="661.4" y2="816" class="grid"/>
+<text x="661.4" y="831" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="739.9" y1="738" x2="739.9" y2="816" class="grid"/>
+<text x="739.9" y="831" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="504.5" y="745" width="43.2" height="12" class="tools"/>
+<path d="M549.6 745H633.5Q636.5 745 636.5 748V754Q636.5 757 633.5 757H549.6Z" class="out"/>
+<circle cx="609.5" cy="751" r="3.5" class="dot"/>
+<circle cx="636.5" cy="751" r="3.5" class="dot"/>
+<circle cx="788" cy="751" r="3.5" class="dot"/>
+<text x="856" y="755.5" class="t2" font-size="12" text-anchor="end">84 s</text>
+<rect x="504.5" y="771" width="42.7" height="12" class="tools"/>
+<path d="M549.2 771H589.7Q592.7 771 592.7 774V780Q592.7 783 589.7 783H549.2Z" class="out"/>
+<circle cx="591.9" cy="777" r="3.5" class="dot"/>
+<circle cx="592.7" cy="777" r="3.5" class="dot"/>
+<circle cx="597.4" cy="777" r="3.5" class="dot"/>
+<text x="856" y="781.5" class="t2" font-size="12" text-anchor="end">56 s</text>
+<rect x="504.5" y="797" width="42.1" height="12" class="tools"/>
+<path d="M548.5 797H611.7Q614.7 797 614.7 800V806Q614.7 809 611.7 809H548.5Z" class="out"/>
+<circle cx="603.5" cy="803" r="3.5" class="dot"/>
+<circle cx="614.7" cy="803" r="3.5" class="dot"/>
+<circle cx="639.3" cy="803" r="3.5" class="dot"/>
+<text x="856" y="807.5" class="t2" font-size="12" text-anchor="end">70 s</text>
+</svg>

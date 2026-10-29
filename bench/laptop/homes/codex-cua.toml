@@ -1,0 +1,13 @@
+# Added by `codex mcp add cua-driver -- ... mcp`, the command `cua-driver mcp-config --client codex` printed.
+[mcp_servers.cua-driver]
+command = "/home/daniel/.cua-driver/packages/releases/0.38.0-x86_64-unknown-linux-gnu/cua-driver"
+args = ["mcp"]
+# Codex starts MCP servers with a minimal environment: forward the desktop session.
+env_vars = ["XDG_RUNTIME_DIR", "HYPRLAND_INSTANCE_SIGNATURE", "WAYLAND_DISPLAY", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP"]
+# codex exec cannot ask for approval: approve this server's tools, as for hyprmasq.
+default_tools_approval_mode = "approve"
+tool_timeout_sec = 120
+
+# LINUX.md: a Wayland session needs this for the native backend, else XWayland.
+[mcp_servers.cua-driver.env]
+CUA_DRIVER_RS_ENABLE_WAYLAND = "1"

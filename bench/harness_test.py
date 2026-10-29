@@ -330,6 +330,14 @@ class CodexReport(unittest.TestCase):
             "cost_basis": "API list prices for gpt-6.1-sol", "final": "Done",
         })
 
+    def test_terra_uses_its_api_prices(self):
+        stream, transcript = self.run_files(model="gpt-6.1-terra")
+        cost = (2_000 * 1.00 + 8_000 * 0.05 + 100 * 5.00) / 1e6 \
+            + (50_000 * 2.00 + 200_000 * 0.10 + 50_000 * 2.50 + 1_000 * 7.50) / 1e6
+        usage = report.agent_usage("codex", stream, transcript)
+        self.assertEqual(usage["cost_usd"], round(cost, 6))
+        self.assertEqual(usage["cost_basis"], "API list prices for gpt-6.1-terra")
+
     def test_no_cost_without_the_prices_or_the_requests_of_the_run(self):
         stream, transcript = self.run_files(model="gpt-unpriced")
         self.assertIsNone(report.agent_usage("codex", stream, transcript)["cost_usd"])

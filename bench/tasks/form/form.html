@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<!-- The form task's questionnaire as an HTML page, which form_html.py serves to a browser engine. It asks the
+     server for the questions, which come from items.py, and for the answers it holds, and sends it every change of
+     an answer and every press of Submit, in order. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Questionnaire</title>
+<style>
+:root { color-scheme: light; font-family: "Cantarell", "DejaVu Sans", sans-serif; font-size: 15px; }
+body { margin: 0; background: #fafafa; color: #1e1e1e; }
+main { width: 760px; margin: 24px auto 48px; display: flex; flex-direction: column; gap: 14px; }
+h1 { font-size: 26px; margin: 0; }
+p { margin: 0; }
+.question { border: 1px solid rgba(0, 0, 0, 0.15); border-radius: 8px; padding: 14px 18px; display: flex;
+            flex-direction: column; gap: 10px; background: #fff; }
+.number { font-weight: bold; opacity: 0.6; }
+.prompt { font-size: 1.15em; }
+.target { font-family: monospace; font-size: 1.15em; font-weight: bold; padding: 2px 8px; align-self: flex-start;
+          background: rgba(0, 0, 0, 0.08); border-radius: 4px; }
+.value { font-family: monospace; font-size: 1.25em; font-weight: bold; width: 8ch; }
+.dim { opacity: 0.6; }
+.options { display: flex; gap: 22px; flex-wrap: wrap; }
+.options label { display: flex; align-items: center; gap: 6px; }
+.options input { width: 18px; height: 18px; margin: 0; }
+.slider { display: flex; flex-direction: column; gap: 6px; }
+.slider .row { display: flex; align-items: center; gap: 18px; }
+.slider input { flex: 1; margin: 0; }
+.text { display: flex; flex-direction: column; gap: 10px; }
+input[type=text] { width: 32ch; font: inherit; padding: 6px 8px; align-self: flex-start; }
+select { font: inherit; padding: 4px 6px; align-self: flex-start; min-width: 12ch; }
+footer { display: flex; align-items: center; gap: 18px; margin-top: 10px; }
+button { font: inherit; font-weight: bold; padding: 8px 24px; border-radius: 999px; border: none;
+         background: #3584e4; color: #fff; }
+button:active { background: #1c71d8; }
+</style>
+</head>
+<body>
+<main id="column"></main>
+<script>
+"use strict";
+
+// The moves of a slider's keys, by the names form.py records for GTK's scroll types. The pointer's are "jump".
+const KEYS = {
+  ArrowRight: "step-forward", ArrowUp: "step-forward", ArrowLeft: "step-backward", ArrowDown: "step-backward",
+  PageUp: "page-forward", PageDown: "page-backward", Home: "start", End: "end",
+};
+
+// The requests go one after the other, so that the server gets the changes and Submit in the order they happened.
+let queue = Promise.resolve();
+function send(path, body) {
+  const request = queue.then(() => fetch(path, {method: "POST", body: JSON.stringify(body)}))
+    .then(response => response.json());
+  queue = request.catch(error => console.error(path, error));
+  return request;
+}
+
+function element(tag, properties = {}, ...children) {
+  const node = Object.assign(document.createElement(tag), properties);
+  node.append(...children);
+  return node;
+}
+
+function change(item, value, how) {
+  send("change", how ? {number: item.number, value, how} : {number: item.number, value});
+}
+
+function checkbox(item, value) {
+  const boxes = item.options.map(option => element("input", {type: "checkbox", checked: value.includes(option)}));
+  for (const box of boxes) {
+    box.addEventListener("change", () => change(item, item.options.filter((_, i) => boxes[i].checked)));
+  }
+  return element("div", {className: "options"},
+    ...item.options.map((option, i) => element("label", {}, boxes[i], option)));
+}
+
+function slider(item, value) {
+  const range = element("input", {type: "range", min: item.lowest, max: item.highest, step: item.step,
+                                  value: value, ariaLabel: `Question ${item.number} slider`});
+  const shown = element("span", {className: "value"}, value);
+  let how = null;
+  // The value lands on the step, whether the pointer or a key moved it.
+  const show = wanted => {
+    const steps = Math.round((wanted - item.lowest) / item.step);
+    const snapped = Math.min(Math.max(item.lowest + steps * item.step, item.lowest), item.highest);
+    return snapped.toFixed(item.decimals);
+  };
+  const moved = () => {
+    const text = show(Number(range.value));
+    shown.textContent = text;
+    change(item, text, how || "jump");
+    how = null;
+  };
+  range.addEventListener("pointerdown", () => { how = null; });
+  range.addEventListener("keydown", event => {
+    how = KEYS[event.key] || null;
+    // A page is ten steps, as in the GTK and Qt apps, where the engine's own page differs.
+    if (event.key === "PageUp" || event.key === "PageDown") {
+      event.preventDefault();
+      const before = range.value;
+      range.value = Number(range.value) + (event.key === "PageUp" ? 10 : -10) * item.step;
+      if (range.value !== before) {
+        moved();
+      }
+      how = null;
+    }
+  });
+  range.addEventListener("input", moved);
+  // The wheel over a slider scrolls the page, as over the other questions, which the engines do already.
+  return element("div", {className: "slider"},
+    element("span", {className: "dim"}, item.caption),
+    element("div", {className: "row"},
+      element("span", {className: "dim"}, item.ends[0]), range, element("span", {className: "dim"}, item.ends[1]),
+      element("span", {}, "Value:"), shown));
+}
+
+function text(item, value) {
+  const entry = element("input", {type: "text", value, ariaLabel: `Question ${item.number} text`});
+  entry.addEventListener("input", () => change(item, entry.value));
+  return element("div", {className: "text"}, element("span", {className: "target"}, item.answer), entry);
+}
+
+function dropdown(item, value) {
+  const select = element("select", {ariaLabel: `Question ${item.number} choice`},
+    ...item.options.map(option => element("option", {value: option, selected: option === value}, option)));
+  select.addEventListener("change", () => change(item, select.value));
+  return select;
+}
+
+async function main() {
+  const form = await (await fetch("questions")).json();
+  const column = document.getElementById("column");
+  column.append(
+    element("h1", {}, "Questionnaire"),
+    element("p", {}, `${form.count} questions. Answer each one as it says, then press Submit at the end.`));
+  const widgets = {checkbox, slider, text, dropdown};
+  for (const item of form.items) {
+    column.append(element("section", {className: "question"},
+      element("span", {className: "number"}, `Question ${item.number} of ${form.count}`),
+      element("span", {className: "prompt"}, item.question),
+      widgets[item.kind](item, form.values[item.number])));
+  }
+  const status = element("span");
+  const submit = element("button", {type: "button"}, "Submit");
+  submit.addEventListener("click", async () => {
+    status.textContent = (await send("submit", {})).status;
+  });
+  column.append(element("footer", {}, submit, status));
+}
+
+main();
+</script>
+</body>
+</html>

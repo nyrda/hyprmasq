@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="457" viewBox="0 0 880 457" role="img" aria-label="Tools compared on the same tasks: a row per tool for each task and agent, with its runs passed or failed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed.">
+<title>Tools compared on the same tasks: a row per tool for each task and agent, with its runs passed or failed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.tools{fill:#3987e5}.out{fill:#454c56}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.miss{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.pass{fill:#3fb950}.fail{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.cut{stroke:#0d1117;stroke-width:2}.s0{fill:#3987e5}.s1{fill:#d95926}.s2{fill:#199e70}.s3{fill:#c98500}.s4{fill:#d55181}.s5{fill:#008300}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
+<rect x="0.5" y="0.5" width="879" height="456" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Tools compared on the same tasks</text>
+<text x="24" y="53" class="t2" font-size="12.5">Each dot is one run, with the median time of the passed runs beside them. Each column of bars has its own</text>
+<text x="24" y="72" class="t2" font-size="12.5">scale: tokens and cost are medians over all runs. User disturbed counts the passed runs that took the</text>
+<text x="24" y="91" class="t2" font-size="12.5">focus or drew over the user&#x27;s window, and its bar is the median seconds of those runs.</text>
+<rect x="24" y="108" width="12" height="10" class="s0" rx="2"/>
+<text x="42" y="117" class="t2" font-size="12">hyprmasq</text>
+<rect x="116.7" y="108" width="12" height="10" class="s1" rx="2"/>
+<text x="134.7" y="117" class="t2" font-size="12">Cua Driver</text>
+<circle cx="219" cy="113" r="4.5" class="pass"/>
+<text x="229" y="117" class="t2" font-size="12">passed</text>
+<circle cx="294.7" cy="113" r="4.5" class="fail"/>
+<text x="304.7" y="117" class="t2" font-size="12">failed</text>
+<text x="234" y="147" class="t2" font-size="12" font-weight="600">Runs, time</text>
+<text x="370" y="147" class="t2" font-size="12" font-weight="600">Uncached input</text>
+<text x="470" y="147" class="t2" font-size="12" font-weight="600">Peak context</text>
+<text x="570" y="147" class="t2" font-size="12" font-weight="600">Cost per run</text>
+<text x="670" y="147" class="t2" font-size="12" font-weight="600">User disturbed</text>
+<line x1="24" y1="159" x2="856" y2="159" class="axis"/>
+<text x="24" y="179" class="t" font-size="13" font-weight="600">Hyprland · gpt-6.1-sol</text>
+<rect x="24" y="197" width="4" height="18" class="s0" rx="2"/>
+<text x="36" y="204.5" class="t" font-size="12.5" font-weight="600">hyprmasq</text>
+<text x="36" y="218.5" class="m" font-size="11">Hyprland</text>
+<circle cx="239" cy="206" r="5" class="pass"/>
+<circle cx="252" cy="206" r="5" class="pass"/>
+<circle cx="265" cy="206" r="5" class="pass"/>
+<circle cx="278" cy="206" r="5" class="pass"/>
+<circle cx="291" cy="206" r="5" class="pass"/>
+<circle cx="304" cy="206" r="5" class="pass"/>
+<text x="321" y="210.5" class="t2" font-size="12.5">38 s</text>
+<path d="M370 201H376.9Q379.9 201 379.9 204V208Q379.9 211 376.9 211H370Z" class="s0"/>
+<text x="385.9" y="210.5" class="t2" font-size="12">15k</text>
+<path d="M470 201H473.7Q476.7 201 476.7 204V208Q476.7 211 473.7 211H470Z" class="s0"/>
+<text x="482.7" y="210.5" class="t2" font-size="12">16k</text>
+<path d="M570 201H572.9Q575.9 201 575.9 204V208Q575.9 211 572.9 211H570Z" class="s0"/>
+<text x="581.9" y="210.5" class="t2" font-size="12">$0.04</text>
+<text x="670" y="210.5" class="t2" font-size="12">0 of 6</text>
+<rect x="24" y="231" width="4" height="18" class="s1" rx="2"/>
+<text x="36" y="238.5" class="t" font-size="12.5" font-weight="600">Cua Driver</text>
+<text x="36" y="252.5" class="m" font-size="11">Hyprland</text>
+<circle cx="239" cy="240" r="4.2" class="fail"/>
+<circle cx="252" cy="240" r="5" class="pass"/>
+<circle cx="265" cy="240" r="5" class="pass"/>
+<circle cx="278" cy="240" r="5" class="pass"/>
+<circle cx="291" cy="240" r="5" class="pass"/>
+<circle cx="304" cy="240" r="5" class="pass"/>
+<text x="321" y="244.5" class="t2" font-size="12.5">76 s</text>
+<path d="M370 235H409Q412 235 412 238V242Q412 245 409 245H370Z" class="s1"/>
+<text x="418" y="244.5" class="t2" font-size="12">63k</text>
+<path d="M470 235H493.9Q496.9 235 496.9 238V242Q496.9 245 493.9 245H470Z" class="s1"/>
+<text x="502.9" y="244.5" class="t2" font-size="12">63k</text>
+<path d="M570 235H596.1Q599.1 235 599.1 238V242Q599.1 245 596.1 245H570Z" class="s1"/>
+<text x="605.1" y="244.5" class="t2" font-size="12">$0.21</text>
+<path d="M670 235H739Q742 235 742 238V242Q742 245 739 245H670Z" class="s1"/>
+<text x="748" y="244.5" class="t2" font-size="12">5 of 5 · 45 s, focus</text>
+<line x1="24" y1="261" x2="856" y2="261" class="grid"/>
+<text x="24" y="285" class="t" font-size="13" font-weight="600">Hyprland · gpt-6.1-terra</text>
+<rect x="24" y="303" width="4" height="18" class="s0" rx="2"/>
+<text x="36" y="310.5" class="t" font-size="12.5" font-weight="600">hyprmasq</text>
+<text x="36" y="324.5" class="m" font-size="11">Hyprland</text>
+<circle cx="239" cy="312" r="5" class="pass"/>
+<circle cx="252" cy="312" r="5" class="pass"/>
+<circle cx="265" cy="312" r="5" class="pass"/>
+<circle cx="278" cy="312" r="5" class="pass"/>
+<circle cx="291" cy="312" r="5" class="pass"/>
+<circle cx="304" cy="312" r="5" class="pass"/>
+<text x="321" y="316.5" class="t2" font-size="12.5">17 s</text>
+<path d="M370 307H381.1Q384.1 307 384.1 310V314Q384.1 317 381.1 317H370Z" class="s0"/>
+<text x="390.1" y="316.5" class="t2" font-size="12">21k</text>
+<path d="M470 307H473.6Q476.6 307 476.6 310V314Q476.6 317 473.6 317H470Z" class="s0"/>
+<text x="482.6" y="316.5" class="t2" font-size="12">15k</text>
+<path d="M570 307H570.7Q573.7 307 573.7 310V314Q573.7 317 570.7 317H570Z" class="s0"/>
+<text x="579.7" y="316.5" class="t2" font-size="12">$0.03</text>
+<text x="670" y="316.5" class="t2" font-size="12">0 of 6</text>
+<line x1="24" y1="333" x2="856" y2="333" class="grid"/>
+<text x="24" y="357" class="t" font-size="13" font-weight="600">Hyprland · Sonnet 5.5</text>
+<rect x="24" y="375" width="4" height="18" class="s0" rx="2"/>
+<text x="36" y="382.5" class="t" font-size="12.5" font-weight="600">hyprmasq</text>
+<text x="36" y="396.5" class="m" font-size="11">Hyprland</text>
+<circle cx="239" cy="384" r="5" class="pass"/>
+<circle cx="252" cy="384" r="5" class="pass"/>
+<circle cx="265" cy="384" r="5" class="pass"/>
+<circle cx="278" cy="384" r="5" class="pass"/>
+<circle cx="291" cy="384" r="5" class="pass"/>
+<circle cx="304" cy="384" r="5" class="pass"/>
+<text x="321" y="388.5" class="t2" font-size="12.5">17 s</text>
+<path d="M370 379H373Q376 379 376 382V386Q376 389 373 389H370Z" class="s0"/>
+<text x="382" y="388.5" class="t2" font-size="12">9k</text>
+<path d="M470 379H474.2Q477.2 379 477.2 382V386Q477.2 389 474.2 389H470Z" class="s0"/>
+<text x="483.2" y="388.5" class="t2" font-size="12">17k</text>
+<path d="M570 379H571.7Q574.7 379 574.7 382V386Q574.7 389 571.7 389H570Z" class="s0"/>
+<text x="580.7" y="388.5" class="t2" font-size="12">$0.03</text>
+<text x="670" y="388.5" class="t2" font-size="12">0 of 6</text>
+<rect x="24" y="409" width="4" height="18" class="s1" rx="2"/>
+<text x="36" y="416.5" class="t" font-size="12.5" font-weight="600">Cua Driver</text>
+<text x="36" y="430.5" class="m" font-size="11">Hyprland</text>
+<circle cx="239" cy="418" r="5" class="pass"/>
+<circle cx="252" cy="418" r="5" class="pass"/>
+<circle cx="265" cy="418" r="5" class="pass"/>
+<circle cx="278" cy="418" r="5" class="pass"/>
+<circle cx="291" cy="418" r="5" class="pass"/>
+<circle cx="304" cy="418" r="5" class="pass"/>
+<text x="321" y="422.5" class="t2" font-size="12.5">65 s</text>
+<path d="M370 413H394.5Q397.5 413 397.5 416V420Q397.5 423 394.5 423H370Z" class="s1"/>
+<text x="403.5" y="422.5" class="t2" font-size="12">41k</text>
+<path d="M470 413H509Q512 413 512 416V420Q512 423 509 423H470Z" class="s1"/>
+<text x="518" y="422.5" class="t2" font-size="12">98k</text>
+<path d="M570 413H609Q612 413 612 416V420Q612 423 609 423H570Z" class="s1"/>
+<text x="618" y="422.5" class="t2" font-size="12">$0.31</text>
+<path d="M670 413H741.6Q744.6 413 744.6 416V420Q744.6 423 741.6 423H670Z" class="s1"/>
+<text x="750.6" y="422.5" class="t2" font-size="12">6 of 6 · 47 s, focus</text>
+</svg>

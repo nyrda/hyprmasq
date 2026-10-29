@@ -1,43 +1,1647 @@
 {
  "sources": [
-  {"commit": "144e8454b7353dd6713b4643c55e8b9a68823b4d", "dirty": false, "task": "form", "variant": "25", "display": "1920x1080@1"}
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "25",
+   "display": "1920x1080@1"
+  }
  ],
  "runs": [
-  {"run": "2026-10-21-form-25/claude-claude-opus-5-5-high-1", "task": "form", "harness": "claude", "model": "claude-opus-5-5", "effort": "high", "ran_at": "high", "rep": 1, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 114.9, "tools_s": 64.2, "turn_s": 2.2, "calls": 19, "actions": 76, "images": 17, "errors": 1, "input_tokens": 453002, "cache_read_tokens": 423725, "output_tokens": 4405, "cost_usd": 0.406901, "user_undisturbed": true, "phases": {"first answer": 10.7, "all answered correctly": 95.9, "first submit": 109.6, "last submit": 109.6}, "act_s": {"input": 30.7, "wait": 13.5, "watch": 6.4, "pause": 0.0, "rest": 12.5}, "kinds": {"checkbox": {"items": 7, "seconds": 23.4, "corrections": 0}, "slider": {"items": 6, "seconds": 28.0, "corrections": 0}, "text": {"items": 6, "seconds": 12.6, "corrections": 0}, "dropdown": {"items": 6, "seconds": 32.6, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-opus-5-5-high-2", "task": "form", "harness": "claude", "model": "claude-opus-5-5", "effort": "high", "ran_at": "high", "rep": 2, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 126.6, "tools_s": 59.9, "turn_s": 3.0, "calls": 20, "actions": 59, "images": 28, "errors": 0, "input_tokens": 494207, "cache_read_tokens": 463964, "output_tokens": 4249, "cost_usd": 0.419549, "user_undisturbed": true, "phases": {"first answer": 9.2, "all answered correctly": 104.4, "first submit": 120.5, "last submit": 120.5}, "act_s": {"input": 20.7, "wait": 13.1, "watch": 9.5, "pause": 0.0, "rest": 15.5}, "kinds": {"checkbox": {"items": 7, "seconds": 24.8, "corrections": 0}, "slider": {"items": 6, "seconds": 20.4, "corrections": 0}, "text": {"items": 6, "seconds": 24.1, "corrections": 0}, "dropdown": {"items": 6, "seconds": 35.9, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-opus-5-5-high-3", "task": "form", "harness": "claude", "model": "claude-opus-5-5", "effort": "high", "ran_at": "high", "rep": 3, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 121.7, "tools_s": 60.0, "turn_s": 2.4, "calls": 22, "actions": 59, "images": 41, "errors": 0, "input_tokens": 573858, "cache_read_tokens": 540509, "output_tokens": 4599, "cost_usd": 0.46669, "user_undisturbed": true, "phases": {"first answer": 9.0, "all answered correctly": 101.4, "first submit": 115.9, "last submit": 115.9}, "act_s": {"input": 19.9, "wait": 15.6, "watch": 9.0, "pause": 0.0, "rest": 14.4}, "kinds": {"checkbox": {"items": 7, "seconds": 25.9, "corrections": 0}, "slider": {"items": 6, "seconds": 19.3, "corrections": 0}, "text": {"items": 6, "seconds": 16.6, "corrections": 0}, "dropdown": {"items": 6, "seconds": 40.4, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-opus-5-5-low-1", "task": "form", "harness": "claude", "model": "claude-opus-5-5", "effort": "low", "ran_at": "low", "rep": 1, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 110.0, "tools_s": 53.8, "turn_s": 3.4, "calls": 15, "actions": 57, "images": 30, "errors": 0, "input_tokens": 311112, "cache_read_tokens": 280380, "output_tokens": 3506, "cost_usd": 0.371924, "user_undisturbed": true, "phases": {"first answer": 9.8, "all answered correctly": 96.7, "first submit": 105.6, "last submit": 105.6}, "act_s": {"input": 20.1, "wait": 12.6, "watch": 6.0, "pause": 0.0, "rest": 14.0}, "kinds": {"checkbox": {"items": 7, "seconds": 35.7, "corrections": 0}, "slider": {"items": 6, "seconds": 15.4, "corrections": 0}, "text": {"items": 6, "seconds": 13.2, "corrections": 0}, "dropdown": {"items": 6, "seconds": 33.2, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-opus-5-5-low-2", "task": "form", "harness": "claude", "model": "claude-opus-5-5", "effort": "low", "ran_at": "low", "rep": 2, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 112.4, "tools_s": 61.3, "turn_s": 2.5, "calls": 18, "actions": 69, "images": 28, "errors": 0, "input_tokens": 425461, "cache_read_tokens": 396089, "output_tokens": 4219, "cost_usd": 0.398422, "user_undisturbed": true, "phases": {"first answer": 8.8, "all answered correctly": 90.7, "first submit": 109.2, "last submit": 109.2}, "act_s": {"input": 29.7, "wait": 11.7, "watch": 7.0, "pause": 0.0, "rest": 11.8}, "kinds": {"checkbox": {"items": 7, "seconds": 20.0, "corrections": 0}, "slider": {"items": 6, "seconds": 27.6, "corrections": 0}, "text": {"items": 6, "seconds": 18.4, "corrections": 0}, "dropdown": {"items": 6, "seconds": 25.4, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-opus-5-5-low-3", "task": "form", "harness": "claude", "model": "claude-opus-5-5", "effort": "low", "ran_at": "low", "rep": 3, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 106.5, "tools_s": 53.9, "turn_s": 2.5, "calls": 17, "actions": 59, "images": 19, "errors": 0, "input_tokens": 395657, "cache_read_tokens": 368580, "output_tokens": 3850, "cost_usd": 0.367188, "user_undisturbed": true, "phases": {"first answer": 10.8, "all answered correctly": 95.1, "first submit": 100.2, "last submit": 100.2}, "act_s": {"input": 20.4, "wait": 11.3, "watch": 7.3, "pause": 0.0, "rest": 13.9}, "kinds": {"checkbox": {"items": 7, "seconds": 38.0, "corrections": 0}, "slider": {"items": 6, "seconds": 20.1, "corrections": 0}, "text": {"items": 6, "seconds": 12.2, "corrections": 0}, "dropdown": {"items": 6, "seconds": 25.5, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-opus-5-5-medium-1", "task": "form", "harness": "claude", "model": "claude-opus-5-5", "effort": "medium", "ran_at": "medium", "rep": 1, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 109.5, "tools_s": 62.3, "turn_s": 2.4, "calls": 17, "actions": 66, "images": 16, "errors": 0, "input_tokens": 397044, "cache_read_tokens": 369750, "output_tokens": 3950, "cost_usd": 0.371158, "user_undisturbed": true, "phases": {"first answer": 7.9, "all answered correctly": 96.6, "first submit": 104.1, "last submit": 104.1}, "act_s": {"input": 26.7, "wait": 11.6, "watch": 8.7, "pause": 0.0, "rest": 14.2}, "kinds": {"checkbox": {"items": 7, "seconds": 27.7, "corrections": 0}, "slider": {"items": 6, "seconds": 27.6, "corrections": 0}, "text": {"items": 6, "seconds": 11.9, "corrections": 0}, "dropdown": {"items": 6, "seconds": 30.4, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-opus-5-5-medium-2", "task": "form", "harness": "claude", "model": "claude-opus-5-5", "effort": "medium", "ran_at": "medium", "rep": 2, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 106.5, "tools_s": 57.0, "turn_s": 2.6, "calls": 16, "actions": 61, "images": 23, "errors": 0, "input_tokens": 363184, "cache_read_tokens": 336145, "output_tokens": 3583, "cost_usd": 0.355065, "user_undisturbed": true, "phases": {"first answer": 8.0, "all answered correctly": 88.8, "first submit": 102.5, "last submit": 102.5}, "act_s": {"input": 23.5, "wait": 11.4, "watch": 7.8, "pause": 0.0, "rest": 13.2}, "kinds": {"checkbox": {"items": 7, "seconds": 21.7, "corrections": 0}, "slider": {"items": 6, "seconds": 20.1, "corrections": 0}, "text": {"items": 6, "seconds": 12.6, "corrections": 0}, "dropdown": {"items": 6, "seconds": 35.1, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-opus-5-5-medium-3", "task": "form", "harness": "claude", "model": "claude-opus-5-5", "effort": "medium", "ran_at": "medium", "rep": 3, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 116.0, "tools_s": 57.6, "turn_s": 2.7, "calls": 19, "actions": 68, "images": 18, "errors": 0, "input_tokens": 473893, "cache_read_tokens": 443413, "output_tokens": 4353, "cost_usd": 0.419423, "user_undisturbed": true, "phases": {"first answer": 9.4, "all answered correctly": 99.1, "first submit": 109.9, "last submit": 109.9}, "act_s": {"input": 21.7, "wait": 11.4, "watch": 7.2, "pause": 0.8, "rest": 15.5}, "kinds": {"checkbox": {"items": 7, "seconds": 16.6, "corrections": 2}, "slider": {"items": 6, "seconds": 31.8, "corrections": 0}, "text": {"items": 6, "seconds": 24.7, "corrections": 0}, "dropdown": {"items": 6, "seconds": 26.8, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-sonnet-5-5-high-1", "task": "form", "harness": "claude", "model": "claude-sonnet-5-5", "effort": "high", "ran_at": "high", "rep": 1, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 121.1, "tools_s": 63.1, "turn_s": 3.0, "calls": 18, "actions": 66, "images": 51, "errors": 1, "input_tokens": 409585, "cache_read_tokens": 382592, "output_tokens": 4226, "cost_usd": 0.188415, "user_undisturbed": true, "phases": {"first answer": 7.0, "all answered correctly": 95.6, "first submit": 116.8, "last submit": 116.8}, "act_s": {"input": 32.4, "wait": 11.3, "watch": 7.0, "pause": 0.0, "rest": 11.3}, "kinds": {"checkbox": {"items": 7, "seconds": 26.4, "corrections": 0}, "slider": {"items": 6, "seconds": 27.7, "corrections": 0}, "text": {"items": 6, "seconds": 13.8, "corrections": 0}, "dropdown": {"items": 6, "seconds": 28.7, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-sonnet-5-5-high-2", "task": "form", "harness": "claude", "model": "claude-sonnet-5-5", "effort": "high", "ran_at": "high", "rep": 2, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 105.8, "tools_s": 64.7, "turn_s": 1.9, "calls": 19, "actions": 77, "images": 24, "errors": 1, "input_tokens": 416772, "cache_read_tokens": 387364, "output_tokens": 4671, "cost_usd": 0.203002, "user_undisturbed": true, "phases": {"first answer": 6.0, "all answered correctly": 89.8, "first submit": 102.9, "last submit": 102.9}, "act_s": {"input": 28.5, "wait": 12.7, "watch": 7.7, "pause": 0.0, "rest": 14.8}, "kinds": {"checkbox": {"items": 7, "seconds": 25.9, "corrections": 0}, "slider": {"items": 6, "seconds": 24.4, "corrections": 0}, "text": {"items": 6, "seconds": 11.7, "corrections": 0}, "dropdown": {"items": 6, "seconds": 28.2, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-sonnet-5-5-high-3", "task": "form", "harness": "claude", "model": "claude-sonnet-5-5", "effort": "high", "ran_at": "high", "rep": 3, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 111.8, "tools_s": 65.4, "turn_s": 2.2, "calls": 20, "actions": 65, "images": 32, "errors": 0, "input_tokens": 480980, "cache_read_tokens": 449709, "output_tokens": 4732, "cost_usd": 0.217291, "user_undisturbed": true, "phases": {"first answer": 6.2, "all answered correctly": 98.9, "first submit": 109.1, "last submit": 109.1}, "act_s": {"input": 25.9, "wait": 10.9, "watch": 11.9, "pause": 0.0, "rest": 15.6}, "kinds": {"checkbox": {"items": 7, "seconds": 16.9, "corrections": 2}, "slider": {"items": 6, "seconds": 28.6, "corrections": 0}, "text": {"items": 6, "seconds": 18.7, "corrections": 0}, "dropdown": {"items": 6, "seconds": 35.3, "corrections": 1}}},
-  {"run": "2026-10-21-form-25/claude-claude-sonnet-5-5-low-1", "task": "form", "harness": "claude", "model": "claude-sonnet-5-5", "effort": "low", "ran_at": "low", "rep": 1, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 101.1, "tools_s": 57.4, "turn_s": 2.4, "calls": 17, "actions": 61, "images": 23, "errors": 1, "input_tokens": 361191, "cache_read_tokens": 334779, "output_tokens": 4041, "cost_usd": 0.179468, "user_undisturbed": true, "phases": {"first answer": 7.2, "all answered correctly": 86.9, "first submit": 97.9, "last submit": 97.9}, "act_s": {"input": 22.8, "wait": 12.6, "watch": 7.5, "pause": 0.0, "rest": 13.5}, "kinds": {"checkbox": {"items": 7, "seconds": 20.0, "corrections": 0}, "slider": {"items": 6, "seconds": 19.1, "corrections": 0}, "text": {"items": 6, "seconds": 15.1, "corrections": 0}, "dropdown": {"items": 6, "seconds": 33.4, "corrections": 1}}},
-  {"run": "2026-10-21-form-25/claude-claude-sonnet-5-5-low-2", "task": "form", "harness": "claude", "model": "claude-sonnet-5-5", "effort": "low", "ran_at": "low", "rep": 2, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 95.7, "tools_s": 60.7, "turn_s": 2.1, "calls": 15, "actions": 60, "images": 22, "errors": 0, "input_tokens": 325014, "cache_read_tokens": 300848, "output_tokens": 3705, "cost_usd": 0.163735, "user_undisturbed": true, "phases": {"first answer": 6.6, "all answered correctly": 85.9, "first submit": 92.0, "last submit": 92.0}, "act_s": {"input": 25.4, "wait": 11.8, "watch": 7.7, "pause": 0.0, "rest": 14.6}, "kinds": {"checkbox": {"items": 7, "seconds": 22.1, "corrections": 0}, "slider": {"items": 6, "seconds": 18.6, "corrections": 0}, "text": {"items": 6, "seconds": 11.2, "corrections": 0}, "dropdown": {"items": 6, "seconds": 34.7, "corrections": 1}}},
-  {"run": "2026-10-21-form-25/claude-claude-sonnet-5-5-low-3", "task": "form", "harness": "claude", "model": "claude-sonnet-5-5", "effort": "low", "ran_at": "low", "rep": 3, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 112.3, "tools_s": 60.1, "turn_s": 2.9, "calls": 17, "actions": 62, "images": 27, "errors": 0, "input_tokens": 364912, "cache_read_tokens": 340207, "output_tokens": 3956, "cost_usd": 0.172329, "user_undisturbed": true, "phases": {"first answer": 7.9, "all answered correctly": 97.7, "first submit": 107.7, "last submit": 107.7}, "act_s": {"input": 24.2, "wait": 12.2, "watch": 8.1, "pause": 0.0, "rest": 14.6}, "kinds": {"checkbox": {"items": 7, "seconds": 26.0, "corrections": 0}, "slider": {"items": 6, "seconds": 18.5, "corrections": 0}, "text": {"items": 6, "seconds": 16.1, "corrections": 0}, "dropdown": {"items": 6, "seconds": 37.8, "corrections": 1}}},
-  {"run": "2026-10-21-form-25/claude-claude-sonnet-5-5-medium-1", "task": "form", "harness": "claude", "model": "claude-sonnet-5-5", "effort": "medium", "ran_at": "medium", "rep": 1, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 95.6, "tools_s": 56.1, "turn_s": 2.0, "calls": 19, "actions": 61, "images": 22, "errors": 1, "input_tokens": 413964, "cache_read_tokens": 384845, "output_tokens": 4164, "cost_usd": 0.196525, "user_undisturbed": true, "phases": {"first answer": 6.5, "all answered correctly": 86.3, "first submit": 92.9, "last submit": 92.9}, "act_s": {"input": 20.3, "wait": 13.0, "watch": 7.3, "pause": 0.0, "rest": 14.4}, "kinds": {"checkbox": {"items": 7, "seconds": 27.5, "corrections": 0}, "slider": {"items": 6, "seconds": 15.4, "corrections": 0}, "text": {"items": 6, "seconds": 16.4, "corrections": 0}, "dropdown": {"items": 6, "seconds": 28.1, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-sonnet-5-5-medium-2", "task": "form", "harness": "claude", "model": "claude-sonnet-5-5", "effort": "medium", "ran_at": "medium", "rep": 2, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 86.2, "tools_s": 54.6, "turn_s": 2.0, "calls": 15, "actions": 58, "images": 21, "errors": 1, "input_tokens": 294582, "cache_read_tokens": 270703, "output_tokens": 3450, "cost_usd": 0.157026, "user_undisturbed": true, "phases": {"first answer": 6.5, "all answered correctly": 72.7, "first submit": 83.5, "last submit": 83.5}, "act_s": {"input": 22.8, "wait": 10.1, "watch": 7.7, "pause": 0.0, "rest": 13.0}, "kinds": {"checkbox": {"items": 7, "seconds": 18.7, "corrections": 0}, "slider": {"items": 6, "seconds": 18.1, "corrections": 0}, "text": {"items": 6, "seconds": 11.3, "corrections": 0}, "dropdown": {"items": 6, "seconds": 25.3, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/claude-claude-sonnet-5-5-medium-3", "task": "form", "harness": "claude", "model": "claude-sonnet-5-5", "effort": "medium", "ran_at": "medium", "rep": 3, "date": "2026-10-21", "harness_version": "2.1.304 (Claude Code)", "passed": true, "wall_s": 93.1, "tools_s": 54.5, "turn_s": 1.9, "calls": 17, "actions": 59, "images": 20, "errors": 0, "input_tokens": 396936, "cache_read_tokens": 369434, "output_tokens": 3896, "cost_usd": 0.185839, "user_undisturbed": true, "phases": {"first answer": 6.7, "all answered correctly": 81.3, "first submit": 90.4, "last submit": 90.4}, "act_s": {"input": 20.2, "wait": 13.5, "watch": 6.0, "pause": 0.0, "rest": 13.7}, "kinds": {"checkbox": {"items": 7, "seconds": 37.2, "corrections": 0}, "slider": {"items": 6, "seconds": 14.8, "corrections": 0}, "text": {"items": 6, "seconds": 7.3, "corrections": 0}, "dropdown": {"items": 6, "seconds": 23.0, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6-astra-high-1", "task": "form", "harness": "codex", "model": "gpt-6-astra", "effort": "high", "ran_at": "high", "rep": 1, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 165.2, "tools_s": 55.1, "turn_s": 5.5, "calls": 18, "actions": 61, "images": 17, "errors": 0, "input_tokens": 387014, "cache_read_tokens": 357504, "output_tokens": 2303, "cost_usd": 0.767754, "user_undisturbed": true, "phases": {"first answer": 18.8, "all answered correctly": 129.2, "first submit": 156.0, "last submit": 156.0}, "act_s": {"input": 21.4, "wait": 12.7, "watch": 6.5, "pause": 0.0, "rest": 13.4}, "kinds": {"checkbox": {"items": 7, "seconds": 58.7, "corrections": 0}, "slider": {"items": 6, "seconds": 14.9, "corrections": 0}, "text": {"items": 6, "seconds": 14.5, "corrections": 0}, "dropdown": {"items": 6, "seconds": 41.7, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6-astra-high-2", "task": "form", "harness": "codex", "model": "gpt-6-astra", "effort": "high", "ran_at": "high", "rep": 2, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 143.8, "tools_s": 55.0, "turn_s": 5.5, "calls": 14, "actions": 76, "images": 17, "errors": 0, "input_tokens": 293450, "cache_read_tokens": 266496, "output_tokens": 2119, "cost_usd": 0.641986, "user_undisturbed": true, "phases": {"first answer": 18.4, "all answered correctly": 134.6, "first submit": 140.2, "last submit": 140.2}, "act_s": {"input": 24.9, "wait": 7.9, "watch": 7.8, "pause": 0.0, "rest": 13.4}, "kinds": {"checkbox": {"items": 7, "seconds": 23.7, "corrections": 0}, "slider": {"items": 6, "seconds": 15.7, "corrections": 1}, "text": {"items": 6, "seconds": 40.5, "corrections": 0}, "dropdown": {"items": 6, "seconds": 55.0, "corrections": 1}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6-astra-high-3", "task": "form", "harness": "codex", "model": "gpt-6-astra", "effort": "high", "ran_at": "high", "rep": 3, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 152.2, "tools_s": 56.3, "turn_s": 5.2, "calls": 19, "actions": 63, "images": 36, "errors": 0, "input_tokens": 332312, "cache_read_tokens": 284288, "output_tokens": 2298, "cost_usd": 0.879428, "user_undisturbed": true, "phases": {"first answer": 19.6, "all answered correctly": 141.9, "first submit": 148.2, "last submit": 148.2}, "act_s": {"input": 23.7, "wait": 11.3, "watch": 8.0, "pause": 0.0, "rest": 12.2}, "kinds": {"checkbox": {"items": 7, "seconds": 31.9, "corrections": 0}, "slider": {"items": 6, "seconds": 19.8, "corrections": 1}, "text": {"items": 6, "seconds": 46.2, "corrections": 0}, "dropdown": {"items": 6, "seconds": 44.7, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6-astra-low-1", "task": "form", "harness": "codex", "model": "gpt-6-astra", "effort": "low", "ran_at": "low", "rep": 1, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 130.8, "tools_s": 54.5, "turn_s": 4.7, "calls": 14, "actions": 69, "images": 33, "errors": 0, "input_tokens": 297304, "cache_read_tokens": 257664, "output_tokens": 1958, "cost_usd": 0.751964, "user_undisturbed": true, "phases": {"first answer": 15.9, "all answered correctly": 116.9, "first submit": 126.4, "last submit": 126.4}, "act_s": {"input": 24.3, "wait": 8.9, "watch": 7.7, "pause": 0.0, "rest": 12.5}, "kinds": {"checkbox": {"items": 7, "seconds": 21.8, "corrections": 0}, "slider": {"items": 6, "seconds": 16.2, "corrections": 1}, "text": {"items": 6, "seconds": 34.1, "corrections": 0}, "dropdown": {"items": 6, "seconds": 45.7, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6-astra-low-2", "task": "form", "harness": "codex", "model": "gpt-6-astra", "effort": "low", "ran_at": "low", "rep": 2, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 144.9, "tools_s": 54.4, "turn_s": 4.6, "calls": 17, "actions": 58, "images": 36, "errors": 0, "input_tokens": 371126, "cache_read_tokens": 349056, "output_tokens": 2076, "cost_usd": 0.673556, "user_undisturbed": true, "phases": {"first answer": 16.5, "all answered correctly": 137.3, "first submit": 141.3, "last submit": 141.3}, "act_s": {"input": 20.2, "wait": 11.7, "watch": 7.9, "pause": 0.0, "rest": 13.6}, "kinds": {"checkbox": {"items": 7, "seconds": 49.5, "corrections": 0}, "slider": {"items": 6, "seconds": 15.5, "corrections": 0}, "text": {"items": 6, "seconds": 28.5, "corrections": 0}, "dropdown": {"items": 6, "seconds": 44.5, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6-astra-low-3", "task": "form", "harness": "codex", "model": "gpt-6-astra", "effort": "low", "ran_at": "low", "rep": 3, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 116.2, "tools_s": 53.1, "turn_s": 3.8, "calls": 14, "actions": 60, "images": 33, "errors": 0, "input_tokens": 303737, "cache_read_tokens": 282880, "output_tokens": 1866, "cost_usd": 0.58475, "user_undisturbed": true, "phases": {"first answer": 15.5, "all answered correctly": 107.6, "first submit": 111.9, "last submit": 111.9}, "act_s": {"input": 21.2, "wait": 10.1, "watch": 7.3, "pause": 0.0, "rest": 13.5}, "kinds": {"checkbox": {"items": 7, "seconds": 44.6, "corrections": 0}, "slider": {"items": 6, "seconds": 15.5, "corrections": 0}, "text": {"items": 6, "seconds": 13.5, "corrections": 0}, "dropdown": {"items": 6, "seconds": 34.2, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6-astra-medium-1", "task": "form", "harness": "codex", "model": "gpt-6-astra", "effort": "medium", "ran_at": "medium", "rep": 1, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 130.8, "tools_s": 50.0, "turn_s": 4.8, "calls": 14, "actions": 64, "images": 18, "errors": 0, "input_tokens": 285647, "cache_read_tokens": 267008, "output_tokens": 1947, "cost_usd": 0.550748, "user_undisturbed": true, "phases": {"first answer": 17.5, "all answered correctly": 126.7, "first submit": 126.9, "last submit": 126.9}, "act_s": {"input": 21.9, "wait": 5.7, "watch": 8.7, "pause": 0.0, "rest": 12.7}, "kinds": {"checkbox": {"items": 7, "seconds": 30.5, "corrections": 0}, "slider": {"items": 6, "seconds": 24.1, "corrections": 1}, "text": {"items": 6, "seconds": 22.9, "corrections": 0}, "dropdown": {"items": 6, "seconds": 50.1, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6-astra-medium-2", "task": "form", "harness": "codex", "model": "gpt-6-astra", "effort": "medium", "ran_at": "medium", "rep": 2, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 142.7, "tools_s": 56.3, "turn_s": 5.4, "calls": 15, "actions": 73, "images": 27, "errors": 0, "input_tokens": 312959, "cache_read_tokens": 278784, "output_tokens": 2092, "cost_usd": 0.725134, "user_undisturbed": true, "phases": {"first answer": 15.6, "all answered correctly": 136.3, "first submit": 136.6, "last submit": 136.6}, "act_s": {"input": 24.9, "wait": 6.1, "watch": 9.1, "pause": 0.0, "rest": 15.1}, "kinds": {"checkbox": {"items": 7, "seconds": 38.4, "corrections": 0}, "slider": {"items": 6, "seconds": 16.8, "corrections": 1}, "text": {"items": 6, "seconds": 34.0, "corrections": 0}, "dropdown": {"items": 6, "seconds": 48.1, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6-astra-medium-3", "task": "form", "harness": "codex", "model": "gpt-6-astra", "effort": "medium", "ran_at": "medium", "rep": 3, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 166.9, "tools_s": 51.2, "turn_s": 6.6, "calls": 14, "actions": 62, "images": 14, "errors": 0, "input_tokens": 281679, "cache_read_tokens": 244736, "output_tokens": 1925, "cost_usd": 0.710416, "user_undisturbed": true, "phases": {"first answer": 32.4, "all answered correctly": 155.1, "first submit": 161.3, "last submit": 161.3}, "act_s": {"input": 21.7, "wait": 8.3, "watch": 7.2, "pause": 0.0, "rest": 12.8}, "kinds": {"checkbox": {"items": 7, "seconds": 38.6, "corrections": 0}, "slider": {"items": 6, "seconds": 12.7, "corrections": 1}, "text": {"items": 6, "seconds": 45.5, "corrections": 0}, "dropdown": {"items": 6, "seconds": 59.0, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6.1-sol-high-1", "task": "form", "harness": "codex", "model": "gpt-6.1-sol", "effort": "high", "ran_at": "high", "rep": 1, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 130.2, "tools_s": 64.6, "turn_s": 3.1, "calls": 19, "actions": 76, "images": 41, "errors": 1, "input_tokens": 425256, "cache_read_tokens": 365568, "output_tokens": 2586, "cost_usd": 0.181793, "user_undisturbed": true, "phases": {"first answer": 12.8, "all answered correctly": 122.2, "first submit": 126.5, "last submit": 126.5}, "act_s": {"input": 28.0, "wait": 10.8, "watch": 11.2, "pause": 0.0, "rest": 13.6}, "kinds": {"checkbox": {"items": 7, "seconds": 26.6, "corrections": 0}, "slider": {"items": 6, "seconds": 22.3, "corrections": 1}, "text": {"items": 6, "seconds": 43.7, "corrections": 0}, "dropdown": {"items": 6, "seconds": 30.4, "corrections": 2}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6.1-sol-high-2", "task": "form", "harness": "codex", "model": "gpt-6.1-sol", "effort": "high", "ran_at": "high", "rep": 2, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 121.8, "tools_s": 57.2, "turn_s": 3.7, "calls": 15, "actions": 68, "images": 14, "errors": 1, "input_tokens": 300976, "cache_read_tokens": 273920, "output_tokens": 2080, "cost_usd": 0.102304, "user_undisturbed": true, "phases": {"first answer": 14.0, "all answered correctly": 113.4, "first submit": 118.0, "last submit": 118.0}, "act_s": {"input": 24.3, "wait": 10.3, "watch": 7.4, "pause": 0.0, "rest": 14.1}, "kinds": {"checkbox": {"items": 7, "seconds": 47.0, "corrections": 0}, "slider": {"items": 6, "seconds": 19.2, "corrections": 0}, "text": {"items": 6, "seconds": 15.1, "corrections": 0}, "dropdown": {"items": 6, "seconds": 33.1, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6.1-sol-high-3", "task": "form", "harness": "codex", "model": "gpt-6.1-sol", "effort": "high", "ran_at": "high", "rep": 3, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 117.9, "tools_s": 52.9, "turn_s": 4.0, "calls": 14, "actions": 71, "images": 25, "errors": 0, "input_tokens": 291989, "cache_read_tokens": 270848, "output_tokens": 2101, "cost_usd": 0.090377, "user_undisturbed": true, "phases": {"first answer": 12.5, "all answered correctly": 108.7, "first submit": 114.6, "last submit": 114.6}, "act_s": {"input": 24.1, "wait": 6.7, "watch": 7.2, "pause": 0.0, "rest": 13.8}, "kinds": {"checkbox": {"items": 7, "seconds": 24.0, "corrections": 0}, "slider": {"items": 6, "seconds": 16.0, "corrections": 1}, "text": {"items": 6, "seconds": 29.2, "corrections": 0}, "dropdown": {"items": 6, "seconds": 40.4, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6.1-sol-low-1", "task": "form", "harness": "codex", "model": "gpt-6.1-sol", "effort": "low", "ran_at": "low", "rep": 1, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 116.4, "tools_s": 52.4, "turn_s": 3.6, "calls": 15, "actions": 62, "images": 29, "errors": 0, "input_tokens": 326512, "cache_read_tokens": 298368, "output_tokens": 1956, "cost_usd": 0.105685, "user_undisturbed": true, "phases": {"first answer": 13.9, "all answered correctly": 106.0, "first submit": 112.6, "last submit": 112.6}, "act_s": {"input": 20.9, "wait": 11.7, "watch": 6.2, "pause": 0.0, "rest": 12.5}, "kinds": {"checkbox": {"items": 7, "seconds": 37.4, "corrections": 0}, "slider": {"items": 6, "seconds": 22.1, "corrections": 0}, "text": {"items": 6, "seconds": 7.0, "corrections": 0}, "dropdown": {"items": 6, "seconds": 40.2, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6.1-sol-low-2", "task": "form", "harness": "codex", "model": "gpt-6.1-sol", "effort": "low", "ran_at": "low", "rep": 2, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 92.6, "tools_s": 52.6, "turn_s": 2.3, "calls": 14, "actions": 59, "images": 17, "errors": 0, "input_tokens": 292864, "cache_read_tokens": 266368, "output_tokens": 1876, "cost_usd": 0.098389, "user_undisturbed": true, "phases": {"first answer": 10.2, "all answered correctly": 85.7, "first submit": 88.9, "last submit": 88.9}, "act_s": {"input": 20.7, "wait": 10.1, "watch": 7.4, "pause": 0.0, "rest": 13.4}, "kinds": {"checkbox": {"items": 7, "seconds": 34.7, "corrections": 0}, "slider": {"items": 6, "seconds": 14.9, "corrections": 0}, "text": {"items": 6, "seconds": 12.4, "corrections": 0}, "dropdown": {"items": 6, "seconds": 24.1, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6.1-sol-low-3", "task": "form", "harness": "codex", "model": "gpt-6.1-sol", "effort": "low", "ran_at": "low", "rep": 3, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 140.6, "tools_s": 57.7, "turn_s": 4.2, "calls": 17, "actions": 81, "images": 33, "errors": 1, "input_tokens": 363804, "cache_read_tokens": 339968, "output_tokens": 2410, "cost_usd": 0.105769, "user_undisturbed": true, "phases": {"first answer": 15.2, "all answered correctly": 121.6, "first submit": 136.3, "last submit": 136.3}, "act_s": {"input": 24.0, "wait": 11.2, "watch": 7.4, "pause": 0.0, "rest": 13.9}, "kinds": {"checkbox": {"items": 7, "seconds": 29.2, "corrections": 0}, "slider": {"items": 6, "seconds": 25.1, "corrections": 0}, "text": {"items": 6, "seconds": 6.9, "corrections": 0}, "dropdown": {"items": 6, "seconds": 61.3, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6.1-sol-medium-1", "task": "form", "harness": "codex", "model": "gpt-6.1-sol", "effort": "medium", "ran_at": "medium", "rep": 1, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 113.9, "tools_s": 49.9, "turn_s": 4.2, "calls": 14, "actions": 77, "images": 24, "errors": 1, "input_tokens": 288524, "cache_read_tokens": 245504, "output_tokens": 2047, "cost_usd": 0.13106, "user_undisturbed": true, "phases": {"first answer": 12.7, "all answered correctly": 104.4, "first submit": 109.9, "last submit": 109.9}, "act_s": {"input": 21.6, "wait": 5.5, "watch": 7.9, "pause": 0.0, "rest": 13.8}, "kinds": {"checkbox": {"items": 7, "seconds": 19.3, "corrections": 0}, "slider": {"items": 6, "seconds": 21.9, "corrections": 0}, "text": {"items": 6, "seconds": 21.0, "corrections": 0}, "dropdown": {"items": 6, "seconds": 42.9, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6.1-sol-medium-2", "task": "form", "harness": "codex", "model": "gpt-6.1-sol", "effort": "medium", "ran_at": "medium", "rep": 2, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 120.8, "tools_s": 53.7, "turn_s": 4.0, "calls": 15, "actions": 76, "images": 38, "errors": 1, "input_tokens": 319996, "cache_read_tokens": 286720, "output_tokens": 2090, "cost_usd": 0.116124, "user_undisturbed": true, "phases": {"first answer": 13.6, "all answered correctly": 113.1, "first submit": 117.1, "last submit": 117.1}, "act_s": {"input": 24.7, "wait": 8.1, "watch": 7.8, "pause": 0.0, "rest": 12.0}, "kinds": {"checkbox": {"items": 7, "seconds": 28.6, "corrections": 0}, "slider": {"items": 6, "seconds": 15.7, "corrections": 1}, "text": {"items": 6, "seconds": 36.3, "corrections": 0}, "dropdown": {"items": 6, "seconds": 33.4, "corrections": 0}}},
-  {"run": "2026-10-21-form-25/codex-gpt-6.1-sol-medium-3", "task": "form", "harness": "codex", "model": "gpt-6.1-sol", "effort": "medium", "ran_at": "medium", "rep": 3, "date": "2026-10-21", "harness_version": "codex-cli 0.163.0", "passed": true, "wall_s": 125.2, "tools_s": 54.3, "turn_s": 3.9, "calls": 16, "actions": 81, "images": 32, "errors": 1, "input_tokens": 336698, "cache_read_tokens": 292608, "output_tokens": 2297, "cost_usd": 0.140411, "user_undisturbed": true, "phases": {"first answer": 12.2, "all answered correctly": 109.4, "first submit": 120.5, "last submit": 120.5}, "act_s": {"input": 24.0, "wait": 10.0, "watch": 6.6, "pause": 0.0, "rest": 12.7}, "kinds": {"checkbox": {"items": 7, "seconds": 25.0, "corrections": 0}, "slider": {"items": 6, "seconds": 28.9, "corrections": 0}, "text": {"items": 6, "seconds": 6.9, "corrections": 0}, "dropdown": {"items": 6, "seconds": 49.5, "corrections": 0}}}
+  {
+   "run": "effort-gtk4-low/claude-api-claude-sonnet-5-5-low-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "low",
+   "ran_at": "low",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 78.9,
+   "tools_s": 34.0,
+   "turn_s": 2.6,
+   "calls": 15,
+   "actions": 63,
+   "images": 19,
+   "errors": 0,
+   "input_tokens": 315527,
+   "cache_read_tokens": 285028,
+   "output_tokens": 2410,
+   "cost_usd": 0.128834,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.7,
+    "all answered correctly": 67.6,
+    "first submit": 75.5,
+    "last submit": 75.5
+   },
+   "act_s": {
+    "input": 14.9,
+    "wait": 5.8,
+    "watch": 5.6,
+    "pause": 0.0,
+    "rest": 6.7
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 31.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.8,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 5.1,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 25.9,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-low/claude-api-claude-sonnet-5-5-low-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "low",
+   "ran_at": "low",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 114.4,
+   "tools_s": 44.0,
+   "turn_s": 2.8,
+   "calls": 22,
+   "actions": 79,
+   "images": 47,
+   "errors": 1,
+   "input_tokens": 575874,
+   "cache_read_tokens": 540944,
+   "output_tokens": 3528,
+   "cost_usd": 0.176676,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.3,
+    "all answered correctly": 96.3,
+    "first submit": 110.5,
+    "last submit": 110.5
+   },
+   "act_s": {
+    "input": 17.1,
+    "wait": 9.7,
+    "watch": 8.7,
+    "pause": 0.0,
+    "rest": 7.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 32.4,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.4,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 20.1,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 39.1,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-low/claude-api-claude-sonnet-5-5-low-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "low",
+   "ran_at": "low",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 66.1,
+   "tools_s": 32.8,
+   "turn_s": 2.4,
+   "calls": 13,
+   "actions": 54,
+   "images": 50,
+   "errors": 0,
+   "input_tokens": 256303,
+   "cache_read_tokens": 235913,
+   "output_tokens": 2065,
+   "cost_usd": 0.095202,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.6,
+    "all answered correctly": 59.8,
+    "first submit": 63.2,
+    "last submit": 63.2
+   },
+   "act_s": {
+    "input": 12.9,
+    "wait": 6.5,
+    "watch": 6.3,
+    "pause": 0.0,
+    "rest": 6.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.4,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 25.9,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-low/codex-gpt-6.1-sol-low-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "low",
+   "ran_at": "low",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 90.4,
+   "tools_s": 37.3,
+   "turn_s": 2.7,
+   "calls": 16,
+   "actions": 63,
+   "images": 36,
+   "errors": 0,
+   "input_tokens": 336076,
+   "cache_read_tokens": 310656,
+   "output_tokens": 1445,
+   "cost_usd": 0.096356,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 12.8,
+    "all answered correctly": 83.6,
+    "first submit": 86.8,
+    "last submit": 86.8
+   },
+   "act_s": {
+    "input": 12.8,
+    "wait": 6.7,
+    "watch": 7.1,
+    "pause": 0.0,
+    "rest": 9.6
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 29.7,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.7,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 10.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 33.5,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-low/codex-gpt-6.1-sol-low-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "low",
+   "ran_at": "low",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 143.5,
+   "tools_s": 35.2,
+   "turn_s": 3.5,
+   "calls": 15,
+   "actions": 70,
+   "images": 44,
+   "errors": 0,
+   "input_tokens": 334154,
+   "cache_read_tokens": 300288,
+   "output_tokens": 1435,
+   "cost_usd": 0.112111,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 25.4,
+    "all answered correctly": 136.2,
+    "first submit": 140.4,
+    "last submit": 140.4
+   },
+   "act_s": {
+    "input": 13.2,
+    "wait": 8.0,
+    "watch": 6.8,
+    "pause": 0.0,
+    "rest": 6.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 45.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 11.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 69.1,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-low/codex-gpt-6.1-sol-low-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "low",
+   "ran_at": "low",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 98.4,
+   "tools_s": 35.5,
+   "turn_s": 3.8,
+   "calls": 14,
+   "actions": 57,
+   "images": 34,
+   "errors": 0,
+   "input_tokens": 293438,
+   "cache_read_tokens": 276608,
+   "output_tokens": 1282,
+   "cost_usd": 0.074141,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 18.0,
+    "all answered correctly": 90.8,
+    "first submit": 94.3,
+    "last submit": 94.3
+   },
+   "act_s": {
+    "input": 12.5,
+    "wait": 6.1,
+    "watch": 6.1,
+    "pause": 0.0,
+    "rest": 9.6
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 35.0,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 11.2,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 33.5,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-medium/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 78.0,
+   "tools_s": 33.0,
+   "turn_s": 2.8,
+   "calls": 14,
+   "actions": 62,
+   "images": 25,
+   "errors": 0,
+   "input_tokens": 278532,
+   "cache_read_tokens": 256423,
+   "output_tokens": 2508,
+   "cost_usd": 0.10598,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.6,
+    "all answered correctly": 69.2,
+    "first submit": 72.5,
+    "last submit": 72.5
+   },
+   "act_s": {
+    "input": 13.9,
+    "wait": 5.3,
+    "watch": 5.8,
+    "pause": 0.0,
+    "rest": 6.9
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 11.7,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 20.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 26.4,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-medium/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 79.6,
+   "tools_s": 36.8,
+   "turn_s": 2.8,
+   "calls": 14,
+   "actions": 55,
+   "images": 39,
+   "errors": 0,
+   "input_tokens": 276411,
+   "cache_read_tokens": 254111,
+   "output_tokens": 2211,
+   "cost_usd": 0.103256,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.3,
+    "all answered correctly": 72.0,
+    "first submit": 76.0,
+    "last submit": 76.0
+   },
+   "act_s": {
+    "input": 12.5,
+    "wait": 6.7,
+    "watch": 6.6,
+    "pause": 0.0,
+    "rest": 10.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 22.2,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 10.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 29.8,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-medium/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 84.8,
+   "tools_s": 38.4,
+   "turn_s": 2.4,
+   "calls": 17,
+   "actions": 63,
+   "images": 25,
+   "errors": 0,
+   "input_tokens": 373414,
+   "cache_read_tokens": 346142,
+   "output_tokens": 2939,
+   "cost_usd": 0.132166,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.1,
+    "all answered correctly": 77.4,
+    "first submit": 80.5,
+    "last submit": 80.5
+   },
+   "act_s": {
+    "input": 13.5,
+    "wait": 7.3,
+    "watch": 7.5,
+    "pause": 0.0,
+    "rest": 9.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 15.4,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 23.1,
+     "corrections": 1
+    },
+    "text": {
+     "items": 6,
+     "seconds": 15.2,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 24.5,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-medium/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 133.0,
+   "tools_s": 36.4,
+   "turn_s": 3.5,
+   "calls": 16,
+   "actions": 74,
+   "images": 42,
+   "errors": 0,
+   "input_tokens": 353809,
+   "cache_read_tokens": 323072,
+   "output_tokens": 1544,
+   "cost_usd": 0.109221,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 44.4,
+    "all answered correctly": 125.7,
+    "first submit": 129.1,
+    "last submit": 129.1
+   },
+   "act_s": {
+    "input": 13.5,
+    "wait": 8.2,
+    "watch": 7.0,
+    "pause": 0.0,
+    "rest": 6.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 61.8,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 14.4,
+     "corrections": 1
+    },
+    "text": {
+     "items": 6,
+     "seconds": 10.5,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 39.7,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-medium/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 112.2,
+   "tools_s": 34.1,
+   "turn_s": 2.8,
+   "calls": 19,
+   "actions": 69,
+   "images": 43,
+   "errors": 0,
+   "input_tokens": 435471,
+   "cache_read_tokens": 394752,
+   "output_tokens": 1799,
+   "cost_usd": 0.138903,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 25.8,
+    "all answered correctly": 105.0,
+    "first submit": 108.8,
+    "last submit": 108.8
+   },
+   "act_s": {
+    "input": 12.8,
+    "wait": 7.7,
+    "watch": 6.5,
+    "pause": 0.0,
+    "rest": 6.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 39.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 13.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 18.1,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 34.6,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-medium/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 92.2,
+   "tools_s": 35.0,
+   "turn_s": 3.2,
+   "calls": 13,
+   "actions": 61,
+   "images": 34,
+   "errors": 0,
+   "input_tokens": 264753,
+   "cache_read_tokens": 225664,
+   "output_tokens": 1290,
+   "cost_usd": 0.113644,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 14.4,
+    "all answered correctly": 84.3,
+    "first submit": 87.7,
+    "last submit": 87.7
+   },
+   "act_s": {
+    "input": 11.7,
+    "wait": 6.4,
+    "watch": 6.1,
+    "pause": 0.0,
+    "rest": 9.8
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 30.1,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 16.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 10.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 27.5,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-high/claude-api-claude-sonnet-5-5-high-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "high",
+   "ran_at": "high",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 72.1,
+   "tools_s": 34.4,
+   "turn_s": 2.2,
+   "calls": 15,
+   "actions": 56,
+   "images": 20,
+   "errors": 0,
+   "input_tokens": 301226,
+   "cache_read_tokens": 270785,
+   "output_tokens": 2305,
+   "cost_usd": 0.126215,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.6,
+    "all answered correctly": 61.9,
+    "first submit": 69.1,
+    "last submit": 69.1
+   },
+   "act_s": {
+    "input": 13.8,
+    "wait": 5.8,
+    "watch": 6.3,
+    "pause": 0.0,
+    "rest": 7.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 18.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 25.0,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-high/claude-api-claude-sonnet-5-5-high-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "high",
+   "ran_at": "high",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 73.5,
+   "tools_s": 36.2,
+   "turn_s": 2.3,
+   "calls": 15,
+   "actions": 55,
+   "images": 45,
+   "errors": 0,
+   "input_tokens": 319619,
+   "cache_read_tokens": 294576,
+   "output_tokens": 2480,
+   "cost_usd": 0.116849,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.3,
+    "all answered correctly": 67.4,
+    "first submit": 70.6,
+    "last submit": 70.6
+   },
+   "act_s": {
+    "input": 12.2,
+    "wait": 6.4,
+    "watch": 6.6,
+    "pause": 0.0,
+    "rest": 10.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 23.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 13.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 22.1,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-high/claude-api-claude-sonnet-5-5-high-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "high",
+   "ran_at": "high",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 84.8,
+   "tools_s": 36.1,
+   "turn_s": 2.3,
+   "calls": 20,
+   "actions": 57,
+   "images": 31,
+   "errors": 1,
+   "input_tokens": 410556,
+   "cache_read_tokens": 383433,
+   "output_tokens": 3091,
+   "cost_usd": 0.137041,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.3,
+    "all answered correctly": 72.3,
+    "first submit": 81.9,
+    "last submit": 81.9
+   },
+   "act_s": {
+    "input": 13.7,
+    "wait": 6.2,
+    "watch": 7.7,
+    "pause": 0.0,
+    "rest": 7.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 21.2,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 15.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 27.8,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-high/codex-gpt-6.1-sol-high-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "high",
+   "ran_at": "high",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 112.0,
+   "tools_s": 37.5,
+   "turn_s": 3.5,
+   "calls": 15,
+   "actions": 61,
+   "images": 35,
+   "errors": 0,
+   "input_tokens": 303844,
+   "cache_read_tokens": 275584,
+   "output_tokens": 1373,
+   "cost_usd": 0.097808,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 15.1,
+    "all answered correctly": 103.7,
+    "first submit": 108.2,
+    "last submit": 108.2
+   },
+   "act_s": {
+    "input": 12.8,
+    "wait": 6.9,
+    "watch": 7.1,
+    "pause": 0.0,
+    "rest": 9.6
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 31.2,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 16.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 14.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 42.6,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-high/codex-gpt-6.1-sol-high-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "high",
+   "ran_at": "high",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 89.6,
+   "tools_s": 35.6,
+   "turn_s": 3.2,
+   "calls": 13,
+   "actions": 75,
+   "images": 35,
+   "errors": 0,
+   "input_tokens": 276382,
+   "cache_read_tokens": 237056,
+   "output_tokens": 1388,
+   "cost_usd": 0.116238,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 14.6,
+    "all answered correctly": 82.0,
+    "first submit": 86.2,
+    "last submit": 86.2
+   },
+   "act_s": {
+    "input": 13.4,
+    "wait": 6.2,
+    "watch": 6.0,
+    "pause": 0.0,
+    "rest": 8.9
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 35.7,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 4.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 31.3,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-high/codex-gpt-6.1-sol-high-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "high",
+   "ran_at": "high",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 95.3,
+   "tools_s": 36.4,
+   "turn_s": 3.1,
+   "calls": 14,
+   "actions": 59,
+   "images": 34,
+   "errors": 0,
+   "input_tokens": 295617,
+   "cache_read_tokens": 270720,
+   "output_tokens": 1430,
+   "cost_usd": 0.091166,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 17.1,
+    "all answered correctly": 88.2,
+    "first submit": 91.7,
+    "last submit": 91.7
+   },
+   "act_s": {
+    "input": 12.6,
+    "wait": 6.1,
+    "watch": 6.5,
+    "pause": 0.0,
+    "rest": 10.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 35.0,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.6,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 10.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 32.6,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-low/codex-gpt-6.1-terra-low-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "low",
+   "ran_at": "low",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 66.4,
+   "tools_s": 36.6,
+   "turn_s": 1.5,
+   "calls": 13,
+   "actions": 58,
+   "images": 17,
+   "errors": 0,
+   "input_tokens": 246274,
+   "cache_read_tokens": 210048,
+   "output_tokens": 1261,
+   "cost_usd": 0.053033,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.3,
+    "all answered correctly": 61.9,
+    "first submit": 62.4,
+    "last submit": 62.4
+   },
+   "act_s": {
+    "input": 13.1,
+    "wait": 6.3,
+    "watch": 6.1,
+    "pause": 0.0,
+    "rest": 10.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 22.0,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 10.3,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 20.7,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-low/codex-gpt-6.1-terra-low-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "low",
+   "ran_at": "low",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 67.6,
+   "tools_s": 37.0,
+   "turn_s": 1.8,
+   "calls": 13,
+   "actions": 58,
+   "images": 36,
+   "errors": 0,
+   "input_tokens": 258319,
+   "cache_read_tokens": 236032,
+   "output_tokens": 1226,
+   "cost_usd": 0.040219,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.3,
+    "all answered correctly": 63.3,
+    "first submit": 63.6,
+    "last submit": 63.6
+   },
+   "act_s": {
+    "input": 13.1,
+    "wait": 6.5,
+    "watch": 6.3,
+    "pause": 0.0,
+    "rest": 10.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 22.1,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.5,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 22.3,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-low/codex-gpt-6.1-terra-low-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "low",
+   "ran_at": "low",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 61.1,
+   "tools_s": 35.4,
+   "turn_s": 1.3,
+   "calls": 14,
+   "actions": 60,
+   "images": 31,
+   "errors": 0,
+   "input_tokens": 303863,
+   "cache_read_tokens": 280320,
+   "output_tokens": 1308,
+   "cost_usd": 0.044099,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.6,
+    "all answered correctly": 56.4,
+    "first submit": 58.7,
+    "last submit": 58.7
+   },
+   "act_s": {
+    "input": 13.0,
+    "wait": 6.4,
+    "watch": 6.0,
+    "pause": 0.0,
+    "rest": 9.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 19.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 4.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 23.9,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-medium/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 68.1,
+   "tools_s": 37.4,
+   "turn_s": 1.7,
+   "calls": 13,
+   "actions": 60,
+   "images": 36,
+   "errors": 0,
+   "input_tokens": 259976,
+   "cache_read_tokens": 237568,
+   "output_tokens": 1434,
+   "cost_usd": 0.041456,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.6,
+    "all answered correctly": 65.4,
+    "first submit": 65.6,
+    "last submit": 65.6
+   },
+   "act_s": {
+    "input": 13.2,
+    "wait": 6.8,
+    "watch": 6.2,
+    "pause": 0.0,
+    "rest": 10.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 25.2,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 21.9,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-medium/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 66.9,
+   "tools_s": 36.2,
+   "turn_s": 1.7,
+   "calls": 13,
+   "actions": 66,
+   "images": 35,
+   "errors": 0,
+   "input_tokens": 277611,
+   "cache_read_tokens": 238464,
+   "output_tokens": 1430,
+   "cost_usd": 0.05822,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.6,
+    "all answered correctly": 61.4,
+    "first submit": 63.9,
+    "last submit": 63.9
+   },
+   "act_s": {
+    "input": 12.3,
+    "wait": 7.0,
+    "watch": 6.2,
+    "pause": 0.0,
+    "rest": 9.6
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 18.1,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.4,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 4.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 29.3,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-medium/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 69.4,
+   "tools_s": 36.6,
+   "turn_s": 1.8,
+   "calls": 13,
+   "actions": 60,
+   "images": 17,
+   "errors": 0,
+   "input_tokens": 246566,
+   "cache_read_tokens": 225664,
+   "output_tokens": 1334,
+   "cost_usd": 0.038855,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 13.2,
+    "all answered correctly": 66.3,
+    "first submit": 66.6,
+    "last submit": 66.6
+   },
+   "act_s": {
+    "input": 13.2,
+    "wait": 6.3,
+    "watch": 6.2,
+    "pause": 0.0,
+    "rest": 9.9
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 26.7,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.4,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 22.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-high/codex-gpt-6.1-terra-high-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "high",
+   "ran_at": "high",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 75.4,
+   "tools_s": 38.8,
+   "turn_s": 1.6,
+   "calls": 15,
+   "actions": 64,
+   "images": 38,
+   "errors": 0,
+   "input_tokens": 319604,
+   "cache_read_tokens": 286336,
+   "output_tokens": 1656,
+   "cost_usd": 0.055865,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 12.7,
+    "all answered correctly": 72.5,
+    "first submit": 73.0,
+    "last submit": 73.0
+   },
+   "act_s": {
+    "input": 13.6,
+    "wait": 6.8,
+    "watch": 6.6,
+    "pause": 0.0,
+    "rest": 10.6
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 31.1,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 23.1,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-high/codex-gpt-6.1-terra-high-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "high",
+   "ran_at": "high",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 65.8,
+   "tools_s": 37.4,
+   "turn_s": 1.7,
+   "calls": 13,
+   "actions": 59,
+   "images": 17,
+   "errors": 0,
+   "input_tokens": 246585,
+   "cache_read_tokens": 225664,
+   "output_tokens": 1336,
+   "cost_usd": 0.038884,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.5,
+    "all answered correctly": 62.8,
+    "first submit": 63.0,
+    "last submit": 63.0
+   },
+   "act_s": {
+    "input": 13.2,
+    "wait": 6.0,
+    "watch": 6.2,
+    "pause": 0.0,
+    "rest": 10.9
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 25.7,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 18.3,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "effort-gtk4-high/codex-gpt-6.1-terra-high-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "high",
+   "ran_at": "high",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 62.1,
+   "tools_s": 36.0,
+   "turn_s": 1.5,
+   "calls": 13,
+   "actions": 54,
+   "images": 17,
+   "errors": 0,
+   "input_tokens": 247133,
+   "cache_read_tokens": 226816,
+   "output_tokens": 1373,
+   "cost_usd": 0.038523,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.4,
+    "all answered correctly": 59.5,
+    "first submit": 59.8,
+    "last submit": 59.8
+   },
+   "act_s": {
+    "input": 12.3,
+    "wait": 6.0,
+    "watch": 6.2,
+    "pause": 0.0,
+    "rest": 10.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 23.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 6.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 13.2,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 17.3,
+     "corrections": 0
+    }
+   }
+  }
  ]
 }
