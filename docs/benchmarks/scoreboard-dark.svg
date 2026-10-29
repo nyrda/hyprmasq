@@ -1,165 +1,112 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="398" viewBox="0 0 880 398" role="img" aria-label="Runs passed, wall time and cost. 74 of 84 runs passed. A row per agent shows its runs of each task, their median wall time and the cost per passed run.">
-<title>Runs passed, wall time and cost. 74 of 84 runs passed. A row per agent shows its runs of each task, their median wall time and the cost per passed run.</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="379" viewBox="0 0 880 379" role="img" aria-label="Runs passed and cost. 74 of 84 runs passed. A row per task shows the share of each agent&#x27;s runs of it that passed, and the rows below each agent&#x27;s runs passed and cost per passed run.">
+<title>Runs passed and cost. 74 of 84 runs passed. A row per task shows the share of each agent&#x27;s runs of it that passed, and the rows below each agent&#x27;s runs passed and cost per passed run.</title>
 <style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.tools{fill:#3987e5}.out{fill:#454c56}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.miss{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.pass{fill:#3fb950}.fail{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.cut{stroke:#0d1117;stroke-width:2}.s0{fill:#3987e5}.s1{fill:#d95926}.s2{fill:#199e70}.s3{fill:#c98500}.s4{fill:#d55181}.s5{fill:#008300}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
-<rect x="0.5" y="0.5" width="879" height="397" rx="6" class="bg"/>
-<text x="24" y="34" class="t" font-size="15" font-weight="600">Runs passed, wall time and cost</text>
-<text x="24" y="53" class="t2" font-size="12.5">74 of 84 runs passed. Each dot is one run. The time is the task&#x27;s median wall time.</text>
+<rect x="0.5" y="0.5" width="879" height="378" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Runs passed and cost</text>
+<text x="24" y="53" class="t2" font-size="12.5">74 of 84 runs passed. Each bar is the share of a task&#x27;s three runs that passed. The figure below gives the times, which do not fit here.</text>
 <text x="24" y="72" class="t2" font-size="12.5">All runs asked for medium effort. DeepSeek v4.1 Flash ran at high.</text>
-<circle cx="29" cy="94" r="4.5" class="pass"/>
-<text x="39" y="98" class="t2" font-size="12">passed</text>
-<circle cx="104.7" cy="94" r="4.5" class="fail"/>
-<text x="114.7" y="98" class="t2" font-size="12">failed</text>
-<text x="179.7" y="128" class="t2" font-size="12" font-weight="600">Passed</text>
-<text x="243.7" y="128" class="t2" font-size="12" font-weight="600">Board</text>
-<text x="346.8" y="128" class="t2" font-size="12" font-weight="600">Calc</text>
-<text x="449.9" y="128" class="t2" font-size="12" font-weight="600">Forgejo</text>
-<text x="552.9" y="128" class="t2" font-size="12" font-weight="600">Thunderbird</text>
-<text x="656" y="128" class="t2" font-size="12" font-weight="600">Cost per passed run</text>
-<line x1="24" y1="140" x2="856" y2="140" class="axis"/>
-<text x="24" y="161.5" class="t" font-size="13" font-weight="600">gpt-6.1-sol</text>
-<text x="179.7" y="161.5" class="t" font-size="13">11/12</text>
-<circle cx="248.7" cy="157" r="5" class="pass"/>
-<circle cx="262.7" cy="157" r="4.2" class="fail"/>
-<circle cx="276.7" cy="157" r="5" class="pass"/>
-<text x="294.7" y="161.5" class="t2" font-size="12.5">53 s</text>
-<circle cx="351.8" cy="157" r="5" class="pass"/>
-<circle cx="365.8" cy="157" r="5" class="pass"/>
-<circle cx="379.8" cy="157" r="5" class="pass"/>
-<text x="397.8" y="161.5" class="t2" font-size="12.5">87 s</text>
-<circle cx="454.9" cy="157" r="5" class="pass"/>
-<circle cx="468.9" cy="157" r="5" class="pass"/>
-<circle cx="482.9" cy="157" r="5" class="pass"/>
-<text x="500.9" y="161.5" class="t2" font-size="12.5">72 s</text>
-<circle cx="557.9" cy="157" r="5" class="pass"/>
-<circle cx="571.9" cy="157" r="5" class="pass"/>
-<circle cx="585.9" cy="157" r="5" class="pass"/>
-<text x="603.9" y="161.5" class="t2" font-size="12.5">107 s</text>
-<path d="M656 152H684.2Q687.2 152 687.2 155V159Q687.2 162 684.2 162H656Z" class="tools"/>
-<text x="695.2" y="161.5" class="t2" font-size="12.5">$0.13</text>
-<line x1="24" y1="174" x2="856" y2="174" class="grid"/>
-<text x="24" y="195.5" class="t" font-size="13" font-weight="600">gpt-6.1-terra</text>
-<text x="179.7" y="195.5" class="t" font-size="13">11/12</text>
-<circle cx="248.7" cy="191" r="4.2" class="fail"/>
-<circle cx="262.7" cy="191" r="5" class="pass"/>
-<circle cx="276.7" cy="191" r="5" class="pass"/>
-<text x="294.7" y="195.5" class="t2" font-size="12.5">31 s</text>
-<circle cx="351.8" cy="191" r="5" class="pass"/>
-<circle cx="365.8" cy="191" r="5" class="pass"/>
-<circle cx="379.8" cy="191" r="5" class="pass"/>
-<text x="397.8" y="195.5" class="t2" font-size="12.5">45 s</text>
-<circle cx="454.9" cy="191" r="5" class="pass"/>
-<circle cx="468.9" cy="191" r="5" class="pass"/>
-<circle cx="482.9" cy="191" r="5" class="pass"/>
-<text x="500.9" y="195.5" class="t2" font-size="12.5">58 s</text>
-<circle cx="557.9" cy="191" r="5" class="pass"/>
-<circle cx="571.9" cy="191" r="5" class="pass"/>
-<circle cx="585.9" cy="191" r="5" class="pass"/>
-<text x="603.9" y="195.5" class="t2" font-size="12.5">65 s</text>
-<path d="M656 186H665.9Q668.9 186 668.9 189V193Q668.9 196 665.9 196H656Z" class="tools"/>
-<text x="676.9" y="195.5" class="t2" font-size="12.5">$0.05</text>
-<line x1="24" y1="208" x2="856" y2="208" class="grid"/>
-<text x="24" y="229.5" class="t" font-size="13" font-weight="600">gpt-6-astra</text>
-<text x="179.7" y="229.5" class="t" font-size="13">12/12</text>
-<circle cx="248.7" cy="225" r="5" class="pass"/>
-<circle cx="262.7" cy="225" r="5" class="pass"/>
-<circle cx="276.7" cy="225" r="5" class="pass"/>
-<text x="294.7" y="229.5" class="t2" font-size="12.5">50 s</text>
-<circle cx="351.8" cy="225" r="5" class="pass"/>
-<circle cx="365.8" cy="225" r="5" class="pass"/>
-<circle cx="379.8" cy="225" r="5" class="pass"/>
-<text x="397.8" y="229.5" class="t2" font-size="12.5">92 s</text>
-<circle cx="454.9" cy="225" r="5" class="pass"/>
-<circle cx="468.9" cy="225" r="5" class="pass"/>
-<circle cx="482.9" cy="225" r="5" class="pass"/>
-<text x="500.9" y="229.5" class="t2" font-size="12.5">91 s</text>
-<circle cx="557.9" cy="225" r="5" class="pass"/>
-<circle cx="571.9" cy="225" r="5" class="pass"/>
-<circle cx="585.9" cy="225" r="5" class="pass"/>
-<text x="603.9" y="229.5" class="t2" font-size="12.5">106 s</text>
-<path d="M656 220H789Q792 220 792 223V227Q792 230 789 230H656Z" class="tools"/>
-<text x="800" y="229.5" class="t2" font-size="12.5">$0.56</text>
-<line x1="24" y1="242" x2="856" y2="242" class="grid"/>
-<text x="24" y="263.5" class="t" font-size="13" font-weight="600">Opus 5.5</text>
-<text x="179.7" y="263.5" class="t" font-size="13">12/12</text>
-<circle cx="248.7" cy="259" r="5" class="pass"/>
-<circle cx="262.7" cy="259" r="5" class="pass"/>
-<circle cx="276.7" cy="259" r="5" class="pass"/>
-<text x="294.7" y="263.5" class="t2" font-size="12.5">47 s</text>
-<circle cx="351.8" cy="259" r="5" class="pass"/>
-<circle cx="365.8" cy="259" r="5" class="pass"/>
-<circle cx="379.8" cy="259" r="5" class="pass"/>
-<text x="397.8" y="263.5" class="t2" font-size="12.5">68 s</text>
-<circle cx="454.9" cy="259" r="5" class="pass"/>
-<circle cx="468.9" cy="259" r="5" class="pass"/>
-<circle cx="482.9" cy="259" r="5" class="pass"/>
-<text x="500.9" y="263.5" class="t2" font-size="12.5">80 s</text>
-<circle cx="557.9" cy="259" r="5" class="pass"/>
-<circle cx="571.9" cy="259" r="5" class="pass"/>
-<circle cx="585.9" cy="259" r="5" class="pass"/>
-<text x="603.9" y="263.5" class="t2" font-size="12.5">139 s</text>
-<path d="M656 254H715.8Q718.8 254 718.8 257V261Q718.8 264 715.8 264H656Z" class="tools"/>
-<text x="726.8" y="263.5" class="t2" font-size="12.5">$0.26</text>
-<line x1="24" y1="276" x2="856" y2="276" class="grid"/>
-<text x="24" y="297.5" class="t" font-size="13" font-weight="600">Sonnet 5.5</text>
-<text x="179.7" y="297.5" class="t" font-size="13">12/12</text>
-<circle cx="248.7" cy="293" r="5" class="pass"/>
-<circle cx="262.7" cy="293" r="5" class="pass"/>
-<circle cx="276.7" cy="293" r="5" class="pass"/>
-<text x="294.7" y="297.5" class="t2" font-size="12.5">32 s</text>
-<circle cx="351.8" cy="293" r="5" class="pass"/>
-<circle cx="365.8" cy="293" r="5" class="pass"/>
-<circle cx="379.8" cy="293" r="5" class="pass"/>
-<text x="397.8" y="297.5" class="t2" font-size="12.5">58 s</text>
-<circle cx="454.9" cy="293" r="5" class="pass"/>
-<circle cx="468.9" cy="293" r="5" class="pass"/>
-<circle cx="482.9" cy="293" r="5" class="pass"/>
-<text x="500.9" y="297.5" class="t2" font-size="12.5">51 s</text>
-<circle cx="557.9" cy="293" r="5" class="pass"/>
-<circle cx="571.9" cy="293" r="5" class="pass"/>
-<circle cx="585.9" cy="293" r="5" class="pass"/>
-<text x="603.9" y="297.5" class="t2" font-size="12.5">90 s</text>
-<path d="M656 288H681.1Q684.1 288 684.1 291V295Q684.1 298 681.1 298H656Z" class="tools"/>
-<text x="692.1" y="297.5" class="t2" font-size="12.5">$0.12</text>
-<line x1="24" y1="310" x2="856" y2="310" class="grid"/>
-<text x="24" y="331.5" class="t" font-size="13" font-weight="600">Haiku 5.5</text>
-<text x="179.7" y="331.5" class="t" font-size="13">10/12</text>
-<circle cx="248.7" cy="327" r="4.2" class="fail"/>
-<circle cx="262.7" cy="327" r="5" class="pass"/>
-<circle cx="276.7" cy="327" r="5" class="pass"/>
-<text x="294.7" y="331.5" class="t2" font-size="12.5">53 s</text>
-<circle cx="351.8" cy="327" r="5" class="pass"/>
-<circle cx="365.8" cy="327" r="5" class="pass"/>
-<circle cx="379.8" cy="327" r="4.2" class="fail"/>
-<text x="397.8" y="331.5" class="t2" font-size="12.5">68 s</text>
-<circle cx="454.9" cy="327" r="5" class="pass"/>
-<circle cx="468.9" cy="327" r="5" class="pass"/>
-<circle cx="482.9" cy="327" r="5" class="pass"/>
-<text x="500.9" y="331.5" class="t2" font-size="12.5">60 s</text>
-<circle cx="557.9" cy="327" r="5" class="pass"/>
-<circle cx="571.9" cy="327" r="5" class="pass"/>
-<circle cx="585.9" cy="327" r="5" class="pass"/>
-<text x="603.9" y="331.5" class="t2" font-size="12.5">73 s</text>
-<path d="M656 322H656Q658.8 322 658.8 324.8V329.2Q658.8 332 656 332H656Z" class="tools"/>
-<text x="666.8" y="331.5" class="t2" font-size="12.5">$0.01</text>
-<line x1="24" y1="344" x2="856" y2="344" class="grid"/>
-<text x="24" y="365.5" class="t" font-size="13" font-weight="600">DeepSeek v4.1 Flash</text>
-<text x="179.7" y="365.5" class="t" font-size="13">6/12</text>
-<circle cx="248.7" cy="361" r="4.2" class="fail"/>
-<circle cx="262.7" cy="361" r="4.2" class="fail"/>
-<circle cx="276.7" cy="361" r="4.2" class="fail"/>
-<text x="294.7" y="365.5" class="t2" font-size="12.5">1733 s</text>
-<circle cx="351.8" cy="361" r="4.2" class="fail"/>
-<circle cx="365.8" cy="361" r="4.2" class="fail"/>
-<circle cx="379.8" cy="361" r="4.2" class="fail"/>
-<text x="397.8" y="365.5" class="t2" font-size="12.5">126 s</text>
-<circle cx="454.9" cy="361" r="5" class="pass"/>
-<circle cx="468.9" cy="361" r="5" class="pass"/>
-<circle cx="482.9" cy="361" r="5" class="pass"/>
-<text x="500.9" y="365.5" class="t2" font-size="12.5">66 s</text>
-<circle cx="557.9" cy="361" r="5" class="pass"/>
-<circle cx="571.9" cy="361" r="5" class="pass"/>
-<circle cx="585.9" cy="361" r="5" class="pass"/>
-<text x="603.9" y="365.5" class="t2" font-size="12.5">218 s</text>
-<path d="M656 356H726.6Q729.6 356 729.6 359V363Q729.6 366 726.6 366H656Z" class="tools"/>
-<text x="737.6" y="365.5" class="t2" font-size="12.5">$0.30</text>
+<rect x="24" y="89" width="12" height="10" class="pass" rx="2"/>
+<text x="42" y="98" class="t2" font-size="12">passed</text>
+<rect x="102.7" y="89" width="12" height="10" class="fail" rx="2"/>
+<text x="120.7" y="98" class="t2" font-size="12">failed</text>
+<text x="172.1" y="143" class="t2" font-size="12" font-weight="600">gpt-6.1-sol</text>
+<text x="269.8" y="143" class="t2" font-size="12" font-weight="600">gpt-6.1-terra</text>
+<text x="367.5" y="143" class="t2" font-size="12" font-weight="600">gpt-6-astra</text>
+<text x="465.2" y="143" class="t2" font-size="12" font-weight="600">Opus 5.5</text>
+<text x="562.9" y="143" class="t2" font-size="12" font-weight="600">Sonnet 5.5</text>
+<text x="660.6" y="143" class="t2" font-size="12" font-weight="600">Haiku 5.5</text>
+<text x="758.3" y="128" class="t2" font-size="12" font-weight="600">DeepSeek v4.1</text>
+<text x="758.3" y="143" class="t2" font-size="12" font-weight="600">Flash</text>
+<line x1="24" y1="155" x2="856" y2="155" class="axis"/>
+<text x="24" y="176.5" class="t" font-size="13" font-weight="600">Board</text>
+<rect x="193" y="167.9" width="8.2" height="8.2" class="fail" rx="1.5"/>
+<rect x="172.1" y="167" width="20" height="10" class="pass" rx="2"/>
+<text x="210.1" y="176.5" class="t" font-size="13">67%</text>
+<rect x="290.7" y="167.9" width="8.2" height="8.2" class="fail" rx="1.5"/>
+<rect x="269.8" y="167" width="20" height="10" class="pass" rx="2"/>
+<text x="307.8" y="176.5" class="t" font-size="13">67%</text>
+<rect x="367.5" y="167" width="30" height="10" class="pass" rx="2"/>
+<text x="405.5" y="176.5" class="t" font-size="13">100%</text>
+<rect x="465.2" y="167" width="30" height="10" class="pass" rx="2"/>
+<text x="503.2" y="176.5" class="t" font-size="13">100%</text>
+<rect x="562.9" y="167" width="30" height="10" class="pass" rx="2"/>
+<text x="600.9" y="176.5" class="t" font-size="13">100%</text>
+<rect x="681.5" y="167.9" width="8.2" height="8.2" class="fail" rx="1.5"/>
+<rect x="660.6" y="167" width="20" height="10" class="pass" rx="2"/>
+<text x="698.6" y="176.5" class="t" font-size="13">67%</text>
+<rect x="759.2" y="167.9" width="28.2" height="8.2" class="fail" rx="1.5"/>
+<text x="796.3" y="176.5" class="t" font-size="13">0%</text>
+<line x1="24" y1="189" x2="856" y2="189" class="grid"/>
+<text x="24" y="210.5" class="t" font-size="13" font-weight="600">Calc</text>
+<rect x="172.1" y="201" width="30" height="10" class="pass" rx="2"/>
+<text x="210.1" y="210.5" class="t" font-size="13">100%</text>
+<rect x="269.8" y="201" width="30" height="10" class="pass" rx="2"/>
+<text x="307.8" y="210.5" class="t" font-size="13">100%</text>
+<rect x="367.5" y="201" width="30" height="10" class="pass" rx="2"/>
+<text x="405.5" y="210.5" class="t" font-size="13">100%</text>
+<rect x="465.2" y="201" width="30" height="10" class="pass" rx="2"/>
+<text x="503.2" y="210.5" class="t" font-size="13">100%</text>
+<rect x="562.9" y="201" width="30" height="10" class="pass" rx="2"/>
+<text x="600.9" y="210.5" class="t" font-size="13">100%</text>
+<rect x="681.5" y="201.9" width="8.2" height="8.2" class="fail" rx="1.5"/>
+<rect x="660.6" y="201" width="20" height="10" class="pass" rx="2"/>
+<text x="698.6" y="210.5" class="t" font-size="13">67%</text>
+<rect x="759.2" y="201.9" width="28.2" height="8.2" class="fail" rx="1.5"/>
+<text x="796.3" y="210.5" class="t" font-size="13">0%</text>
+<line x1="24" y1="223" x2="856" y2="223" class="grid"/>
+<text x="24" y="244.5" class="t" font-size="13" font-weight="600">Forgejo</text>
+<rect x="172.1" y="235" width="30" height="10" class="pass" rx="2"/>
+<text x="210.1" y="244.5" class="t" font-size="13">100%</text>
+<rect x="269.8" y="235" width="30" height="10" class="pass" rx="2"/>
+<text x="307.8" y="244.5" class="t" font-size="13">100%</text>
+<rect x="367.5" y="235" width="30" height="10" class="pass" rx="2"/>
+<text x="405.5" y="244.5" class="t" font-size="13">100%</text>
+<rect x="465.2" y="235" width="30" height="10" class="pass" rx="2"/>
+<text x="503.2" y="244.5" class="t" font-size="13">100%</text>
+<rect x="562.9" y="235" width="30" height="10" class="pass" rx="2"/>
+<text x="600.9" y="244.5" class="t" font-size="13">100%</text>
+<rect x="660.6" y="235" width="30" height="10" class="pass" rx="2"/>
+<text x="698.6" y="244.5" class="t" font-size="13">100%</text>
+<rect x="758.3" y="235" width="30" height="10" class="pass" rx="2"/>
+<text x="796.3" y="244.5" class="t" font-size="13">100%</text>
+<line x1="24" y1="257" x2="856" y2="257" class="grid"/>
+<text x="24" y="278.5" class="t" font-size="13" font-weight="600">Thunderbird</text>
+<rect x="172.1" y="269" width="30" height="10" class="pass" rx="2"/>
+<text x="210.1" y="278.5" class="t" font-size="13">100%</text>
+<rect x="269.8" y="269" width="30" height="10" class="pass" rx="2"/>
+<text x="307.8" y="278.5" class="t" font-size="13">100%</text>
+<rect x="367.5" y="269" width="30" height="10" class="pass" rx="2"/>
+<text x="405.5" y="278.5" class="t" font-size="13">100%</text>
+<rect x="465.2" y="269" width="30" height="10" class="pass" rx="2"/>
+<text x="503.2" y="278.5" class="t" font-size="13">100%</text>
+<rect x="562.9" y="269" width="30" height="10" class="pass" rx="2"/>
+<text x="600.9" y="278.5" class="t" font-size="13">100%</text>
+<rect x="660.6" y="269" width="30" height="10" class="pass" rx="2"/>
+<text x="698.6" y="278.5" class="t" font-size="13">100%</text>
+<rect x="758.3" y="269" width="30" height="10" class="pass" rx="2"/>
+<text x="796.3" y="278.5" class="t" font-size="13">100%</text>
+<line x1="24" y1="291" x2="856" y2="291" class="axis"/>
+<text x="24" y="312.5" class="t2" font-size="12" font-weight="600">Passed</text>
+<text x="172.1" y="312.5" class="t" font-size="13">11/12</text>
+<text x="269.8" y="312.5" class="t" font-size="13">11/12</text>
+<text x="367.5" y="312.5" class="t" font-size="13">12/12</text>
+<text x="465.2" y="312.5" class="t" font-size="13">12/12</text>
+<text x="562.9" y="312.5" class="t" font-size="13">12/12</text>
+<text x="660.6" y="312.5" class="t" font-size="13">10/12</text>
+<text x="758.3" y="312.5" class="t" font-size="13">6/12</text>
+<text x="24" y="346.5" class="t2" font-size="12" font-weight="600">Cost per passed run</text>
+<path d="M172.1 337H176.8Q179.8 337 179.8 340V344Q179.8 347 176.8 347H172.1Z" class="tools"/>
+<text x="187.8" y="346.5" class="t2" font-size="12.5">$0.13</text>
+<path d="M269.8 337H270Q273 337 273 340V344Q273 347 270 347H269.8Z" class="tools"/>
+<text x="281" y="346.5" class="t2" font-size="12.5">$0.05</text>
+<path d="M367.5 337H398.2Q401.2 337 401.2 340V344Q401.2 347 398.2 347H367.5Z" class="tools"/>
+<text x="409.2" y="346.5" class="t2" font-size="12.5">$0.56</text>
+<path d="M465.2 337H477.7Q480.7 337 480.7 340V344Q480.7 347 477.7 347H465.2Z" class="tools"/>
+<text x="488.7" y="346.5" class="t2" font-size="12.5">$0.26</text>
+<path d="M562.9 337H566.9Q569.9 337 569.9 340V344Q569.9 347 566.9 347H562.9Z" class="tools"/>
+<text x="577.9" y="346.5" class="t2" font-size="12.5">$0.12</text>
+<path d="M660.6 337H660.6Q662.6 337 662.6 339V345Q662.6 347 660.6 347H660.6Z" class="tools"/>
+<text x="670.6" y="346.5" class="t2" font-size="12.5">$0.01</text>
+<path d="M758.3 337H773.5Q776.5 337 776.5 340V344Q776.5 347 773.5 347H758.3Z" class="tools"/>
+<text x="784.5" y="346.5" class="t2" font-size="12.5">$0.30</text>
 </svg>

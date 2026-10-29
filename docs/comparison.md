@@ -14,7 +14,7 @@ A 25-question Qt questionnaire whose dropdowns open popups, as menus and pickers
 <!-- render omarchy-form-qt-codex,omarchy-form-qt-claude,macos-form-qt,macos-form-qt-openai comparison form -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/comparison-form-dark.svg">
-  <img alt="Tools compared on the same tasks: a row per tool for each task and agent, with its runs passed or failed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed." src="comparison/comparison-form.svg">
+  <img alt="Tools compared on the same tasks: a row per tool for each task and agent, with the share of its runs that passed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed." src="comparison/comparison-form.svg">
 </picture>
 <!-- /render -->
 
@@ -96,7 +96,7 @@ The same questionnaire with checkboxes, sliders and text fields only: every tool
 <!-- render omarchy-form-nodrop-codex,omarchy-form-nodrop-claude,macos-form-nodrop comparison form-no-dropdowns -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/comparison-form-no-dropdowns-dark.svg">
-  <img alt="Tools compared on the same tasks: a row per tool for each task and agent, with its runs passed or failed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed." src="comparison/comparison-form-no-dropdowns.svg">
+  <img alt="Tools compared on the same tasks: a row per tool for each task and agent, with the share of its runs that passed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed." src="comparison/comparison-form-no-dropdowns.svg">
 </picture>
 <!-- /render -->
 
@@ -193,7 +193,7 @@ Move a rectangle by 2 px and save the drawing, on the laptop.
 <!-- render omarchy-inkscape-codex,omarchy-inkscape-claude comparison inkscape -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/comparison-inkscape-dark.svg">
-  <img alt="Tools compared on the same tasks: a row per tool for each task and agent, with its runs passed or failed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed." src="comparison/comparison-inkscape.svg">
+  <img alt="Tools compared on the same tasks: a row per tool for each task and agent, with the share of its runs that passed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed." src="comparison/comparison-inkscape.svg">
 </picture>
 <!-- /render -->
 
@@ -246,7 +246,7 @@ Rename a file and move it into a folder in Nautilus, on the laptop.
 <!-- render omarchy-files-codex,omarchy-files-claude comparison files -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/comparison-files-dark.svg">
-  <img alt="Tools compared on the same tasks: a row per tool for each task and agent, with its runs passed or failed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed." src="comparison/comparison-files.svg">
+  <img alt="Tools compared on the same tasks: a row per tool for each task and agent, with the share of its runs that passed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed." src="comparison/comparison-files.svg">
 </picture>
 <!-- /render -->
 
