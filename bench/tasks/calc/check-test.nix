@@ -5,7 +5,8 @@
   system ? "x86_64-linux",
   nixpkgs ?
     let
-      locked = (builtins.fromJSON (builtins.readFile ../../../flake.lock)).nodes.nixpkgs.locked;
+      lock = builtins.fromJSON (builtins.readFile ../../../flake.lock);
+      locked = lock.nodes.${lock.nodes.root.inputs.nixpkgs}.locked;
     in
     builtins.fetchTarball {
       url = "https://github.com/NixOS/nixpkgs/archive/${locked.rev}.tar.gz";

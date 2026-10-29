@@ -35,6 +35,7 @@
   libxcb,
   libxcb-errors,
   libxcb-wm,
+  pango,
   hyprmasqSrc ? lib.cleanSourceWith {
     src = ../.;
     filter =
@@ -96,6 +97,8 @@ stdenv.mkDerivation {
     libxcb
     libxcb-errors
     libxcb-wm
+    # Required through hyprgraphics' pkg-config file in some Hyprland releases.
+    pango
   ];
 
   enableParallelBuilding = true;

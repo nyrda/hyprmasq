@@ -6,7 +6,8 @@
 #include "Session.hpp"
 #include "X11.hpp"
 #include <hyprland/src/desktop/state/FocusState.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
@@ -94,7 +95,7 @@ namespace hyprmasq::input {
             if (auto* session = protectedSession(origin))
                 privateDrag(session, nullptr, icon);
             else
-                Log::logger->log(Log::WARN, "[hyprmasq] ignoring a drag without a source");
+                Log::logger->log(Log::WARN, "hyprmasq", "ignoring a drag without a source");
         }
 
         // X11 has no popup grabs to refuse. An X11 app takes focus by asking for activation, or by mapping a window
@@ -103,7 +104,7 @@ namespace hyprmasq::input {
         // activation, those count as one app per X server. New windows are only kept from focus by a known process, so
         // that apps the user starts still get focus.
         bool sameX11App(const PHLWINDOW& a, wl_client* aServer, const PHLWINDOW& b, wl_client* bServer, bool knownProcess) {
-            const auto pid = [](const PHLWINDOW& w) { return w->m_isX11 ? w->getPID() : 0; };
+            const auto pid = [](const PHLWINDOW& w) { return w->backend().isX11() ? w->backend().pid() : 0; };
             if (!aServer || aServer != bServer)
                 return false;
             if (pid(a) > 0 && pid(b) > 0)
@@ -123,6 +124,7 @@ namespace hyprmasq::input {
                 return driven && sameX11App(w, server, driven, entry.second->xServer(), knownProcess);
             });
         }
+        // Activation requests of a window come only from XWayland.
         void activateX11(Desktop::View::CWindow* self) {
             if (drivenX11App(self->m_self.lock(), false)) {
                 x11::refuseActivation(self->m_self.lock());
@@ -135,14 +137,14 @@ namespace hyprmasq::input {
         // in answer to input, as a terminal does for its bell or a page through window.focus(): the driven window itself
         // never, and its app's other windows while the user is in another app. The app is the window's connection.
         bool drivenWaylandApp(const PHLWINDOW& w) {
-            if (!w || w->m_isX11 || !w->resource())
+            if (!w || w->backend().isX11() || !w->resource())
                 return false;
             const auto* client  = w->resource()->client();
             const auto  focused = Desktop::focusState()->window();
             const bool  inApp   = focused && focused->resource() && focused->resource()->client() == client;
             return std::ranges::any_of(sessions, [&](const auto& entry) {
                 const auto driven = entry.second->window.lock();
-                return driven && !driven->m_isX11 && driven->resource() && driven->resource()->client() == client && (driven == w || !inApp);
+                return driven && !driven->backend().isX11() && driven->resource() && driven->resource()->client() == client && (driven == w || !inApp);
             });
         }
         // xwayland-satellite forwards activation requests as xdg-activation. A forced activation comes from the user,
@@ -152,12 +154,13 @@ namespace hyprmasq::input {
         void activate(Desktop::View::CWindow* self, bool force) {
             if (!force && drivenX11App(self->m_self.lock(), false))
                 return;
-            using Fn              = void (*)(Desktop::View::CWindow*, bool);
-            const auto suppressed = self->m_suppressedEvents;
+            using Fn               = void (*)(Desktop::View::CWindow*, bool);
+            auto&      suppression = activateFocusOnlyOf(*self);
+            const bool suppressed  = suppression;
             if (!force && (launch::placed(self->m_self.lock()) || drivenWaylandApp(self->m_self.lock())))
-                self->m_suppressedEvents |= Desktop::View::SUPPRESS_ACTIVATE_FOCUSONLY;
+                suppression = true;
             reinterpret_cast<Fn>(originalActivate)(self, force);
-            self->m_suppressedEvents = suppressed;
+            suppression = suppressed;
         }
         void windowFocus(Desktop::CFocusState* self, PHLWINDOW w, Desktop::eFocusReason reason, SP<CWLSurfaceResource> surface) {
             if (w && reason == Desktop::FOCUS_REASON_NEW_WINDOW && drivenX11App(w, true))
@@ -167,11 +170,11 @@ namespace hyprmasq::input {
         }
 
         // Every change to a window's position or size updates its decorations, the one place where moves show.
-        void updateDecos(Desktop::View::CWindow* self) {
-            using Fn = void (*)(Desktop::View::CWindow*);
+        void updateDecos(Desktop::View::CWindowPresentation* self) {
+            using Fn = void (*)(Desktop::View::CWindowPresentation*);
             reinterpret_cast<Fn>(originalUpdateDecos)(self);
             for (auto& [_, session] : sessions) {
-                if (session->window.lock().get() == self)
+                if (auto w = session->window.lock(); w && &w->presentation() == self)
                     session->checkRegionsLater();
             }
         }
@@ -280,10 +283,10 @@ namespace hyprmasq::input {
     void initFocusPolicy(void* handle) {
         originalPopupGrab     = hook(handle, "CXDGShellProtocol::addOrStartGrab", reinterpret_cast<void*>(&popupGrab));
         originalStartDrag     = hook(handle, "CWLDataDeviceProtocol::initiateDrag", reinterpret_cast<void*>(&startDrag));
-        originalActivateX11   = hook(handle, "Desktop::View::CWindow::activateX11", reinterpret_cast<void*>(&activateX11));
+        originalActivateX11   = hook(handle, "Desktop::View::CWindow::onActivationRequest", reinterpret_cast<void*>(&activateX11));
         originalWindowFocus   = hook(handle, "Desktop::CFocusState::rawWindowFocus", reinterpret_cast<void*>(&windowFocus));
         originalActivate      = hook(handle, "Desktop::View::CWindow::activate", reinterpret_cast<void*>(&activate));
-        originalUpdateDecos   = hook(handle, "Desktop::View::CWindow::updateWindowDecos", reinterpret_cast<void*>(&updateDecos));
+        originalUpdateDecos   = hook(handle, "Desktop::View::CWindowPresentation::updateDecorations", reinterpret_cast<void*>(&updateDecos));
         originalKeyboardFocus = hook(handle, "CSeatManager::setKeyboardFocus", reinterpret_cast<void*>(&setKeyboardFocus));
         originalPointerFocus  = hook(handle, "CSeatManager::setPointerFocus", reinterpret_cast<void*>(&setPointerFocus));
         originalKeyboardKey   = hook(handle, "CSeatManager::sendKeyboardKey", reinterpret_cast<void*>(&sendKeyboardKey));

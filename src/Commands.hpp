@@ -1,6 +1,6 @@
 #pragma once
 
-#include <hyprland/src/SharedDefs.hpp>
+#include <hyprland/src/ipc/s1/S1.hpp>
 
 #include <string>
 #include <string_view>
@@ -11,5 +11,5 @@ namespace hyprmasq {
     inline constexpr int INTERFACE = 4;
 
     // Handler for `hyprctl hyprmasq ...`.
-    std::string handleCommand(eHyprCtlOutputFormat format, std::string request);
+    IPC::Socket1::SResponse handleCommand(IPC::Socket1::eOutputFormat format, std::string request);
 }

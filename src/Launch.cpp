@@ -4,10 +4,10 @@
 
 #include <hyprland/src/config/supplementary/executor/Executor.hpp>
 #include <hyprland/src/debug/log/Logger.hpp>
-#include <hyprland/src/desktop/Workspace.hpp>
+#include <hyprland/src/workspace/HLWorkspace.hpp>
 #include <hyprland/src/desktop/rule/Engine.hpp>
 #include <hyprland/src/desktop/rule/windowRule/WindowRule.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 
@@ -100,6 +100,14 @@ namespace hyprmasq::launch {
             return !name.empty() && name.size() <= 64 && std::ranges::all_of(name, [](char c) { return std::isalnum(sc<unsigned char>(c)) || c == '_' || c == '.' || c == '-'; });
         }
 
+        // A launch's workspace as a window rule names it. Hyprland refuses a number after name:, which selects the
+        // numbered workspace on its own.
+        std::string launchSelector(const std::string& workspace) {
+            if (std::ranges::all_of(workspace, [](char c) { return std::isdigit(sc<unsigned char>(c)); }))
+                return workspace;
+            return "name:" + workspace;
+        }
+
         bool alive(const SLaunch& launch) {
             return process::started(launch.pid) == launch.started;
         }
@@ -109,16 +117,16 @@ namespace hyprmasq::launch {
         std::optional<std::string> selector(const PHLWORKSPACE& workspace) {
             if (!workspace)
                 return std::nullopt;
-            if (workspace->m_isSpecialWorkspace) {
-                const auto& name = workspace->m_name;
+            const auto& name = workspace->addressableName();
+            if (workspace->type() == Workspace::eWorkspaceType::SPECIAL) {
                 if (name.starts_with("special:") && validWorkspace(std::string_view(name).substr(8)))
                     return name;
                 return std::nullopt;
             }
-            if (workspace->m_id > 0)
-                return std::to_string(workspace->m_id);
-            if (validWorkspace(workspace->m_name))
-                return "name:" + workspace->m_name;
+            if (const auto id = workspace->numberedID(); id && *id > 0)
+                return std::to_string(*id);
+            if (validWorkspace(name))
+                return "name:" + name;
             return std::nullopt;
         }
 
@@ -153,7 +161,7 @@ namespace hyprmasq::launch {
 
         const SLaunch* launchOf(const PHLWINDOW& window) {
             const pid_t self = getpid();
-            for (pid_t pid = window->getPID(), depth = 0; pid > 1 && pid != self && depth < MAX_DEPTH; pid = process::parent(pid), ++depth) {
+            for (pid_t pid = window->backend().pid(), depth = 0; pid > 1 && pid != self && depth < MAX_DEPTH; pid = process::parent(pid), ++depth) {
                 const auto launch = std::ranges::find_if(launches, [&](const auto& l) { return l.pid == pid; });
                 if (launch != launches.end() && alive(*launch))
                     return &*launch;
@@ -169,7 +177,7 @@ namespace hyprmasq::launch {
                 return;
             auto& t = tracked.emplace_back(STracked{.window = window, .token = launch->token, .rule = nullptr, .tag = ""});
             if (Time::steadyNow() - launch->at <= PLACE_WITHIN)
-                place(t, window, "name:" + launch->workspace, false);
+                place(t, window, launchSelector(launch->workspace), false);
         }
 
         void onMapped(const PHLWINDOW& window) {
@@ -190,9 +198,9 @@ namespace hyprmasq::launch {
     void init() {
         reaper = findReaper();
         if (reaper.empty())
-            Log::logger->log(Log::WARN, "[hyprmasq] hyprmasq-reaper not found next to the plugin or on PATH: a launch loses the windows of an app whose launcher exits");
+            Log::logger->log(Log::WARN, "hyprmasq", "hyprmasq-reaper not found next to the plugin or on PATH: a launch loses the windows of an app whose launcher exits");
         else
-            Log::logger->log(Log::DEBUG, "[hyprmasq] launching through {}", reaper);
+            Log::logger->log(Log::DEBUG, "hyprmasq", "launching through {}", reaper);
         created   = Event::bus()->m_events.window.create.listen([](PHLWINDOW window) { onCreate(window); });
         mapped    = Event::bus()->m_events.window.openEarly.listen([](PHLWINDOW window) { onMapped(window); });
         destroyed = Event::bus()->m_events.window.destroy.listen([](PHLWINDOWREF window) { onDestroyed(window); });
@@ -233,8 +241,8 @@ namespace hyprmasq::launch {
         std::erase_if(tracked, [](const auto& t) { return t.window.expired() && !t.rule; });
         std::vector<SLaunched> result;
         for (const auto& t : tracked)
-            if (const auto window = t.window.lock(); window && window->m_isMapped && !t.token.empty())
-                result.push_back({.address = windowAddress(window), .stableId = std::format("{:x}", window->m_stableID), .token = t.token});
+            if (const auto window = t.window.lock(); window && window->mapped() && !t.token.empty())
+                result.push_back({.address = windowAddress(window), .stableId = std::format("{:x}", window->metadata().stableID()), .token = t.token});
         return result;
     }
 

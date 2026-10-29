@@ -1,5 +1,6 @@
 #pragma once
 #include "Error.hpp"
+#include <hyprland/src/ipc/s1/S1.hpp>
 #include <functional>
 #include <string>
 
@@ -9,19 +10,18 @@ namespace hyprmasq::deferred {
     // Signals stopFd(), waits for all running work and answers every client that is still waiting.
     void shutdown();
 
-    // Runs work on its own thread. Returns the string for the command handler to return: a placeholder when the reply
-    // is sent once work finishes, or work's own result when the caller needs the reply at once.
-    std::string run(std::move_only_function<std::string()> work);
+    // Runs work on its own thread. Returns the reply for the command handler to return: a promise that hyprctl answers
+    // with once work finishes, or work's own result when the caller needs the reply at once.
+    IPC::Socket1::SResponse run(std::move_only_function<std::string()> work);
     // Like run(), for work that waits for the main thread, which therefore never runs it or waits for it. Where run()
-    // would, the reply is refuse(why) instead, and the work runs on unanswered until it ends.
-    std::string runWaiting(std::move_only_function<std::string()> work, std::move_only_function<std::string(const SError&)> refuse);
+    // would run work at once, the reply is refuse(why) instead.
+    IPC::Socket1::SResponse runWaiting(std::move_only_function<std::string()> work, std::move_only_function<std::string(const SError&)> refuse);
     // Whether run() sends the reply later rather than running work at once on the calling thread. Work that waits for
     // the main thread may only start when this is true.
     bool canDefer();
     // Whether the main thread waits for the work that calls this to end: work on the main thread itself, which run()
-    // runs there when it cannot defer the reply or start a thread, and work whose reply a request that cannot be
-    // deferred collects, as a batch through HyprlandAPI::invokeHyprctlCommand does. Such work must not wait for
-    // anything outside Hyprland, such as a pipe's reader.
+    // runs there when it cannot defer the reply, as for HyprlandAPI::invokeHyprctlCommand, or cannot start a thread.
+    // Such work must not wait for anything outside Hyprland, such as a pipe's reader.
     bool waited();
     // An eventfd that becomes readable when the plugin unloads, or -1 while it is not loaded. shutdown() waits for every
     // job, so work that waits for something outside Hyprland, such as a pipe's reader, watches it and ends early. It

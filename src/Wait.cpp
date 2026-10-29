@@ -4,7 +4,7 @@
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
@@ -92,13 +92,13 @@ namespace hyprmasq::wait {
         // Surface pixels per logical pixel: an X11 window's surface is scaled up when Hyprland forces zero scaling for
         // Xwayland, as input to it is (see surfaceAt in Session.cpp).
         double surfaceScale(const PHLWINDOW& window) {
-            return window->m_isX11 && window->m_X11SurfaceScaledBy > 0 ? window->m_X11SurfaceScaledBy : 1.0;
+            return window->backend().isX11() && window->backend().surfaceScale() > 0 ? window->backend().surfaceScale() : 1.0;
         }
 
         // The window's own box in window-local logical pixels: its xdg geometry, or the size of its surface.
         CBox contentBox(const PHLWINDOW& window) {
-            if (!window->m_isX11 && window->m_xdgSurface && window->m_xdgSurface->m_current.geometry.w > 0)
-                return {{0, 0}, window->m_xdgSurface->m_current.geometry.size()};
+            if (!window->backend().isX11() && window->backend().valid() && window->backend().geometry().box.w > 0)
+                return {{0, 0}, window->backend().geometry().box.size()};
             const auto surface = window->wlSurface() ? window->wlSurface()->resource() : nullptr;
             return surface ? CBox{{0, 0}, surface->m_current.size / surfaceScale(window)} : CBox{};
         }
@@ -118,8 +118,8 @@ namespace hyprmasq::wait {
                     nullptr);
             };
             find(window->wlSurface() ? window->wlSurface()->resource() : nullptr, -geometry);
-            if (!found && window->m_popupHead)
-                window->m_popupHead->breadthfirst([&](SP<Desktop::View::CPopup> p, void*) { find(p->resource(), p->coordsRelativeToParent() - geometry); }, nullptr);
+            if (!found && window->popupHead())
+                window->popupHead()->breadthfirst([&](SP<Desktop::View::CPopup> p, void*) { find(p->resource(), p->coordsRelativeToParent() - geometry); }, nullptr);
             return found;
         }
 
@@ -186,7 +186,7 @@ namespace hyprmasq::wait {
         int tick(void* data) {
             auto*      waiter = static_cast<SWaiter*>(data);
             const auto w      = waiter->window.lock();
-            if (!w || !w->m_isMapped) {
+            if (!w || !w->mapped()) {
                 finish(waiter, waiter->result(false, SError{eErrorCode::WINDOW_GONE, "the window closed"}));
                 return 0;
             }
@@ -253,7 +253,7 @@ namespace hyprmasq::wait {
                         .socketId     = socketId,
                         .quietMs      = elapsedMs(quietSince(), now),
                         .elapsedMs    = elapsedMs(start, now),
-                        .resizing     = w && w->m_isMapped && hyprmasq::resizing(w),
+                        .resizing     = w && w->mapped() && hyprmasq::resizing(w),
                         .animated     = animated,
                         .error        = std::nullopt};
             }
@@ -268,14 +268,14 @@ namespace hyprmasq::wait {
 
         bool closed(const SChangeWaiter* waiter) {
             const auto w = waiter->window.lock();
-            return !w || !w->m_isMapped;
+            return !w || !w->mapped();
         }
 
         // Ends the wait once an ending holds, otherwise looks again for the next frame.
         void check(SChangeWaiter* waiter) {
             const auto now = Time::steadyNow();
             const auto w   = waiter->window.lock();
-            if (!w || !w->m_isMapped) {
+            if (!w || !w->mapped()) {
                 finish(waiter, waiter->result("window_closed"));
                 return;
             }
@@ -468,7 +468,7 @@ namespace hyprmasq::wait {
     void CContentWatch::sendFrames() {
         const auto window = m_window.lock();
         const auto now    = Time::steadyNow();
-        if (!window || !window->m_isMapped || g_pHyprRenderer->shouldRenderWindow(window) || now - m_lastFrames < milliseconds(16))
+        if (!window || !window->mapped() || g_pHyprRenderer->shouldRenderWindow(window) || now - m_lastFrames < milliseconds(16))
             return;
         m_lastFrames = now;
         forEachSurface(window, [&](SP<CWLSurfaceResource> s) {

@@ -1,9 +1,12 @@
 # Installation
 
-hyprmasq 0.1.0 is built and tested against **Hyprland 0.56.2** on x86_64
-Linux. A Hyprland plugin must be compiled against the exact Hyprland build
+hyprmasq 0.1.0 is built and tested against **Hyprland v0.57.0** at the
+release commit `flake.lock` pins, on x86_64 Linux.
+A Hyprland plugin must be compiled against the exact Hyprland build
 that loads it: hyprmasq compares the build hash when it loads and refuses to
 load into any other build. Rebuild the plugin whenever Hyprland changes.
+For Hyprland 0.56.2, use the `hyprland-0.56` branch, see
+[Older Hyprland releases](#older-hyprland-releases).
 
 | Method | Use it when |
 | --- | --- |
@@ -11,7 +14,7 @@ load into any other build. Rebuild the plugin whenever Hyprland changes.
 | [Nix packages](#nix-packages-without-the-module) | You manage the Hyprland package yourself on Nix. |
 | [Arch and Omarchy](#arch-and-omarchy) | You run Arch Linux or Omarchy. `makepkg` builds a pacman package from a clone, against the installed Hyprland. |
 | [Manual build](#manual-build) | You want a local build, for development or another distribution. |
-| [hyprpm](#hyprpm) | Your distribution provides Hyprland 0.56.2 and its headers. |
+| [hyprpm](#hyprpm) | Your distribution provides that Hyprland and its headers. |
 
 The methods build these files. `make` builds the first four. The Nix and
 Arch packages also include `hyprmasq-mcp`, which a manual build compiles with
@@ -35,8 +38,19 @@ After installing, [load the plugin](#loading-the-plugin) and
 inputs.hyprmasq.url = "github:nyrda/hyprmasq";
 ```
 
-Do not add `inputs.nixpkgs.follows = "nixpkgs"` to this input: the plugin
-would then be built against your system's Hyprland instead of the tested one.
+Do not make this input's `hyprland` input follow another one: the plugin
+would then be built against another Hyprland than the tested one.
+
+The pinned Hyprland comes from Hyprland's own flake, prebuilt on
+hyprland.cachix.org. Without that cache, Nix compiles Hyprland and its
+libraries. Add it to your system:
+
+```nix
+nix.settings = {
+  extra-substituters = [ "https://hyprland.cachix.org" ];
+  extra-trusted-public-keys = [ "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc=" ];
+};
+```
 
 Pass `inputs` through `specialArgs` of `nixosSystem`, then enable the module:
 
@@ -83,8 +97,8 @@ package so that the module's assertion passes:
 }
 ```
 
-Your Hyprland must then be 0.56.2: the plugin uses Hyprland internals that
-other releases change. Every loaded plugin must be built against the same
+Your Hyprland must then be the pinned commit: the plugin uses Hyprland
+internals that other commits change. Every loaded plugin must be built against the same
 Hyprland, so build each one against the package you set.
 
 ## Nix packages without the module
@@ -119,8 +133,9 @@ git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
 
 `-s` installs the missing dependencies, such as `go` for the build, and `-i`
 installs the package, both through pacman. Nothing else runs as root: the
-package has no install script and no pacman hook. Arch's `hyprland` package must be 0.56.2,
-the release that hyprmasq supports.
+package has no install script and no pacman hook. The installed Hyprland must
+be version 0.57.0. Older releases have other internals, and the build stops
+on their version. Use a package built from the v0.57.0 release commit.
 
 makepkg builds the commit that is checked out, `HEAD`. It leaves out
 uncommitted changes and warns when there are any, so commit a change to build
@@ -213,9 +228,9 @@ The package depends on `hyprland` without pinning its version. A pin would
 keep `pacman -Syu` from updating Hyprland until you removed hyprmasq, and
 makepkg can build against a new Hyprland only once it is installed.
 
-hyprmasq supports one Hyprland release at a time. When Arch moves to a release
-that hyprmasq does not support yet, the build or the plugin's hooks fail until
-a hyprmasq update supports it.
+hyprmasq supports one Hyprland at a time, here v0.57.0. When
+`hyprland-git` moves past what hyprmasq supports, the build or the plugin's
+hooks fail until a hyprmasq update supports it.
 
 ### Removing
 
@@ -235,7 +250,7 @@ cd hyprmasq
 ```
 
 Without Nix, install a C++23 compiler, a C compiler, Make, pkg-config, and the
-development files of Hyprland 0.56.2 and its dependencies, libei 1.x
+development files of the pinned Hyprland and its dependencies, libei 1.x
 (`libei-1.0` and `libeis-1.0`), libpng, xkbcommon and xcb. Then:
 
 ```sh
@@ -270,6 +285,10 @@ hyprpm add https://github.com/nyrda/hyprmasq
 hyprpm enable hyprmasq
 ```
 
+`commit_pins` in `hyprpm.toml` give a Hyprland release that `main` no longer
+targets the head of its branch, so hyprpm on Hyprland 0.56.2 builds
+`hyprland-0.56`.
+
 and load enabled plugins at startup, in `hyprland.lua`:
 
 ```lua
@@ -287,12 +306,32 @@ exec-once = hyprpm reload -n
 hyprpm installs only the plugin. From a clone, run `make` and copy
 `hyprmasq-input`, `hyprmasq-launch` and `hyprmasq-reaper` onto the `PATH`
 that Hyprland starts with, install `jq`, and build `hyprmasq-mcp` as in the
-manual build. Run `hyprpm update` after every Hyprland update. The repository
-has no compatibility pins for older Hyprland releases.
+manual build. Run `hyprpm update` after every Hyprland update.
+
+## Older Hyprland releases
+
+`main` targets the latest stable Hyprland. When a new release comes out, the
+previous one keeps a branch, which gets the fixes and MCP changes of `main` for
+a while after the release, while people move to the new one.
+
+| Hyprland | Branch |
+| --- | --- |
+| v0.57.0 | `main` |
+| v0.56.2 | `hyprland-0.56` |
+
+Install from the branch that matches your Hyprland:
+
+- NixOS module and Nix packages: `inputs.hyprmasq.url = "github:nyrda/hyprmasq/hyprland-0.56";`
+- Arch and Omarchy: `git clone -b hyprland-0.56 https://github.com/nyrda/hyprmasq`,
+  or `git switch hyprland-0.56` in an existing clone, then `makepkg -sif`.
+- Manual build: build a clone of the branch.
+- hyprpm: nothing to change, its commit pins pick the branch.
+
+When you update Hyprland, move to the branch of the new release, or to `main`.
 
 ## Loading the plugin
 
-Hyprland 0.56.2 supports a Lua configuration, `hyprland.lua`, and the
+Hyprland supports a Lua configuration, `hyprland.lua`, and the
 hyprlang `hyprland.conf`. The plugin works with either, and the VM test uses a
 Lua configuration.
 
@@ -405,7 +444,7 @@ instructions, but the tool descriptions carry every rule, so nothing is lost.
 | Symptom | Check |
 | --- | --- |
 | The plugin fails to load with "built for another Hyprland build" | It was compiled against another Hyprland build. Rebuild it against the running one. `hyprctl version` shows that build. On Arch, after a Hyprland update, run `makepkg -sif` in your clone and restart Hyprland. |
-| Loading fails with a hook error | The plugin was built against a Hyprland other than 0.56.2, whose functions differ. |
+| Loading fails with a hook error | The plugin was built against a Hyprland other than the pinned commit, whose functions differ. |
 | `hyprctl hyprmasq …` says the command is unknown | The plugin is not loaded. Check `hyprctl plugin list`. |
 | `no mapped window 0x…` | Copy the `address` field from `hyprctl -j clients`, including the `0x`. The window must be mapped. |
 | `hyprmasq-input` cannot connect | Use the path that `eis open` printed, as the same user that runs Hyprland. |

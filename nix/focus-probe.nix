@@ -13,7 +13,10 @@ stdenv.mkDerivation {
     foreign=${wayland-protocols}/share/wayland-protocols/unstable/xdg-foreign/xdg-foreign-unstable-v2.xml
     wayland-scanner client-header $foreign xdg-foreign-unstable-v2-client-protocol.h
     wayland-scanner private-code $foreign xdg-foreign-unstable-v2-protocol.c
-    $CC -std=gnu17 -Wall -Wextra -Wno-unused-parameter -I. -x c "$src" -x none xdg-shell-protocol.c xdg-foreign-unstable-v2-protocol.c \
+    activation=${wayland-protocols}/share/wayland-protocols/staging/xdg-activation/xdg-activation-v1.xml
+    wayland-scanner client-header $activation xdg-activation-v1-client-protocol.h
+    wayland-scanner private-code $activation xdg-activation-v1-protocol.c
+    $CC -std=gnu17 -Wall -Wextra -Wno-unused-parameter -I. -x c "$src" -x none xdg-shell-protocol.c xdg-foreign-unstable-v2-protocol.c xdg-activation-v1-protocol.c \
       $(pkg-config --cflags --libs wayland-client libei-1.0) -o hyprmasq-focus-probe
   '';
   installPhase = ''

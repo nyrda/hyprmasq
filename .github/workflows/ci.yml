@@ -14,6 +14,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+        with:
+          # The flake pins Hyprland's own flake, whose packages hyprland.cachix.org has prebuilt.
+          extra_nix_config: |
+            extra-substituters = https://hyprland.cachix.org
+            extra-trusted-public-keys = hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc=
+      # Hyprland's derivation reads the VERSION file of its source, which nix flake check --no-build does not copy.
+      - name: Instantiate Hyprland
+        run: nix eval --raw .#hyprland.drvPath
       - name: Evaluate flake
         run: nix flake check --no-build
       - name: Build plugin and MCP server (including Go tests)
@@ -51,6 +59,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+        with:
+          # The dev shell has the plugin's inputs, Hyprland among them, from hyprland.cachix.org.
+          extra_nix_config: |
+            extra-substituters = https://hyprland.cachix.org
+            extra-trusted-public-keys = hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc=
       # The package build runs the Go tests with -short, which skips the ones that wait on real time.
       - name: Go tests, all of them
         run: nix develop -c bash -euo pipefail -c 'cd mcp && go test ./...'

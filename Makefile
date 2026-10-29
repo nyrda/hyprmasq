@@ -21,14 +21,31 @@ CFLAGS ?= -O2 -g
 CFLAGS += -std=gnu17 -Wall -Wextra
 CPPFLAGS += $(VERSION_CPPFLAGS) -DWLR_USE_UNSTABLE $(shell pkg-config --cflags $(PLUGIN_PKGS))
 
-.PHONY: all install clean
+.PHONY: all install clean check-hyprland
+
+# Each branch targets one Hyprland version, the one HYPRLAND_VERSION names. Headers of another version can compile
+# and still misbehave, so the build stops unless IGNORE_HYPRLAND_VERSION=1 (for porting). Hyprland main reports the
+# version of the last release, so this cannot tell main from that release.
+HYPRLAND_TARGET := $(shell cat HYPRLAND_VERSION)
+HYPRLAND_FOUND := $(shell pkg-config --modversion hyprland 2>/dev/null)
 
 all: $(PLUGIN) $(TOOL) $(REAPER) $(LAUNCHER)
+
+check-hyprland:
+	@pkg-config --print-errors --exists $(PLUGIN_PKGS) || \
+		{ echo "error: pkg-config cannot resolve the plugin's build dependencies (see above)." >&2; exit 1; }
+ifneq ($(IGNORE_HYPRLAND_VERSION),1)
+	@if [ "$(HYPRLAND_FOUND)" != "$(HYPRLAND_TARGET)" ]; then \
+		echo "error: this branch targets Hyprland $(HYPRLAND_TARGET), pkg-config finds '$(HYPRLAND_FOUND)'." >&2; \
+		echo "Build a hyprmasq commit that targets Hyprland $(HYPRLAND_FOUND), or set IGNORE_HYPRLAND_VERSION=1 to port." >&2; \
+		exit 1; \
+	fi
+endif
 
 $(PLUGIN): $(OBJ)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -shared -fPIC -o $@ $(OBJ) $(shell pkg-config --libs egl glesv2 libpng libeis-1.0 xkbcommon xcb)
 
-$(BUILD_DIR)/%.o: src/%.cpp VERSION
+$(BUILD_DIR)/%.o: src/%.cpp VERSION | check-hyprland
 	@mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 

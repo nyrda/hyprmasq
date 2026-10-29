@@ -11,6 +11,7 @@
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
 #include "xdg-foreign-unstable-v2-client-protocol.h"
+#include "xdg-activation-v1-client-protocol.h"
 #include "probe-common.h"
 #include <libei.h>
 #include <linux/input-event-codes.h>
@@ -34,6 +35,7 @@ enum mode {
     MODE_ANSWER,
     MODE_MENU,
     MODE_SHORTCUTS,
+    MODE_ACTIVATE,
     MODE_SHIFT,
     MODE_TILES,
     MODE_COUNT,
@@ -76,6 +78,7 @@ static struct wl_data_device_manager* data_manager;
 static struct wl_data_device*         data_device;
 static struct zxdg_exporter_v2*       exporter;
 static struct zxdg_importer_v2*       importer;
+static struct xdg_activation_v1*      activation;
 static struct window                  windows[3]; // two toplevels and the popup
 static struct wl_surface *            pointer_surface, *keyboard_surface;
 static bool                           grabs_requested; // or never to be, in all modes but guard and popup
@@ -1012,6 +1015,60 @@ static int run_shortcuts(char** arguments, int count) {
     return run_loop();
 }
 
+// Activate mode: logs like the focus mode for two toplevels, and asks for activation as a page does through
+// window.focus() in answer to a key: MS milliseconds after B, it asks for an xdg-activation token with that key's serial
+// and activates the toplevel that got the key with it, after O the other toplevel. It logs "token NAME" with the token,
+// or "token NAME refused" for an empty one, and "activate NAME".
+static int            activate_timer = -1, activate_ms;
+static struct window* activate_target;
+static uint32_t       activate_serial;
+
+static void activate_key_pressed(uint32_t key, uint32_t serial) {
+    if (key != KEY_B && key != KEY_O)
+        return;
+    for (size_t i = 0; i < 2; ++i)
+        if (windows[i].surface && windows[i].surface == keyboard_surface)
+            activate_target = &windows[key == KEY_B ? i : 1 - i];
+    if (!activate_target)
+        return;
+    activate_serial = serial;
+    timer_arm_ms(activate_timer, (uint64_t)activate_ms);
+}
+static void activation_done(void* data, struct xdg_activation_token_v1* token, const char* value) {
+    struct window* w = data;
+    xdg_activation_token_v1_destroy(token);
+    if (!*value) {
+        say("token %s refused", w->name);
+        return;
+    }
+    say("token %s %s", w->name, value);
+    xdg_activation_v1_activate(activation, value, w->surface);
+    say("activate %s", w->name);
+}
+static const struct xdg_activation_token_v1_listener activation_token_listener = {.done = activation_done};
+static void activate_expired(int timer) {
+    timer_read(timer);
+    struct window* w = activate_target;
+    activate_target  = NULL;
+    if (!w)
+        return;
+    struct xdg_activation_token_v1* token = xdg_activation_v1_get_activation_token(activation);
+    xdg_activation_token_v1_set_serial(token, activate_serial, seat);
+    xdg_activation_token_v1_set_surface(token, w->surface);
+    xdg_activation_token_v1_add_listener(token, &activation_token_listener, w);
+    xdg_activation_token_v1_commit(token);
+}
+static int run_activate(char** arguments, int count) {
+    activate_ms = parse_int(arguments[2], "MS", 0, INT32_MAX);
+    connect_display();
+    CHECK(activation);
+    create_toplevel(&windows[0], arguments[0], NULL, BLUE);
+    create_toplevel(&windows[1], arguments[1], NULL, BLUE);
+    activate_timer = timer_new();
+    watch(activate_timer, activate_expired);
+    return run_loop();
+}
+
 // Shift mode: one toplevel with a light button at 40,40 of 160×40 with a dark label, which logs its input like the focus
 // mode. A SIGUSR1 moves the button 60 pixels down MS milliseconds later, as a form that a finished upload pushes down,
 // and logs "shifted"; a SIGUSR2 draws a red block in the bottom right corner, far from the button, and logs "elsewhere".
@@ -1249,6 +1306,8 @@ static void keyboard_key(void* data, struct wl_keyboard* kb, uint32_t serial, ui
         return;
     if (mode == MODE_SHORTCUTS)
         shortcut_key_pressed(key);
+    if (mode == MODE_ACTIVATE)
+        activate_key_pressed(key, serial);
     if (mode == MODE_MENU && (key == KEY_DOWN || key == KEY_ENTER))
         menu_key(key);
     if (opens_windows())
@@ -1302,6 +1361,7 @@ static void connect_display(void) {
                                                {.proxy = &data_manager, .interface = &wl_data_device_manager_interface, .version = 1},
                                                {.proxy = &exporter, .interface = &zxdg_exporter_v2_interface, .version = 1, .optional = true},
                                                {.proxy = &importer, .interface = &zxdg_importer_v2_interface, .version = 1, .optional = true},
+                                               {.proxy = &activation, .interface = &xdg_activation_v1_interface, .version = 1, .optional = true},
                                                {0}});
     data_device = wl_data_device_manager_get_data_device(data_manager, seat);
     wl_data_device_add_listener(data_device, &data_listener, NULL);
@@ -1353,6 +1413,8 @@ static const struct mode_info modes[MODE_COUNT] = {
     [MODE_ANSWER]    = {"answer", "TITLE MS", "a toplevel that draws its answer to a click at a frame callback MS milliseconds later", 2, 2, true, false, NULL, run_answer},
     [MODE_MENU]      = {"menu", "TITLE MS", "a toplevel whose click opens a menu over MS milliseconds of frame callbacks", 2, 2, true, false, NULL, run_menu},
     [MODE_SHORTCUTS] = {"shortcuts", "TITLE TITLE MS", "two toplevels that run a shortcut MS milliseconds after its key if still active", 3, 3, true, false, NULL, run_shortcuts},
+    [MODE_ACTIVATE]  = {"activate", "TITLE TITLE MS", "two toplevels that ask for activation MS milliseconds after B (its own) or O (the other)", 3, 3, true, false, NULL,
+                        run_activate},
     [MODE_SHIFT]     = {"shift", "TITLE MS", "a toplevel whose button moves down MS milliseconds after SIGUSR1", 2, 2, true, false, shift_paint, run_shift},
     [MODE_TILES]     = {"tiles", "TITLE", "a toplevel that redraws a tile with a spinner at every frame callback", 1, 1, true, false, tiles_paint, run_tiles},
 };

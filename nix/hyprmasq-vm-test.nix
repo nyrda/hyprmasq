@@ -3,21 +3,37 @@
   # The areas of nix/vm-test/areas.json to run, as a list or a string of names separated by spaces, with the areas
   # they require. null runs them all.
   areas ? null,
-  nixpkgs ?
+  # Hyprland's package set at the commit locked in flake.lock.
+  pkgs ? import ./pkgs.nix { inherit system; },
+  # The nixpkgs whose Go builds hyprmasq-mcp: the flake's nixpkgs input, read from flake.lock.
+  goPkgs ?
     let
-      locked = (builtins.fromJSON (builtins.readFile ../flake.lock)).nodes.nixpkgs.locked;
+      lock = builtins.fromJSON (builtins.readFile ../flake.lock);
+      locked = lock.nodes.${lock.nodes.root.inputs.nixpkgs}.locked;
     in
-    builtins.fetchTarball {
+    import (builtins.fetchTarball {
       url = "https://github.com/NixOS/nixpkgs/archive/${locked.rev}.tar.gz";
       sha256 = locked.narHash;
-    },
+    }) { inherit system; },
 }:
 let
-  pkgs = import nixpkgs { inherit system; };
+  # Hyprland's flake versions its package "<release>+date=<date>_<commit>".
+  targetVersion = pkgs.lib.fileContents ../HYPRLAND_VERSION;
+  pinnedVersion = builtins.head (pkgs.lib.splitString "+" pkgs.hyprland.version);
+
+  # Bumping the pin is a port: the pinned Hyprland has to be the release this branch targets.
   hyprland =
-    if pkgs.hyprland.version == "0.56.2" then pkgs.hyprland
-    else throw "hyprmasq requires Hyprland 0.56.2, got ${pkgs.hyprland.version}";
-  plugin = pkgs.callPackage ./package.nix { inherit hyprland; };
+    if pinnedVersion == targetVersion then
+      pkgs.hyprland
+    else
+      throw "hyprmasq targets Hyprland ${targetVersion} (HYPRLAND_VERSION), flake.lock pins ${pkgs.hyprland.version}";
+
+  # Same compiler as Hyprland, so the plugin shares its C++ runtime.
+  plugin = pkgs.callPackage ./package.nix {
+    inherit hyprland;
+    inherit (hyprland) stdenv;
+    inherit (goPkgs) buildGoModule;
+  };
 
   # The VM installs through the NixOS module, fed with the packages this test pins.
   module = import ./module.nix {
@@ -44,7 +60,10 @@ let
     exec ${pkgs.hyprland-qtutils}/bin/hyprland-dialog "$@"
   '';
   userInput = pkgs.callPackage ./user-input.nix { inherit hyprland; };
-  hyprctlCaller = pkgs.callPackage ./hyprctl-caller.nix { inherit plugin; };
+  hyprctlCaller = pkgs.callPackage ./hyprctl-caller.nix {
+    inherit plugin;
+    inherit (hyprland) stdenv;
+  };
   python = pkgs.python3.withPackages (ps: [ ps.pillow ]);
   inherit (pkgs) lib;
 

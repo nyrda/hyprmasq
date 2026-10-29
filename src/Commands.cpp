@@ -10,7 +10,7 @@
 #include "Windows.hpp"
 #include "X11.hpp"
 
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 
 #include <charconv>
@@ -22,6 +22,10 @@
 #include <vector>
 
 namespace hyprmasq {
+    using IPC::Socket1::eOutputFormat;
+    using IPC::Socket1::FORMAT_JSON;
+    using IPC::Socket1::SResponse;
+
     namespace {
         constexpr std::string_view USAGE =
             "usage:\n"
@@ -61,21 +65,21 @@ namespace hyprmasq {
             return value ? std::format("{}", *value) : "null";
         }
 
-        std::string error(eHyprCtlOutputFormat format, const SError& e) {
+        std::string error(eOutputFormat format, const SError& e) {
             if (format == FORMAT_JSON)
                 return std::format(R"({{"ok":false,"error":{},"code":"{}"}})", jsonString(e.message), codeName(e.code));
             return std::format("error: {}", e.message);
         }
 
-        std::string error(eHyprCtlOutputFormat format, eErrorCode code, std::string_view message) {
+        std::string error(eOutputFormat format, eErrorCode code, std::string_view message) {
             return error(format, SError{code, std::string{message}});
         }
 
-        std::string usage(eHyprCtlOutputFormat format) {
+        std::string usage(eOutputFormat format) {
             return error(format, eErrorCode::INVALID_ARGUMENTS, USAGE);
         }
 
-        std::string windowGone(eHyprCtlOutputFormat format, std::string_view address) {
+        std::string windowGone(eOutputFormat format, std::string_view address) {
             return error(format, eErrorCode::WINDOW_GONE, std::format("no mapped window {}", address));
         }
 
@@ -90,7 +94,7 @@ namespace hyprmasq {
         }
 
         // Work that throws still answers in the requested format.
-        std::move_only_function<std::string()> answering(eHyprCtlOutputFormat format, std::move_only_function<std::string()> work) {
+        std::move_only_function<std::string()> answering(eOutputFormat format, std::move_only_function<std::string()> work) {
             return [format, work = std::move(work)] mutable -> std::string {
                 try {
                     return work();
@@ -98,16 +102,16 @@ namespace hyprmasq {
             };
         }
 
-        std::string defer(eHyprCtlOutputFormat format, std::move_only_function<std::string()> work) {
+        SResponse defer(eOutputFormat format, std::move_only_function<std::string()> work) {
             return deferred::run(answering(format, std::move(work)));
         }
 
         // The reply of a wait waits for the main thread.
-        std::string deferWait(eHyprCtlOutputFormat format, std::move_only_function<std::string()> work) {
+        SResponse deferWait(eOutputFormat format, std::move_only_function<std::string()> work) {
             return deferred::runWaiting(answering(format, std::move(work)), [format](const SError& e) { return error(format, e); });
         }
 
-        std::string screenshot(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
+        SResponse screenshot(eOutputFormat format, const std::vector<std::string>& args) {
             if (args.size() < 2)
                 return usage(format);
 
@@ -225,7 +229,7 @@ namespace hyprmasq {
         }
 
         // launch <workspace> <token> <command line>, with the workspace and the command line in hex.
-        std::string launchCommand(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
+        std::string launchCommand(eOutputFormat format, const std::vector<std::string>& args) {
             if (args.size() != 3)
                 return usage(format);
             const auto workspace = fromHex(args[0]);
@@ -238,7 +242,7 @@ namespace hyprmasq {
             return format == FORMAT_JSON ? std::format(R"({{"ok":true,"pid":{}}})", *pid) : std::format("launched pid {}", *pid);
         }
 
-        std::string launched(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
+        std::string launched(eOutputFormat format, const std::vector<std::string>& args) {
             if (!args.empty())
                 return usage(format);
             std::string out;
@@ -262,7 +266,7 @@ namespace hyprmasq {
                 return "null";
             const auto reason   = source->reason.empty() ? std::string{} : std::format(R"(,"reason":"{}")", source->reason);
             const auto window   = source->window.lock();
-            const auto stableId = window ? std::format(R"("{:x}")", window->m_stableID) : std::string{"null"};
+            const auto stableId = window ? std::format(R"("{:x}")", window->metadata().stableID()) : std::string{"null"};
             return std::format(R"({{"window":{},"stableId":{},"placed":{}{}}})", jsonString(source->address), stableId, source->placed, reason);
         }
 
@@ -301,7 +305,7 @@ namespace hyprmasq {
             return kind ? std::format("override_redirect={} delete_window={}", kind->overrideRedirect, kind->deleteWindow) : "none";
         }
 
-        std::string state(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
+        std::string state(eOutputFormat format, const std::vector<std::string>& args) {
             if (args.size() != 1)
                 return usage(format);
             const auto window = windowFromAddress(args[0]);
@@ -327,21 +331,21 @@ namespace hyprmasq {
                 return std::format(
                     R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"x11":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"scale":{},)"
                     R"("socket":{},"socketId":{},"commits":{},"interrupted":{},"lastPause":{},"drag":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"privateDnd":{},"keyboard":"{}"}},"source":{}}})",
-                    jsonString(windowAddress(window)), window->m_stableID, window->m_isX11, x11Json(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
-                    socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut),
+                    jsonString(windowAddress(window)), window->metadata().stableID(), window->backend().isX11(), x11Json(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry,
+                    jsonOrNull(scale), socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut),
                     paused ? jsonString(*paused) : "null", dragJson(drags), lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, caps.privateDnd,
                     keyboard, sourceJson(source));
             return std::format("address: {}\nstableId: {:x}\nxwayland: {}\nx11: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
                                "interrupted: {}\nlastPause: {}\ndrag: {}\nlease: {}\ncapabilities: lease={} hold={} dnd={} private_dnd={} keyboard={}\nsource: {}\n",
-                               windowAddress(window), window->m_stableID, window->m_isX11, x11Text(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry, jsonOrNull(scale),
-                               socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none", cut ? std::to_string(*cut) : "none",
-                               paused.value_or("none"), dragText(drags), lease ? leaseText(*lease) : "none", caps.lease, caps.hold, caps.dnd, caps.privateDnd, keyboard,
-                               sourceText(source));
+                               windowAddress(window), window->metadata().stableID(), window->backend().isX11(), x11Text(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry,
+                               jsonOrNull(scale), socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none",
+                               cut ? std::to_string(*cut) : "none", paused.value_or("none"), dragText(drags), lease ? leaseText(*lease) : "none", caps.lease, caps.hold, caps.dnd,
+                               caps.privateDnd, keyboard, sourceText(source));
         }
 
         constexpr int MAX_LEASE_MS = 600000;
 
-        std::string leaseCommand(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
+        std::string leaseCommand(eOutputFormat format, const std::vector<std::string>& args) {
             const bool release = args.size() >= 2 && args[1] == "release";
             if (release ? args.size() > 3 : args.size() != 3)
                 return usage(format);
@@ -371,7 +375,7 @@ namespace hyprmasq {
         // Clients that talk to Hyprland's socket themselves wait as long as the reply takes.
         constexpr int MAX_CHANGE_WAIT_MS = 60000;
 
-        std::string changeWait(eHyprCtlOutputFormat format, const PHLWINDOW& window, const std::vector<std::string>& args) {
+        SResponse changeWait(eOutputFormat format, const PHLWINDOW& window, const std::vector<std::string>& args) {
             wait::SChangeOptions  options;
             std::set<std::string> seen;
             for (size_t i = 1; i < args.size(); i += 2) {
@@ -436,7 +440,7 @@ namespace hyprmasq {
             });
         }
 
-        std::string waitCommand(eHyprCtlOutputFormat format, const std::vector<std::string>& args) {
+        SResponse waitCommand(eOutputFormat format, const std::vector<std::string>& args) {
             const bool change = args.size() > 1 && args[1] == "since";
             if (args.empty() || (!change && args.size() > 3))
                 return usage(format);
@@ -469,7 +473,7 @@ namespace hyprmasq {
         }
     }
 
-    std::string handleCommand(eHyprCtlOutputFormat format, std::string request) {
+    SResponse handleCommand(eOutputFormat format, std::string request) {
         std::istringstream       stream(request);
         std::vector<std::string> words;
         for (std::string word; stream >> word;)

@@ -90,7 +90,7 @@ namespace hyprmasq::drag {
                     if (sourceless && origin)
                         sourceless(CWLSurfaceResource::fromResource(origin), icon ? CWLSurfaceResource::fromResource(icon) : nullptr);
                     else
-                        Log::logger->log(Log::WARN, "[hyprmasq] ignoring a drag without a source");
+                        Log::logger->log(Log::WARN, "hyprmasq", "ignoring a drag without a source");
                     current = previous;
                     return;
                 }
@@ -410,7 +410,7 @@ namespace hyprmasq::drag {
         m_record->endedAt = Time::steadyNow();
         m_record->end(m_id, phase, reason);
         m_record->changed.emit();
-        Log::logger->log(Log::DEBUG, "[hyprmasq] private drag {} {}", phase, reason);
+        Log::logger->log(Log::DEBUG, "hyprmasq", "private drag {} {}", phase, reason);
         reapLater();
     }
 

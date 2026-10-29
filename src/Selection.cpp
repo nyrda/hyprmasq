@@ -189,7 +189,7 @@ namespace hyprmasq::selection {
             }
             if (old && !userSelection(old))
                 old->cancelled();
-            Log::logger->log(Log::DEBUG, "[hyprmasq] the agent's {} is {:x}", kind == CLIPBOARD ? "clipboard" : "primary selection", rc<uintptr_t>(source.get()));
+            Log::logger->log(Log::DEBUG, "hyprmasq", "the agent's {} is {:x}", kind == CLIPBOARD ? "clipboard" : "primary selection", rc<uintptr_t>(source.get()));
             changed();
         }
 
@@ -288,7 +288,7 @@ namespace hyprmasq::selection {
                     else
                         g_pSeatManager->setCurrentPrimarySelection(nullptr);
                 }
-                Log::logger->log(Log::DEBUG, "[hyprmasq] keeping the X {} of window {:x} from Wayland", *kind == CLIPBOARD ? "clipboard" : "primary selection", e->owner);
+                Log::logger->log(Log::DEBUG, "hyprmasq", "keeping the X {} of window {:x} from Wayland", *kind == CLIPBOARD ? "clipboard" : "primary selection", e->owner);
             }
             return result;
         }

@@ -248,7 +248,7 @@ Example: {"window":"0x55d1c0a3e4b0","region":{"shot":"s4","x":380,"y":60,"width"
 }
 
 const launchDescription = `Start an application on a hidden workspace, without changing the user's visible workspace or focus. Waits up to timeout_ms milliseconds (default 30000) for its first window and for that window to settle, and returns the window's address with a shot; act takes coordinates in that shot's pixels. Close the windows you launch when you are done.
-command is the program and its arguments, run without a shell. workspace is a named workspace (default "hyprmasq"). Applications that hand the request to an instance that is already running, such as a browser that is open, cannot be launched this way: pass an option for a separate instance.
+command is the program and its arguments, run without a shell. workspace is a named workspace or the number of a numbered one (default "hyprmasq"). Applications that hand the request to an instance that is already running, such as a browser that is open, cannot be launched this way: pass an option for a separate instance.
 Example: {"command":["foot","-T","scratch"]}`
 
 const releaseDescription = `End the focus lease on a window, whichever session holds it. The window stays open and loses the emulated pointer and keyboard focus, so what its app closes on focus loss may be gone. An act that sends input starts or renews a lease on windows that support it; an act without input only renews one that is held.
@@ -345,7 +345,7 @@ func (s *Server) Register(srv *mcp.Server) {
 	srv.AddTool(&mcp.Tool{Name: "launch", Description: launchDescription, Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		InputSchema: objectSchema(map[string]json.RawMessage{
 			"command":    json.RawMessage(`{"type":"array","items":{"type":"string"},"minItems":1,"description":"Program and arguments, such as [\"foot\", \"-T\", \"scratch\"]."}`),
-			"workspace":  json.RawMessage(`{"type":"string","default":"hyprmasq","description":"Named workspace for the windows: letters, digits, _, . and -."}`),
+			"workspace":  json.RawMessage(`{"type":"string","default":"hyprmasq","description":"Workspace for the windows: a name of letters, digits, _, . and -, or the number of a numbered workspace."}`),
 			"timeout_ms": json.RawMessage(`{"type":"integer","minimum":1000,"maximum":300000,"default":30000,"description":"Milliseconds to wait for the first window."}`),
 		}, "command")}, s.handle(s.launchTool))
 	srv.AddTool(&mcp.Tool{Name: "release", Description: releaseDescription, Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive, IdempotentHint: true},

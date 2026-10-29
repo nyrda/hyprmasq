@@ -2,8 +2,9 @@
 #include "Hooks.hpp"
 #include "PrivateAccess.hpp"
 
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
+#include <hyprland/src/protocols/core/Compositor.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -26,6 +27,15 @@ namespace hyprmasq::suspension {
 
         bool told(const CXDGToplevelResource& toplevel) {
             return std::ranges::find(toplevel.m_pendingApply.states, XDG_TOPLEVEL_STATE_SUSPENDED) != toplevel.m_pendingApply.states.end();
+        }
+
+        // The xdg toplevel of a Wayland window, through the xdg role of its surface.
+        SP<CXDGToplevelResource> toplevelOf(const PHLWINDOW& window) {
+            const auto surface = window && !window->backend().isX11() ? window->resource() : nullptr;
+            if (!surface || !surface->m_role || surface->m_role->role() != SURFACE_ROLE_XDG_SHELL)
+                return nullptr;
+            const auto xdg = sc<CXDGSurfaceRole*>(surface->m_role.get())->m_xdgSurface.lock();
+            return xdg ? xdg->m_toplevel.lock() : nullptr;
         }
 
         std::shared_ptr<SHeld> heldOf(const CXDGToplevelResource* toplevel) {
@@ -61,14 +71,14 @@ namespace hyprmasq::suspension {
         // has its xdg surface unmapped by then.
         const auto window  = t->m_window.lock();
         const auto surface = t->m_owner.lock();
-        if (window && window->m_isMapped && surface && surface->m_mapped)
+        if (window && window->mapped() && surface && surface->m_mapped)
             t->setSuspeneded(true);
         else
             t->m_pendingApply.states.push_back(XDG_TOPLEVEL_STATE_SUSPENDED);
     }
 
     CAwake::CAwake(const PHLWINDOW& window) {
-        const auto toplevel = window && !window->m_isX11 && window->m_xdgSurface ? window->m_xdgSurface->m_toplevel.lock() : nullptr;
+        const auto toplevel = toplevelOf(window);
         if (!toplevel || !wireOf(*toplevel) || wireOf(*toplevel)->version() < SUSPENDED_SINCE || (m_held = heldOf(toplevel.get())))
             return;
         const bool suspended = told(*toplevel);

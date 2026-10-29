@@ -1,16 +1,17 @@
 #pragma once
 
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/helpers/math/Math.hpp>
 #include <hyprland/src/helpers/memory/Memory.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <vector>
 
 #include <xcb/xcb.h>
 
-class CHyprCtl;
 class CPrimarySelectionDevice;
 class CPrimarySelectionProtocol;
 class CWLDataDeviceProtocol;
@@ -22,23 +23,32 @@ class CWlDataDevice;
 class CXCursorManager;
 class CXDGToplevelResource;
 class CXWM;
+class CXWaylandSurface;
 class CXdgToplevel;
 class CZwpPrimarySelectionDeviceV1;
 class IDataDevice;
 class IDataSource;
 class IKeyboard;
-struct SHyprCtlCommand;
 struct SXSelection;
 struct wl_resource;
 namespace Desktop::Rule {
     class CWindowRuleApplicator;
 }
+namespace Desktop::View {
+    class CX11Backend;
+}
 namespace Pointer::Cursor {
     class CCursorManager;
 }
 namespace Render {
+    class CRenderContext;
     class IHyprRenderer;
+    struct SSurfaceBufferUse;
+    struct SWindowRenderPresentation;
     enum eRenderPassMode : uint8_t;
+}
+namespace Render::GL {
+    class CHyprGLRenderer;
 }
 
 // The private and protected members of Hyprland's classes that the plugin reaches, for want of an API. Each binds the
@@ -109,16 +119,26 @@ namespace hyprmasq {
     int& cursorSizeOf(Pointer::Cursor::CCursorManager& manager);
     float& cursorScaleOf(Pointer::Cursor::CCursorManager& manager);
 
-    // hyprctl, src/debug/HyprCtl.hpp.
-    // CHyprCtl::m_commands: its commands, among them the batch command.
-    std::vector<SP<SHyprCtlCommand>>& commandsOf(CHyprCtl& ctl);
-
     // Window rules, src/desktop/rule/windowRule/WindowRuleApplicator.hpp.
     // CWindowRuleApplicator::m_window: the window whose rules an applicator reads.
     PHLWINDOWREF& windowOf(Desktop::Rule::CWindowRuleApplicator& applicator);
 
+    // Windows, src/desktop/view/window/Window.hpp and X11Backend.hpp.
+    // CWindow::m_requestSuppression.activateFocusOnly: whether the window's activation requests only mark it urgent.
+    bool& activateFocusOnlyOf(Desktop::View::CWindow& window);
+    // CX11Backend::m_pendingReportedSize: the size Hyprland last configured an X11 window to, until the window takes it.
+    std::optional<Vector2D>& pendingReportedSizeOf(Desktop::View::CX11Backend& backend);
+    // CX11Backend::m_xwaylandSurface: an X11 window's XWayland surface, with its X window, override-redirect flag and
+    // window types.
+    WP<CXWaylandSurface>& xwaylandSurfaceOf(Desktop::View::CX11Backend& backend);
+
     // The renderer, src/render/Renderer.hpp.
-    // IHyprRenderer::renderWindow, protected: draws a window into the current render.
-    void renderWindow(Render::IHyprRenderer& renderer, PHLWINDOW window, PHLMONITOR monitor, const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode,
-                      bool ignorePosition, bool standalone);
+    // IHyprRenderer::renderWindow, protected: draws a window into the render of ctx, presented as presentation says.
+    void renderWindow(Render::IHyprRenderer& renderer, Render::CRenderContext& ctx, PHLWINDOW window, PHLMONITOR monitor, const Render::SWindowRenderPresentation& presentation,
+                      const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode, bool ignorePosition, bool standalone);
+
+    // The GL renderer, src/render/GLRenderer.hpp.
+    // CHyprGLRenderer::m_pendingBufferUses: the client buffers that full fake renders, as captures are, and aborted renders
+    // drew, which the renderer holds until the end of its next render of a monitor.
+    std::vector<Render::SSurfaceBufferUse>& pendingBufferUsesOf(Render::GL::CHyprGLRenderer& renderer);
 }

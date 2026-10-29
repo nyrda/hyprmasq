@@ -95,8 +95,13 @@ with subtest("page scrolling keeps overlap on Qt, GTK and browser pages at diffe
             assert "changes" not in scr_page.data["shot"], scr_page
             assert scr_page.data["wait"]["ended"] == "quiet", scr_page
             if scr_toolkit == "qt":
-                scr_viewport = [int(e.split()[2]) for _, e in probe_events(scr_log) if e.startswith("scroll ")][-1]
-                assert abs(scr_viewport - scr_page.data["scroll"]["viewport_px"]) <= 3, scr_page
+                scr_metrics = [e.split() for _, e in probe_events(scr_log) if e.startswith("scroll ")][-1]
+                scr_viewport, scr_row_step = int(scr_metrics[2]), int(scr_metrics[4])
+                # Blank space around the clipped labels need not change pixels.
+                # The inferred moving band may omit up to one row of that space,
+                # but must not overstate the viewport or lose the true overlap.
+                scr_band = scr_page.data["scroll"]["viewport_px"]
+                assert scr_viewport - scr_row_step <= scr_band <= scr_viewport + 3, (scr_metrics, scr_page)
                 assert "checked 1" in [event for _, event in probe_events(scr_log)], scr_page
                 assert scr_page.data["before_scroll"]["wait"]["ended"] == "quiet", scr_page
                 assert len(scr_page.images) >= 2, scr_page

@@ -402,25 +402,32 @@ with subtest("the user's keys take the keyboard back from a window that keeps it
     wait_for("input method probe closed", lambda: client("hm-ime-agent") is None and client("hm-ime-user") is None)
 
 with subtest("a driven Wayland window that asks for activation is marked urgent and leaves the user's focus alone"):
-    # As a terminal does for its bell, or a page through window.focus(), after the agent's input, in a window that
-    # no launch started and the plugin did not place. The test's focus_on_activate would focus it and switch the
-    # user's workspace.
+    # As a page does through window.focus() a second after the agent's key, in a window that no launch started and the
+    # plugin did not place, and for another window of its app while the user is in another app. The test's
+    # focus_on_activate would focus it and switch the user's workspace. Hyprland refuses a request without the serial of
+    # input that the app got, as foot sends for its bell, so the probe sends the key's.
     focus_workspace(76)
-    act_bell = foot("hm-act-bell", options="-o bell.urgent=yes")
+    spawn("hyprmasq-focus-probe activate hm-act-bell hm-act-sibling 1000", "act")
+    wait_for("activation probe", lambda: client("hm-act-bell") and client("hm-act-sibling"))
+    act_bell, act_sibling = client("hm-act-bell")["address"], client("hm-act-sibling")["address"]
     focus_workspace(77)
     act_user = foot("hm-act-user")
     wait_for("user window focus", lambda: snapshot() == (77, act_user))
     act_path = open_socket(act_bell)
-    send(act_path, "type", "sleep 3; printf '\\a'", "key", 28)
-    wait_for("the bell's activation request", lambda: urgent("ipc-events", act_bell), timeout=15)
+    send(act_path, "key", 48)  # B: the window itself
+    wait_for("the window's activation request", lambda: urgent("ipc-events", act_bell), timeout=15)
     time.sleep(1)
     assert snapshot() == (77, act_user)
+    send(act_path, "key", 24)  # O: the other window of its app
+    wait_for("the sibling's activation request", lambda: urgent("ipc-events", act_sibling), timeout=15)
+    time.sleep(1)
+    assert snapshot() == (77, act_user)
+    events = [e for _, e in probe_events("act")]
+    assert "activate hm-act-bell" in events and "activate hm-act-sibling" in events, events
     # Once nothing drives the window, its request focuses it, as without the plugin.
+    send(act_path, "key", 48)
     assert hypr(f"hyprmasq eis close {act_bell}") == "ok"
-    act_path = open_socket(act_bell)
-    send(act_path, "type", "sleep 2; printf '\\a'", "key", 28)
-    assert hypr(f"hyprmasq eis close {act_bell}") == "ok"
-    wait_for("bell window activated", lambda: snapshot() == (76, act_bell), timeout=15)
-    for title in ["hm-act-bell", "hm-act-user"]:
+    wait_for("window activated", lambda: snapshot() == (76, act_bell), timeout=15)
+    for title in ["hm-act-bell", "hm-act-sibling", "hm-act-user"]:
         dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
-    wait_for("activation windows closed", lambda: client("hm-act-bell") is None and client("hm-act-user") is None)
+    wait_for("activation windows closed", lambda: all(client(t) is None for t in ["hm-act-bell", "hm-act-sibling", "hm-act-user"]))

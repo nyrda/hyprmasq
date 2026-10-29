@@ -4,7 +4,8 @@
 #include "PrivateAccess.hpp"
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/X11Backend.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
@@ -277,10 +278,24 @@ namespace hyprmasq::x11 {
             return std::vector<xcb_window_t>{children, children + xcb_query_tree_children_length(tree.get())};
         }
 
+        // The X window of an XWayland window, while its XWayland surface lives.
+        std::optional<xcb_window_t> xWindow(const PHLWINDOW& w) {
+            if (!w || !w->backend().isX11() || !w->backend().valid())
+                return std::nullopt;
+            return sc<xcb_window_t>(w->backend().clientID().id);
+        }
+
+        // The XWayland surface of an XWayland window, while it lives.
+        SP<CXWaylandSurface> xSurface(const PHLWINDOW& w) {
+            if (!w || !w->backend().isX11() || !w->backend().valid())
+                return nullptr;
+            return xwaylandSurfaceOf(sc<Desktop::View::CX11Backend&>(w->backend())).lock();
+        }
+
         std::map<xcb_window_t, SP<CXWaylandSurface>> mappedSurfaces() {
             std::map<xcb_window_t, SP<CXWaylandSurface>> result;
             for (const auto& w : Desktop::windowState()->windows()) {
-                if (auto s = w && w->m_isX11 && w->m_isMapped ? w->m_xwaylandSurface.lock() : nullptr)
+                if (auto s = w && w->mapped() ? xSurface(w) : nullptr)
                     result.emplace(s->m_xID, s);
             }
             return result;
@@ -397,7 +412,7 @@ namespace hyprmasq::x11 {
         if (!resource)
             return nullptr;
         auto* client = resource->client();
-        return window->m_isX11 || serves(client) ? client : nullptr;
+        return window->backend().isX11() || serves(client) ? client : nullptr;
     }
 
     bool serves(wl_client* client) {
@@ -414,18 +429,18 @@ namespace hyprmasq::x11 {
     }
 
     bool focus(const PHLWINDOW& window) {
-        auto surface = window->m_xwaylandSurface.lock();
-        if (!surface)
+        const auto id = xWindow(window);
+        if (!id)
             return false;
         // The user is in this window, so X focus is wherever the app put it.
         if (Desktop::focusState()->window() == window)
             return true;
-        if (held && held->window == surface->m_xID)
+        if (held && held->window == *id)
             return true;
         CWaitBudget budget;
         // A menu of the app whose window holds it gets its keys through that window: X focus never goes to a menu, and
         // Chromium closes its menus once its window loses the X focus.
-        if (auto* c = x(); c && held && menuOf(c, held->window, *surface))
+        if (const auto surface = xSurface(window); surface && held && x() && menuOf(x(), held->window, *surface))
             return true;
         release();
         auto* c = x();
@@ -434,13 +449,13 @@ namespace hyprmasq::x11 {
         auto current = inputFocus(c);
         if (!current)
             return false;
-        if (current->focus == surface->m_xID)
+        if (current->focus == *id)
             return true;
-        held = SFocus{.window = surface->m_xID, .previous = current->focus, .revertTo = current->revert_to};
-        xcb_set_input_focus(c, XCB_INPUT_FOCUS_POINTER_ROOT, surface->m_xID, XCB_CURRENT_TIME);
+        held = SFocus{.window = *id, .previous = current->focus, .revertTo = current->revert_to};
+        xcb_set_input_focus(c, XCB_INPUT_FOCUS_POINTER_ROOT, *id, XCB_CURRENT_TIME);
         // The round trip makes the focus change land before the keys, which travel over Wayland.
         auto after = inputFocus(c);
-        if (!after || after->focus != surface->m_xID) {
+        if (!after || after->focus != *id) {
             release();
             return false;
         }
@@ -451,8 +466,8 @@ namespace hyprmasq::x11 {
         if (!held)
             return;
         if (window) {
-            auto surface = window->m_xwaylandSurface.lock();
-            if (!surface || surface->m_xID != held->window)
+            const auto id = xWindow(window);
+            if (!id || *id != held->window)
                 return;
         }
         const auto  focus = *held;
@@ -477,10 +492,10 @@ namespace hyprmasq::x11 {
     }
 
     void refuseActivation(const PHLWINDOW& window) {
-        auto surface = window ? window->m_xwaylandSurface.lock() : nullptr;
+        const auto id = xWindow(window);
         // While X focus is held, the app of the window holding it has to stay active to take the input, and an app can
         // ask to activate another of its windows. release() tells them later.
-        if (!surface || held)
+        if (!id || held)
             return;
         CWaitBudget budget;
         if (auto* c = x())
@@ -489,7 +504,7 @@ namespace hyprmasq::x11 {
 
     std::optional<SStack> raise(const PHLWINDOW& window) {
         CWaitBudget budget;
-        auto        surface = window->m_xwaylandSurface.lock();
+        auto        surface = xSurface(window);
         auto        c       = surface ? x() : nullptr;
         auto        before  = c ? stackingOrder(c) : std::nullopt;
         const auto  at      = before ? indexOf(*before, surface->m_xID) : std::nullopt;
@@ -571,7 +586,7 @@ namespace hyprmasq::x11 {
     }
 
     bool keepsFocus(const PHLWINDOW& window) {
-        auto surface = window->m_xwaylandSurface.lock();
+        auto surface = xSurface(window);
         if (!surface || !held || held->window != surface->m_xID)
             return false;
         CWaitBudget budget;
@@ -586,7 +601,7 @@ namespace hyprmasq::x11 {
     }
 
     std::optional<SWindowKind> kind(const PHLWINDOW& window) {
-        auto surface = window && window->m_isX11 ? window->m_xwaylandSurface.lock() : nullptr;
+        auto surface = xSurface(window);
         if (!surface)
             return std::nullopt;
         // Without a round trip, as the window manager last read WM_PROTOCOLS: when the window got its surface, and each

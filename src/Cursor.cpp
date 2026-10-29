@@ -7,8 +7,7 @@
 #include <hyprland/src/config/values/types/BoolValue.hpp>
 #include <hyprland/src/config/values/types/ColorValue.hpp>
 #include <hyprland/src/config/values/types/IntValue.hpp>
-#include <hyprland/src/desktop/Workspace.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/managers/XCursorManager.hpp>
 #include <hyprland/src/output/Monitor.hpp>
@@ -17,6 +16,7 @@
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/render/pass/BorderPassElement.hpp>
 #include <hyprland/src/render/pass/TexPassElement.hpp>
+#include <hyprland/src/workspace/HLWorkspace.hpp>
 #include <hyprutils/math/Region.hpp>
 
 #include <drm_fourcc.h>
@@ -171,7 +171,7 @@ namespace hyprmasq::cursor {
         // Where Hyprland draws the window this frame, including workspace switch animations.
         Vector2D origin(const PHLWINDOW& window) {
             auto position = window->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
-            if (window->m_workspace && !window->m_pinned)
+            if (window->m_workspace && !(window->m_state & Desktop::View::WINDOW_STATE_PINNED))
                 position += window->m_workspace->m_renderOffset->value();
             return position;
         }
@@ -226,7 +226,7 @@ namespace hyprmasq::cursor {
                 // The emulated pointer stays where it is while a lease keeps it, and so does its cursor.
                 if (window && leaseKeepsPointer(window))
                     cursor.last = now;
-                const bool done      = !on || !window || !window->m_isMapped || (now - cursor.last >= hold() + FADE && cursor.ripples.empty());
+                const bool done      = !on || !window || !window->mapped() || (now - cursor.last >= hold() + FADE && cursor.ripples.empty());
                 const auto box       = done ? CBox{} : bounds(cursor, window, now);
                 const bool animating = !cursor.ripples.empty() || now - cursor.last >= hold();
                 if (done || animating || cursor.changed || box != cursor.damaged) {
@@ -242,10 +242,10 @@ namespace hyprmasq::cursor {
             return 0;
         }
 
-        void render(eRenderStage stage) {
+        void render(eRenderStage stage, Render::CRenderContext& ctx) {
             if (stage != RENDER_POST_WINDOWS || cursors.empty() || !enabled->value())
                 return;
-            auto monitor = g_pHyprRenderer->m_renderData.pMonitor.lock();
+            auto monitor = ctx.m_data.pMonitor.lock();
             if (!monitor)
                 return;
             if (!image.texture && !image.pixels.empty())
@@ -255,7 +255,7 @@ namespace hyprmasq::cursor {
             const CHyprColor accent(sc<uint64_t>(color->value()));
             for (const auto& cursor : cursors) {
                 auto window = cursor.window.lock();
-                if (!window || !window->m_isMapped || !g_pHyprRenderer->shouldRenderWindow(window, monitor))
+                if (!window || !window->mapped() || !g_pHyprRenderer->shouldRenderWindow(window, monitor))
                     continue;
                 const auto o = origin(window) - monitor->m_position;
                 for (const auto& ripple : cursor.ripples) {
@@ -266,7 +266,7 @@ namespace hyprmasq::cursor {
                     data.borderSize = RIPPLE_WIDTH;
                     data.grad1      = Config::CGradientValueData(CHyprColor(accent.r, accent.g, accent.b, 1.F));
                     data.a          = (1 - progress(ripple, now)) * accent.a;
-                    g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
+                    ctx.m_pass.add(makeUnique<CBorderPassElement>(data));
                 }
                 const float a = opacity(cursor, now);
                 if (!image.texture || a <= 0)
@@ -275,7 +275,7 @@ namespace hyprmasq::cursor {
                 data.tex = image.texture;
                 data.box = CBox{o + cursor.position - image.hotspot, image.size}.scale(monitor->m_scale).round();
                 data.a   = a;
-                g_pHyprRenderer->m_renderPass.add(makeUnique<CTexPassElement>(std::move(data)));
+                ctx.m_pass.add(makeUnique<CTexPassElement>(std::move(data)));
             }
         }
     }
@@ -290,7 +290,10 @@ namespace hyprmasq::cursor {
         timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, tick, nullptr);
         if (!timer)
             throw std::runtime_error("hyprmasq: cannot create the virtual cursor timer");
-        renderListener = Event::bus()->m_events.render.stage.listen([](eRenderStage stage) { render(stage); });
+        renderListener = Event::bus()->m_events.render.stage.listen([](Event::SRenderStageEvent event) {
+            if (event.context)
+                render(event.stage, event.context->get());
+        });
     }
 
     void shutdown() {

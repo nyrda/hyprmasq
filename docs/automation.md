@@ -53,7 +53,7 @@ hyprctl hyprmasq eis close "$addr"
 | `eis open <addr> [force]` | socket path | Create the window's input socket, or return the path of the open one. `force` is for [X11 windows](#x11-windows), and each `open` sets or clears it. |
 | `eis close <addr>` | `ok` | Remove the socket and disconnect its sender. |
 | `eis list` | `address path [force]` lines | List the open sockets, or `no open sockets`. |
-| `launch <workspace-hex> <token> <command-line-hex>` | `launched pid N` | Start a shell command line whose windows open silently on a named workspace. Both are written in hex. Use [`hyprmasq-launch`](#hyprmasq-launch) instead. |
+| `launch <workspace-hex> <token> <command-line-hex>` | `launched pid N` | Start a shell command line whose windows open silently on a workspace: a name, or the number of a numbered workspace. Both are written in hex. Use [`hyprmasq-launch`](#hyprmasq-launch) instead. |
 | `launched` | `address token` lines | The mapped windows of launches, or `no launched windows`. |
 | `version` | `hyprmasq 0.1.0 interface 4` | Plugin version and command interface version. |
 | `help` | usage | The command summary. |
@@ -409,7 +409,7 @@ hyprmasq-launch --help | --version
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--workspace NAME` | `hyprmasq` | Named workspace for the windows: letters, digits, `_`, `.` and `-`. |
+| `--workspace NAME` | `hyprmasq` | Workspace for the windows: a name of letters, digits, `_`, `.` and `-`, or the number of a numbered workspace. |
 | `--timeout SECONDS` | `30` | How long to wait for a window, a positive whole number up to 2147483647. |
 | `--` | | End of options. The rest is the command. |
 | `-h`, `--help` | | Show help and exit. |
@@ -492,7 +492,11 @@ the size the app asks for. `state`'s `source` says what the plugin found:
 `workspace`.
 
 A driven Wayland window that asks for activation is only marked urgent, so it
-cannot take your focus or switch your workspace. Set `place_new_windows` to
+cannot take your focus or switch your workspace. Hyprland itself refuses an
+activation request that names no input the app got, such as foot's for its
+bell, and spends the input serial of every request, also one the plugin
+ignores, so an xwayland-satellite app can activate itself again only after
+you type in or enter one of its windows. Set `place_new_windows` to
 false to let Hyprland place windows that input opens. Launched windows stay
 placed.
 

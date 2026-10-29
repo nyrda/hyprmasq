@@ -244,5 +244,11 @@ with subtest("xwayland-satellite windows"):
     time.sleep(1)
     assert snapshot() == before_focus
     assert hypr(f"hyprmasq eis close {sat_shell}") == "ok"
+    # An activation token spends the input serial it names, and the refused activation spent satellite's last one.
+    # Hyprland rejects tokens without a fresh serial, so the user enters a satellite window first.
+    focus_workspace(16)
+    wait_for("satellite focus", lambda: snapshot() == (16, sat_active))
+    focus_workspace(4)
+    time.sleep(1)
     alice(f"env {satellite_env} xdotool windowactivate {xid} || true")
     wait_for("satellite activation", lambda: snapshot()[1] == sat_active)

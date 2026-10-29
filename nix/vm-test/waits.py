@@ -199,12 +199,17 @@ with subtest("waiting for a change since a commit count"):
     assert json.loads(hypr("-j hyprmasq cancel hm-p-cancel")) == {"ok": True, "cancelled": False}
     assert hypr("hyprmasq cancel hm-p-cancel") == "no pending wait"
 
-    # plugin load answers the batch it is in with its own reply, so a wait in that batch cannot answer. Hyprland keeps
-    # running instead of waiting for the wait, which still runs until it ends.
+    # A wait in a batch answers in its place once it ends, also next to a command that answers later itself, such as
+    # plugin load. Hyprland keeps running while the wait runs.
     base = window_state(stated)["commits"]
-    reply = hypr("--batch " + shlex.quote(f"hyprmasq wait {stated} since {base} expect 4000 id hm-p-batched; plugin load {plugin}"))
-    assert "twice" in reply, reply
-    assert json.loads(hypr("-j hyprmasq cancel hm-p-batched")) == {"ok": True, "cancelled": True}
+    hypr_background(
+        "--batch " + shlex.quote(f"hyprmasq wait {stated} since {base} expect 4000 id hm-p-batched; plugin load {plugin}"),
+        "/tmp/hm-p-batched",
+    )
+    wait_for("batched wait", lambda: json.loads(hypr("-j hyprmasq cancel hm-p-batched"))["cancelled"], timeout=3)
+    machine.wait_until_succeeds("test -s /tmp/hm-p-batched", timeout=10)
+    parts = [part.strip() for part in machine.succeed("cat /tmp/hm-p-batched").split("\n\n\n")]
+    assert parts[0] == "cancelled" and "twice" in parts[1], parts
 
     # A window that closes during the wait ends it.
     focus_workspace(33)

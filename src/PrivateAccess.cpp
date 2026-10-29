@@ -1,13 +1,15 @@
 #include "PrivateAccess.hpp"
 
-#include <hyprland/src/debug/HyprCtl.hpp>
 #include <hyprland/src/desktop/rule/windowRule/WindowRuleApplicator.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/X11Backend.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/pointer/cursor/CursorManager.hpp>
 #include <hyprland/src/protocols/PrimarySelection.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/DataDevice.hpp>
 #include <hyprland/src/protocols/core/Seat.hpp>
+#include <hyprland/src/render/GLRenderer.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/xwayland/XWM.hpp>
 
@@ -112,15 +114,28 @@ namespace hyprmasq {
         };
         template struct SExpose<SCursorScale, &CursorManager::m_cursorScale>;
 
-        struct SHyprCtlCommands {
-            friend constexpr auto exposed(SHyprCtlCommands);
-        };
-        template struct SExpose<SHyprCtlCommands, &CHyprCtl::m_commands>;
-
         struct SApplicatorWindow {
             friend constexpr auto exposed(SApplicatorWindow);
         };
         template struct SExpose<SApplicatorWindow, &Desktop::Rule::CWindowRuleApplicator::m_window>;
+
+        struct SWindowSuppression {
+            friend constexpr auto exposed(SWindowSuppression);
+        };
+        template struct SExpose<SWindowSuppression, &Desktop::View::CWindow::m_requestSuppression>;
+        struct SX11PendingSize {
+            friend constexpr auto exposed(SX11PendingSize);
+        };
+        template struct SExpose<SX11PendingSize, &Desktop::View::CX11Backend::m_pendingReportedSize>;
+        struct SX11Surface {
+            friend constexpr auto exposed(SX11Surface);
+        };
+        template struct SExpose<SX11Surface, &Desktop::View::CX11Backend::m_xwaylandSurface>;
+
+        struct SGLPendingBuffers {
+            friend constexpr auto exposed(SGLPendingBuffers);
+        };
+        template struct SExpose<SGLPendingBuffers, &Render::GL::CHyprGLRenderer::m_pendingBufferUses>;
 
         struct SRenderWindow {
             friend constexpr auto exposed(SRenderWindow);
@@ -212,16 +227,28 @@ namespace hyprmasq {
         return manager.*exposed(SCursorScale{});
     }
 
-    std::vector<SP<SHyprCtlCommand>>& commandsOf(CHyprCtl& ctl) {
-        return ctl.*exposed(SHyprCtlCommands{});
-    }
-
     PHLWINDOWREF& windowOf(Desktop::Rule::CWindowRuleApplicator& applicator) {
         return applicator.*exposed(SApplicatorWindow{});
     }
 
-    void renderWindow(Render::IHyprRenderer& renderer, PHLWINDOW window, PHLMONITOR monitor, const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode,
-                      bool ignorePosition, bool standalone) {
-        (renderer.*exposed(SRenderWindow{}))(std::move(window), std::move(monitor), time, decorate, mode, ignorePosition, standalone);
+    bool& activateFocusOnlyOf(Desktop::View::CWindow& window) {
+        return (window.*exposed(SWindowSuppression{})).activateFocusOnly;
+    }
+
+    std::optional<Vector2D>& pendingReportedSizeOf(Desktop::View::CX11Backend& backend) {
+        return backend.*exposed(SX11PendingSize{});
+    }
+
+    WP<CXWaylandSurface>& xwaylandSurfaceOf(Desktop::View::CX11Backend& backend) {
+        return backend.*exposed(SX11Surface{});
+    }
+
+    void renderWindow(Render::IHyprRenderer& renderer, Render::CRenderContext& ctx, PHLWINDOW window, PHLMONITOR monitor, const Render::SWindowRenderPresentation& presentation,
+                      const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode, bool ignorePosition, bool standalone) {
+        (renderer.*exposed(SRenderWindow{}))(ctx, std::move(window), std::move(monitor), presentation, time, decorate, mode, ignorePosition, standalone);
+    }
+
+    std::vector<Render::SSurfaceBufferUse>& pendingBufferUsesOf(Render::GL::CHyprGLRenderer& renderer) {
+        return renderer.*exposed(SGLPendingBuffers{});
     }
 }

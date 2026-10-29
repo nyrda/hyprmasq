@@ -130,13 +130,8 @@ watch_events("ipc-events")
 with subtest("a window that emulated input opens opens silently next to the driven window"):
     # The foot server opens the windows of footclients that the hidden shell starts: windows of the driven window's
     # process, as a browser's popups are, in an app that no launch started.
-    # With bell, the window rings its bell that many seconds after it starts, which foot answers with an
-    # xdg-activation request when it has no keyboard focus, and the test's focus_on_activate focuses it.
-    machine.succeed("cat > /tmp/hm-bell.sh <<'EOF'\nsleep \"$1\"\nprintf '\\a'\nexec sleep 600\nEOF")
-
-    def open_from_hidden(title, delay=0, bell=None):
-        program = f"sh /tmp/hm-bell.sh {bell}" if bell else "sleep 600"
-        command = f"sleep {delay}; footclient -s /tmp/hyprmasq-foot.sock -o bell.urgent=yes -T {title} {program}"
+    def open_from_hidden(title, delay=0):
+        command = f"sleep {delay}; footclient -s /tmp/hyprmasq-foot.sock -T {title} sleep 600"
         send(path, "type", f"({command}) &", "key", 28)
         wait_for(title, lambda: client(title) is not None, timeout=delay + 30)
         return client(title)
@@ -145,12 +140,9 @@ with subtest("a window that emulated input opens opens silently next to the driv
     focus_workspace(60)
     other = foot("hm-opener-other")
     wait_for("other app focused", lambda: snapshot() == (60, other))
-    # With the user's focus in another app, the window opens on the driven window's workspace, and its activation
-    # request later marks it urgent without taking the focus.
-    opened = open_from_hidden("hm-opened-other-app", bell=2)
+    # With the user's focus in another app, the window opens on the driven window's workspace without the focus.
+    opened = open_from_hidden("hm-opened-other-app")
     assert opened["workspace"]["id"] == hidden_workspace, opened
-    assert snapshot() == (60, other)
-    time.sleep(4)
     assert snapshot() == (60, other)
     # Placed windows of an app that no launch started are not listed as launched.
     assert hypr("hyprmasq launched") == "no launched windows"
@@ -164,16 +156,9 @@ with subtest("a window that emulated input opens opens silently next to the driv
     focus_workspace(60)
     wait_for("other app focused", lambda: snapshot() == (60, other))
     # Input more than 5 seconds before the window opens did not open it: it opens as usual, with the focus.
-    late = open_from_hidden("hm-opened-late", delay=6, bell=3)
+    late = open_from_hidden("hm-opened-late", delay=6)
     assert late["workspace"]["id"] == 60, late
     wait_for("late window focused", lambda: snapshot() == (60, late["address"]))
-    # Its activation request only marks it urgent, although the plugin did not place it: its app has a driven
-    # window, and the user is in another app.
-    dispatch(f'hl.dsp.focus({{ window = "address:{other}" }})')
-    wait_for("other app focused", lambda: snapshot() == (60, other))
-    wait_for("late window's activation request", lambda: urgent("ipc-events", late["address"]), timeout=10)
-    time.sleep(1)
-    assert snapshot() == (60, other)
     # With the user's focus in the same app and no key of theirs since the input, the input opened it.
     focus_workspace(8)
     wait_for("shared visible focus", lambda: snapshot() == (8, shared_visible))

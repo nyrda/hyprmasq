@@ -1,8 +1,11 @@
 [repository]
 name = "hyprmasq"
 authors = ["nyrda"]
-# Hyprland commit to matching plugin commit. This repository targets Hyprland 0.56.2.
-commit_pins = []
+# Hyprland commit to matching plugin commit. main targets Hyprland v0.57.0 at the commit flake.lock pins. Older
+# releases get the head of their branch, hyprland-0.56 for v0.56.2. Move a pin with every change to its branch.
+commit_pins = [
+    ["efb50993780079460b0cbed1363e2166a2de1d9f", "e4273e0faf537a3316c25c78715ccb4fe63ca889"], # v0.56.2: hyprland-0.56
+]
 
 [hyprmasq]
 description = "Per-window screenshots and libei input sockets"

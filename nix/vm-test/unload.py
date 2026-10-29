@@ -86,7 +86,7 @@ with subtest("unloading ends screenshot writes that wait for a pipe at once, and
     machine.wait_until_succeeds(f"! grep -q hyprmasq.so /proc/{pid}/maps", timeout=10)
     # The batch command works without the plugin.
     assert (
-        hypr("--batch 'activeworkspace; activeworkspace'").count("workspace ID")
+        len(re.findall(r"^workspace .* on monitor ", hypr("--batch 'activeworkspace; activeworkspace'"), re.M))
         == 2
     )
     # Two more answers, so that the probe spans the unload.
@@ -121,19 +121,17 @@ with subtest("the plugin can be unloaded from within a batch"):
     green = windows[1][1]
     batch(f"plugin unload {plugin}; activeworkspace")
     assert "hyprmasq" not in hypr("plugin list")
-    # Once the batch has returned, the library is released and the batch command restored.
+    # Once the batch has returned, the library is released and the batch command still works.
     pid = machine.succeed(
         f"sed -n 1p {runtime}/hypr/{instance}/hyprland.lock"
     ).strip()
     machine.wait_until_succeeds(
         f"! grep -q hyprmasq.so /proc/{pid}/maps", timeout=10
     )
-    assert [p[:12] for p in batch("activeworkspace; activeworkspace")] == [
-        "workspace ID"
-    ] * 2
+    assert [p.startswith("workspace ") for p in batch("activeworkspace; activeworkspace")] == [True] * 2
     assert hypr(f"plugin load {plugin}") == "ok"
     assert_png(screenshot(green, "after-reload"), (0, 255, 0))
     parts = batch(
         f"hyprmasq screenshot {green} /tmp/hm-reload-batch.png; activeworkspace"
     )
-    assert parts[0] == "ok" and parts[1].startswith("workspace ID"), parts
+    assert parts[0] == "ok" and parts[1].startswith("workspace "), parts

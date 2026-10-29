@@ -14,7 +14,7 @@ when Qt exposes the window or stops, and "checked 0|1", "slider N", "text T" and
 widget. Qt's other messages go to stderr.
 
 With --scroll before TITLE it instead shows a fixed check box above 200 rows.
-It logs "scroll VALUE VIEWPORT TOTAL" in logical pixels when the page moves.
+It logs "scroll VALUE VIEWPORT TOTAL ROW_STEP" in logical pixels when the page moves.
 """
 
 import re
@@ -88,7 +88,8 @@ def main():
         scroller.setWidget(column)
         layout.addWidget(scroller)
         bar = scroller.verticalScrollBar()
-        bar.valueChanged.connect(lambda value: say(f"scroll {value} {bar.pageStep()} {bar.maximum()+bar.pageStep()}"))
+        bar.valueChanged.connect(lambda value: say(f"scroll {value} {bar.pageStep()} {bar.maximum()+bar.pageStep()} "
+                                                  f"{rows.itemAt(1).widget().y()-rows.itemAt(0).widget().y()}"))
         window.setCentralWidget(container)
         window.show()
         sys.exit(app.exec())

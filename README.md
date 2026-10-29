@@ -47,8 +47,8 @@ build the plugin was compiled against:
 ```
 
 On Arch Linux and Omarchy, build a pacman package from a clone, against the
-installed Hyprland, and build it again with `makepkg -sif` after each
-Hyprland update:
+installed Hyprland, which has to be version 0.57.0, and build it again with
+`makepkg -sif` after each Hyprland update:
 
 ```sh
 git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
@@ -101,8 +101,10 @@ Seven agents passed 73 of 84 [four-task benchmark runs](docs/benchmarks.md#board
 with user focus and workspace unchanged in all 84. The charts label the product
 commits and dates of the initial baseline and the newer Terra runs.
 
-- Built and tested against exactly **Hyprland 0.56.2**. A Hyprland plugin must
-  be compiled against the exact Hyprland build that loads it.
+- Built and tested against **Hyprland v0.57.0** at the release commit `flake.lock`
+  pins. A Hyprland plugin must be compiled against the exact Hyprland build
+  that loads it. For Hyprland 0.56.2, use the `hyprland-0.56` branch, see
+  [older Hyprland releases](docs/installation.md#older-hyprland-releases).
 - Tested on x86_64 Linux, with a NixOS VM test that covers the plugin, the
   tools and the MCP server.
 - The Nix flake and NixOS module are the primary install path. On Arch and

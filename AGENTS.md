@@ -1,6 +1,6 @@
 # hyprmasq
 
-A Hyprland plugin (C++, pinned to Hyprland 0.56.2 through `flake.lock`) that
+A Hyprland plugin (C++, targeting Hyprland v0.57.0, pinned through `flake.lock`) that
 takes per-window screenshots and gives each window its own libei input socket,
 so windows on hidden workspaces can be captured and driven without moving the
 user's focus. `tools/hyprmasq-input.c` is the libei sender,
@@ -10,6 +10,13 @@ user's focus. `tools/hyprmasq-input.c` is the libei sender,
 runner for real machines. `PKGBUILD` builds the Arch package from a clone. A
 change to the files it installs updates its `package()` and the list in
 `docs/installation.md`.
+
+`main` targets the latest stable Hyprland. The previous release keeps a
+branch, `hyprland-0.56` for v0.56.2, for a while after a new release. Changes
+land on `main` first and every one is ported to that branch, where it must
+pass its own VM test. After a change there, move its entry in `commit_pins` in
+`hyprpm.toml` to the branch's new head, and keep the table in "Older Hyprland
+releases" of `docs/installation.md` up to date.
 
 Docs: `README.md` is the landing page; `docs/installation.md` covers install,
 loading and MCP registration; `docs/automation.md` is the reference for

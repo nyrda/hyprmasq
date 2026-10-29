@@ -2,18 +2,23 @@
 #include "PrivateAccess.hpp"
 #include "Windows.hpp"
 
-#include <hyprland/src/desktop/Workspace.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowEffectsController.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
+#include <hyprland/src/render/GLRenderer.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/render/gl/GLFramebuffer.hpp>
 #include <hyprland/src/render/pass/TexPassElement.hpp>
+#include <hyprland/src/render/transformer/TransformerList.hpp>
+#include <hyprland/src/workspace/HLWorkspace.hpp>
 #include <hyprutils/math/Region.hpp>
+#include <hyprutils/utils/ScopeGuard.hpp>
 
 #include <GLES3/gl32.h>
 #include <png.h>
@@ -198,17 +203,28 @@ namespace hyprmasq {
             CRegion damage = {0.0, 0.0, sc<double>(width), sc<double>(height)};
             if (!g_pHyprRenderer->beginFullFakeRender(monitor, damage, fb))
                 return false;
-            g_pHyprRenderer->m_renderData.fbSize          = Vector2D{width, height};
-            g_pHyprRenderer->m_renderData.transformDamage = false;
-            g_pHyprRenderer->setProjectionType(Render::RPT_EXPORT);
+            auto& ctx                  = g_pHyprRenderer->context();
+            ctx.m_data.fbSize          = Vector2D{width, height};
+            ctx.m_data.transformDamage = false;
+            g_pHyprRenderer->setProjectionType(ctx, Render::RPT_EXPORT);
             g_pHyprRenderer->setViewport(0, 0, width, height);
             glClearColor(0.F, 0.F, 0.F, 0.F);
             glClear(GL_COLOR_BUFFER_BIT);
             return true;
         }
 
+        // Aborts a render that an exception left unfinished: while a render context is active, no other render, also none of
+        // the compositor's own, can begin.
+        Hyprutils::Utils::CScopeGuard abortUnfinished() {
+            return Hyprutils::Utils::CScopeGuard([] {
+                if (g_pHyprRenderer->context().active())
+                    g_pHyprRenderer->abortRender();
+            });
+        }
+
+        // Ends the render, which resets the render context.
         void finishRender() {
-            g_pHyprRenderer->m_renderData.blockScreenShader = true;
+            g_pHyprRenderer->context().m_data.blockScreenShader = true;
             g_pHyprRenderer->endRender();
         }
 
@@ -217,10 +233,11 @@ namespace hyprmasq {
             auto fb = framebuffer(monitor, width, height);
             if (!fb || !beginRender(monitor, fb, width, height))
                 return nullptr;
+            const auto                   guard = abortUnfinished();
             CTexPassElement::SRenderData data;
             data.tex = source->getTexture();
             data.box = box;
-            g_pHyprRenderer->draw(data, CRegion{0.0, 0.0, sc<double>(width), sc<double>(height)});
+            g_pHyprRenderer->draw(g_pHyprRenderer->context(), data, CRegion{0.0, 0.0, sc<double>(width), sc<double>(height)});
             finishRender();
             return fb;
         }
@@ -228,14 +245,14 @@ namespace hyprmasq {
         // The window-local logical box of the popups that renderWindow draws: mapped popups, their surfaces with a
         // buffer, at their parent's origin less the window's geometry offset, as the renderer places them.
         std::optional<CBox> popupExtents(const PHLWINDOW& window) {
-            if (window->m_isX11 || !window->m_popupHead || !window->m_xdgSurface)
+            if (window->backend().isX11() || !window->popupHead() || !window->backend().valid())
                 return std::nullopt;
             const auto          geometry = geometryOffset(window);
             std::optional<CBox> extents;
-            window->m_popupHead->breadthfirst(
+            window->popupHead()->breadthfirst(
                 [&](SP<Desktop::View::CPopup> popup, void*) {
                     const auto surface = popup->resource();
-                    if (!popup->m_mapped || !surface || !surface->m_mapped)
+                    if (!popup->mapped() || !surface || !surface->m_mapped)
                         return;
                     const auto origin = popup->coordsRelativeToParent() - geometry;
                     surface->breadthfirst(
@@ -263,32 +280,29 @@ namespace hyprmasq {
             explicit CGoalGeometry(const PHLWINDOW& window) : m_window(window) {
                 auto& size     = window->sizeAnimation();
                 m_size         = std::exchange(size->value(), size->goal());
-                m_animatingIn  = std::exchange(window->m_animatingIn, false);
-                m_transformers = std::exchange(window->m_transformers, {});
+                m_animatingIn  = window->presentation().animatingIn();
+                m_transformers = std::exchange(transformersOf(window), makeUnique<Render::CWindowTransformerList>());
+                window->presentation().setAnimatingIn(false);
             }
             ~CGoalGeometry() {
                 m_window->sizeAnimation()->value() = m_size;
-                m_window->m_animatingIn            = m_animatingIn;
-                m_window->m_transformers           = std::move(m_transformers);
+                m_window->presentation().setAnimatingIn(m_animatingIn);
+                transformersOf(m_window) = std::move(m_transformers);
             }
             CGoalGeometry(const CGoalGeometry&)            = delete;
             CGoalGeometry& operator=(const CGoalGeometry&) = delete;
 
           private:
-            PHLWINDOW                                   m_window;
-            Vector2D                                    m_size;
-            bool                                        m_animatingIn = false;
-            std::vector<UP<Render::IWindowTransformer>> m_transformers;
-        };
-
-        class CRenderMonitorReset {
-          public:
-            CRenderMonitorReset() = default;
-            ~CRenderMonitorReset() {
-                g_pHyprRenderer->m_renderData.pMonitor.reset();
+            // The effects controller hands out the window's transformers read-only. They belong to the window, which is
+            // not const, so they can be swapped out.
+            static UP<Render::CWindowTransformerList>& transformersOf(const PHLWINDOW& window) {
+                return const_cast<UP<Render::CWindowTransformerList>&>(window->effects().transformers());
             }
-            CRenderMonitorReset(const CRenderMonitorReset&)            = delete;
-            CRenderMonitorReset& operator=(const CRenderMonitorReset&) = delete;
+
+            PHLWINDOW                          m_window;
+            Vector2D                           m_size;
+            bool                               m_animatingIn = false;
+            UP<Render::CWindowTransformerList> m_transformers;
         };
 
         // The renderer holds each dmabuf buffer that it draws, which the app may not reuse until the compositor releases
@@ -301,9 +315,11 @@ namespace hyprmasq {
         // nothing else renders in between.
         class CDrawnBuffers {
           public:
-            CDrawnBuffers() : m_before(g_pHyprRenderer->m_usedAsyncBuffers.size()) {}
+            CDrawnBuffers() : m_renderer(dynamic_cast<Render::GL::CHyprGLRenderer*>(g_pHyprRenderer.get())), m_before(m_renderer ? pendingBufferUsesOf(*m_renderer).size() : 0) {}
             ~CDrawnBuffers() {
-                auto& used = g_pHyprRenderer->m_usedAsyncBuffers;
+                if (!m_renderer)
+                    return;
+                auto& used = pendingBufferUsesOf(*m_renderer);
                 if (used.size() > m_before)
                     used.erase(used.begin() + sc<std::ptrdiff_t>(m_before), used.end());
             }
@@ -311,7 +327,8 @@ namespace hyprmasq {
             CDrawnBuffers& operator=(const CDrawnBuffers&) = delete;
 
           private:
-            size_t m_before;
+            Render::GL::CHyprGLRenderer* m_renderer;
+            size_t                       m_before;
         };
 
         // The renderer produces premultiplied alpha, PNG stores straight alpha.
@@ -327,7 +344,7 @@ namespace hyprmasq {
     }
 
     std::expected<SCapture, SError> captureWindow(const PHLWINDOW& window, const SCaptureOptions& options) {
-        if (!window || !window->m_isMapped)
+        if (!window || !window->mapped())
             return std::unexpected(SError{eErrorCode::WINDOW_GONE, "window is not mapped"});
 
         const auto monitor = window->m_monitor.lock();
@@ -401,34 +418,37 @@ namespace hyprmasq {
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot allocate framebuffer"});
         if (!dynamic_cast<Render::GL::CGLFramebuffer*>(fb.get()))
             return std::unexpected(SError{eErrorCode::INTERNAL, "only the GL renderer is supported"});
-        // Hyprland resets the render data's monitor after every offscreen render, as Screenshare::CScreenshareFrame does,
-        // which beginRender sets also when it fails.
-        const CRenderMonitorReset reset;
+        // The render context holds the monitor: a begin that fails aborts it, and the end of the render, or abortUnfinished()
+        // after an exception, resets it.
         // Lets go of the window's buffers after the reads below, at every return.
         const CDrawnBuffers drawn;
         if (!beginRender(monitor, fb, width, height))
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot begin offscreen render"});
+        const auto guard = abortUnfinished();
 
         // Visible windows already get frame callbacks from the normal render loop.
-        g_pHyprRenderer->m_bBlockSurfaceFeedback = g_pHyprRenderer->shouldRenderWindow(window);
+        auto& ctx                  = g_pHyprRenderer->context();
+        ctx.m_blockSurfaceFeedback = g_pHyprRenderer->shouldRenderWindow(window);
         {
             const CGoalGeometry goal{window};
             {
-                // renderWindow puts the window at the image's origin plus its floating offset, which moves popups above
-                // or left of the window into the image, and draws popups only while their window is rendered on screen.
-                const auto workspace = window->m_workspace;
-                const auto offset    = std::exchange(window->m_floatingOffset, Vector2D{-boxX, -boxY});
-                const bool forced    = workspace && std::exchange(workspace->m_forceRendering, true);
-                renderWindow(*g_pHyprRenderer, window, monitor, Time::steadyNow(), false, Render::RENDER_PASS_ALL, true, true);
-                window->m_floatingOffset = offset;
-                if (workspace)
-                    workspace->m_forceRendering = forced;
+                // renderWindow puts the window at the image's origin plus the floating offset of the presentation, which
+                // moves popups above or left of the window into the image, and draws popups only while their window is
+                // rendered on screen.
+                const auto workspace        = window->m_workspace;
+                auto       presentation     = window->presentation().renderPresentation();
+                presentation.floatingOffset = Vector2D{-boxX, -boxY};
+                const bool forced           = workspace && std::exchange(workspace->m_forceRendering, true);
+                const auto unforce          = Hyprutils::Utils::CScopeGuard([&] {
+                    if (workspace)
+                        workspace->m_forceRendering = forced;
+                });
+                renderWindow(*g_pHyprRenderer, ctx, window, monitor, presentation, Time::steadyNow(), false, Render::RENDER_PASS_ALL, true, true);
             }
-            g_pHyprRenderer->m_bBlockSurfaceFeedback = false;
+            ctx.m_blockSurfaceFeedback = false;
             // The box can reach past the monitor, where simplifying the render pass would cut it off.
-            const bool simplify = std::exchange(g_pHyprRenderer->m_renderData.noSimplify, true);
+            ctx.m_data.noSimplify = true;
             finishRender();
-            g_pHyprRenderer->m_renderData.noSimplify = simplify;
         }
 
         // Reads the area from the render, fitted within maxPixels: a smaller image is drawn from the full one on the GPU.

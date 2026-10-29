@@ -15,7 +15,8 @@
   display ? "1920x1080@1",
   nixpkgs ?
     let
-      locked = (builtins.fromJSON (builtins.readFile (source + "/flake.lock"))).nodes.nixpkgs.locked;
+      lock = builtins.fromJSON (builtins.readFile (source + "/flake.lock"));
+      locked = lock.nodes.${lock.nodes.root.inputs.nixpkgs}.locked;
     in
     builtins.fetchTarball {
       url = "https://github.com/NixOS/nixpkgs/archive/${locked.rev}.tar.gz";
@@ -23,7 +24,11 @@
     },
 }:
 let
-  pkgs = import nixpkgs { inherit system; };
+  # A source that pins Hyprland's own flake builds everything with Hyprland's package set, as its VM test does,
+  # and only Go with its nixpkgs. Older sources pin the nixpkgs whose Hyprland they target.
+  pinsHyprlandFlake = builtins.pathExists (source + "/nix/pkgs.nix");
+  goPkgs = import nixpkgs { inherit system; };
+  pkgs = if pinsHyprlandFlake then import (source + "/nix/pkgs.nix") { inherit system; } else goPkgs;
   monitor =
     let
       m = builtins.match "([0-9]+x[0-9]+)@([0-9.]+)" display;
@@ -35,11 +40,13 @@ let
         mode = builtins.elemAt m 0;
         scale = builtins.elemAt m 1;
       };
+  # Hyprland's flake versions its package "<release>+date=<date>_<commit>".
+  targetVersion = if pinsHyprlandFlake then pkgs.lib.fileContents (source + "/HYPRLAND_VERSION") else "0.56.2";
   hyprland =
-    if pkgs.hyprland.version == "0.56.2" then
+    if builtins.head (pkgs.lib.splitString "+" pkgs.hyprland.version) == targetVersion then
       pkgs.hyprland
     else
-      throw "hyprmasq requires Hyprland 0.56.2, got ${pkgs.hyprland.version}";
+      throw "hyprmasq requires Hyprland ${targetVersion}, got ${pkgs.hyprland.version}";
   # Only files Git tracks, as in a flake build: a hyprmasq-input that make left in the checkout must not stand in
   # for the one the package builds.
   fs = pkgs.lib.fileset;
@@ -49,10 +56,17 @@ let
       fs.unions (map (d: fs.maybeMissing (source + "/${d}")) [ "nix" "docs" "mcp" "bench" ])
     );
   };
-  plugin = pkgs.callPackage (source + "/nix/package.nix") {
-    inherit hyprland;
-    hyprmasqSrc = pluginSource;
-  };
+  plugin = pkgs.callPackage (source + "/nix/package.nix") (
+    {
+      inherit hyprland;
+      hyprmasqSrc = pluginSource;
+    }
+    # Same compiler as Hyprland, so the plugin shares its C++ runtime.
+    // pkgs.lib.optionalAttrs pinsHyprlandFlake {
+      inherit (hyprland) stdenv;
+      inherit (goPkgs) buildGoModule;
+    }
+  );
   module = import (source + "/nix/module.nix") {
     packages.${system} = {
       hyprmasq = plugin;
