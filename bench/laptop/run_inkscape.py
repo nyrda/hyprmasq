@@ -4,8 +4,8 @@
     run_inkscape.py --backend cua|hyprmasq --rep N --out DIR [--harness codex|claude] [--model M] [--effort E]
                     [--timeout S] [--no-agent]
 
-Port of the Inkscape task of the 2026-10-19 Cua comparison (bench/results/cua-task-comparison-20261019) from the
-NixOS VM to a live Hyprland session: move the blue rectangle from x=120 to x=122 px and save. Inkscape 1.4.4-6 from
+The Inkscape task on a live Hyprland session: move the blue rectangle from x=120 to x=122 px and save. The VM
+benchmark's bench/tasks/inkscape is the same task, with the same drawing and prompt. Inkscape 1.4.4-6 from
 Arch at /usr/bin/inkscape is one of the two builds Cua's Hyprland input plugin accepts for background input, so this
 is Cua's best case on Omarchy. The setup, agent run and event log are run_form.py's.
 """
@@ -21,7 +21,7 @@ import time
 
 import run_form as rf
 
-TASK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "inkscape")
+TASK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tasks", "inkscape")
 EXPECTED = [122.0, 120.0, 200.0, 100.0]
 
 PROMPT = (

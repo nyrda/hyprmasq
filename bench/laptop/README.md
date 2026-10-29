@@ -8,8 +8,8 @@ unlocked and with its display on, and nobody may use it during a run.
   app or, with `--toolkit qt`, its Qt port `form_qt.py`, run by `$QT_PYTHON`, a Python with PySide6. With
   `--no-dropdowns`, the questionnaire asks only checkboxes, sliders and text fields, as the task
   `form-no-dropdowns`.
-- `run_inkscape.py` runs the Inkscape task: move the rectangle in [inkscape/drawing.svg](inkscape/drawing.svg)
-  from x=120 to x=122 px and save. The grade reads the saved file with `inkscape --query-all`.
+- `run_inkscape.py` runs the [Inkscape task](../tasks/inkscape): move the rectangle in its
+  [drawing.svg](../tasks/inkscape/drawing.svg) from x=120 to x=122 px and save. The grade reads the saved file with `inkscape --query-all`.
 - `run_files.py` runs the file manager task: in a Nautilus window on a fresh folder, rename `report-draft.txt` to
   `report-final.txt` and move it into `Archive`. The grade compares every file's contents and place.
 - `series.sh OUT "backend rep"...` runs several, `RUNNER=run_inkscape.py` for Inkscape and `EXTRA` for options

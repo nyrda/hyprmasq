@@ -6,7 +6,8 @@ agents use logged-in Claude Code and Codex. API-backed agents need their provide
 
 Agents complete a task in an offline NixOS VM through `hyprmasq-mcp`. The benchmark grades the VM's state,
 measures time on both sides of the MCP connection, and asks the agent for a debrief. It measures how agents
-use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, files, forgejo, form, thunderbird and trace.
+use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, files, forgejo, form, inkscape,
+thunderbird and trace.
 
 Run results are in [docs/benchmarks.md](../docs/benchmarks.md). `export.py` turns results directories into the
 datasets that page is generated from, and `render.py` draws its figures and tables; see
@@ -51,7 +52,7 @@ To build a VM driver without running an agent:
 
 ```sh
 nix-build bench/default.nix -A driver
-# For another task, add --argstr task calc, files, forgejo, board, form or trace. Board also needs --argstr variant dnd or
+# For another task, add --argstr task calc, files, forgejo, board, form, inkscape or trace. Board also needs --argstr variant dnd or
 # pointer, form its number of questions, such as --argstr variant 25, and trace its figure, river or rack.
 ```
 
@@ -353,7 +354,7 @@ partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |
 | `start-*.png`, `end-*.png` | Screenshots of every window and of the screen. |
-| `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json`, `vm-form-state.json`, `vm-trace-strokes.json`, `vm-files-watch.jsonl` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board), the questionnaire's answers, submissions and changes (form), the drawing (trace), the folder at each change (files). |
+| `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json`, `vm-form-state.json`, `drawing.svg`, `vm-trace-strokes.json`, `vm-files-watch.jsonl` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board), the questionnaire's answers, submissions and changes (form), the drawing as saved (inkscape), the drawing (trace), the folder at each change (files). |
 | `vm-events.log` | Hyprland's events (`socket2`), each with the VM's time. |
 | `vm-*.log`, `vm-*.jsonl` | Hyprland, hyprmasq-mcp, socat, and the task's servers and apps, such as the intranet's requests and the watch of the sheet (Calc), or the page's events and saves (board, trace). |
 | `attribution.json` | Board and trace: who each drag's or stroke's outcome is due to, written by the task's `attribute.py`. |
@@ -749,6 +750,44 @@ between folders, by drag-and-drop, cut and paste or its menus, whichever the age
   result, the folder untouched, renamed but not moved, moved but not renamed, copied instead of moved, the report's
   contents changed, other files changed, moved or added, a folder removed, another app's window, no log of the
   windows, and that `START` is the laptop's. It also checks the windows that count and the milestones.
+
+### inkscape
+
+Inkscape 1.4.4 from nixpkgs shows Mara's drawing, `~/Documents/drawing.svg`: a blue rectangle, 200 by 100 px at x=120,
+y=120, on a 640×480 page. Inkscape is started like a user would, on the visible workspace, and moved to the hidden
+workspace `drawing`. The user stays on workspace 1 with the terminal. The prompt asks the agent to move the rectangle
+exactly 2 px to the right, to x=122, and to save the drawing with Ctrl+S.
+
+It is the task that [bench/laptop/run_inkscape.py](laptop/README.md) runs on a real machine for
+[docs/comparison.md](../docs/comparison.md), with the same drawing and the same task in the prompt, so that the VM's
+runs compare with the laptop's. Its first paragraph is the one of the other VM tasks: the agent has the hyprmasq tools
+and must not disturb the user, where the laptop's allowed foreground input and focus changes, which Cua Driver needs. The laptop had Arch's Inkscape 1.4.4 as well. The grade is the laptop's, the rectangle's
+geometry as saved and no other app's window, and checks besides that the file was saved and that nothing else of the
+drawing changed, which the laptop's did not. The user's window differs: a terminal running `top`, the VM's for every
+task, where the laptop's was idle.
+
+The task exercises what the others do not: a GTK 3 drawing app with a canvas, a precise number in a toolbar or a
+nudge by keyboard, and a save that only the file shows.
+
+- `vm.nix`: Inkscape and the task's files.
+- `drawing.svg`: the drawing, which `run_inkscape.py` copies as well.
+- `check.py`: passes when the drawing was saved over itself, its rectangle's bounding box is x=122, y=120, 200 by
+  100 px within 0.01 px, its transform included, and nothing else of the drawing changed, and no window of another
+  class than Inkscape's opened while the agent worked, from `/tmp/hyprmasq-bench-events.log`. What Inkscape adds when
+  it saves, the attributes of its namespaces, the root's `version` and `id`, its view of the page and an empty `defs`,
+  is no change. Another element, another page size, another fill, stroke or style of the rectangle, or a style,
+  opacity or transform of the whole drawing on its root is one. Inkscape's own `--query-all` reads the
+  saved rectangle too, as the laptop's grade does, and the run fails when the two disagree. A failure names what is
+  wrong: `drawing.svg was not saved: it is as it was`, `saved rectangle geometry [124.0, 120.0, 200.0, 100.0],
+  expected [122.0, 120.0, 200.0, 100.0]` or `the rectangle's fill is '#ff0000'; it was '#3478c6'`. It also reports
+  the version of Inkscape that saved the file and whether the window's title showed unsaved changes at the end. Its
+  milestone is `drawing saved`, the time of the last save.
+- `check_test.py`: `python3 bench/tasks/inkscape/check_test.py` checks the grade on saves as Inkscape writes them: a
+  correct one, the move as a transform or with the fill as a style, an unsaved change, wrong positions, a changed
+  fill, stroke, opacity or corner radius, another element, another page size, a renamed rectangle, a broken file,
+  Inkscape reading the geometry otherwise, and the windows that opened.
+- `setup.py`: Mara's drawing, Inkscape's window and its workspace, and the grade with the saved drawing in
+  `collect()`.
 - `prompt.md`, `debrief.md`: what the agent is told.
 
 ## Adding a task
