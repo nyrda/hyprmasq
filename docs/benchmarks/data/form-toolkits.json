@@ -1,0 +1,5475 @@
+{
+ "sources": [
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "qt-25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "gtk3-25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "tk-25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "electron-25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "cef-25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "gtk3-x11-25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "electron-x11-25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "cef-x11-25",
+   "display": "1920x1080@1"
+  },
+  {
+   "commit": "fa3f1707359ec7cc260f951b2c8634e7ae10cc20",
+   "dirty": false,
+   "task": "form",
+   "variant": "cef-osr-25",
+   "display": "1920x1080@1"
+  }
+ ],
+ "runs": [
+  {
+   "run": "toolkit-25/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 90.9,
+   "tools_s": 35.7,
+   "turn_s": 3.3,
+   "calls": 17,
+   "actions": 57,
+   "images": 37,
+   "errors": 0,
+   "input_tokens": 291175,
+   "cache_read_tokens": 262193,
+   "output_tokens": 2693,
+   "cost_usd": 0.125588,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.6,
+    "all answered correctly": 86.6,
+    "first submit": 87.0,
+    "last submit": 87.0
+   },
+   "act_s": {
+    "input": 12.7,
+    "wait": 5.7,
+    "watch": 5.5,
+    "pause": 0.0,
+    "rest": 10.8
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 17.6,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 14.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 19.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 35.7,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-25/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 75.1,
+   "tools_s": 35.6,
+   "turn_s": 2.4,
+   "calls": 15,
+   "actions": 59,
+   "images": 34,
+   "errors": 0,
+   "input_tokens": 336914,
+   "cache_read_tokens": 312324,
+   "output_tokens": 2387,
+   "cost_usd": 0.116561,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.6,
+    "all answered correctly": 61.5,
+    "first submit": 72.1,
+    "last submit": 72.1
+   },
+   "act_s": {
+    "input": 14.9,
+    "wait": 6.0,
+    "watch": 6.4,
+    "pause": 0.0,
+    "rest": 7.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 20.4,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.2,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 23.7,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-25/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 69.0,
+   "tools_s": 32.2,
+   "turn_s": 2.6,
+   "calls": 13,
+   "actions": 54,
+   "images": 51,
+   "errors": 0,
+   "input_tokens": 258545,
+   "cache_read_tokens": 237971,
+   "output_tokens": 1971,
+   "cost_usd": 0.094928,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.6,
+    "all answered correctly": 62.7,
+    "first submit": 66.0,
+    "last submit": 66.0
+   },
+   "act_s": {
+    "input": 12.7,
+    "wait": 6.2,
+    "watch": 5.8,
+    "pause": 0.0,
+    "rest": 6.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.4,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.2,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 12.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 24.0,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-25/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 88.4,
+   "tools_s": 35.8,
+   "turn_s": 3.4,
+   "calls": 13,
+   "actions": 60,
+   "images": 17,
+   "errors": 0,
+   "input_tokens": 267353,
+   "cache_read_tokens": 229120,
+   "output_tokens": 1283,
+   "cost_usd": 0.112208,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 12.9,
+    "all answered correctly": 80.9,
+    "first submit": 84.4,
+    "last submit": 84.4
+   },
+   "act_s": {
+    "input": 12.9,
+    "wait": 6.5,
+    "watch": 6.0,
+    "pause": 0.0,
+    "rest": 9.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 23.2,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.7,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 15.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 36.9,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-25/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 108.9,
+   "tools_s": 34.9,
+   "turn_s": 3.9,
+   "calls": 14,
+   "actions": 62,
+   "images": 18,
+   "errors": 0,
+   "input_tokens": 293173,
+   "cache_read_tokens": 265600,
+   "output_tokens": 1368,
+   "cost_usd": 0.095386,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 19.7,
+    "all answered correctly": 100.6,
+    "first submit": 104.3,
+    "last submit": 104.3
+   },
+   "act_s": {
+    "input": 13.3,
+    "wait": 6.6,
+    "watch": 6.2,
+    "pause": 0.0,
+    "rest": 7.8
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 44.0,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 11.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 40.4,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-25/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 120.2,
+   "tools_s": 42.8,
+   "turn_s": 3.0,
+   "calls": 23,
+   "actions": 72,
+   "images": 43,
+   "errors": 0,
+   "input_tokens": 528728,
+   "cache_read_tokens": 481280,
+   "output_tokens": 2064,
+   "cost_usd": 0.163664,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 12.5,
+    "all answered correctly": 111.4,
+    "first submit": 117.3,
+    "last submit": 117.3
+   },
+   "act_s": {
+    "input": 13.7,
+    "wait": 9.2,
+    "watch": 9.0,
+    "pause": 0.0,
+    "rest": 9.8
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 46.8,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.2,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 4.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 49.7,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-qt-25/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "qt-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 62.0,
+   "tools_s": 23.7,
+   "turn_s": 3.5,
+   "calls": 10,
+   "actions": 66,
+   "images": 31,
+   "errors": 0,
+   "input_tokens": 174774,
+   "cache_read_tokens": 158891,
+   "output_tokens": 1818,
+   "cost_usd": 0.073766,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.9,
+    "all answered correctly": 54.0,
+    "first submit": 57.7,
+    "last submit": 57.7
+   },
+   "act_s": {
+    "input": 14.2,
+    "wait": 2.0,
+    "watch": 3.5,
+    "pause": 0.0,
+    "rest": 4.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 30.0,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 4.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 13.3,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 7.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-qt-25/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "qt-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 54.6,
+   "tools_s": 25.1,
+   "turn_s": 2.0,
+   "calls": 15,
+   "actions": 68,
+   "images": 36,
+   "errors": 1,
+   "input_tokens": 246417,
+   "cache_read_tokens": 228692,
+   "output_tokens": 2219,
+   "cost_usd": 0.089357,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 5.2,
+    "all answered correctly": 43.6,
+    "first submit": 52.3,
+    "last submit": 52.3
+   },
+   "act_s": {
+    "input": 16.7,
+    "wait": 2.8,
+    "watch": 4.5,
+    "pause": 0.0,
+    "rest": 1.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 18.5,
+     "corrections": 4
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 7.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.0,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 8.9,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-qt-25/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "qt-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 84.2,
+   "tools_s": 28.8,
+   "turn_s": 2.9,
+   "calls": 18,
+   "actions": 68,
+   "images": 43,
+   "errors": 0,
+   "input_tokens": 372203,
+   "cache_read_tokens": 346595,
+   "output_tokens": 3272,
+   "cost_usd": 0.131381,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 5.8,
+    "all answered correctly": 69.2,
+    "first submit": 81.0,
+    "last submit": 81.0
+   },
+   "act_s": {
+    "input": 16.7,
+    "wait": 4.2,
+    "watch": 7.0,
+    "pause": 0.0,
+    "rest": 0.9
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 14.3,
+     "corrections": 4
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 30.6,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 3.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 21.5,
+     "corrections": 2
+    }
+   }
+  },
+  {
+   "run": "toolkit-qt-25/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "qt-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 106.9,
+   "tools_s": 23.5,
+   "turn_s": 4.3,
+   "calls": 10,
+   "actions": 69,
+   "images": 26,
+   "errors": 0,
+   "input_tokens": 189594,
+   "cache_read_tokens": 177408,
+   "output_tokens": 1092,
+   "cost_usd": 0.053033,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 21.2,
+    "all answered correctly": 93.6,
+    "first submit": 98.2,
+    "last submit": 98.2
+   },
+   "act_s": {
+    "input": 14.3,
+    "wait": 1.9,
+    "watch": 3.0,
+    "pause": 0.0,
+    "rest": 4.2
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 35.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 4.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 38.3,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 16.0,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-qt-25/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "qt-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 64.6,
+   "tools_s": 23.8,
+   "turn_s": 2.9,
+   "calls": 10,
+   "actions": 67,
+   "images": 28,
+   "errors": 0,
+   "input_tokens": 190880,
+   "cache_read_tokens": 178560,
+   "output_tokens": 1080,
+   "cost_usd": 0.053296,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 13.7,
+    "all answered correctly": 58.1,
+    "first submit": 61.2,
+    "last submit": 61.2
+   },
+   "act_s": {
+    "input": 13.5,
+    "wait": 2.2,
+    "watch": 4.0,
+    "pause": 0.0,
+    "rest": 4.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 21.5,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 4.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 13.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 18.9,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-qt-25/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "qt-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 76.4,
+   "tools_s": 24.5,
+   "turn_s": 3.0,
+   "calls": 12,
+   "actions": 64,
+   "images": 32,
+   "errors": 0,
+   "input_tokens": 230308,
+   "cache_read_tokens": 195328,
+   "output_tokens": 1220,
+   "cost_usd": 0.101693,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 14.6,
+    "all answered correctly": 68.2,
+    "first submit": 71.7,
+    "last submit": 71.7
+   },
+   "act_s": {
+    "input": 11.9,
+    "wait": 2.8,
+    "watch": 5.5,
+    "pause": 0.0,
+    "rest": 4.2
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 31.7,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 3.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 11.2,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 21.9,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-25/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "gtk3-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 76.5,
+   "tools_s": 35.1,
+   "turn_s": 2.5,
+   "calls": 17,
+   "actions": 65,
+   "images": 22,
+   "errors": 0,
+   "input_tokens": 316356,
+   "cache_read_tokens": 293488,
+   "output_tokens": 2696,
+   "cost_usd": 0.113462,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 5.4,
+    "all answered correctly": 65.8,
+    "first submit": 73.6,
+    "last submit": 73.6
+   },
+   "act_s": {
+    "input": 15.6,
+    "wait": 6.0,
+    "watch": 7.0,
+    "pause": 0.0,
+    "rest": 6.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 23.3,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 8.6,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 7.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 27.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-25/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "gtk3-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 91.8,
+   "tools_s": 35.3,
+   "turn_s": 2.5,
+   "calls": 22,
+   "actions": 70,
+   "images": 64,
+   "errors": 0,
+   "input_tokens": 522514,
+   "cache_read_tokens": 485283,
+   "output_tokens": 3025,
+   "cost_usd": 0.171834,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 5.3,
+    "all answered correctly": 79.2,
+    "first submit": 86.6,
+    "last submit": 86.6
+   },
+   "act_s": {
+    "input": 13.9,
+    "wait": 7.8,
+    "watch": 7.5,
+    "pause": 0.0,
+    "rest": 5.7
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 25.4,
+     "corrections": 4
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 20.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.5,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 25.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-25/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "gtk3-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 80.2,
+   "tools_s": 33.1,
+   "turn_s": 2.3,
+   "calls": 19,
+   "actions": 71,
+   "images": 35,
+   "errors": 0,
+   "input_tokens": 367001,
+   "cache_read_tokens": 343446,
+   "output_tokens": 2832,
+   "cost_usd": 0.121533,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.0,
+    "all answered correctly": 67.2,
+    "first submit": 77.2,
+    "last submit": 77.2
+   },
+   "act_s": {
+    "input": 15.2,
+    "wait": 5.9,
+    "watch": 6.5,
+    "pause": 0.0,
+    "rest": 5.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 24.4,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 11.1,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 26.4,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-25/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "gtk3-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 170.0,
+   "tools_s": 46.3,
+   "turn_s": 3.4,
+   "calls": 26,
+   "actions": 72,
+   "images": 56,
+   "errors": 0,
+   "input_tokens": 565370,
+   "cache_read_tokens": 528896,
+   "output_tokens": 2288,
+   "cost_usd": 0.148718,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 17.6,
+    "all answered correctly": 156.3,
+    "first submit": 165.9,
+    "last submit": 165.9
+   },
+   "act_s": {
+    "input": 14.1,
+    "wait": 11.7,
+    "watch": 11.6,
+    "pause": 0.0,
+    "rest": 8.7
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 43.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 15.2,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 88.4,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-25/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "gtk3-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 88.3,
+   "tools_s": 34.6,
+   "turn_s": 3.0,
+   "calls": 14,
+   "actions": 70,
+   "images": 35,
+   "errors": 0,
+   "input_tokens": 285533,
+   "cache_read_tokens": 268416,
+   "output_tokens": 1385,
+   "cost_usd": 0.074926,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 13.4,
+    "all answered correctly": 81.9,
+    "first submit": 85.1,
+    "last submit": 85.1
+   },
+   "act_s": {
+    "input": 12.5,
+    "wait": 6.4,
+    "watch": 6.5,
+    "pause": 0.0,
+    "rest": 9.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 18.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 12.4,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 42.5,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-25/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "gtk3-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 90.7,
+   "tools_s": 35.4,
+   "turn_s": 3.1,
+   "calls": 15,
+   "actions": 67,
+   "images": 38,
+   "errors": 0,
+   "input_tokens": 293715,
+   "cache_read_tokens": 278272,
+   "output_tokens": 1455,
+   "cost_usd": 0.073263,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 12.3,
+    "all answered correctly": 82.9,
+    "first submit": 86.5,
+    "last submit": 86.5
+   },
+   "act_s": {
+    "input": 12.6,
+    "wait": 6.6,
+    "watch": 6.5,
+    "pause": 0.0,
+    "rest": 9.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 17.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.7,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 44.8,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-tk-25/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "tk-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 59.9,
+   "tools_s": 25.1,
+   "turn_s": 2.3,
+   "calls": 12,
+   "actions": 64,
+   "images": 57,
+   "errors": 0,
+   "input_tokens": 245428,
+   "cache_read_tokens": 224166,
+   "output_tokens": 2128,
+   "cost_usd": 0.096839,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.8,
+    "all answered correctly": 52.6,
+    "first submit": 55.8,
+    "last submit": 55.8
+   },
+   "act_s": {
+    "input": 13.1,
+    "wait": 2.9,
+    "watch": 5.6,
+    "pause": 0.0,
+    "rest": 2.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 14.5,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 8.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 10.1,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 20.9,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-tk-25/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "tk-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 74.7,
+   "tools_s": 27.5,
+   "turn_s": 2.6,
+   "calls": 21,
+   "actions": 58,
+   "images": 55,
+   "errors": 0,
+   "input_tokens": 378461,
+   "cache_read_tokens": 346145,
+   "output_tokens": 2884,
+   "cost_usd": 0.144229,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.1,
+    "all answered correctly": 63.3,
+    "first submit": 70.6,
+    "last submit": 70.6
+   },
+   "act_s": {
+    "input": 13.2,
+    "wait": 2.8,
+    "watch": 7.0,
+    "pause": 0.0,
+    "rest": 3.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 19.0,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 10.0,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 24.0,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-tk-25/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "tk-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 58.9,
+   "tools_s": 24.6,
+   "turn_s": 2.5,
+   "calls": 12,
+   "actions": 60,
+   "images": 64,
+   "errors": 0,
+   "input_tokens": 244066,
+   "cache_read_tokens": 222700,
+   "output_tokens": 2167,
+   "cost_usd": 0.097342,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.6,
+    "all answered correctly": 52.1,
+    "first submit": 55.4,
+    "last submit": 55.4
+   },
+   "act_s": {
+    "input": 12.5,
+    "wait": 2.9,
+    "watch": 5.6,
+    "pause": 0.0,
+    "rest": 2.6
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 13.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.8,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.3,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 18.8,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-tk-25/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "tk-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 99.0,
+   "tools_s": 29.8,
+   "turn_s": 3.1,
+   "calls": 18,
+   "actions": 60,
+   "images": 23,
+   "errors": 0,
+   "input_tokens": 374261,
+   "cache_read_tokens": 339712,
+   "output_tokens": 1639,
+   "cost_usd": 0.119459,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 15.2,
+    "all answered correctly": 92.7,
+    "first submit": 95.9,
+    "last submit": 95.9
+   },
+   "act_s": {
+    "input": 12.2,
+    "wait": 2.6,
+    "watch": 6.6,
+    "pause": 0.0,
+    "rest": 7.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 41.5,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 12.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 29.8,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-tk-25/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "tk-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 83.7,
+   "tools_s": 31.4,
+   "turn_s": 2.1,
+   "calls": 19,
+   "actions": 64,
+   "images": 42,
+   "errors": 0,
+   "input_tokens": 406731,
+   "cache_read_tokens": 369536,
+   "output_tokens": 1689,
+   "cost_usd": 0.128234,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 12.2,
+    "all answered correctly": 78.1,
+    "first submit": 80.8,
+    "last submit": 80.8
+   },
+   "act_s": {
+    "input": 12.8,
+    "wait": 2.6,
+    "watch": 7.0,
+    "pause": 0.0,
+    "rest": 8.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 29.5,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 11.3,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 27.3,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-tk-25/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "tk-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 94.6,
+   "tools_s": 33.3,
+   "turn_s": 2.9,
+   "calls": 17,
+   "actions": 70,
+   "images": 52,
+   "errors": 0,
+   "input_tokens": 371747,
+   "cache_read_tokens": 340480,
+   "output_tokens": 1607,
+   "cost_usd": 0.112652,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 14.5,
+    "all answered correctly": 88.6,
+    "first submit": 91.6,
+    "last submit": 91.6
+   },
+   "act_s": {
+    "input": 12.5,
+    "wait": 5.0,
+    "watch": 8.4,
+    "pause": 0.0,
+    "rest": 6.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 26.8,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 12.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 14.2,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 35.1,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-25/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "electron-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": false,
+   "wall_s": 72.5,
+   "tools_s": 23.0,
+   "turn_s": 3.6,
+   "calls": 12,
+   "actions": 61,
+   "images": 35,
+   "errors": 0,
+   "input_tokens": 217754,
+   "cache_read_tokens": 192237,
+   "output_tokens": 2317,
+   "cost_usd": 0.106173,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.9,
+    "first submit": 68.8,
+    "last submit": 68.8
+   },
+   "act_s": {
+    "input": 14.2,
+    "wait": 3.2,
+    "watch": 4.5,
+    "pause": 0.0,
+    "rest": 0.9
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 20.7,
+     "corrections": 3
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 37.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-25/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "electron-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 49.9,
+   "tools_s": 21.6,
+   "turn_s": 2.4,
+   "calls": 10,
+   "actions": 57,
+   "images": 28,
+   "errors": 0,
+   "input_tokens": 167119,
+   "cache_read_tokens": 151324,
+   "output_tokens": 1722,
+   "cost_usd": 0.071829,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.1,
+    "all answered correctly": 43.8,
+    "first submit": 47.0,
+    "last submit": 47.0
+   },
+   "act_s": {
+    "input": 14.1,
+    "wait": 2.9,
+    "watch": 3.5,
+    "pause": 0.0,
+    "rest": 0.9
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 17.0,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 20.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-25/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "electron-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 86.1,
+   "tools_s": 27.2,
+   "turn_s": 3.2,
+   "calls": 17,
+   "actions": 61,
+   "images": 21,
+   "errors": 0,
+   "input_tokens": 382106,
+   "cache_read_tokens": 355120,
+   "output_tokens": 2650,
+   "cost_usd": 0.129459,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.3,
+    "all answered correctly": 68.4,
+    "first submit": 82.1,
+    "last submit": 82.1
+   },
+   "act_s": {
+    "input": 14.8,
+    "wait": 3.9,
+    "watch": 7.0,
+    "pause": 0.0,
+    "rest": 1.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 32.4,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.5,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 29.0,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-25/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "electron-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 238.7,
+   "tools_s": 23.9,
+   "turn_s": 2.5,
+   "calls": 13,
+   "actions": 71,
+   "images": 33,
+   "errors": 0,
+   "input_tokens": 255861,
+   "cache_read_tokens": 227456,
+   "output_tokens": 1312,
+   "cost_usd": 0.092676,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 184.9,
+    "all answered correctly": 233.2,
+    "first submit": 236.1,
+    "last submit": 236.1
+   },
+   "act_s": {
+    "input": 14.7,
+    "wait": 3.2,
+    "watch": 3.5,
+    "pause": 0.0,
+    "rest": 1.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 188.4,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 14.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 7.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 23.4,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-25/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "electron-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 73.2,
+   "tools_s": 27.3,
+   "turn_s": 2.7,
+   "calls": 12,
+   "actions": 66,
+   "images": 35,
+   "errors": 0,
+   "input_tokens": 242636,
+   "cache_read_tokens": 197376,
+   "output_tokens": 1202,
+   "cost_usd": 0.122278,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 14.3,
+    "all answered correctly": 66.8,
+    "first submit": 70.3,
+    "last submit": 70.3
+   },
+   "act_s": {
+    "input": 12.3,
+    "wait": 3.7,
+    "watch": 5.5,
+    "pause": 0.0,
+    "rest": 5.7
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 21.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.2,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 25.9,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-25/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "electron-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 75.6,
+   "tools_s": 22.9,
+   "turn_s": 3.1,
+   "calls": 13,
+   "actions": 68,
+   "images": 33,
+   "errors": 0,
+   "input_tokens": 256264,
+   "cache_read_tokens": 225920,
+   "output_tokens": 1311,
+   "cost_usd": 0.09639,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 15.0,
+    "all answered correctly": 68.4,
+    "first submit": 71.9,
+    "last submit": 71.9
+   },
+   "act_s": {
+    "input": 14.0,
+    "wait": 3.5,
+    "watch": 4.0,
+    "pause": 0.0,
+    "rest": 1.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 18.8,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 13.8,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 7.2,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 29.2,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-25/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "cef-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 87.7,
+   "tools_s": 30.0,
+   "turn_s": 2.5,
+   "calls": 21,
+   "actions": 70,
+   "images": 34,
+   "errors": 1,
+   "input_tokens": 498365,
+   "cache_read_tokens": 462488,
+   "output_tokens": 3257,
+   "cost_usd": 0.168489,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.3,
+    "all answered correctly": 77.6,
+    "first submit": 84.9,
+    "last submit": 84.9
+   },
+   "act_s": {
+    "input": 16.6,
+    "wait": 4.1,
+    "watch": 7.5,
+    "pause": 0.0,
+    "rest": 1.7
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 29.0,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.9,
+     "corrections": 1
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 35.3,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-25/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "cef-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 61.0,
+   "tools_s": 30.2,
+   "turn_s": 2.4,
+   "calls": 11,
+   "actions": 67,
+   "images": 29,
+   "errors": 0,
+   "input_tokens": 214751,
+   "cache_read_tokens": 193669,
+   "output_tokens": 2039,
+   "cost_usd": 0.09245,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 5.6,
+    "all answered correctly": 53.6,
+    "first submit": 58.0,
+    "last submit": 58.0
+   },
+   "act_s": {
+    "input": 16.1,
+    "wait": 3.5,
+    "watch": 4.6,
+    "pause": 0.0,
+    "rest": 5.8
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.1,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 12.7,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 7.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 17.1,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-25/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "cef-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 76.7,
+   "tools_s": 24.7,
+   "turn_s": 3.3,
+   "calls": 15,
+   "actions": 64,
+   "images": 25,
+   "errors": 0,
+   "input_tokens": 304741,
+   "cache_read_tokens": 282160,
+   "output_tokens": 2308,
+   "cost_usd": 0.107733,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.4,
+    "all answered correctly": 69.0,
+    "first submit": 72.6,
+    "last submit": 72.6
+   },
+   "act_s": {
+    "input": 12.8,
+    "wait": 3.9,
+    "watch": 6.5,
+    "pause": 0.0,
+    "rest": 1.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 22.9,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.1,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 34.1,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-25/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "cef-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 426.8,
+   "tools_s": 28.0,
+   "turn_s": 3.2,
+   "calls": 13,
+   "actions": 65,
+   "images": 37,
+   "errors": 0,
+   "input_tokens": 261109,
+   "cache_read_tokens": 232832,
+   "output_tokens": 1271,
+   "cost_usd": 0.092547,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 360.1,
+    "all answered correctly": 419.6,
+    "first submit": 423.2,
+    "last submit": 423.2
+   },
+   "act_s": {
+    "input": 12.0,
+    "wait": 3.9,
+    "watch": 6.0,
+    "pause": 0.0,
+    "rest": 6.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 369.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 13.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 7.2,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 30.8,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-25/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "cef-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 106.2,
+   "tools_s": 31.1,
+   "turn_s": 4.3,
+   "calls": 12,
+   "actions": 74,
+   "images": 25,
+   "errors": 0,
+   "input_tokens": 256784,
+   "cache_read_tokens": 238848,
+   "output_tokens": 1291,
+   "cost_usd": 0.072667,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 19.4,
+    "all answered correctly": 92.5,
+    "first submit": 102.2,
+    "last submit": 102.2
+   },
+   "act_s": {
+    "input": 14.3,
+    "wait": 4.0,
+    "watch": 5.0,
+    "pause": 0.0,
+    "rest": 7.6
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 33.1,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 22.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 15.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 21.8,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-25/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "cef-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 82.5,
+   "tools_s": 31.5,
+   "turn_s": 3.6,
+   "calls": 11,
+   "actions": 71,
+   "images": 23,
+   "errors": 0,
+   "input_tokens": 235273,
+   "cache_read_tokens": 216448,
+   "output_tokens": 1269,
+   "cost_usd": 0.071985,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 15.1,
+    "all answered correctly": 69.5,
+    "first submit": 78.4,
+    "last submit": 78.4
+   },
+   "act_s": {
+    "input": 14.1,
+    "wait": 3.8,
+    "watch": 4.0,
+    "pause": 0.0,
+    "rest": 9.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 23.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 17.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 19.0,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-x11-25/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "gtk3-x11-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 145.5,
+   "tools_s": 50.5,
+   "turn_s": 2.6,
+   "calls": 37,
+   "actions": 72,
+   "images": 65,
+   "errors": 1,
+   "input_tokens": 780681,
+   "cache_read_tokens": 740299,
+   "output_tokens": 5501,
+   "cost_usd": 0.229968,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 21.0,
+    "all answered correctly": 134.2,
+    "first submit": 142.4,
+    "last submit": 142.4
+   },
+   "act_s": {
+    "input": 18.1,
+    "wait": 10.5,
+    "watch": 10.5,
+    "pause": 0.0,
+    "rest": 9.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 44.9,
+     "corrections": 4
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 15.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 65.3,
+     "corrections": 3
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-x11-25/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "gtk3-x11-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 108.5,
+   "tools_s": 42.8,
+   "turn_s": 2.3,
+   "calls": 30,
+   "actions": 70,
+   "images": 43,
+   "errors": 1,
+   "input_tokens": 598175,
+   "cache_read_tokens": 570743,
+   "output_tokens": 4597,
+   "cost_usd": 0.171597,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.3,
+    "all answered correctly": 97.0,
+    "first submit": 104.8,
+    "last submit": 104.8
+   },
+   "act_s": {
+    "input": 14.6,
+    "wait": 9.4,
+    "watch": 8.5,
+    "pause": 0.0,
+    "rest": 6.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.0,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 15.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 19.2,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 47.5,
+     "corrections": 3
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-x11-25/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "gtk3-x11-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 103.7,
+   "tools_s": 41.6,
+   "turn_s": 2.3,
+   "calls": 27,
+   "actions": 73,
+   "images": 58,
+   "errors": 0,
+   "input_tokens": 651467,
+   "cache_read_tokens": 615291,
+   "output_tokens": 3972,
+   "cost_usd": 0.191663,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.0,
+    "all answered correctly": 97.6,
+    "first submit": 100.8,
+    "last submit": 100.8
+   },
+   "act_s": {
+    "input": 13.9,
+    "wait": 7.0,
+    "watch": 10.0,
+    "pause": 0.0,
+    "rest": 9.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 25.6,
+     "corrections": 4
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 22.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 40.7,
+     "corrections": 3
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-x11-25/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "gtk3-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 130.7,
+   "tools_s": 48.8,
+   "turn_s": 2.7,
+   "calls": 25,
+   "actions": 72,
+   "images": 33,
+   "errors": 0,
+   "input_tokens": 570751,
+   "cache_read_tokens": 538880,
+   "output_tokens": 2326,
+   "cost_usd": 0.14089,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 14.5,
+    "all answered correctly": 119.5,
+    "first submit": 127.0,
+    "last submit": 127.0
+   },
+   "act_s": {
+    "input": 15.0,
+    "wait": 9.0,
+    "watch": 9.5,
+    "pause": 0.0,
+    "rest": 14.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 41.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 19.0,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 50.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-x11-25/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "gtk3-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 117.5,
+   "tools_s": 41.1,
+   "turn_s": 3.0,
+   "calls": 21,
+   "actions": 65,
+   "images": 40,
+   "errors": 0,
+   "input_tokens": 482330,
+   "cache_read_tokens": 438144,
+   "output_tokens": 1820,
+   "cost_usd": 0.150386,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 15.1,
+    "all answered correctly": 109.5,
+    "first submit": 113.6,
+    "last submit": 113.6
+   },
+   "act_s": {
+    "input": 12.6,
+    "wait": 6.4,
+    "watch": 8.1,
+    "pause": 0.0,
+    "rest": 12.9
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 57.2,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 6.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 17.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 30.0,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-x11-25/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "gtk3-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 121.3,
+   "tools_s": 41.4,
+   "turn_s": 3.3,
+   "calls": 21,
+   "actions": 59,
+   "images": 26,
+   "errors": 0,
+   "input_tokens": 472090,
+   "cache_read_tokens": 431616,
+   "output_tokens": 1838,
+   "cost_usd": 0.14249,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 15.8,
+    "all answered correctly": 117.3,
+    "first submit": 117.7,
+    "last submit": 117.7
+   },
+   "act_s": {
+    "input": 11.8,
+    "wait": 6.5,
+    "watch": 8.2,
+    "pause": 0.0,
+    "rest": 13.9
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 42.2,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.6,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 18.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 51.4,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-x11-25/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "electron-x11-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 60.5,
+   "tools_s": 24.4,
+   "turn_s": 2.2,
+   "calls": 14,
+   "actions": 64,
+   "images": 24,
+   "errors": 0,
+   "input_tokens": 293595,
+   "cache_read_tokens": 269713,
+   "output_tokens": 2337,
+   "cost_usd": 0.110031,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.7,
+    "all answered correctly": 57.7,
+    "first submit": 57.8,
+    "last submit": 57.8
+   },
+   "act_s": {
+    "input": 12.9,
+    "wait": 3.1,
+    "watch": 5.5,
+    "pause": 0.0,
+    "rest": 1.7
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.8,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 15.6,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 6.2,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 20.0,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-x11-25/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "electron-x11-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 57.3,
+   "tools_s": 25.7,
+   "turn_s": 2.1,
+   "calls": 14,
+   "actions": 63,
+   "images": 57,
+   "errors": 0,
+   "input_tokens": 299557,
+   "cache_read_tokens": 276040,
+   "output_tokens": 2239,
+   "cost_usd": 0.108771,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 5.8,
+    "all answered correctly": 51.3,
+    "first submit": 54.8,
+    "last submit": 54.8
+   },
+   "act_s": {
+    "input": 13.2,
+    "wait": 3.7,
+    "watch": 6.0,
+    "pause": 0.0,
+    "rest": 1.8
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 22.2,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 6.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 18.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-x11-25/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "electron-x11-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 87.0,
+   "tools_s": 30.0,
+   "turn_s": 2.4,
+   "calls": 22,
+   "actions": 76,
+   "images": 49,
+   "errors": 0,
+   "input_tokens": 577463,
+   "cache_read_tokens": 543069,
+   "output_tokens": 3410,
+   "cost_usd": 0.174369,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.4,
+    "all answered correctly": 71.4,
+    "first submit": 84.2,
+    "last submit": 84.2
+   },
+   "act_s": {
+    "input": 14.5,
+    "wait": 5.3,
+    "watch": 6.5,
+    "pause": 0.0,
+    "rest": 2.6
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 31.1,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 7.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 5.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 27.9,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-x11-25/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "electron-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 61.9,
+   "tools_s": 22.8,
+   "turn_s": 2.7,
+   "calls": 11,
+   "actions": 71,
+   "images": 32,
+   "errors": 0,
+   "input_tokens": 217220,
+   "cache_read_tokens": 202624,
+   "output_tokens": 1185,
+   "cost_usd": 0.061304,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 12.3,
+    "all answered correctly": 56.3,
+    "first submit": 59.2,
+    "last submit": 59.2
+   },
+   "act_s": {
+    "input": 14.8,
+    "wait": 2.9,
+    "watch": 3.0,
+    "pause": 0.0,
+    "rest": 1.2
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 14.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.0,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 17.8,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-x11-25/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "electron-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 58.6,
+   "tools_s": 22.4,
+   "turn_s": 2.7,
+   "calls": 11,
+   "actions": 69,
+   "images": 32,
+   "errors": 0,
+   "input_tokens": 216963,
+   "cache_read_tokens": 202624,
+   "output_tokens": 1175,
+   "cost_usd": 0.06069,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 12.2,
+    "all answered correctly": 53.3,
+    "first submit": 55.9,
+    "last submit": 55.9
+   },
+   "act_s": {
+    "input": 14.4,
+    "wait": 2.8,
+    "watch": 3.0,
+    "pause": 0.0,
+    "rest": 1.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 15.8,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 17.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.3,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 17.7,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-x11-25/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "electron-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 69.5,
+   "tools_s": 31.0,
+   "turn_s": 1.9,
+   "calls": 14,
+   "actions": 71,
+   "images": 35,
+   "errors": 0,
+   "input_tokens": 290411,
+   "cache_read_tokens": 252288,
+   "output_tokens": 1404,
+   "cost_usd": 0.115515,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 11.7,
+    "all answered correctly": 64.4,
+    "first submit": 67.0,
+    "last submit": 67.0
+   },
+   "act_s": {
+    "input": 14.1,
+    "wait": 4.4,
+    "watch": 5.4,
+    "pause": 0.0,
+    "rest": 6.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 26.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 12.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 1.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 24.7,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-x11-25/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "cef-x11-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 56.3,
+   "tools_s": 25.8,
+   "turn_s": 1.9,
+   "calls": 14,
+   "actions": 63,
+   "images": 60,
+   "errors": 0,
+   "input_tokens": 282751,
+   "cache_read_tokens": 257737,
+   "output_tokens": 2195,
+   "cost_usd": 0.110245,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.4,
+    "all answered correctly": 50.8,
+    "first submit": 53.7,
+    "last submit": 53.7
+   },
+   "act_s": {
+    "input": 13.0,
+    "wait": 3.7,
+    "watch": 6.1,
+    "pause": 0.0,
+    "rest": 1.8
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 25.3,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.3,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 18.7,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-x11-25/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "cef-x11-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 47.1,
+   "tools_s": 21.8,
+   "turn_s": 2.2,
+   "calls": 11,
+   "actions": 62,
+   "images": 35,
+   "errors": 0,
+   "input_tokens": 169481,
+   "cache_read_tokens": 154627,
+   "output_tokens": 1946,
+   "cost_usd": 0.072047,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.1,
+    "all answered correctly": 40.3,
+    "first submit": 43.9,
+    "last submit": 43.9
+   },
+   "act_s": {
+    "input": 13.6,
+    "wait": 2.3,
+    "watch": 3.6,
+    "pause": 0.0,
+    "rest": 1.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 12.2,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 12.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 10.6,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-x11-25/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "cef-x11-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 65.6,
+   "tools_s": 25.1,
+   "turn_s": 2.4,
+   "calls": 15,
+   "actions": 64,
+   "images": 28,
+   "errors": 0,
+   "input_tokens": 318867,
+   "cache_read_tokens": 294065,
+   "output_tokens": 2511,
+   "cost_usd": 0.116506,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.2,
+    "all answered correctly": 62.3,
+    "first submit": 62.5,
+    "last submit": 62.5
+   },
+   "act_s": {
+    "input": 13.1,
+    "wait": 3.4,
+    "watch": 5.5,
+    "pause": 0.0,
+    "rest": 2.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 27.0,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 15.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 17.3,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-x11-25/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "cef-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 81.3,
+   "tools_s": 23.9,
+   "turn_s": 3.3,
+   "calls": 13,
+   "actions": 71,
+   "images": 33,
+   "errors": 0,
+   "input_tokens": 255219,
+   "cache_read_tokens": 232064,
+   "output_tokens": 1365,
+   "cost_usd": 0.083166,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 16.8,
+    "all answered correctly": 74.0,
+    "first submit": 78.3,
+    "last submit": 78.3
+   },
+   "act_s": {
+    "input": 14.7,
+    "wait": 3.1,
+    "watch": 3.6,
+    "pause": 0.0,
+    "rest": 1.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 30.9,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 14.2,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 7.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 22.1,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-x11-25/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "cef-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 77.2,
+   "tools_s": 27.0,
+   "turn_s": 3.7,
+   "calls": 11,
+   "actions": 68,
+   "images": 29,
+   "errors": 0,
+   "input_tokens": 215849,
+   "cache_read_tokens": 194176,
+   "output_tokens": 1206,
+   "cost_usd": 0.074824,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 14.6,
+    "all answered correctly": 69.0,
+    "first submit": 73.4,
+    "last submit": 73.4
+   },
+   "act_s": {
+    "input": 13.9,
+    "wait": 3.0,
+    "watch": 3.7,
+    "pause": 0.0,
+    "rest": 5.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 18.7,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 15.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 10.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 24.9,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-x11-25/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "cef-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 76.9,
+   "tools_s": 27.5,
+   "turn_s": 2.8,
+   "calls": 12,
+   "actions": 69,
+   "images": 29,
+   "errors": 0,
+   "input_tokens": 234444,
+   "cache_read_tokens": 220416,
+   "output_tokens": 1245,
+   "cost_usd": 0.062548,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 16.7,
+    "all answered correctly": 70.5,
+    "first submit": 73.8,
+    "last submit": 73.8
+   },
+   "act_s": {
+    "input": 14.0,
+    "wait": 2.8,
+    "watch": 3.6,
+    "pause": 0.0,
+    "rest": 6.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 20.0,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 20.8,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 1.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 28.4,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-osr-25/claude-api-claude-sonnet-5-5-medium-1",
+   "task": "form",
+   "variant": "cef-osr-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 70.2,
+   "tools_s": 26.6,
+   "turn_s": 2.9,
+   "calls": 15,
+   "actions": 78,
+   "images": 27,
+   "errors": 0,
+   "input_tokens": 295963,
+   "cache_read_tokens": 266083,
+   "output_tokens": 2501,
+   "cost_usd": 0.126303,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.1,
+    "all answered correctly": 59.1,
+    "first submit": 66.3,
+    "last submit": 66.3
+   },
+   "act_s": {
+    "input": 16.4,
+    "wait": 3.1,
+    "watch": 4.1,
+    "pause": 0.0,
+    "rest": 2.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 21.8,
+     "corrections": 4
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 7.2,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 16.5,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 14.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-osr-25/claude-api-claude-sonnet-5-5-medium-2",
+   "task": "form",
+   "variant": "cef-osr-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 85.9,
+   "tools_s": 33.5,
+   "turn_s": 2.4,
+   "calls": 17,
+   "actions": 71,
+   "images": 40,
+   "errors": 0,
+   "input_tokens": 357340,
+   "cache_read_tokens": 333681,
+   "output_tokens": 2523,
+   "cost_usd": 0.117729,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.0,
+    "all answered correctly": 76.2,
+    "first submit": 83.2,
+    "last submit": 83.2
+   },
+   "act_s": {
+    "input": 17.3,
+    "wait": 4.4,
+    "watch": 4.7,
+    "pause": 0.0,
+    "rest": 6.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 13.5,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 14.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 1.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 46.8,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-osr-25/claude-api-claude-sonnet-5-5-medium-3",
+   "task": "form",
+   "variant": "cef-osr-25",
+   "harness": "claude-api",
+   "model": "claude-sonnet-5-5",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "2.1.310 (Claude Code)",
+   "passed": true,
+   "wall_s": 63.1,
+   "tools_s": 26.8,
+   "turn_s": 2.4,
+   "calls": 13,
+   "actions": 68,
+   "images": 25,
+   "errors": 0,
+   "input_tokens": 234951,
+   "cache_read_tokens": 215622,
+   "output_tokens": 2194,
+   "cost_usd": 0.091812,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 6.7,
+    "all answered correctly": 55.5,
+    "first submit": 60.2,
+    "last submit": 60.2
+   },
+   "act_s": {
+    "input": 16.2,
+    "wait": 2.7,
+    "watch": 5.1,
+    "pause": 0.0,
+    "rest": 1.7
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.6,
+     "corrections": 2
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.2,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 11.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 16.7,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-osr-25/codex-gpt-6.1-sol-medium-1",
+   "task": "form",
+   "variant": "cef-osr-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 205.6,
+   "tools_s": 25.8,
+   "turn_s": 3.3,
+   "calls": 10,
+   "actions": 67,
+   "images": 27,
+   "errors": 0,
+   "input_tokens": 191960,
+   "cache_read_tokens": 178304,
+   "output_tokens": 1086,
+   "cost_usd": 0.056002,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 151.1,
+    "all answered correctly": 198.4,
+    "first submit": 202.0,
+    "last submit": 202.0
+   },
+   "act_s": {
+    "input": 13.8,
+    "wait": 2.1,
+    "watch": 3.2,
+    "pause": 0.0,
+    "rest": 5.6
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 155.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 18.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 1.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 24.0,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-osr-25/codex-gpt-6.1-sol-medium-2",
+   "task": "form",
+   "variant": "cef-osr-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 84.1,
+   "tools_s": 29.1,
+   "turn_s": 3.1,
+   "calls": 14,
+   "actions": 76,
+   "images": 31,
+   "errors": 0,
+   "input_tokens": 281297,
+   "cache_read_tokens": 265600,
+   "output_tokens": 1410,
+   "cost_usd": 0.072054,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 13.7,
+    "all answered correctly": 77.4,
+    "first submit": 80.1,
+    "last submit": 80.1
+   },
+   "act_s": {
+    "input": 14.8,
+    "wait": 2.6,
+    "watch": 4.2,
+    "pause": 0.0,
+    "rest": 6.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 17.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 1.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 41.6,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-osr-25/codex-gpt-6.1-sol-medium-3",
+   "task": "form",
+   "variant": "cef-osr-25",
+   "harness": "codex",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-25",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 66.9,
+   "tools_s": 27.5,
+   "turn_s": 2.6,
+   "calls": 12,
+   "actions": 70,
+   "images": 30,
+   "errors": 0,
+   "input_tokens": 232407,
+   "cache_read_tokens": 208768,
+   "output_tokens": 1282,
+   "cost_usd": 0.080975,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 11.5,
+    "all answered correctly": 62.7,
+    "first submit": 64.2,
+    "last submit": 64.2
+   },
+   "act_s": {
+    "input": 13.9,
+    "wait": 2.3,
+    "watch": 3.7,
+    "pause": 0.0,
+    "rest": 6.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 14.0,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 17.7,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 1.5,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 30.0,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-25/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 62.5,
+   "tools_s": 36.7,
+   "turn_s": 1.5,
+   "calls": 13,
+   "actions": 60,
+   "images": 17,
+   "errors": 0,
+   "input_tokens": 248196,
+   "cache_read_tokens": 215296,
+   "output_tokens": 1318,
+   "cost_usd": 0.050255,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.2,
+    "all answered correctly": 59.8,
+    "first submit": 60.0,
+    "last submit": 60.0
+   },
+   "act_s": {
+    "input": 13.2,
+    "wait": 7.0,
+    "watch": 6.2,
+    "pause": 0.0,
+    "rest": 9.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 18.0,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.2,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 24.3,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-25/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 62.9,
+   "tools_s": 36.5,
+   "turn_s": 1.6,
+   "calls": 12,
+   "actions": 59,
+   "images": 35,
+   "errors": 0,
+   "input_tokens": 240775,
+   "cache_read_tokens": 218880,
+   "output_tokens": 1335,
+   "cost_usd": 0.039514,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.5,
+    "all answered correctly": 58.8,
+    "first submit": 59.1,
+    "last submit": 59.1
+   },
+   "act_s": {
+    "input": 13.3,
+    "wait": 6.0,
+    "watch": 5.8,
+    "pause": 0.0,
+    "rest": 10.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 17.9,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 23.6,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-25/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 67.9,
+   "tools_s": 37.1,
+   "turn_s": 1.6,
+   "calls": 13,
+   "actions": 58,
+   "images": 17,
+   "errors": 0,
+   "input_tokens": 246992,
+   "cache_read_tokens": 205440,
+   "output_tokens": 1287,
+   "cost_usd": 0.058259,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.7,
+    "all answered correctly": 64.5,
+    "first submit": 64.9,
+    "last submit": 64.9
+   },
+   "act_s": {
+    "input": 13.1,
+    "wait": 6.0,
+    "watch": 6.8,
+    "pause": 0.0,
+    "rest": 10.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 23.4,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 12.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 20.6,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-qt-25/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "qt-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 46.5,
+   "tools_s": 25.9,
+   "turn_s": 1.7,
+   "calls": 8,
+   "actions": 70,
+   "images": 12,
+   "errors": 0,
+   "input_tokens": 178330,
+   "cache_read_tokens": 156288,
+   "output_tokens": 1034,
+   "cost_usd": 0.035026,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.9,
+    "all answered correctly": 39.7,
+    "first submit": 44.1,
+    "last submit": 44.1
+   },
+   "act_s": {
+    "input": 14.4,
+    "wait": 2.3,
+    "watch": 3.0,
+    "pause": 0.0,
+    "rest": 6.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 17.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 3.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.0,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 10.9,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-qt-25/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "qt-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 44.7,
+   "tools_s": 23.4,
+   "turn_s": 1.4,
+   "calls": 10,
+   "actions": 67,
+   "images": 27,
+   "errors": 0,
+   "input_tokens": 189718,
+   "cache_read_tokens": 170496,
+   "output_tokens": 1108,
+   "cost_usd": 0.033287,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 8.5,
+    "all answered correctly": 40.5,
+    "first submit": 42.5,
+    "last submit": 42.5
+   },
+   "act_s": {
+    "input": 13.7,
+    "wait": 2.0,
+    "watch": 3.5,
+    "pause": 0.0,
+    "rest": 4.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 15.4,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 3.9,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.8,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 11.7,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-qt-25/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "qt-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 45.4,
+   "tools_s": 25.5,
+   "turn_s": 1.8,
+   "calls": 8,
+   "actions": 66,
+   "images": 12,
+   "errors": 0,
+   "input_tokens": 178147,
+   "cache_read_tokens": 156160,
+   "output_tokens": 997,
+   "cost_usd": 0.03478,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 8.7,
+    "all answered correctly": 38.2,
+    "first submit": 42.9,
+    "last submit": 42.9
+   },
+   "act_s": {
+    "input": 14.2,
+    "wait": 2.2,
+    "watch": 3.0,
+    "pause": 0.0,
+    "rest": 6.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.1,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 3.7,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 7.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 11.0,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-25/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "gtk3-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 88.1,
+   "tools_s": 46.1,
+   "turn_s": 1.7,
+   "calls": 21,
+   "actions": 81,
+   "images": 41,
+   "errors": 0,
+   "input_tokens": 471719,
+   "cache_read_tokens": 442752,
+   "output_tokens": 2149,
+   "cost_usd": 0.06185,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 8.7,
+    "all answered correctly": 74.3,
+    "first submit": 85.7,
+    "last submit": 85.7
+   },
+   "act_s": {
+    "input": 13.9,
+    "wait": 7.9,
+    "watch": 7.6,
+    "pause": 0.0,
+    "rest": 16.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 14.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.7,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 15.3,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 39.2,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-25/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "gtk3-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 93.3,
+   "tools_s": 48.0,
+   "turn_s": 1.8,
+   "calls": 22,
+   "actions": 74,
+   "images": 43,
+   "errors": 0,
+   "input_tokens": 508864,
+   "cache_read_tokens": 451968,
+   "output_tokens": 2232,
+   "cost_usd": 0.090654,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.2,
+    "all answered correctly": 80.3,
+    "first submit": 90.3,
+    "last submit": 90.3
+   },
+   "act_s": {
+    "input": 14.2,
+    "wait": 8.7,
+    "watch": 7.5,
+    "pause": 0.0,
+    "rest": 17.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 18.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.7,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 13.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 42.6,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-25/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "gtk3-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 66.3,
+   "tools_s": 34.9,
+   "turn_s": 1.5,
+   "calls": 14,
+   "actions": 69,
+   "images": 34,
+   "errors": 0,
+   "input_tokens": 290318,
+   "cache_read_tokens": 266496,
+   "output_tokens": 1463,
+   "cost_usd": 0.044462,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 7.7,
+    "all answered correctly": 63.2,
+    "first submit": 63.7,
+    "last submit": 63.7
+   },
+   "act_s": {
+    "input": 12.3,
+    "wait": 6.6,
+    "watch": 6.5,
+    "pause": 0.0,
+    "rest": 9.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 12.9,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 11.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 29.8,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-tk-25/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "tk-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 79.6,
+   "tools_s": 31.1,
+   "turn_s": 2.2,
+   "calls": 19,
+   "actions": 62,
+   "images": 42,
+   "errors": 0,
+   "input_tokens": 404620,
+   "cache_read_tokens": 375936,
+   "output_tokens": 1676,
+   "cost_usd": 0.055861,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.5,
+    "all answered correctly": 73.8,
+    "first submit": 76.9,
+    "last submit": 76.9
+   },
+   "act_s": {
+    "input": 12.5,
+    "wait": 2.5,
+    "watch": 7.0,
+    "pause": 0.0,
+    "rest": 8.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 27.2,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.8,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 9.5,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 26.9,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-tk-25/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "tk-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 56.2,
+   "tools_s": 29.3,
+   "turn_s": 1.4,
+   "calls": 14,
+   "actions": 67,
+   "images": 42,
+   "errors": 0,
+   "input_tokens": 281299,
+   "cache_read_tokens": 258944,
+   "output_tokens": 1429,
+   "cost_usd": 0.042447,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.6,
+    "all answered correctly": 51.8,
+    "first submit": 53.9,
+    "last submit": 53.9
+   },
+   "act_s": {
+    "input": 12.5,
+    "wait": 3.5,
+    "watch": 6.1,
+    "pause": 0.0,
+    "rest": 6.2
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 14.7,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 7.3,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 11.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 19.0,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-tk-25/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "tk-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 61.7,
+   "tools_s": 30.6,
+   "turn_s": 1.5,
+   "calls": 15,
+   "actions": 69,
+   "images": 49,
+   "errors": 0,
+   "input_tokens": 307351,
+   "cache_read_tokens": 283520,
+   "output_tokens": 1531,
+   "cost_usd": 0.045662,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.7,
+    "all answered correctly": 56.2,
+    "first submit": 58.5,
+    "last submit": 58.5
+   },
+   "act_s": {
+    "input": 12.8,
+    "wait": 4.0,
+    "watch": 6.9,
+    "pause": 0.0,
+    "rest": 5.8
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 19.6,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 4.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 16.5,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 16.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-25/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "electron-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 62.7,
+   "tools_s": 31.6,
+   "turn_s": 2.2,
+   "calls": 10,
+   "actions": 72,
+   "images": 16,
+   "errors": 0,
+   "input_tokens": 231890,
+   "cache_read_tokens": 206336,
+   "output_tokens": 1171,
+   "cost_usd": 0.041726,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.7,
+    "all answered correctly": 55.9,
+    "first submit": 60.2,
+    "last submit": 60.2
+   },
+   "act_s": {
+    "input": 14.6,
+    "wait": 4.0,
+    "watch": 4.5,
+    "pause": 0.0,
+    "rest": 8.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 18.0,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.8,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 10.4,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 18.1,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-25/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "electron-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 56.8,
+   "tools_s": 30.7,
+   "turn_s": 1.7,
+   "calls": 9,
+   "actions": 70,
+   "images": 15,
+   "errors": 0,
+   "input_tokens": 207664,
+   "cache_read_tokens": 182400,
+   "output_tokens": 1089,
+   "cost_usd": 0.039829,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.3,
+    "all answered correctly": 50.5,
+    "first submit": 54.4,
+    "last submit": 54.4
+   },
+   "act_s": {
+    "input": 14.2,
+    "wait": 4.0,
+    "watch": 4.0,
+    "pause": 0.0,
+    "rest": 8.4
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 17.7,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.5,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 7.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 16.1,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-25/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "electron-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 56.1,
+   "tools_s": 30.0,
+   "turn_s": 1.7,
+   "calls": 9,
+   "actions": 70,
+   "images": 14,
+   "errors": 0,
+   "input_tokens": 207131,
+   "cache_read_tokens": 183168,
+   "output_tokens": 1075,
+   "cost_usd": 0.038496,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.5,
+    "all answered correctly": 46.0,
+    "first submit": 53.9,
+    "last submit": 53.9
+   },
+   "act_s": {
+    "input": 14.5,
+    "wait": 3.6,
+    "watch": 3.5,
+    "pause": 0.0,
+    "rest": 8.2
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 17.5,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 9.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 11.2,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-25/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "cef-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 51.1,
+   "tools_s": 29.8,
+   "turn_s": 1.8,
+   "calls": 8,
+   "actions": 66,
+   "images": 14,
+   "errors": 0,
+   "input_tokens": 183164,
+   "cache_read_tokens": 158464,
+   "output_tokens": 981,
+   "cost_usd": 0.037528,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 8.7,
+    "all answered correctly": 43.8,
+    "first submit": 48.6,
+    "last submit": 48.6
+   },
+   "act_s": {
+    "input": 14.3,
+    "wait": 3.6,
+    "watch": 3.5,
+    "pause": 0.0,
+    "rest": 8.3
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.1,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.6,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 6.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 11.6,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-25/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "cef-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 57.3,
+   "tools_s": 32.0,
+   "turn_s": 1.9,
+   "calls": 10,
+   "actions": 74,
+   "images": 16,
+   "errors": 0,
+   "input_tokens": 231975,
+   "cache_read_tokens": 207360,
+   "output_tokens": 1220,
+   "cost_usd": 0.041083,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 8.7,
+    "all answered correctly": 50.0,
+    "first submit": 54.6,
+    "last submit": 54.6
+   },
+   "act_s": {
+    "input": 14.7,
+    "wait": 4.0,
+    "watch": 4.5,
+    "pause": 0.0,
+    "rest": 8.6
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 16.2,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.8,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 6.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 16.9,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-25/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "cef-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 57.1,
+   "tools_s": 32.5,
+   "turn_s": 1.7,
+   "calls": 10,
+   "actions": 72,
+   "images": 16,
+   "errors": 0,
+   "input_tokens": 231887,
+   "cache_read_tokens": 207360,
+   "output_tokens": 1180,
+   "cost_usd": 0.040795,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.8,
+    "all answered correctly": 49.8,
+    "first submit": 53.8,
+    "last submit": 53.8
+   },
+   "act_s": {
+    "input": 14.6,
+    "wait": 4.1,
+    "watch": 4.5,
+    "pause": 0.0,
+    "rest": 9.2
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 17.5,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.4,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 6.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 16.1,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-x11-25/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "gtk3-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 98.1,
+   "tools_s": 48.3,
+   "turn_s": 1.4,
+   "calls": 26,
+   "actions": 69,
+   "images": 47,
+   "errors": 0,
+   "input_tokens": 630068,
+   "cache_read_tokens": 596992,
+   "output_tokens": 2251,
+   "cost_usd": 0.074181,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.4,
+    "all answered correctly": 85.8,
+    "first submit": 95.9,
+    "last submit": 95.9
+   },
+   "act_s": {
+    "input": 13.4,
+    "wait": 8.1,
+    "watch": 9.0,
+    "pause": 0.0,
+    "rest": 16.7
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 30.9,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 16.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 8.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 30.6,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-x11-25/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "gtk3-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 97.6,
+   "tools_s": 45.0,
+   "turn_s": 1.5,
+   "calls": 26,
+   "actions": 68,
+   "images": 51,
+   "errors": 0,
+   "input_tokens": 652936,
+   "cache_read_tokens": 617344,
+   "output_tokens": 2309,
+   "cost_usd": 0.078004,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.0,
+    "all answered correctly": 88.8,
+    "first submit": 94.0,
+    "last submit": 94.0
+   },
+   "act_s": {
+    "input": 13.8,
+    "wait": 8.1,
+    "watch": 9.9,
+    "pause": 0.0,
+    "rest": 12.2
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 37.1,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 10.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 15.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 26.5,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-gtk3-x11-25/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "gtk3-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 83.0,
+   "tools_s": 43.0,
+   "turn_s": 1.4,
+   "calls": 22,
+   "actions": 68,
+   "images": 39,
+   "errors": 0,
+   "input_tokens": 486336,
+   "cache_read_tokens": 458240,
+   "output_tokens": 2000,
+   "cost_usd": 0.061008,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 11.2,
+    "all answered correctly": 79.8,
+    "first submit": 80.3,
+    "last submit": 80.3
+   },
+   "act_s": {
+    "input": 13.2,
+    "wait": 6.3,
+    "watch": 8.4,
+    "pause": 0.0,
+    "rest": 14.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 25.8,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 11.1,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 32.2,
+     "corrections": 0
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-x11-25/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "electron-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 51.0,
+   "tools_s": 23.8,
+   "turn_s": 1.5,
+   "calls": 12,
+   "actions": 71,
+   "images": 13,
+   "errors": 0,
+   "input_tokens": 229107,
+   "cache_read_tokens": 206976,
+   "output_tokens": 1327,
+   "cost_usd": 0.039115,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.4,
+    "all answered correctly": 48.3,
+    "first submit": 48.6,
+    "last submit": 48.6
+   },
+   "act_s": {
+    "input": 14.5,
+    "wait": 2.8,
+    "watch": 4.0,
+    "pause": 0.0,
+    "rest": 1.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 27.7,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.6,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 13.9,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-x11-25/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "electron-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 55.3,
+   "tools_s": 26.2,
+   "turn_s": 1.6,
+   "calls": 14,
+   "actions": 84,
+   "images": 15,
+   "errors": 0,
+   "input_tokens": 270618,
+   "cache_read_tokens": 238080,
+   "output_tokens": 1544,
+   "cost_usd": 0.052162,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.3,
+    "all answered correctly": 48.4,
+    "first submit": 52.9,
+    "last submit": 52.9
+   },
+   "act_s": {
+    "input": 15.1,
+    "wait": 3.4,
+    "watch": 5.0,
+    "pause": 0.0,
+    "rest": 1.7
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 28.8,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 4.8,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 12.5,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-electron-x11-25/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "electron-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 52.7,
+   "tools_s": 24.6,
+   "turn_s": 1.7,
+   "calls": 12,
+   "actions": 85,
+   "images": 12,
+   "errors": 0,
+   "input_tokens": 229084,
+   "cache_read_tokens": 202496,
+   "output_tokens": 1410,
+   "cost_usd": 0.043763,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.1,
+    "all answered correctly": 45.4,
+    "first submit": 50.1,
+    "last submit": 50.1
+   },
+   "act_s": {
+    "input": 15.2,
+    "wait": 2.9,
+    "watch": 4.0,
+    "pause": 0.0,
+    "rest": 1.5
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 24.5,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.2,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.5,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 13.5,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-x11-25/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "cef-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 57.2,
+   "tools_s": 24.4,
+   "turn_s": 2.0,
+   "calls": 14,
+   "actions": 74,
+   "images": 37,
+   "errors": 0,
+   "input_tokens": 283501,
+   "cache_read_tokens": 259200,
+   "output_tokens": 1403,
+   "cost_usd": 0.044276,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.8,
+    "all answered correctly": 54.3,
+    "first submit": 54.5,
+    "last submit": 54.5
+   },
+   "act_s": {
+    "input": 14.6,
+    "wait": 3.5,
+    "watch": 3.6,
+    "pause": 0.0,
+    "rest": 1.7
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 31.5,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 5.6,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 2.1,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 15.4,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-x11-25/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "cef-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 54.8,
+   "tools_s": 28.8,
+   "turn_s": 1.6,
+   "calls": 12,
+   "actions": 73,
+   "images": 14,
+   "errors": 0,
+   "input_tokens": 226331,
+   "cache_read_tokens": 205824,
+   "output_tokens": 1280,
+   "cost_usd": 0.037198,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 9.5,
+    "all answered correctly": 52.1,
+    "first submit": 52.4,
+    "last submit": 52.4
+   },
+   "act_s": {
+    "input": 14.4,
+    "wait": 3.0,
+    "watch": 4.1,
+    "pause": 0.0,
+    "rest": 6.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 18.4,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.7,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 6.3,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 16.9,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-x11-25/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "cef-x11-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 66.7,
+   "tools_s": 37.7,
+   "turn_s": 1.6,
+   "calls": 13,
+   "actions": 78,
+   "images": 19,
+   "errors": 0,
+   "input_tokens": 317053,
+   "cache_read_tokens": 281600,
+   "output_tokens": 1389,
+   "cost_usd": 0.056478,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.4,
+    "all answered correctly": 59.3,
+    "first submit": 64.5,
+    "last submit": 64.5
+   },
+   "act_s": {
+    "input": 15.0,
+    "wait": 4.7,
+    "watch": 4.9,
+    "pause": 0.0,
+    "rest": 11.9
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 17.9,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 11.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 6.3,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 24.6,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-osr-25/codex-gpt-6.1-terra-medium-1",
+   "task": "form",
+   "variant": "cef-osr-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 1,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 59.2,
+   "tools_s": 27.6,
+   "turn_s": 1.8,
+   "calls": 12,
+   "actions": 72,
+   "images": 12,
+   "errors": 0,
+   "input_tokens": 222592,
+   "cache_read_tokens": 190336,
+   "output_tokens": 1298,
+   "cost_usd": 0.048263,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 12.0,
+    "all answered correctly": 54.6,
+    "first submit": 56.2,
+    "last submit": 56.2
+   },
+   "act_s": {
+    "input": 14.3,
+    "wait": 2.4,
+    "watch": 3.7,
+    "pause": 0.0,
+    "rest": 6.1
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 14.3,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 18.6,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 1.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 20.1,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-osr-25/codex-gpt-6.1-terra-medium-2",
+   "task": "form",
+   "variant": "cef-osr-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 2,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 56.2,
+   "tools_s": 27.2,
+   "turn_s": 1.8,
+   "calls": 11,
+   "actions": 70,
+   "images": 29,
+   "errors": 0,
+   "input_tokens": 213039,
+   "cache_read_tokens": 193408,
+   "output_tokens": 1201,
+   "cost_usd": 0.035306,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 10.1,
+    "all answered correctly": 52.9,
+    "first submit": 53.6,
+    "last submit": 53.6
+   },
+   "act_s": {
+    "input": 14.1,
+    "wait": 2.6,
+    "watch": 3.6,
+    "pause": 0.0,
+    "rest": 5.8
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 12.5,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 17.1,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 1.7,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 22.0,
+     "corrections": 1
+    }
+   }
+  },
+  {
+   "run": "toolkit-cef-osr-25/codex-gpt-6.1-terra-medium-3",
+   "task": "form",
+   "variant": "cef-osr-25",
+   "harness": "codex",
+   "model": "gpt-6.1-terra",
+   "effort": "medium",
+   "ran_at": "medium",
+   "rep": 3,
+   "date": "2026-10-26",
+   "harness_version": "codex-cli 0.164.0",
+   "passed": true,
+   "wall_s": 55.7,
+   "tools_s": 27.2,
+   "turn_s": 1.6,
+   "calls": 12,
+   "actions": 70,
+   "images": 29,
+   "errors": 0,
+   "input_tokens": 234426,
+   "cache_read_tokens": 213760,
+   "output_tokens": 1272,
+   "cost_usd": 0.037714,
+   "user_undisturbed": true,
+   "phases": {
+    "first answer": 11.4,
+    "all answered correctly": 51.5,
+    "first submit": 53.5,
+    "last submit": 53.5
+   },
+   "act_s": {
+    "input": 14.1,
+    "wait": 2.3,
+    "watch": 3.7,
+    "pause": 0.0,
+    "rest": 6.0
+   },
+   "kinds": {
+    "checkbox": {
+     "items": 7,
+     "seconds": 14.9,
+     "corrections": 0
+    },
+    "slider": {
+     "items": 6,
+     "seconds": 13.0,
+     "corrections": 0
+    },
+    "text": {
+     "items": 6,
+     "seconds": 1.9,
+     "corrections": 0
+    },
+    "dropdown": {
+     "items": 6,
+     "seconds": 22.6,
+     "corrections": 1
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,280 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="610" viewBox="0 0 880 610" role="img" aria-label="Wall time per run of each task before the change and after it: the median over all agents, with the median time in hyprmasq&#x27;s tools inside it, a dot per run, and the runs passed.">
+<title>Wall time per run of each task before the change and after it: the median over all agents, with the median time in hyprmasq&#x27;s tools inside it, a dot per run, and the runs passed.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.tools{fill:#3987e5}.out{fill:#454c56}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.miss{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.pass{fill:#3fb950}.fail{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.cut{stroke:#0d1117;stroke-width:2}.s0{fill:#3987e5}.s1{fill:#d95926}.s2{fill:#199e70}.s3{fill:#c98500}.s4{fill:#d55181}.s5{fill:#008300}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
+<rect x="0.5" y="0.5" width="879" height="609" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Wall time per run, before the change and after it</text>
+<text x="24" y="53" class="t2" font-size="12.5">Each bar is the median wall time of a task&#x27;s runs over all agents, written at the right with the runs</text>
+<text x="24" y="72" class="t2" font-size="12.5">passed. Its blue part is the median time in hyprmasq&#x27;s MCP tools. Each dot is one run.</text>
+<rect x="24" y="89" width="12" height="10" class="tools" rx="2"/>
+<text x="42" y="98" class="t2" font-size="12">median in hyprmasq&#x27;s tools</text>
+<rect x="209" y="89" width="12" height="10" class="out" rx="2"/>
+<text x="227" y="98" class="t2" font-size="12">rest of the median wall time</text>
+<circle cx="400.1" cy="94" r="4.5" class="dot"/>
+<text x="410.1" y="98" class="t2" font-size="12">one run</text>
+<circle cx="477.8" cy="94" r="4.5" class="miss"/>
+<text x="487.8" y="98" class="t2" font-size="12">failed run</text>
+<text x="800" y="128" class="t2" font-size="12" text-anchor="end" font-weight="600">Median</text>
+<text x="856" y="128" class="t2" font-size="12" text-anchor="end" font-weight="600">Passed</text>
+<line x1="172.8" y1="136" x2="172.8" y2="576" class="axis"/>
+<text x="172.8" y="591" class="m" font-size="11">0</text>
+<line x1="430.4" y1="136" x2="430.4" y2="576" class="grid"/>
+<text x="430.4" y="591" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="687.9" y1="136" x2="687.9" y2="576" class="grid"/>
+<text x="687.9" y="591" class="m" font-size="11" text-anchor="middle">100 s</text>
+<text x="24" y="151.5" class="t" font-size="12.5" font-weight="600">board-dnd</text>
+<text x="160.8" y="151.5" class="t2" font-size="12" text-anchor="end">before</text>
+<rect x="172.8" y="141" width="68.2" height="12" class="tools"/>
+<path d="M243.1 141H340.1Q343.1 141 343.1 144V150Q343.1 153 340.1 153H243.1Z" class="out"/>
+<circle cx="301.1" cy="147" r="3.5" class="dot"/>
+<circle cx="317.6" cy="147" r="3.5" class="dot"/>
+<circle cx="321.7" cy="147" r="3.5" class="dot"/>
+<circle cx="323.7" cy="147" r="3.5" class="dot"/>
+<circle cx="324.3" cy="147" r="3.5" class="dot"/>
+<circle cx="325.3" cy="147" r="3.5" class="dot"/>
+<circle cx="360.8" cy="147" r="3.5" class="dot"/>
+<circle cx="372.2" cy="147" r="3.5" class="dot"/>
+<circle cx="390.2" cy="147" r="3.5" class="dot"/>
+<circle cx="392.8" cy="147" r="3.5" class="dot"/>
+<circle cx="409.2" cy="147" r="3.5" class="dot"/>
+<circle cx="491.1" cy="147" r="3.5" class="dot"/>
+<text x="800" y="151.5" class="t2" font-size="12" text-anchor="end">33 s</text>
+<text x="856" y="151.5" class="t2" font-size="12" text-anchor="end">12/12</text>
+<text x="160.8" y="173.5" class="t2" font-size="12" text-anchor="end">after</text>
+<rect x="172.8" y="163" width="64.9" height="12" class="tools"/>
+<path d="M239.7 163H348.8Q351.8 163 351.8 166V172Q351.8 175 348.8 175H239.7Z" class="out"/>
+<circle cx="306.2" cy="169" r="3.5" class="dot"/>
+<circle cx="307.3" cy="169" r="3.5" class="dot"/>
+<circle cx="316.5" cy="169" r="3.5" class="dot"/>
+<circle cx="320.1" cy="169" r="3.5" class="dot"/>
+<circle cx="324.8" cy="169" r="3.5" class="dot"/>
+<circle cx="327.9" cy="169" r="3.5" class="dot"/>
+<circle cx="375.8" cy="169" r="3.5" class="dot"/>
+<circle cx="419.5" cy="169" r="3" class="miss"/>
+<circle cx="435" cy="169" r="3.5" class="dot"/>
+<circle cx="451" cy="169" r="3.5" class="dot"/>
+<circle cx="508.7" cy="169" r="3.5" class="dot"/>
+<circle cx="513.8" cy="169" r="3.5" class="dot"/>
+<text x="800" y="173.5" class="t2" font-size="12" text-anchor="end">35 s</text>
+<text x="856" y="173.5" class="t2" font-size="12" text-anchor="end">11/12</text>
+<text x="24" y="207.5" class="t" font-size="12.5" font-weight="600">board-pointer</text>
+<text x="160.8" y="207.5" class="t2" font-size="12" text-anchor="end">before</text>
+<rect x="172.8" y="197" width="67" height="12" class="tools"/>
+<path d="M241.8 197H390.5Q393.5 197 393.5 200V206Q393.5 209 390.5 209H241.8Z" class="out"/>
+<circle cx="292.3" cy="203" r="3.5" class="dot"/>
+<circle cx="303.6" cy="203" r="3.5" class="dot"/>
+<circle cx="318.1" cy="203" r="3.5" class="dot"/>
+<circle cx="329.4" cy="203" r="3" class="miss"/>
+<circle cx="383" cy="203" r="3" class="miss"/>
+<circle cx="388.1" cy="203" r="3.5" class="dot"/>
+<circle cx="398.9" cy="203" r="3.5" class="dot"/>
+<circle cx="416.5" cy="203" r="3.5" class="dot"/>
+<circle cx="424.2" cy="203" r="3.5" class="dot"/>
+<circle cx="427.8" cy="203" r="3.5" class="dot"/>
+<circle cx="440.7" cy="203" r="3" class="miss"/>
+<circle cx="508.7" cy="203" r="3.5" class="dot"/>
+<text x="800" y="207.5" class="t2" font-size="12" text-anchor="end">43 s</text>
+<text x="856" y="207.5" class="t2" font-size="12" text-anchor="end">9/12</text>
+<text x="160.8" y="229.5" class="t2" font-size="12" text-anchor="end">after</text>
+<rect x="172.8" y="219" width="65.4" height="12" class="tools"/>
+<path d="M240.2 219H369.2Q372.2 219 372.2 222V228Q372.2 231 369.2 231H240.2Z" class="out"/>
+<circle cx="296.4" cy="225" r="3.5" class="dot"/>
+<circle cx="306.2" cy="225" r="3.5" class="dot"/>
+<circle cx="316" cy="225" r="3.5" class="dot"/>
+<circle cx="332" cy="225" r="3" class="miss"/>
+<circle cx="339.2" cy="225" r="3" class="miss"/>
+<circle cx="365.5" cy="225" r="3.5" class="dot"/>
+<circle cx="378.9" cy="225" r="3.5" class="dot"/>
+<circle cx="404.1" cy="225" r="3.5" class="dot"/>
+<circle cx="423.1" cy="225" r="3.5" class="dot"/>
+<circle cx="428.8" cy="225" r="3.5" class="dot"/>
+<circle cx="445.8" cy="225" r="3" class="miss"/>
+<circle cx="543.7" cy="225" r="3.5" class="dot"/>
+<text x="800" y="229.5" class="t2" font-size="12" text-anchor="end">39 s</text>
+<text x="856" y="229.5" class="t2" font-size="12" text-anchor="end">9/12</text>
+<text x="24" y="263.5" class="t" font-size="12.5" font-weight="600">calc</text>
+<text x="160.8" y="263.5" class="t2" font-size="12" text-anchor="end">before</text>
+<rect x="172.8" y="253" width="93.7" height="12" class="tools"/>
+<path d="M268.6 253H479.1Q482.1 253 482.1 256V262Q482.1 265 479.1 265H268.6Z" class="out"/>
+<circle cx="400.5" cy="259" r="3.5" class="dot"/>
+<circle cx="443.2" cy="259" r="3.5" class="dot"/>
+<circle cx="458.2" cy="259" r="3.5" class="dot"/>
+<circle cx="468.5" cy="259" r="3.5" class="dot"/>
+<circle cx="495.8" cy="259" r="3.5" class="dot"/>
+<circle cx="515.3" cy="259" r="3.5" class="dot"/>
+<circle cx="515.3" cy="259" r="3.5" class="dot"/>
+<circle cx="562.2" cy="259" r="3.5" class="dot"/>
+<text x="800" y="263.5" class="t2" font-size="12" text-anchor="end">60 s</text>
+<text x="856" y="263.5" class="t2" font-size="12" text-anchor="end">8/8</text>
+<text x="160.8" y="285.5" class="t2" font-size="12" text-anchor="end">after</text>
+<rect x="172.8" y="275" width="84.7" height="12" class="tools"/>
+<path d="M259.5 275H445.1Q448.1 275 448.1 278V284Q448.1 287 445.1 287H259.5Z" class="out"/>
+<circle cx="367.5" cy="281" r="3.5" class="dot"/>
+<circle cx="392.8" cy="281" r="3.5" class="dot"/>
+<circle cx="406.7" cy="281" r="3.5" class="dot"/>
+<circle cx="425.2" cy="281" r="3.5" class="dot"/>
+<circle cx="471" cy="281" r="3.5" class="dot"/>
+<circle cx="496.3" cy="281" r="3.5" class="dot"/>
+<circle cx="500.9" cy="281" r="3.5" class="dot"/>
+<circle cx="592.1" cy="281" r="3.5" class="dot"/>
+<text x="800" y="285.5" class="t2" font-size="12" text-anchor="end">53 s</text>
+<text x="856" y="285.5" class="t2" font-size="12" text-anchor="end">8/8</text>
+<text x="24" y="319.5" class="t" font-size="12.5" font-weight="600">forgejo</text>
+<text x="160.8" y="319.5" class="t2" font-size="12" text-anchor="end">before</text>
+<rect x="172.8" y="309" width="105.3" height="12" class="tools"/>
+<path d="M280.2 309H442.3Q445.3 309 445.3 312V318Q445.3 321 442.3 321H280.2Z" class="out"/>
+<circle cx="419.5" cy="315" r="3.5" class="dot"/>
+<circle cx="429.3" cy="315" r="3.5" class="dot"/>
+<circle cx="437.1" cy="315" r="3.5" class="dot"/>
+<circle cx="437.6" cy="315" r="3.5" class="dot"/>
+<circle cx="453" cy="315" r="3.5" class="dot"/>
+<circle cx="459.2" cy="315" r="3.5" class="dot"/>
+<circle cx="502.5" cy="315" r="3.5" class="dot"/>
+<circle cx="511.2" cy="315" r="3.5" class="dot"/>
+<text x="800" y="319.5" class="t2" font-size="12" text-anchor="end">53 s</text>
+<text x="856" y="319.5" class="t2" font-size="12" text-anchor="end">8/8</text>
+<text x="160.8" y="341.5" class="t2" font-size="12" text-anchor="end">after</text>
+<rect x="172.8" y="331" width="107.7" height="12" class="tools"/>
+<path d="M282.5 331H440Q443 331 443 334V340Q443 343 440 343H282.5Z" class="out"/>
+<circle cx="417.5" cy="337" r="3.5" class="dot"/>
+<circle cx="424.7" cy="337" r="3.5" class="dot"/>
+<circle cx="424.7" cy="337" r="3.5" class="dot"/>
+<circle cx="438.1" cy="337" r="3.5" class="dot"/>
+<circle cx="447.9" cy="337" r="3.5" class="dot"/>
+<circle cx="460.2" cy="337" r="3.5" class="dot"/>
+<circle cx="499.9" cy="337" r="3.5" class="dot"/>
+<circle cx="500.9" cy="337" r="3.5" class="dot"/>
+<text x="800" y="341.5" class="t2" font-size="12" text-anchor="end">52 s</text>
+<text x="856" y="341.5" class="t2" font-size="12" text-anchor="end">8/8</text>
+<text x="24" y="375.5" class="t" font-size="12.5" font-weight="600">form</text>
+<text x="160.8" y="375.5" class="t2" font-size="12" text-anchor="end">before</text>
+<rect x="172.8" y="365" width="191.1" height="12" class="tools"/>
+<path d="M365.9 365H572.6Q575.6 365 575.6 368V374Q575.6 377 572.6 377H365.9Z" class="out"/>
+<circle cx="475.2" cy="371" r="3.5" class="dot"/>
+<circle cx="511.2" cy="371" r="3.5" class="dot"/>
+<circle cx="530.3" cy="371" r="3.5" class="dot"/>
+<circle cx="532.3" cy="371" r="3.5" class="dot"/>
+<circle cx="543.2" cy="371" r="3.5" class="dot"/>
+<circle cx="569.4" cy="371" r="3.5" class="dot"/>
+<circle cx="581.8" cy="371" r="3.5" class="dot"/>
+<circle cx="590.5" cy="371" r="3.5" class="dot"/>
+<circle cx="613.7" cy="371" r="3.5" class="dot"/>
+<circle cx="644.6" cy="371" r="3.5" class="dot"/>
+<circle cx="686.9" cy="371" r="3.5" class="dot"/>
+<circle cx="716.2" cy="371" r="3.5" class="dot"/>
+<text x="800" y="375.5" class="t2" font-size="12" text-anchor="end">78 s</text>
+<text x="856" y="375.5" class="t2" font-size="12" text-anchor="end">12/12</text>
+<text x="160.8" y="397.5" class="t2" font-size="12" text-anchor="end">after</text>
+<rect x="172.8" y="387" width="180.8" height="12" class="tools"/>
+<path d="M355.6 387H574.4Q577.4 387 577.4 390V396Q577.4 399 574.4 399H355.6Z" class="out"/>
+<circle cx="487" cy="393" r="3.5" class="dot"/>
+<circle cx="512.8" cy="393" r="3.5" class="dot"/>
+<circle cx="515.9" cy="393" r="3.5" class="dot"/>
+<circle cx="559.1" cy="393" r="3.5" class="dot"/>
+<circle cx="569.4" cy="393" r="3.5" class="dot"/>
+<circle cx="570.5" cy="393" r="3.5" class="dot"/>
+<circle cx="584.4" cy="393" r="3.5" class="dot"/>
+<circle cx="600.9" cy="393" r="3.5" class="dot"/>
+<circle cx="614.2" cy="393" r="3.5" class="dot"/>
+<circle cx="632.3" cy="393" r="3.5" class="dot"/>
+<circle cx="647.7" cy="393" r="3.5" class="dot"/>
+<circle cx="666.3" cy="393" r="3.5" class="dot"/>
+<text x="800" y="397.5" class="t2" font-size="12" text-anchor="end">79 s</text>
+<text x="856" y="397.5" class="t2" font-size="12" text-anchor="end">12/12</text>
+<text x="24" y="431.5" class="t" font-size="12.5" font-weight="600">thunderbird</text>
+<text x="160.8" y="431.5" class="t2" font-size="12" text-anchor="end">before</text>
+<rect x="172.8" y="421" width="169.2" height="12" class="tools"/>
+<path d="M344 421H583.7Q586.7 421 586.7 424V430Q586.7 433 583.7 433H344Z" class="out"/>
+<circle cx="516.9" cy="427" r="3.5" class="dot"/>
+<circle cx="521" cy="427" r="3" class="miss"/>
+<circle cx="547.8" cy="427" r="3.5" class="dot"/>
+<circle cx="548.3" cy="427" r="3.5" class="dot"/>
+<circle cx="625.1" cy="427" r="3.5" class="dot"/>
+<circle cx="639.5" cy="427" r="3.5" class="dot"/>
+<circle cx="703.4" cy="427" r="3.5" class="dot"/>
+<circle cx="719.3" cy="427" r="3.5" class="dot"/>
+<text x="800" y="431.5" class="t2" font-size="12" text-anchor="end">80 s</text>
+<text x="856" y="431.5" class="t2" font-size="12" text-anchor="end">7/8</text>
+<text x="160.8" y="453.5" class="t2" font-size="12" text-anchor="end">after</text>
+<rect x="172.8" y="443" width="158.6" height="12" class="tools"/>
+<path d="M333.5 443H598.9Q601.9 443 601.9 446V452Q601.9 455 598.9 455H333.5Z" class="out"/>
+<circle cx="461.8" cy="449" r="3.5" class="dot"/>
+<circle cx="502.5" cy="449" r="3.5" class="dot"/>
+<circle cx="503.5" cy="449" r="3.5" class="dot"/>
+<circle cx="590" cy="449" r="3.5" class="dot"/>
+<circle cx="613.7" cy="449" r="3.5" class="dot"/>
+<circle cx="618.4" cy="449" r="3.5" class="dot"/>
+<circle cx="691" cy="449" r="3.5" class="dot"/>
+<circle cx="724" cy="449" r="3.5" class="dot"/>
+<text x="800" y="453.5" class="t2" font-size="12" text-anchor="end">83 s</text>
+<text x="856" y="453.5" class="t2" font-size="12" text-anchor="end">8/8</text>
+<text x="24" y="487.5" class="t" font-size="12.5" font-weight="600">trace-river</text>
+<text x="160.8" y="487.5" class="t2" font-size="12" text-anchor="end">before</text>
+<rect x="172.8" y="477" width="39.4" height="12" class="tools"/>
+<path d="M214.2 477H343.1Q346.1 477 346.1 480V486Q346.1 489 343.1 489H214.2Z" class="out"/>
+<circle cx="255.2" cy="483" r="3.5" class="dot"/>
+<circle cx="255.7" cy="483" r="3.5" class="dot"/>
+<circle cx="267.6" cy="483" r="3.5" class="dot"/>
+<circle cx="276.3" cy="483" r="3.5" class="dot"/>
+<circle cx="300.6" cy="483" r="3.5" class="dot"/>
+<circle cx="335.1" cy="483" r="3.5" class="dot"/>
+<circle cx="357.2" cy="483" r="3.5" class="dot"/>
+<circle cx="375.2" cy="483" r="3.5" class="dot"/>
+<circle cx="395.8" cy="483" r="3.5" class="dot"/>
+<circle cx="401" cy="483" r="3.5" class="dot"/>
+<circle cx="516.4" cy="483" r="3.5" class="dot"/>
+<circle cx="573" cy="483" r="3.5" class="dot"/>
+<text x="800" y="487.5" class="t2" font-size="12" text-anchor="end">34 s</text>
+<text x="856" y="487.5" class="t2" font-size="12" text-anchor="end">12/12</text>
+<text x="160.8" y="509.5" class="t2" font-size="12" text-anchor="end">after</text>
+<rect x="172.8" y="499" width="14.2" height="12" class="tools"/>
+<path d="M189 499H297.6Q300.6 499 300.6 502V508Q300.6 511 297.6 511H189Z" class="out"/>
+<circle cx="233.1" cy="505" r="3.5" class="dot"/>
+<circle cx="244.9" cy="505" r="3.5" class="dot"/>
+<circle cx="273.8" cy="505" r="3.5" class="dot"/>
+<circle cx="275.3" cy="505" r="3.5" class="dot"/>
+<circle cx="281" cy="505" r="3" class="miss"/>
+<circle cx="283.6" cy="505" r="3.5" class="dot"/>
+<circle cx="317.6" cy="505" r="3.5" class="dot"/>
+<circle cx="332" cy="505" r="3.5" class="dot"/>
+<circle cx="347.9" cy="505" r="3.5" class="dot"/>
+<circle cx="352.6" cy="505" r="3.5" class="dot"/>
+<circle cx="373.7" cy="505" r="3.5" class="dot"/>
+<circle cx="461.3" cy="505" r="3.5" class="dot"/>
+<text x="800" y="509.5" class="t2" font-size="12" text-anchor="end">25 s</text>
+<text x="856" y="509.5" class="t2" font-size="12" text-anchor="end">11/12</text>
+<text x="24" y="543.5" class="t" font-size="12.5" font-weight="600">trace-rack</text>
+<text x="160.8" y="543.5" class="t2" font-size="12" text-anchor="end">before</text>
+<rect x="172.8" y="533" width="24.5" height="12" class="tools"/>
+<path d="M199.3 533H327.2Q330.2 533 330.2 536V542Q330.2 545 327.2 545H199.3Z" class="out"/>
+<circle cx="252.1" cy="539" r="3.5" class="dot"/>
+<circle cx="253.2" cy="539" r="3.5" class="dot"/>
+<circle cx="259.9" cy="539" r="3.5" class="dot"/>
+<circle cx="280" cy="539" r="3" class="miss"/>
+<circle cx="285.6" cy="539" r="3" class="miss"/>
+<circle cx="326.3" cy="539" r="3.5" class="dot"/>
+<circle cx="334" cy="539" r="3.5" class="dot"/>
+<circle cx="339.2" cy="539" r="3.5" class="dot"/>
+<circle cx="380.9" cy="539" r="3" class="miss"/>
+<circle cx="383" cy="539" r="3.5" class="dot"/>
+<circle cx="389.2" cy="539" r="3.5" class="dot"/>
+<circle cx="395.3" cy="539" r="3" class="miss"/>
+<text x="800" y="543.5" class="t2" font-size="12" text-anchor="end">31 s</text>
+<text x="856" y="543.5" class="t2" font-size="12" text-anchor="end">8/12</text>
+<text x="160.8" y="565.5" class="t2" font-size="12" text-anchor="end">after</text>
+<rect x="172.8" y="555" width="13.6" height="12" class="tools"/>
+<path d="M188.5 555H308.1Q311.1 555 311.1 558V564Q311.1 567 308.1 567H188.5Z" class="out"/>
+<circle cx="236.2" cy="561" r="3.5" class="dot"/>
+<circle cx="244.4" cy="561" r="3.5" class="dot"/>
+<circle cx="259.9" cy="561" r="3.5" class="dot"/>
+<circle cx="263.5" cy="561" r="3.5" class="dot"/>
+<circle cx="273.8" cy="561" r="3" class="miss"/>
+<circle cx="308.3" cy="561" r="3.5" class="dot"/>
+<circle cx="313.9" cy="561" r="3.5" class="dot"/>
+<circle cx="314.5" cy="561" r="3.5" class="dot"/>
+<circle cx="316" cy="561" r="3" class="miss"/>
+<circle cx="372.7" cy="561" r="3.5" class="dot"/>
+<circle cx="392.2" cy="561" r="3.5" class="dot"/>
+<circle cx="600.3" cy="561" r="3.5" class="dot"/>
+<text x="800" y="565.5" class="t2" font-size="12" text-anchor="end">27 s</text>
+<text x="856" y="565.5" class="t2" font-size="12" text-anchor="end">10/12</text>
+</svg>

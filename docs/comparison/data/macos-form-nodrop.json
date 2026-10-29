@@ -1,0 +1,698 @@
+[
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "cua",
+    "rep": 1,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 59.9,
+    "tool_seconds": 16.8,
+    "calls": 9,
+    "errors": 0,
+    "images": 0,
+    "by_tool": {
+      "js": {
+        "calls": 9,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 14805,
+    "usage": {
+      "input_tokens": 388130,
+      "cache_read_tokens": 346624,
+      "cache_write_tokens": 0,
+      "output_tokens": 903,
+      "thinking_tokens": 73,
+      "uncached_input_tokens": 41506,
+      "cost_usd": 0.126704,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 10,
+      "first_input_tokens": 14805,
+      "peak_input_tokens": 51071,
+      "last_input_tokens": 51071,
+      "growth_input_tokens": 36266,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "cua",
+    "rep": 2,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 65.1,
+    "tool_seconds": 17.0,
+    "calls": 11,
+    "errors": 0,
+    "images": 0,
+    "by_tool": {
+      "js": {
+        "calls": 11,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 15697,
+    "usage": {
+      "input_tokens": 484740,
+      "cache_read_tokens": 428928,
+      "cache_write_tokens": 0,
+      "output_tokens": 1045,
+      "thinking_tokens": 166,
+      "uncached_input_tokens": 55812,
+      "cost_usd": 0.164967,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 12,
+      "first_input_tokens": 15697,
+      "peak_input_tokens": 53708,
+      "last_input_tokens": 53708,
+      "growth_input_tokens": 38011,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "cua",
+    "rep": 3,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 59.7,
+    "tool_seconds": 17.4,
+    "calls": 10,
+    "errors": 0,
+    "images": 0,
+    "by_tool": {
+      "js": {
+        "calls": 10,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 15697,
+    "usage": {
+      "input_tokens": 472028,
+      "cache_read_tokens": 384640,
+      "cache_write_tokens": 0,
+      "output_tokens": 898,
+      "thinking_tokens": 89,
+      "uncached_input_tokens": 87388,
+      "cost_usd": 0.22222,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 11,
+      "first_input_tokens": 15697,
+      "peak_input_tokens": 54525,
+      "last_input_tokens": 54525,
+      "growth_input_tokens": 38828,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "cua",
+    "rep": 4,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 80.1,
+    "tool_seconds": 18.2,
+    "calls": 13,
+    "errors": 0,
+    "images": 0,
+    "by_tool": {
+      "js": {
+        "calls": 13,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 15697,
+    "usage": {
+      "input_tokens": 502178,
+      "cache_read_tokens": 468736,
+      "cache_write_tokens": 0,
+      "output_tokens": 1416,
+      "thinking_tokens": 285,
+      "uncached_input_tokens": 33442,
+      "cost_usd": 0.127918,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 14,
+      "first_input_tokens": 15697,
+      "peak_input_tokens": 43627,
+      "last_input_tokens": 43627,
+      "growth_input_tokens": 27930,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "cua",
+    "rep": 5,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 44.0,
+    "tool_seconds": 16.4,
+    "calls": 7,
+    "errors": 0,
+    "images": 0,
+    "by_tool": {
+      "js": {
+        "calls": 7,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 15697,
+    "usage": {
+      "input_tokens": 267998,
+      "cache_read_tokens": 229760,
+      "cache_write_tokens": 0,
+      "output_tokens": 717,
+      "thinking_tokens": 97,
+      "uncached_input_tokens": 38238,
+      "cost_usd": 0.106622,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 8,
+      "first_input_tokens": 15697,
+      "peak_input_tokens": 47156,
+      "last_input_tokens": 47156,
+      "growth_input_tokens": 31459,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "cua",
+    "rep": 6,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 59.9,
+    "tool_seconds": 18.4,
+    "calls": 11,
+    "errors": 0,
+    "images": 0,
+    "by_tool": {
+      "js": {
+        "calls": 11,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 15697,
+    "usage": {
+      "input_tokens": 534573,
+      "cache_read_tokens": 486016,
+      "cache_write_tokens": 0,
+      "output_tokens": 1113,
+      "thinking_tokens": 141,
+      "uncached_input_tokens": 48557,
+      "cost_usd": 0.156846,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 12,
+      "first_input_tokens": 15697,
+      "peak_input_tokens": 56844,
+      "last_input_tokens": 56844,
+      "growth_input_tokens": 41147,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "openai-cu",
+    "rep": 1,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 44.3,
+    "tool_seconds": 6.7,
+    "calls": 10,
+    "errors": 0,
+    "images": 1,
+    "by_tool": {
+      "js": {
+        "calls": 10,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 14734,
+    "usage": {
+      "input_tokens": 300252,
+      "cache_read_tokens": 271744,
+      "cache_write_tokens": 0,
+      "output_tokens": 755,
+      "thinking_tokens": 31,
+      "uncached_input_tokens": 28508,
+      "cost_usd": 0.09174,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 11,
+      "first_input_tokens": 14734,
+      "peak_input_tokens": 33413,
+      "last_input_tokens": 33413,
+      "growth_input_tokens": 18679,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "openai-cu",
+    "rep": 2,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 38.2,
+    "tool_seconds": 6.0,
+    "calls": 9,
+    "errors": 0,
+    "images": 0,
+    "by_tool": {
+      "js": {
+        "calls": 9,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 14734,
+    "usage": {
+      "input_tokens": 250797,
+      "cache_read_tokens": 220544,
+      "cache_write_tokens": 0,
+      "output_tokens": 766,
+      "thinking_tokens": 59,
+      "uncached_input_tokens": 30253,
+      "cost_usd": 0.09022,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 10,
+      "first_input_tokens": 14734,
+      "peak_input_tokens": 29473,
+      "last_input_tokens": 29473,
+      "growth_input_tokens": 14739,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "openai-cu",
+    "rep": 3,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 51.4,
+    "tool_seconds": 6.1,
+    "calls": 9,
+    "errors": 0,
+    "images": 0,
+    "by_tool": {
+      "js": {
+        "calls": 9,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 14734,
+    "usage": {
+      "input_tokens": 250190,
+      "cache_read_tokens": 225408,
+      "cache_write_tokens": 0,
+      "output_tokens": 820,
+      "thinking_tokens": 155,
+      "uncached_input_tokens": 24782,
+      "cost_usd": 0.080305,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 10,
+      "first_input_tokens": 14734,
+      "peak_input_tokens": 29330,
+      "last_input_tokens": 29330,
+      "growth_input_tokens": 14596,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "openai-cu",
+    "rep": 4,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 32.2,
+    "tool_seconds": 6.0,
+    "calls": 8,
+    "errors": 0,
+    "images": 0,
+    "by_tool": {
+      "js": {
+        "calls": 8,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 14734,
+    "usage": {
+      "input_tokens": 224521,
+      "cache_read_tokens": 193920,
+      "cache_write_tokens": 0,
+      "output_tokens": 711,
+      "thinking_tokens": 53,
+      "uncached_input_tokens": 30601,
+      "cost_usd": 0.087704,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 9,
+      "first_input_tokens": 14734,
+      "peak_input_tokens": 29301,
+      "last_input_tokens": 29301,
+      "growth_input_tokens": 14567,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "openai-cu",
+    "rep": 5,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 49.4,
+    "tool_seconds": 7.0,
+    "calls": 11,
+    "errors": 0,
+    "images": 1,
+    "by_tool": {
+      "js": {
+        "calls": 11,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 14734,
+    "usage": {
+      "input_tokens": 327948,
+      "cache_read_tokens": 298240,
+      "cache_write_tokens": 0,
+      "output_tokens": 934,
+      "thinking_tokens": 123,
+      "uncached_input_tokens": 29708,
+      "cost_usd": 0.09858,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 12,
+      "first_input_tokens": 14734,
+      "peak_input_tokens": 33718,
+      "last_input_tokens": 33718,
+      "growth_input_tokens": 18984,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  },
+  {
+    "harness": "codex-exec",
+    "model": "gpt-6.1-sol",
+    "task": "form-no-dropdowns",
+    "toolkit": "qt",
+    "platform": "macos",
+    "backend": "openai-cu",
+    "rep": 6,
+    "passed": true,
+    "passed_without_hyprland_dialogs": true,
+    "hyprland_dialogs": [],
+    "correct": 25,
+    "failures": [],
+    "timed_out": false,
+    "wall_seconds": 49.0,
+    "tool_seconds": 6.4,
+    "calls": 10,
+    "errors": 0,
+    "images": 1,
+    "by_tool": {
+      "js": {
+        "calls": 10,
+        "errors": 0
+      }
+    },
+    "first_prompt_tokens": 14734,
+    "usage": {
+      "input_tokens": 301548,
+      "cache_read_tokens": 273920,
+      "cache_write_tokens": 0,
+      "output_tokens": 788,
+      "thinking_tokens": 58,
+      "uncached_input_tokens": 27628,
+      "cost_usd": 0.090528,
+      "cost_basis": "API list prices for gpt-6.1-sol"
+    },
+    "final": "[{\"type\": \"output_text\", \"text\": \"Done\", \"annotations\": [], \"logprobs\": []}]",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 11,
+      "first_input_tokens": 14734,
+      "peak_input_tokens": 33456,
+      "last_input_tokens": 33456,
+      "growth_input_tokens": 18722,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": [],
+      "seconds_disturbed": 0.0
+    },
+    "popups": {
+      "shown": 0,
+      "seconds_visible": 0.0
+    },
+    "error_texts": []
+  }
+]

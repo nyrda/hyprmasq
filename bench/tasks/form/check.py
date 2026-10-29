@@ -1,13 +1,15 @@
 """Grades the form task from the questionnaire's own state, run as root in the VM. Prints one JSON object with
 passed, failures, checks and events.
 
-    check.py --state FILE --count N --window ADDRESS --events HYPRLAND-EVENTS [--since VM-TIME]
+    check.py --state FILE --count N --window ADDRESS --events HYPRLAND-EVENTS [--since VM-TIME] [--popup CLASS]...
 
 The task passes when Submit was pressed and its last submission answers every question, and no window other than
-the questionnaire opened while the agent worked: the answers come from the app's widgets alone. The state is what
-form.py wrote from its memory on SIGUSR1 to a file that only root and the app can write, not its logs, which any
+the questionnaire's opened while the agent worked: the answers come from the app's widgets alone. An X11 app's
+menus and lists are windows of their own, which do not count: those of the classes that --popup names, and any
+window of the questionnaire's own process, such as Chromium's dropdown lists, which have no class. The state is
+what form.py wrote from its memory on SIGUSR1 to a file that only root and the app can write, not its logs, which any
 process of the user could write; the windows come from a log of Hyprland's events that root keeps, and without it
-the run fails.
+the run fails. That log (windows.py) also has the process of each window.
 
 For each question, the grade gives the answer submitted, whether it is right, the changes the agent made and the
 corrections among them, and when it got its final answer. A correction is a change that a later one undid: a
@@ -79,22 +81,28 @@ def milestones(asked, events, submissions):
     return found
 
 
-def other_windows(path, window, since):
-    """The windows that opened while the agent worked, other than the questionnaire, from Hyprland's events; None
-    without the log."""
+def other_windows(path, window, since, popups=()):
+    """The windows that opened while the agent worked, other than the questionnaire's, from Hyprland's events; None
+    without the log. Windows of the classes in popups, and of the questionnaire's process, are its own."""
     if not path or not os.path.exists(path):
         return None
-    opened = []
+    opened, pids = [], {}
     with open(path) as f:
         for line in f:
             t, _, event = line.rstrip("\n").partition(" ")
             name, _, data = event.partition(">>")
+            if name == "windowpid":
+                address, _, pid = data.partition(",")
+                pids[address] = pid
             if name != "openwindow" or float(t) < since:
                 continue
             address, workspace, cls, title = (data.split(",", 3) + ["", "", ""])[:4]
-            if "0x" + address.removeprefix("0x") != window:
-                opened.append({"class": cls, "title": title, "workspace": workspace})
-    return opened
+            opened.append({"address": "0x" + address.removeprefix("0x"), "class": cls, "title": title,
+                           "workspace": workspace})
+    own = pids.get(window)
+    return [{k: v for k, v in w.items() if k != "address"} for w in opened
+            if w["address"] != window and w["class"] not in popups
+            and (own is None or pids.get(w["address"]) != own)]
 
 
 def grade(state, count, since=0, opened=()):
@@ -166,13 +174,15 @@ def main():
     parser.add_argument("--window", required=True, help="the questionnaire's window address")
     parser.add_argument("--events", required=True, help="Hyprland's events, each line with its VM time")
     parser.add_argument("--since", type=float, default=0, help="VM time of the agent's start")
+    parser.add_argument("--popup", action="append", default=[], metavar="CLASS",
+                        help="the class of the questionnaire's own popup windows, such as an X11 app's menus")
     args = parser.parse_args()
     try:
         with open(args.state) as f:
             state = json.load(f)
     except (OSError, ValueError):
         state = None
-    opened = other_windows(args.events, args.window, args.since)
+    opened = other_windows(args.events, args.window, args.since, args.popup)
     print(json.dumps(grade(state, args.count, args.since, opened), indent=2))
 
 

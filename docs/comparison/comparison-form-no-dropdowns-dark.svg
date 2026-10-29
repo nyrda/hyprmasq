@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="563" viewBox="0 0 880 563" role="img" aria-label="Tools compared on the same tasks: a row per tool for each task and agent, with its runs passed or failed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed.">
+<title>Tools compared on the same tasks: a row per tool for each task and agent, with its runs passed or failed, the median time, and the median uncached input, peak context, cost per run and seconds the user was disturbed.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.tools{fill:#3987e5}.out{fill:#454c56}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.miss{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.pass{fill:#3fb950}.fail{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.cut{stroke:#0d1117;stroke-width:2}.s0{fill:#3987e5}.s1{fill:#d95926}.s2{fill:#199e70}.s3{fill:#c98500}.s4{fill:#d55181}.s5{fill:#008300}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
+<rect x="0.5" y="0.5" width="879" height="562" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Tools compared on the same tasks</text>
+<text x="24" y="53" class="t2" font-size="12.5">Each dot is one run, with the median time of the passed runs beside them. Each column of bars has its own</text>
+<text x="24" y="72" class="t2" font-size="12.5">scale: tokens and cost are medians over all runs. User disturbed counts the passed runs that took the</text>
+<text x="24" y="91" class="t2" font-size="12.5">focus or drew over the user&#x27;s window, and its bar is the median seconds of those runs.</text>
+<rect x="24" y="108" width="12" height="10" class="s0" rx="2"/>
+<text x="42" y="117" class="t2" font-size="12">hyprmasq</text>
+<rect x="116.7" y="108" width="12" height="10" class="s1" rx="2"/>
+<text x="134.7" y="117" class="t2" font-size="12">Cua Driver</text>
+<rect x="214" y="108" width="12" height="10" class="s2" rx="2"/>
+<text x="232" y="117" class="t2" font-size="12">OpenAI computer use</text>
+<circle cx="375.7" cy="113" r="4.5" class="pass"/>
+<text x="385.7" y="117" class="t2" font-size="12">passed</text>
+<circle cx="451.4" cy="113" r="4.5" class="fail"/>
+<text x="461.4" y="117" class="t2" font-size="12">failed</text>
+<text x="234" y="147" class="t2" font-size="12" font-weight="600">Runs, time</text>
+<text x="370" y="147" class="t2" font-size="12" font-weight="600">Uncached input</text>
+<text x="470" y="147" class="t2" font-size="12" font-weight="600">Peak context</text>
+<text x="570" y="147" class="t2" font-size="12" font-weight="600">Cost per run</text>
+<text x="670" y="147" class="t2" font-size="12" font-weight="600">User disturbed</text>
+<line x1="24" y1="159" x2="856" y2="159" class="axis"/>
+<text x="24" y="179" class="t" font-size="13" font-weight="600">Hyprland · gpt-6.1-sol</text>
+<rect x="24" y="197" width="4" height="18" class="s0" rx="2"/>
+<text x="36" y="204.5" class="t" font-size="12.5" font-weight="600">hyprmasq</text>
+<text x="36" y="218.5" class="m" font-size="11">Hyprland · Qt</text>
+<circle cx="239" cy="206" r="5" class="pass"/>
+<circle cx="252" cy="206" r="5" class="pass"/>
+<circle cx="265" cy="206" r="5" class="pass"/>
+<circle cx="278" cy="206" r="5" class="pass"/>
+<circle cx="291" cy="206" r="5" class="pass"/>
+<circle cx="304" cy="206" r="5" class="pass"/>
+<text x="321" y="210.5" class="t2" font-size="12.5">58 s</text>
+<path d="M370 201H379.5Q382.5 201 382.5 204V208Q382.5 211 379.5 211H370Z" class="s0"/>
+<text x="388.5" y="210.5" class="t2" font-size="12">13k</text>
+<path d="M470 201H475.8Q478.8 201 478.8 204V208Q478.8 211 475.8 211H470Z" class="s0"/>
+<text x="484.8" y="210.5" class="t2" font-size="12">20k</text>
+<path d="M570 201H577.6Q580.6 201 580.6 204V208Q580.6 211 577.6 211H570Z" class="s0"/>
+<text x="586.6" y="210.5" class="t2" font-size="12">$0.05</text>
+<text x="670" y="210.5" class="t2" font-size="12">0 of 6</text>
+<rect x="24" y="231" width="4" height="18" class="s1" rx="2"/>
+<text x="36" y="238.5" class="t" font-size="12.5" font-weight="600">Cua Driver</text>
+<text x="36" y="252.5" class="m" font-size="11">Hyprland · Qt</text>
+<circle cx="239" cy="240" r="5" class="pass"/>
+<circle cx="252" cy="240" r="5" class="pass"/>
+<circle cx="265" cy="240" r="5" class="pass"/>
+<circle cx="278" cy="240" r="5" class="pass"/>
+<circle cx="291" cy="240" r="5" class="pass"/>
+<circle cx="304" cy="240" r="5" class="pass"/>
+<text x="321" y="244.5" class="t2" font-size="12.5">48 s</text>
+<path d="M370 235H405.9Q408.9 235 408.9 238V242Q408.9 245 405.9 245H370Z" class="s1"/>
+<text x="414.9" y="244.5" class="t2" font-size="12">42k</text>
+<path d="M470 235H487.7Q490.7 235 490.7 238V242Q490.7 245 487.7 245H470Z" class="s1"/>
+<text x="496.7" y="244.5" class="t2" font-size="12">46k</text>
+<path d="M570 235H592Q595 235 595 238V242Q595 245 592 245H570Z" class="s1"/>
+<text x="601" y="244.5" class="t2" font-size="12">$0.12</text>
+<text x="670" y="244.5" class="t2" font-size="12">0 of 6</text>
+<line x1="24" y1="261" x2="856" y2="261" class="grid"/>
+<text x="24" y="285" class="t" font-size="13" font-weight="600">Hyprland · gpt-6.1-terra</text>
+<rect x="24" y="303" width="4" height="18" class="s0" rx="2"/>
+<text x="36" y="310.5" class="t" font-size="12.5" font-weight="600">hyprmasq</text>
+<text x="36" y="324.5" class="m" font-size="11">Hyprland · Qt</text>
+<circle cx="239" cy="312" r="5" class="pass"/>
+<circle cx="252" cy="312" r="5" class="pass"/>
+<circle cx="265" cy="312" r="5" class="pass"/>
+<circle cx="278" cy="312" r="5" class="pass"/>
+<circle cx="291" cy="312" r="5" class="pass"/>
+<circle cx="304" cy="312" r="5" class="pass"/>
+<text x="321" y="316.5" class="t2" font-size="12.5">45 s</text>
+<path d="M370 307H394.9Q397.9 307 397.9 310V314Q397.9 317 394.9 317H370Z" class="s0"/>
+<text x="403.9" y="316.5" class="t2" font-size="12">30k</text>
+<path d="M470 307H477.6Q480.6 307 480.6 310V314Q480.6 317 477.6 317H470Z" class="s0"/>
+<text x="486.6" y="316.5" class="t2" font-size="12">24k</text>
+<path d="M570 307H575.5Q578.5 307 578.5 310V314Q578.5 317 575.5 317H570Z" class="s0"/>
+<text x="584.5" y="316.5" class="t2" font-size="12">$0.04</text>
+<text x="670" y="316.5" class="t2" font-size="12">0 of 6</text>
+<line x1="24" y1="333" x2="856" y2="333" class="grid"/>
+<text x="24" y="357" class="t" font-size="13" font-weight="600">Hyprland · Sonnet 5.5</text>
+<rect x="24" y="375" width="4" height="18" class="s0" rx="2"/>
+<text x="36" y="382.5" class="t" font-size="12.5" font-weight="600">hyprmasq</text>
+<text x="36" y="396.5" class="m" font-size="11">Hyprland · Qt</text>
+<circle cx="239" cy="384" r="5" class="pass"/>
+<circle cx="252" cy="384" r="5" class="pass"/>
+<circle cx="265" cy="384" r="5" class="pass"/>
+<circle cx="278" cy="384" r="5" class="pass"/>
+<circle cx="291" cy="384" r="5" class="pass"/>
+<circle cx="304" cy="384" r="5" class="pass"/>
+<text x="321" y="388.5" class="t2" font-size="12.5">47 s</text>
+<path d="M370 379H384.3Q387.3 379 387.3 382V386Q387.3 389 384.3 389H370Z" class="s0"/>
+<text x="393.3" y="388.5" class="t2" font-size="12">19k</text>
+<path d="M470 379H479.3Q482.3 379 482.3 382V386Q482.3 389 479.3 389H470Z" class="s0"/>
+<text x="488.3" y="388.5" class="t2" font-size="12">27k</text>
+<path d="M570 379H583.7Q586.7 379 586.7 382V386Q586.7 389 583.7 389H570Z" class="s0"/>
+<text x="592.7" y="388.5" class="t2" font-size="12">$0.08</text>
+<text x="670" y="388.5" class="t2" font-size="12">0 of 6</text>
+<rect x="24" y="409" width="4" height="18" class="s1" rx="2"/>
+<text x="36" y="416.5" class="t" font-size="12.5" font-weight="600">Cua Driver</text>
+<text x="36" y="430.5" class="m" font-size="11">Hyprland · Qt</text>
+<circle cx="239" cy="418" r="5" class="pass"/>
+<circle cx="252" cy="418" r="5" class="pass"/>
+<circle cx="265" cy="418" r="5" class="pass"/>
+<circle cx="278" cy="418" r="5" class="pass"/>
+<circle cx="291" cy="418" r="5" class="pass"/>
+<circle cx="304" cy="418" r="5" class="pass"/>
+<text x="321" y="422.5" class="t2" font-size="12.5">52 s</text>
+<path d="M370 413H399.9Q402.9 413 402.9 416V420Q402.9 423 399.9 423H370Z" class="s1"/>
+<text x="408.9" y="422.5" class="t2" font-size="12">35k</text>
+<path d="M470 413H509Q512 413 512 416V420Q512 423 509 423H470Z" class="s1"/>
+<text x="518" y="422.5" class="t2" font-size="12">94k</text>
+<path d="M570 413H609Q612 413 612 416V420Q612 423 609 423H570Z" class="s1"/>
+<text x="618" y="422.5" class="t2" font-size="12">$0.20</text>
+<path d="M670 413H741.6Q744.6 413 744.6 416V420Q744.6 423 741.6 423H670Z" class="s1"/>
+<text x="750.6" y="422.5" class="t2" font-size="12">1 of 6 · 33 s, focus</text>
+<line x1="24" y1="439" x2="856" y2="439" class="grid"/>
+<text x="24" y="463" class="t" font-size="13" font-weight="600">macOS · gpt-6.1-sol</text>
+<rect x="24" y="481" width="4" height="18" class="s1" rx="2"/>
+<text x="36" y="488.5" class="t" font-size="12.5" font-weight="600">Cua Driver</text>
+<text x="36" y="502.5" class="m" font-size="11">macOS · Qt · Codex CLI</text>
+<circle cx="239" cy="490" r="5" class="pass"/>
+<circle cx="252" cy="490" r="5" class="pass"/>
+<circle cx="265" cy="490" r="5" class="pass"/>
+<circle cx="278" cy="490" r="5" class="pass"/>
+<circle cx="291" cy="490" r="5" class="pass"/>
+<circle cx="304" cy="490" r="5" class="pass"/>
+<text x="321" y="494.5" class="t2" font-size="12.5">60 s</text>
+<path d="M370 485H409Q412 485 412 488V492Q412 495 409 495H370Z" class="s1"/>
+<text x="418" y="494.5" class="t2" font-size="12">45k</text>
+<path d="M470 485H490.5Q493.5 485 493.5 488V492Q493.5 495 490.5 495H470Z" class="s1"/>
+<text x="499.5" y="494.5" class="t2" font-size="12">52k</text>
+<path d="M570 485H596.6Q599.6 485 599.6 488V492Q599.6 495 596.6 495H570Z" class="s1"/>
+<text x="605.6" y="494.5" class="t2" font-size="12">$0.14</text>
+<text x="670" y="494.5" class="t2" font-size="12">0 of 6</text>
+<rect x="24" y="515" width="4" height="18" class="s2" rx="2"/>
+<text x="36" y="522.5" class="t" font-size="12.5" font-weight="600">OpenAI computer use</text>
+<text x="36" y="536.5" class="m" font-size="11">macOS · Qt · Codex CLI</text>
+<circle cx="239" cy="524" r="5" class="pass"/>
+<circle cx="252" cy="524" r="5" class="pass"/>
+<circle cx="265" cy="524" r="5" class="pass"/>
+<circle cx="278" cy="524" r="5" class="pass"/>
+<circle cx="291" cy="524" r="5" class="pass"/>
+<circle cx="304" cy="524" r="5" class="pass"/>
+<text x="321" y="528.5" class="t2" font-size="12.5">47 s</text>
+<path d="M370 519H394.1Q397.1 519 397.1 522V526Q397.1 529 394.1 529H370Z" class="s2"/>
+<text x="403.1" y="528.5" class="t2" font-size="12">29k</text>
+<path d="M470 519H481.1Q484.1 519 484.1 522V526Q484.1 529 481.1 529H470Z" class="s2"/>
+<text x="490.1" y="528.5" class="t2" font-size="12">31k</text>
+<path d="M570 519H585.8Q588.8 519 588.8 522V526Q588.8 529 585.8 529H570Z" class="s2"/>
+<text x="594.8" y="528.5" class="t2" font-size="12">$0.09</text>
+<text x="670" y="528.5" class="t2" font-size="12">0 of 6</text>
+</svg>

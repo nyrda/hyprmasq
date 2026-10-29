@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Renders the benchmark results in docs/benchmarks.md from the datasets that export.py writes.
+"""Renders the benchmark results in docs/benchmarks.md from the datasets that export.py writes, and the comparison
+in docs/comparison.md from the runs that bench/laptop/analyze.py writes.
 
     render.py [--check] [MARKDOWN...]
 
-Each block of a Markdown file, by default docs/benchmarks.md, between
+Each block of a Markdown file, by default docs/benchmarks.md and docs/comparison.md, between
 
     <!-- render DATASET VIEW [TASK] -->
     <!-- /render -->
 
-is replaced with the view of docs/benchmarks/data/DATASET.json (the data directory beside the Markdown file).
-Figures are SVG files in the benchmarks directory beside it, one for GitHub's light theme and one for its dark
-theme, which a <picture> element picks between. Views:
+is replaced with the view of DATASET.json in the data directory of the directory named after the page beside it,
+docs/benchmarks/data for docs/benchmarks.md. DATASET can join several with commas. Figures are SVG files in that
+directory, one for GitHub's light theme and one for its dark theme, which a <picture> element picks between, named
+after the dataset, view and task, the dataset left out when there are several. Views:
 
 - scoreboard: a row per agent, the runs of each task passed or failed with their median wall time, and the cost
   per passed run.
@@ -21,8 +23,21 @@ theme, which a <picture> element picks between. Views:
 - costs: a table of the tokens and the cost of each agent's runs.
 - table: a table of the medians of TASK's runs, a row per agent and effort.
 - kinds-table: a table of the form task's seconds per question of each kind.
-- compare: a table of each task's runs passed and medians, beside those of the dataset TASK names, an earlier
-  build's: `<!-- render AFTER compare BEFORE -->`.
+- compare: each task's wall time per run beside that of the dataset TASK names, an earlier build's:
+  `<!-- render AFTER compare BEFORE -->`.
+- compare-table: a table of each task's runs passed and medians, before → after, as compare takes its datasets.
+- comparison: for docs/comparison.md, a row per tool and where it ran for each task and agent, with its runs and median time and
+  columns of uncached input, peak context, cost per run and the seconds the user was disturbed. With TASK, only
+  that task's rows, as in the two views below.
+- comparison-time: each tool's median time inside its calls and outside them, and a dot per run.
+- comparison-table: a table of the comparison's medians and ranges.
+- toolkits: the form task's wall time per run and its medians in hyprmasq's tools and outside them, a panel per
+  toolkit, which the run's variant names.
+- toolkits-table: a table of the form task's medians, a row per toolkit and agent, with the act calls' settle wait.
+
+Where the datasets of a block hold several variants of a task, its runs are named by their variant too, such as
+board-dnd, and TASK names them so. TASK may also name such a task, board, for any view but table of its variants
+alone. The toolkit views take the form task's runs of every variant.
 
 --check renders in memory and fails when a Markdown block or figure differs from what is on disk, or when a figure
 is drawn by no block; without it, render.py writes them and removes such figures. The figures use
@@ -44,8 +59,8 @@ from report import fmt  # noqa: E402
 # Display names of the models, in the order agents are listed in; others follow by their ids.
 NAMES = {
     "gpt-6.1-sol": "gpt-6.1-sol",
-    "gpt-6-astra": "gpt-6-astra",
     "gpt-6.1-terra": "gpt-6.1-terra",
+    "gpt-6-astra": "gpt-6-astra",
     "claude-opus-5-5": "Opus 5.5",
     "claude-sonnet-5-5": "Sonnet 5.5",
     "claude-haiku-5-5": "Haiku 5.5",
@@ -210,8 +225,32 @@ def tick_label(v, unit=""):
 # The data.
 
 def load(data_dir, name):
-    with open(os.path.join(data_dir, name + ".json"), encoding="utf-8") as f:
-        return json.load(f)
+    """A dataset, or several joined by commas. A dataset is export.py's, or a list of runs, as bench/laptop's
+    analyze.py writes them for docs/comparison.md."""
+    runs, sources, notes = [], [], []
+    for part in name.split(","):
+        with open(os.path.join(data_dir, part + ".json"), encoding="utf-8") as f:
+            loaded = json.load(f)
+        if isinstance(loaded, list):
+            runs += loaded
+        else:
+            # Older exports recorded the variant only in source metadata. Recover
+            # it when unambiguous so an old dnd run and a newer dnd run agree.
+            for run in loaded["runs"]:
+                variants = {s.get("variant") for s in loaded.get("sources", []) if s.get("task") == run["task"]}
+                if "variant" not in run and len(variants) == 1:
+                    run = dict(run, variant=variants.pop())
+                runs.append(run)
+            sources += loaded.get("sources", [])
+            notes += loaded.get("notes", [])
+    # A task that the datasets hold in several variants is named by its variant too, such as board-dnd, so that each
+    # view's medians take one variant. task_of gives the task's own name.
+    variants = {}
+    for r in runs:
+        variants.setdefault(r["task"], set()).add(r.get("variant"))
+    runs = [dict(r, task=f"{r['task']}-{r['variant']}", task_of=r["task"]) if len(variants[r["task"]]) > 1 else r
+            for r in runs]
+    return {"sources": sources, "runs": runs, **({"notes": list(dict.fromkeys(notes))} if notes else {})}
 
 
 def model_name(model):
@@ -372,16 +411,16 @@ def scoreboard(data):
     return svg, alt
 
 
-def time_panel(svg, rows, x0, width, y0, row_h, title, note):
-    """A panel of horizontal bars, a row per group: the medians in tools and outside, and a dot per run."""
+def time_panel(svg, rows, x0, width, y0, row_h, title, note, limit=None):
+    """A panel of horizontal bars, a row per group: the medians in tools and outside, and a dot per run. limit sets
+    the scale, which otherwise fits the panel's runs."""
     if title:
         svg.text(x0, y0, title, size=13, weight="600")
     svg.text(x0 + width, y0, note, cls="m", size=12, anchor="end")
     # The medians stand in a column at the panel's right.
     plot_w = width - 74
-    tops = sorted((max(r["wall_s"] for r in rs) for _, rs in rows if rs), reverse=True)
-    # An agent far slower than the rest would squeeze them: its bar is cut at the edge instead.
-    limit = tops[0] if len(tops) < 2 or tops[0] <= 2.5 * tops[1] else tops[1] * 1.15
+    if limit is None:
+        limit = scale_limit([rs for _, rs in rows])
     ticks, end = nice_ticks(limit)
     scale = plot_w / end
     top = y0 + 12
@@ -419,16 +458,35 @@ def time_panel(svg, rows, x0, width, y0, row_h, title, note):
     return bottom + 15
 
 
-def time_figure(data, only=None):
+def scale_limit(groups_of_runs):
+    """The end of a time scale for groups of runs. A group far slower than the rest would squeeze them: its bar is
+    cut at the edge instead."""
+    tops = sorted((max(r["wall_s"] for r in rs) for rs in groups_of_runs if rs), reverse=True)
+    return tops[0] if len(tops) < 2 or tops[0] <= 2.5 * tops[1] else tops[1] * 1.15
+
+
+def shared_limit(groups_of_runs):
+    """The end of a time scale that panels share: the slowest run that took at most twice its group's median. A run
+    slower than that, such as one that waited long before its first call, stands past the scale's edge."""
+    return max(r["wall_s"] for rs in groups_of_runs if rs for r in rs
+               if r["wall_s"] <= 2 * median(x["wall_s"] for x in rs))
+
+
+def time_figure(data, only=None, title=str.capitalize, noun="task", shared=False):
+    """title gives a panel's title for its task. shared puts all panels on one scale, for panels to compare."""
     runs = data["runs"]
     ts = [only] if only else tasks(data)
     labels = row_labels(runs)
+    limit = shared_limit([rs for t in ts for _, rs in groups([r for r in runs if r["task"] == t])]) if shared else None
+    off_scale = limit is not None and any(r["wall_s"] > nice_ticks(limit)[1] for r in runs if r["task"] in ts)
     svg = Svg()
     top = header(
         svg,
-        "Wall time per run" + (f": {ts[0].capitalize()}" if len(ts) == 1 else ""),
+        "Wall time per run" + (f": {title(ts[0])}" if len(ts) == 1 else ""),
         ["Each bar is a median wall time, written at the right. Its blue part is the median time in hyprmasq's",
          "MCP tools, and the grey part fills the bar up to the median wall time. Each dot is one run."]
+        + (["A dot past the end of its axis is a run off the scale, more than twice its row's median."]
+           if off_scale else [])
         + [line for line in [effort_note([r for r in runs if r["task"] in ts])] if line],
         [("swatch", "tools", "median in hyprmasq's tools"), ("swatch", "out", "rest of the median wall time"),
          ("dot", "dot", "one run")]
@@ -452,8 +510,8 @@ def time_figure(data, only=None):
             ok = sum(r["passed"] for _, rs in rows for r in rs)
             n = sum(len(rs) for _, rs in rows)
             x0 = PAD + label_w + c * (panel_w + gap)
-            title = t.capitalize() if len(ts) > 1 else ""
-            bottom = max(bottom, time_panel(svg, rows, x0, panel_w, y, row_h, title, f"{ok}/{n} passed"))
+            bottom = max(bottom, time_panel(svg, rows, x0, panel_w, y, row_h, title(t) if len(ts) > 1 else "",
+                                            f"{ok}/{n} passed", limit))
             if c == 0:
                 for i, key in enumerate(keys):
                     name, effort = labels[key]
@@ -465,10 +523,44 @@ def time_figure(data, only=None):
                         svg.text(PAD + label_w - 16, base, effort, cls="t2", size=12, anchor="end")
         y = bottom + 34
     svg.height = y - 10
-    alt = ("Wall time per run of each agent" + (f" in the {ts[0]} task" if len(ts) == 1 else ", a panel per task")
+    alt = ("Wall time per run of each agent" + (f" in the {ts[0]} {noun}" if len(ts) == 1 else f", a panel per {noun}")
            + ". Each bar is the median wall time with the median time in hyprmasq's tools inside it, and each dot "
            "one run.")
     return svg, alt
+
+
+# The form task's toolkits, by the variant's name without its number of questions, as bench/tasks/form/variants
+# names them: GTK 4's variants are the number alone.
+TOOLKITS = {
+    "": "GTK 4", "gtk3": "GTK 3", "gtk3-x11": "GTK 3 (X11)", "qt": "Qt 6", "tk": "Tk (X11)",
+    "electron": "Electron", "electron-x11": "Electron (X11)", "cef": "CEF", "cef-x11": "CEF (X11)",
+    "cef-osr": "CEF off-screen (X11)",
+}
+
+
+def toolkit(run):
+    """The toolkit of a form run, from its variant."""
+    name = (run.get("variant") or "").rpartition("-")[0]
+    if name not in TOOLKITS:
+        raise SystemExit(f"render.py: the form variant {run.get('variant')} has no toolkit in TOOLKITS")
+    return TOOLKITS[name]
+
+
+def toolkit_runs(data):
+    """The form runs with their toolkit as their task, in TOOLKITS' order, for the views that compare toolkits. Their
+    variants must have the same number of questions, which the toolkit's name leaves out."""
+    runs = [dict(r, task=toolkit(r)) for r in data["runs"] if r.get("task_of", r["task"]) == "form"]
+    if not runs:
+        raise SystemExit("render.py: the toolkit views need runs of the form task")
+    counts = sorted({(r.get("variant") or "").rpartition("-")[2] for r in runs})
+    if len(counts) > 1:
+        raise SystemExit(f"render.py: the toolkit views compare runs of one number of questions, not {', '.join(counts)}")
+    order = list(TOOLKITS.values())
+    return sorted(runs, key=lambda r: order.index(r["task"]))
+
+
+def toolkits_figure(data):
+    return time_figure({"runs": toolkit_runs(data)}, title=lambda t: t, noun="toolkit", shared=True)
 
 
 def kinds_runs(data):
@@ -565,7 +657,346 @@ def act_figure(data):
     return svg, alt
 
 
-FIGURES = {"scoreboard": scoreboard, "time": time_figure, "kinds": kinds_figure, "act": act_figure}
+# The comparison with other computer-use tools, from bench/laptop's runs.
+
+TASK_NAMES = {"form": "Form with dropdowns", "form-no-dropdowns": "Form without dropdowns", "inkscape": "Inkscape",
+              "files": "File manager"}
+# Each tool's name and series colour, the same in every figure.
+TOOLS = {"hyprmasq": ("hyprmasq", "s0"), "cua": ("Cua Driver", "s1"), "openai-cu": ("OpenAI computer use", "s2")}
+PLATFORMS = {"hyprland": "Hyprland", "macos": "macOS"}
+
+
+def tool_rows(runs):
+    """The runs grouped by task, platform and agent, a row per tool and where it ran, such as hyprmasq with the
+    questionnaire in GTK and in Qt: [((task, platform, model), [(tool, runs)])]. The platforms' times do not compare,
+    so their rows stand apart."""
+    order = list(NAMES)
+    keys = list(dict.fromkeys((r["task"], r.get("platform"), r["model"]) for r in runs))
+    keys.sort(key=lambda k: (list(TASK_NAMES).index(k[0]) if k[0] in TASK_NAMES else 9,
+                             list(PLATFORMS).index(k[1]) if k[1] in PLATFORMS else len(PLATFORMS),
+                             order.index(k[2]) if k[2] in order else len(order)))
+    out = []
+    for key in keys:
+        rs = [r for r in runs if (r["task"], r.get("platform"), r["model"]) == key]
+        by_row = {}
+        for r in rs:
+            by_row.setdefault((r["backend"], setting([r])), []).append(r)
+        rows = sorted(by_row.items(), key=lambda item: (list(TOOLS).index(item[0][0]), item[0][1]))
+        out.append((key, [(tool, group) for (tool, _), group in rows]))
+    return out
+
+
+def setting(rs):
+    """Where a tool's runs ran: platform, toolkit of the task's app, and the ChatGPT app as the harness."""
+    r = rs[0]
+    parts = [PLATFORMS.get(r.get("platform"), r.get("platform") or "")]
+    if r["task"].startswith("form"):
+        parts.append({"gtk": "GTK", "qt": "Qt"}.get(r.get("toolkit"), r.get("toolkit") or ""))
+    if r["harness"] == "codex-desktop":
+        parts.append("ChatGPT app")
+    elif r["harness"] == "codex-exec":
+        parts.append("Codex CLI")
+    return " · ".join(p for p in parts if p)
+
+
+def passed(r):
+    """Passed, leaving out Hyprland's own ANR dialogs, which the form's checker counts as windows that opened."""
+    return r.get("passed_without_hyprland_dialogs", r["passed"])
+
+
+def group_title(key, rows):
+    """A group's platform and agent, after its task where the figure has several."""
+    task, platform, model = key
+    title = f"{PLATFORMS.get(platform, platform or '')} · {model_name(model)}"
+    if len({k[0] for k, _ in rows}) == 1:
+        return title
+    return f"{TASK_NAMES.get(task, task.capitalize())} · {title}"
+
+
+def disturbance(r):
+    """Seconds the user's screen was disturbed, and how: the focus moved away, or the app's windows were drawn
+    over the user's window."""
+    focus = (r.get("focus") or {}).get("seconds_away_from_user") or 0
+    popups = (r.get("popups") or {}).get("seconds_visible") or 0
+    combined = (r.get("focus") or {}).get("seconds_disturbed")
+    if combined is not None:
+        kind = "focus or windows" if focus and popups else "focus taken" if focus else "windows over the user"
+        return combined, kind if combined else ""
+    if focus >= 1:
+        return focus, "focus taken"
+    if popups:
+        return popups, "windows over the user"
+    return 0.0, ""
+
+
+def disturbed(r):
+    """Whether a run disturbed the user: a second or more, as the figures round it."""
+    return disturbance(r)[0] >= 0.5
+
+
+def disturbance_label(seconds, rs):
+    """The disturbance column's text: how many of the passed runs disturbed the user, and the median seconds and
+    the way of those that did, with Hyprland's ANR dialogs where there were any."""
+    ok = [r for r in rs if passed(r)]
+    hit = [r for r in ok if disturbed(r)]
+    if not ok:
+        return "–"
+    text = f"{len(hit)} of {len(ok)}"
+    if hit:
+        kinds = {disturbance(r)[1] for r in hit}
+        words = {"focus taken": "focus", "windows over the user": "windows", "focus or windows": "focus/windows"}
+        text += f" · {seconds:.0f} s, " + "/".join(sorted(words[k] for k in kinds))
+    if any(r.get("hyprland_dialogs") for r in rs):
+        text += ", ANR dialogs"
+    return text
+
+
+def per_k(value):
+    """Thousands, or None for a value that a run did not record, such as the tokens of a session that ended before
+    its first count."""
+    return value / 1000 if value is not None else None
+
+
+def comparison_measures():
+    """(title, value of a run, the runs it is the median of, text of the median and the row's runs)."""
+    # The disturbance is that of the passed runs that disturbed the user, beside how many did.
+    every, hit = (lambda rs: rs), (lambda rs: [r for r in rs if passed(r) and disturbed(r)])
+    known = lambda text: lambda v, rs: text(v) if v is not None else "–"
+    return [
+        ("Uncached input", lambda r: per_k(r["usage"]["uncached_input_tokens"]), every, known(lambda v: f"{v:.0f}k")),
+        ("Peak context", lambda r: per_k((r.get("context") or {}).get("peak_input_tokens")), every,
+         known(lambda v: f"{v:.0f}k")),
+        ("Cost per run", lambda r: r["usage"]["cost_usd"], every, known(lambda v: f"${v:.2f}")),
+        ("User disturbed", lambda r: disturbance(r)[0], hit, disturbance_label),
+    ]
+
+
+def of_task(data, task):
+    """The runs of one task, or all of them without one: a page can show each task's comparison in its own block."""
+    return [r for r in data["runs"] if task is None or r["task"] == task]
+
+
+def comparison_figure(data, task=None):
+    runs = of_task(data, task)
+    rows = tool_rows(runs)
+    tools = list(dict.fromkeys(r["backend"] for r in runs))
+    svg = Svg()
+    top = header(
+        svg, "Tools compared on the same tasks",
+        ["Each dot is one run, with the median time of the passed runs beside them. Each column of bars has its own",
+         "scale: tokens and cost are medians over all runs. User disturbed counts the passed runs that took the",
+         "focus or drew over the user's window, and its bar is the median seconds of those runs."],
+        [("swatch", TOOLS[t][1], TOOLS[t][0]) for t in TOOLS if t in tools]
+        + [("dot", "pass", "passed"), ("dot", "fail", "failed")],
+    )
+    measures = comparison_measures()
+    label_w = 210
+    # A dot per run, then the median time.
+    runs_w = max(112, 13 * max(len(rs) for _, group in rows for _, rs in group) + 58)
+    # The disturbance's text says how many runs and how, so its column takes what the others leave.
+    widths = [100] * (len(measures) - 1)
+    widths.append(WIDTH - 2 * PAD - label_w - runs_w - sum(widths))
+    lefts = [sum(widths[:i]) for i in range(len(widths))]
+    x_runs = PAD + label_w
+    head_y = top + 14
+    svg.text(x_runs, head_y, "Runs, time", cls="t2", size=12, weight="600")
+    for i, (title, _, _, _) in enumerate(measures):
+        svg.text(x_runs + runs_w + lefts[i], head_y, title, cls="t2", size=12, weight="600")
+    tops = [max((median(f(r) for r in pick(rs)) or 0) for _, group in rows for _, rs in group) or 1
+            for _, f, pick, _ in measures]
+    row_h, group_h = 34, 30
+    y = head_y + 12
+    svg.line(PAD, y, WIDTH - PAD, y, "axis")
+    for g, (key, group) in enumerate(rows):
+        svg.text(PAD, y + 20, group_title(key, rows), size=13, weight="600")
+        y += group_h
+        for tool, rs in group:
+            cy = y + row_h / 2
+            base = cy + 4.5
+            name, cls = TOOLS[tool]
+            svg.rect(PAD, cy - 9, 4, 18, cls, rx=2)
+            svg.text(PAD + 12, cy - 1.5, name, size=12.5, weight="600")
+            svg.text(PAD + 12, cy + 12.5, setting(rs), cls="m", size=11)
+            for k, r in enumerate(sorted(rs, key=lambda r: r["rep"])):
+                ok = passed(r)
+                svg.circle(x_runs + 5 + k * 13, cy, 5 if ok else 4.25, "pass" if ok else "fail")
+            times = [r["wall_seconds"] for r in rs if passed(r)]
+            svg.text(x_runs + 5 + len(rs) * 13 + 4, base, f"{median(times):.0f} s" if times else "–",
+                     cls="t2", size=12.5)
+            for i, (_, f, pick, label) in enumerate(measures):
+                v = median(f(r) for r in pick(rs))
+                x = x_runs + runs_w + lefts[i]
+                # A median of no recorded values is unknown, not zero.
+                text = label(v, rs)
+                bar_max = widths[i] - max(58, text_width(text, 12) + 10)
+                w = bar_max * v / tops[i] if v else 0
+                if w >= 1:
+                    svg.bar(x, cy - 5, max(w, 2), 10, cls)
+                svg.text(x + (max(w, 2) + 6 if w >= 1 else 0), base, text, cls="t2", size=12)
+            y += row_h
+        if g < len(rows) - 1:
+            svg.line(PAD, y + 4, WIDTH - PAD, y + 4, "grid")
+            y += 8
+    svg.height = y + 22
+    alt = ("Tools compared on the same tasks: a row per tool for each task and agent, with its runs passed or "
+           "failed, the median time, and the median uncached input, peak context, cost per run and seconds the "
+           "user was disturbed.")
+    return svg, alt
+
+
+def comparison_time_figure(data, task=None):
+    runs = of_task(data, task)
+    rows = tool_rows(runs)
+    svg = Svg()
+    top = header(
+        svg, "Time per run, in the tools and outside them",
+        ["Each bar is the median time of a tool's passed runs, written at the right. Its coloured part is the",
+         "median time inside the tool's calls, the grey part the rest, mostly the model's turns. Each dot is one run."],
+        [("swatch", TOOLS[t][1], f"in {TOOLS[t][0]}'s calls") for t in TOOLS
+         if t in {r["backend"] for r in runs}]
+        + [("swatch", "out", "the rest"), ("dot", "dot", "one run"), ("dot", "miss", "failed run")],
+    )
+    label_w = 210
+    x0 = PAD + label_w
+    plot_w = WIDTH - PAD - x0 - 60
+    longest = max(r["wall_seconds"] for r in runs)
+    ticks, end = nice_ticks(longest)
+    scale = plot_w / end
+    row_h, group_h = 30, 28
+    y = top + 10
+    plot_top = y
+    rows_drawn = []
+    for g, (key, group) in enumerate(rows):
+        svg.text(PAD, y + 19, group_title(key, rows), size=13, weight="600")
+        y += group_h
+        for tool, rs in group:
+            rows_drawn.append((y, tool, rs))
+            y += row_h
+        y += 6
+    bottom = y
+    for t in ticks:
+        x = x0 + t * scale
+        svg.line(x, plot_top, x, bottom, "axis" if t == 0 else "grid")
+        svg.text(x, bottom + 15, tick_label(t, " s" if t == ticks[-1] else ""), cls="m", size=11,
+                 anchor="middle" if t else "start")
+    for ry, tool, rs in rows_drawn:
+        cy = ry + row_h / 2
+        name, cls = TOOLS[tool]
+        svg.rect(PAD, cy - 9, 4, 18, cls, rx=2)
+        svg.text(PAD + 12, cy - 1.5, name, size=12.5, weight="600")
+        svg.text(PAD + 12, cy + 12.5, setting(rs), cls="m", size=11)
+        ok = [r for r in rs if passed(r)]
+        if ok:
+            wall = median(r["wall_seconds"] for r in ok)
+            tools_s = min(median(r["tool_seconds"] for r in ok), wall)
+            svg.bar(x0, cy - 6, tools_s * scale, 12, cls, round_end=False)
+            if (wall - tools_s) * scale > 2:
+                svg.bar(x0 + tools_s * scale + 2, cy - 6, (wall - tools_s) * scale - 2, 12, "out")
+            svg.text(WIDTH - PAD, cy + 4.5, f"{wall:.0f} s", cls="t2", size=12, anchor="end")
+        for r in sorted(rs, key=lambda r: r["wall_seconds"]):
+            svg.circle(x0 + r["wall_seconds"] * scale, cy, 3.5 if passed(r) else 3, "dot" if passed(r) else "miss")
+    svg.height = bottom + 34
+    alt = ("Time per run of each tool for each task and agent: the median time of the passed runs, split into the "
+           "time inside the tool's calls and the rest, and a dot per run.")
+    return svg, alt
+
+
+def comparison_table(data, task=None):
+    runs = of_task(data, task)
+    # Hyprland's ANR dialogs get a column only where a run had any.
+    any_dialogs = any(r.get("hyprland_dialogs") for r in runs)
+    rows = []
+    for key, group in tool_rows(runs):
+        for tool, rs in group:
+            dialogs = [len(r.get("hyprland_dialogs") or []) for r in rs]
+            rows.append([
+                TASK_NAMES.get(key[0], key[0]), model_name(key[2]), TOOLS[tool][0], setting(rs),
+                f"{sum(passed(r) for r in rs)}/{len(rs)}",
+                fmt([r["wall_seconds"] for r in rs if passed(r)]), fmt([r["tool_seconds"] for r in rs if passed(r)]),
+                fmt([r["calls"] for r in rs]), fmt([r["errors"] for r in rs]),
+                fmt([per_k(r["usage"]["input_tokens"]) for r in rs]),
+                fmt([per_k(r["usage"]["uncached_input_tokens"]) for r in rs]),
+                fmt([per_k((r.get("context") or {}).get("peak_input_tokens")) for r in rs]),
+                fmt([r["usage"]["cost_usd"] for r in rs], 2),
+                fmt([(r.get("focus") or {}).get("seconds_away_from_user") for r in rs if passed(r)]),
+                fmt([(r.get("popups") or {}).get("seconds_visible") for r in rs if passed(r)]),
+            ] + ([fmt(dialogs) if any(dialogs) else "0"] if any_dialogs else []))
+    columns = ["Task", "Agent", "Tool", "Where", "Passed", "Time s", "In tools s", "Calls", "Failed calls",
+               "Input k", "Uncached k", "Peak context k", "Cost $", "Focus away s", "Windows over user s"] + (
+        ["ANR dialogs"] if any_dialogs else [])
+    # A table of one task leaves out its name, which the page's heading gives.
+    if len({r["task"] for r in runs}) == 1:
+        columns, rows = columns[1:], [row[1:] for row in rows]
+        return split_table(columns, rows, 3)
+    return split_table(columns, rows, 4)
+
+
+def compare_figure(data, before):
+    """Each task's wall time per run before a change and after it, the medians over all agents."""
+    builds = [("before", before["runs"]), ("after", data["runs"])]
+    ts = tasks(data)
+    for t in ts:
+        if not any(r["task"] == t for r in before["runs"]):
+            raise SystemExit(f"render.py: compare: the earlier dataset has no task {t}")
+    failed = any(not r["passed"] for _, runs in builds for r in runs)
+    svg = Svg()
+    top = header(
+        svg, "Wall time per run, before the change and after it",
+        ["Each bar is the median wall time of a task's runs over all agents, written at the right with the runs",
+         "passed. Its blue part is the median time in hyprmasq's MCP tools. Each dot is one run."],
+        [("swatch", "tools", "median in hyprmasq's tools"), ("swatch", "out", "rest of the median wall time"),
+         ("dot", "dot", "one run")] + ([("dot", "miss", "failed run")] if failed else []),
+    )
+    label_w = max(text_width(t, 12.5, True) for t in ts) + text_width("before", 12) + 36
+    x0 = PAD + label_w
+    right_w = 110
+    plot_w = WIDTH - PAD - right_w - x0
+    longest = max(r["wall_s"] for _, runs in builds for r in runs if r["task"] in ts)
+    ticks, end = nice_ticks(longest)
+    scale = plot_w / end
+    row_h, gap = 22, 12
+    y = top + 14
+    svg.text(WIDTH - PAD - 56, y, "Median", cls="t2", size=12, weight="600", anchor="end")
+    svg.text(WIDTH - PAD, y, "Passed", cls="t2", size=12, weight="600", anchor="end")
+    plot_top = y + 8
+    y = plot_top
+    rows = []
+    for t in ts:
+        for b, (build, runs) in enumerate(builds):
+            rows.append((y, t if b == 0 else "", build, [r for r in runs if r["task"] == t]))
+            y += row_h
+        y += gap
+    bottom = y - gap + 4
+    for v in ticks:
+        x = x0 + v * scale
+        svg.line(x, plot_top, x, bottom, "axis" if v == 0 else "grid")
+        svg.text(x, bottom + 15, tick_label(v, " s" if v == ticks[-1] else ""), cls="m", size=11,
+                 anchor="middle" if v else "start")
+    for ry, task, build, rs in rows:
+        cy = ry + row_h / 2
+        base = cy + 4.5
+        if task:
+            svg.text(PAD, base, task, size=12.5, weight="600")
+        svg.text(x0 - 12, base, build, cls="t2", size=12, anchor="end")
+        wall = median(r["wall_s"] for r in rs)
+        tools = min(median(r["tools_s"] for r in rs), wall)
+        svg.bar(x0, cy - 6, tools * scale, 12, "tools", round_end=False)
+        if (wall - tools) * scale > 2:
+            svg.bar(x0 + tools * scale + 2, cy - 6, (wall - tools) * scale - 2, 12, "out")
+        for r in sorted(rs, key=lambda r: r["wall_s"]):
+            svg.circle(x0 + r["wall_s"] * scale, cy, 3.5 if r["passed"] else 3, "dot" if r["passed"] else "miss")
+        svg.text(WIDTH - PAD - 56, base, f"{wall:.0f} s", cls="t2", size=12, anchor="end")
+        svg.text(WIDTH - PAD, base, f"{sum(r['passed'] for r in rs)}/{len(rs)}", cls="t2", size=12, anchor="end")
+    svg.height = bottom + 34
+    alt = ("Wall time per run of each task before the change and after it: the median over all agents, with the "
+           "median time in hyprmasq's tools inside it, a dot per run, and the runs passed.")
+    return svg, alt
+
+
+FIGURES = {"scoreboard": scoreboard, "time": time_figure, "kinds": kinds_figure, "act": act_figure,
+           "compare": compare_figure, "comparison": comparison_figure, "comparison-time": comparison_time_figure,
+
+           "toolkits": toolkits_figure}
 
 
 # The tables.
@@ -585,6 +1016,22 @@ def markdown_table(columns, rows):
                      + ["| " + " | ".join(row) + " |" for row in rows])
 
 
+# The columns of tokens and cost, which a wide table puts in a table of their own.
+USAGE_COLUMNS = ["Input k", "Uncached k", "Cached %", "Peak context k", "Output k", "Cost $"]
+
+
+def split_table(columns, rows, keys):
+    """A table too wide for GitHub's page as two, its outcome and time, and its tokens and cost, each starting with
+    the first keys columns that name a row."""
+    usage = [i for i, c in enumerate(columns) if c in USAGE_COLUMNS]
+    rest = [i for i in range(keys, len(columns)) if i not in usage]
+    out = []
+    for title, picked in (("Outcome and time", rest), ("Tokens and cost", usage)):
+        idx = list(range(keys)) + picked
+        out.append(f"**{title}**\n\n" + markdown_table([columns[i] for i in idx], [[row[i] for i in idx] for row in rows]))
+    return "\n\n".join(out)
+
+
 def task_table(data, task):
     runs = [r for r in data["runs"] if r["task"] == task]
     labels = row_labels(runs)
@@ -601,7 +1048,7 @@ def task_table(data, task):
             fmt([thousands(r, "input_tokens") for r in rs]), fmt([cached(r) for r in rs]),
             fmt([thousands(r, "output_tokens") for r in rs]), fmt([r["cost_usd"] for r in rs], 3),
         ] + ([fmt([r["phases"].get(phase[0]) for r in rs])] if phase else []))
-    return markdown_table(columns, rows)
+    return split_table(columns, rows, 2)
 
 
 def total(runs, key):
@@ -666,6 +1113,33 @@ def compare_table(data, before):
 TABLES = {"costs": costs_table, "table": task_table, "kinds-table": kinds_table}
 
 
+def toolkits_table(data):
+    runs = toolkit_runs(data)
+    names = agent_names(runs)
+    efforts = several_efforts(runs)
+    rows = []
+    for t in dict.fromkeys(r["task"] for r in runs):
+        for (a, _), rs in groups([r for r in runs if r["task"] == t]):
+            rows.append([t, names[a]] + ([effort_text(rs)] if efforts else []) + [f"{sum(r['passed'] for r in rs)}/{len(rs)}",
+                fmt([r["wall_s"] for r in rs]), fmt([r["tools_s"] for r in rs]),
+                fmt([r["act_s"]["wait"] for r in rs]), fmt([r["turn_s"] for r in rs], 1),
+                fmt([r["calls"] for r in rs]), fmt([r["actions"] for r in rs]),
+                fmt([thousands(r, "input_tokens") for r in rs]), fmt([cached(r) for r in rs]),
+                fmt([r["cost_usd"] for r in rs], 3),
+                str(sum(k["corrections"] for r in rs for k in (r.get("kinds") or {}).values()))])
+    columns = ["Toolkit", "Agent"] + (["Effort"] if efforts else []) + [
+        "Passed", "Wall s", "In tools s", "Settle wait s", "Turn s", "Calls", "Actions", "Input k", "Cached %",
+        "Cost $", "Corrections"]
+    return split_table(columns, rows, 3 if efforts else 2)
+
+
+TABLES = {"costs": costs_table, "table": task_table, "kinds-table": kinds_table, "compare-table": compare_table,
+          "comparison-table": comparison_table, "toolkits-table": toolkits_table}
+# The views that take a TASK, and those that take an earlier build's dataset instead.
+BY_TASK = {"time", "table", "comparison", "comparison-time", "comparison-table"}
+COMPARE = {"compare", "compare-table"}
+
+
 # The Markdown blocks.
 
 # Markers stand at the start of a line, so that text can quote them.
@@ -675,28 +1149,62 @@ BLOCK = re.compile(r"^(<!-- render (\S+) (\S+)(?: (\S+))? -->\n).*?^(<!-- /rende
 def render_block(markdown_path, dataset, view, arg, files):
     """The Markdown of one block, adding its figures' files to files."""
     doc_dir = os.path.dirname(os.path.abspath(markdown_path))
-    data = load(os.path.join(doc_dir, "benchmarks", "data"), dataset)
-    if view == "compare":
+    base = page_dir(markdown_path)
+    data = load(os.path.join(doc_dir, base, "data"), dataset)
+    # The compare views take the dataset of the build before in place of a task.
+    if view in COMPARE:
         if not arg:
-            raise SystemExit(f"render.py: {markdown_path}: compare names the dataset to compare {dataset} with")
-        return compare_table(data, load(os.path.join(doc_dir, "benchmarks", "data"), arg)) + "\n"
-    if (view == "table" or arg) and arg not in tasks(data):
+            raise SystemExit(f"render.py: {markdown_path}: {view} names the dataset to compare {dataset} with")
+        args = [load(os.path.join(doc_dir, base, "data"), arg)]
+    elif arg and view != "table" and arg in {r.get("task_of") for r in data["runs"]}:
+        # A task held in several variants: the view of its variants alone, each as a task of its own. A table is
+        # of one variant.
+        data = dict(data, runs=[r for r in data["runs"] if r.get("task_of") == arg])
+        args = []
+    elif arg and view not in BY_TASK:
+        raise SystemExit(f"render.py: {markdown_path}: {view} takes no task")
+    elif (view == "table" or arg) and arg not in tasks(data):
         raise SystemExit(f"render.py: {markdown_path}: {dataset} has no task {arg}. It has {', '.join(tasks(data))}.")
+    else:
+        args = [arg] if arg else []
     if view in TABLES:
-        table = TABLES[view](data, arg) if view == "table" else TABLES[view](data)
-        return f"<details><summary>Numbers</summary>\n\n{table}\n\n</details>\n"
+        return (f"<details><summary>{table_summary(view, arg)}</summary>\n\n{TABLES[view](data, *args)}\n\n"
+                "</details>\n")
     if view not in FIGURES:
         raise SystemExit(f"render.py: {markdown_path}: unknown view {view}")
-    svg, alt = FIGURES[view](data, arg) if arg else FIGURES[view](data)
-    stem = "-".join([dataset, view] + ([arg] if arg else []))
+    svg, alt = FIGURES[view](data, *args)
+    # A figure of several datasets is named after its view alone.
+    stem = "-".join(([dataset] if "," not in dataset else []) + [view] + ([arg] if arg else []))
     for theme, suffix in (("light", ""), ("dark", "-dark")):
-        files[os.path.join(doc_dir, "benchmarks", stem + suffix + ".svg")] = svg.render(theme, alt)
+        files[os.path.join(doc_dir, base, stem + suffix + ".svg")] = svg.render(theme, alt)
+    # The datasets' notes, such as which build a model ran on, stand under the overview, not inside a figure.
+    notes = data.get("notes", []) if view == "scoreboard" else []
     return (
         "<picture>\n"
-        f'  <source media="(prefers-color-scheme: dark)" srcset="benchmarks/{stem}-dark.svg">\n'
-        f'  <img alt="{html.escape(alt)}" src="benchmarks/{stem}.svg">\n'
+        f'  <source media="(prefers-color-scheme: dark)" srcset="{base}/{stem}-dark.svg">\n'
+        f'  <img alt="{html.escape(alt)}" src="{base}/{stem}.svg">\n'
         "</picture>\n"
+        + (f"\n<sub>{html.escape(' '.join(notes))}</sub>\n" if notes else "")
     )
+
+
+def table_summary(view, arg):
+    """The line a table's block shows while it is folded, which says what the table holds."""
+    if view in TABLE_SUMMARIES:
+        return TABLE_SUMMARIES[view]
+    if not arg:
+        return "Numbers"
+    # The comparison's tasks by their names on its page, the benchmark's as its figures title them.
+    return f"Numbers: {TASK_NAMES.get(arg, arg) if view.startswith('comparison') else arg.capitalize()}"
+
+
+TABLE_SUMMARIES = {"costs": "Tokens and cost per agent", "kinds-table": "Numbers: seconds per question of each kind",
+                   "compare-table": "Numbers before → after", "toolkits-table": "Numbers per toolkit and agent"}
+
+
+def page_dir(markdown_path):
+    """The directory beside a page that holds its data and figures: docs/benchmarks for docs/benchmarks.md."""
+    return os.path.splitext(os.path.basename(markdown_path))[0]
 
 
 def render(markdown_path, text, files):
@@ -714,14 +1222,15 @@ def main(argv):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true")
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    parser.add_argument("markdown", nargs="*", default=[os.path.join(root, "docs", "benchmarks.md")])
+    parser.add_argument("markdown", nargs="*", default=[os.path.join(root, "docs", "benchmarks.md"),
+                                                        os.path.join(root, "docs", "comparison.md")])
     args = parser.parse_args(argv)
     files = {}
     for path in args.markdown:
         with open(path, encoding="utf-8", newline="") as f:
             files[path] = render(path, f.read(), files)
     # Figures that no block draws any more.
-    figure_dirs = {os.path.join(os.path.dirname(os.path.abspath(p)), "benchmarks") for p in args.markdown}
+    figure_dirs = {os.path.join(os.path.dirname(os.path.abspath(p)), page_dir(p)) for p in args.markdown}
     orphans = sorted(os.path.join(d, n) for d in figure_dirs if os.path.isdir(d)
                      for n in os.listdir(d) if n.endswith(".svg") and os.path.join(d, n) not in files)
     stale = []

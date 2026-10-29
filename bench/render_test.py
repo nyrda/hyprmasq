@@ -47,7 +47,7 @@ class Page(unittest.TestCase):
                 run("claude-opus-5-5", 1, True, 40, 11)]
         with open(os.path.join(self.dir.name, "benchmarks", "data", "set.json"), "w") as f:
             json.dump({"sources": [], "runs": runs}, f)
-        self.page = os.path.join(self.dir.name, "results.md")
+        self.page = os.path.join(self.dir.name, "benchmarks.md")
         with open(self.page, "w") as f:
             f.write(PAGE)
 
@@ -66,7 +66,7 @@ class Page(unittest.TestCase):
     def test_blocks_are_filled_and_check_follows_the_files(self):
         self.check_fails()
         main(self.page)
-        page = self.read("results.md")
+        page = self.read("benchmarks.md")
         self.assertTrue(page.startswith("# Results\n\nHandwritten text stays.\n\n<!-- render set scoreboard -->\n"))
         self.assertNotIn("stale content", page)
         self.assertIn('srcset="benchmarks/set-scoreboard-dark.svg"', page)
@@ -88,16 +88,234 @@ class Page(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.dir.name, "benchmarks", "set-time.svg")))
         main("--check", self.page)
 
+    def test_a_task_of_several_variants_names_its_variants_alone(self):
+        runs = [dict(run("gpt-6.1-sol", 1, True, 50, 12), variant="dnd"),
+                dict(run("gpt-6.1-sol", 1, True, 60, 13), variant="pointer"),
+                dict(run("gpt-6.1-sol", 1, True, 70, 14), task="calc")]
+        with open(os.path.join(self.dir.name, "benchmarks", "data", "set.json"), "w") as f:
+            json.dump({"sources": [], "runs": runs}, f)
+        with open(self.page, "w") as f:
+            f.write("<!-- render set scoreboard board -->\n<!-- /render -->\n")
+        main(self.page)
+        svg = self.read("benchmarks", "set-scoreboard-board.svg")
+        self.assertIn("2 of 2 runs passed", svg)
+        self.assertNotIn("Calc", svg)
+
     def test_compare_puts_each_task_before_and_after(self):
         before = [run("gpt-6.1-sol", 1, False, 80, 20), run("gpt-6.1-sol", 2, True, 100, 30)]
         with open(os.path.join(self.dir.name, "benchmarks", "data", "old.json"), "w") as f:
             json.dump({"sources": [], "runs": before}, f)
         with open(self.page, "w") as f:
-            f.write("<!-- render set compare old -->\n<!-- /render -->\n")
+            f.write("<!-- render set compare-table old -->\n<!-- /render -->\n\n"
+                    "<!-- render set compare old -->\n<!-- /render -->\n")
         main(self.page)
         self.assertIn("| board | 1/2 → 2/3 | 90 → 50 | 25 → 12 | 3.0 → 3.0 | 5 → 5 | 9 → 9 | 7 → 7 |",
-                      self.read("results.md"))
+                      self.read("benchmarks.md"))
+        # The figure has a bar for each build, with its median and its runs passed.
+        svg = self.read("benchmarks", "set-compare-old.svg")
+        for text in (">before</text>", ">90 s</text>", ">1/2</text>", ">after</text>", ">50 s</text>", ">2/3</text>"):
+            self.assertIn(text, svg)
         main("--check", self.page)
+
+
+class Load(unittest.TestCase):
+    def test_legacy_variant_is_inferred_only_from_unambiguous_task_sources(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name, variants in (("one", ["dnd"]), ("mixed", ["dnd", "pointer"])):
+                with open(os.path.join(d, name + ".json"), "w") as f:
+                    json.dump({"sources": [{"task": "board", "variant": v} for v in variants],
+                               "runs": [run("gpt-6.1-sol", 1, True, 50, 12)]}, f)
+            self.assertEqual(render.load(d, "one")["runs"][0]["variant"], "dnd")
+            self.assertNotIn("variant", render.load(d, "mixed")["runs"][0])
+
+    def test_joined_dataset_notes_stand_under_the_overview(self):
+        note = "New model: current product. Other models: historical release."
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "benchmarks", "data"))
+            for name, model, notes in (("old", "gpt-6.1-sol", []), ("new", "gpt-6.1-terra", [note])):
+                with open(os.path.join(d, "benchmarks", "data", name + ".json"), "w") as f:
+                    json.dump({"sources": [], "runs": [run(model, 1, True, 50, 12)], "notes": notes}, f)
+            data = render.load(os.path.join(d, "benchmarks", "data"), "old,new")
+            self.assertEqual(len(data["runs"]), 2)
+            self.assertEqual(data["notes"], [note])
+            page = os.path.join(d, "benchmarks.md")
+            with open(page, "w") as f:
+                f.write("<!-- render old,new scoreboard -->\n<!-- /render -->\n\n<!-- render old,new time -->\n<!-- /render -->\n")
+            main(page)
+            with open(page) as f:
+                text = f.read()
+            self.assertEqual(text.count(f"<sub>{note}</sub>"), 1)
+            self.assertLess(text.index(note), text.index("render old,new time"))
+
+    def test_joined_datasets_keep_every_run(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name, model in (("a", "gpt-6.1-sol"), ("b", "claude-opus-5-5")):
+                with open(os.path.join(d, name + ".json"), "w") as f:
+                    json.dump({"sources": [{"commit": name}], "runs": [run(model, 1, True, 50, 12)]}, f)
+            with open(os.path.join(d, "c.json"), "w") as f:
+                json.dump([run("claude-sonnet-5-5", 1, True, 40, 10)], f)
+            data = render.load(d, "a,b,c")
+            self.assertEqual([r["model"] for r in data["runs"]], ["gpt-6.1-sol", "claude-opus-5-5", "claude-sonnet-5-5"])
+            self.assertEqual(data["sources"], [{"commit": "a"}, {"commit": "b"}])
+
+
+class Toolkits(unittest.TestCase):
+    """The toolkit views split the form task's runs by variant, and the other views refuse several variants."""
+
+    def test_efforts_have_separate_table_rows_matching_the_figure(self):
+        runs = [dict(run("gpt-6.1-terra", rep, passed, wall, tools), task="form", variant="qt-25",
+                     effort=effort, ran_at=effort, kinds={})
+                for effort, rep, passed, wall, tools in (("low", 1, True, 30, 10), ("low", 2, False, 40, 12),
+                                                       ("high", 1, True, 300, 50))]
+        data = {"runs": runs}
+        table = render.toolkits_table(data)
+        self.assertIn("| Toolkit | Agent | Effort | Passed |", table)
+        self.assertIn("| Qt 6 | gpt-6.1-terra | low | 1/2 | 35 (30–40) | 11 (10–12) |", table)
+        self.assertIn("| Qt 6 | gpt-6.1-terra | high | 1/1 | 300 | 50 |", table)
+        outcome = table.split("**Tokens and cost**")[0]
+        self.assertEqual(len([line for line in outcome.splitlines() if line.startswith("| Qt 6 |")]), 2)
+        figure, _ = render.toolkits_figure(data)
+        svg = figure.render("light", "Efforts")
+        for text in (">low</text>", ">high</text>", ">35 s</text>", ">300 s</text>"):
+            self.assertIn(text, svg)
+
+    def test_effort_groups_report_the_effort_actually_used(self):
+        runs = [dict(run("gpt-6.1-terra", 1, True, 30, 10), task="form", variant="25",
+                     effort="low", ran_at="medium", kinds={}),
+                dict(run("gpt-6.1-terra", 1, True, 300, 50), task="form", variant="25",
+                     effort="high", ran_at="high", kinds={})]
+        table = render.toolkits_table({"runs": runs})
+        self.assertIn("| GTK 4 | gpt-6.1-terra | low, ran medium | 1/1 | 30 |", table)
+        self.assertIn("| GTK 4 | gpt-6.1-terra | high | 1/1 | 300 |", table)
+
+    def test_toolkit_views(self):
+        runs = [dict(run(model, rep, True, wall, 30), task="form", variant=variant, kinds={})
+                for variant, wall in (("25", 120), ("qt-25", 80), ("gtk3-x11-25", 140))
+                for model in ("gpt-6.1-sol", "claude-sonnet-5-5") for rep in (1, 2)]
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "benchmarks", "data"))
+            with open(os.path.join(d, "benchmarks", "data", "tk.json"), "w") as f:
+                json.dump({"sources": [], "runs": runs}, f)
+            page = os.path.join(d, "benchmarks.md")
+            with open(page, "w") as f:
+                f.write("# T\n\n<!-- render tk toolkits -->\n<!-- /render -->\n\n"
+                        "<!-- render tk toolkits-table -->\n<!-- /render -->\n")
+            main(page)
+            with open(page) as f:
+                text = f.read()
+            self.assertIn('src="benchmarks/tk-toolkits.svg"', text)
+            outcome = text.split("**Tokens and cost**")[0]
+            rows = [line.split(" | ")[:3] for line in outcome.splitlines() if line.startswith("| ") and "---" not in line]
+            self.assertEqual(rows[1:], [["| GTK 4", "gpt-6.1-sol", "2/2"], ["| GTK 4", "Sonnet 5.5", "2/2"],
+                                        ["| GTK 3 (X11)", "gpt-6.1-sol", "2/2"], ["| GTK 3 (X11)", "Sonnet 5.5", "2/2"],
+                                        ["| Qt 6", "gpt-6.1-sol", "2/2"], ["| Qt 6", "Sonnet 5.5", "2/2"]])
+            # The other views take a variant of the form task by its name.
+            with open(page, "w") as f:
+                f.write("# T\n\n<!-- render tk table form-qt-25 -->\n<!-- /render -->\n")
+            main(page)
+            with open(page) as f:
+                self.assertIn("| gpt-6.1-sol | medium | 2/2 | 80 (80–80) |", f.read())
+            with open(page, "w") as f:
+                f.write("# T\n\n<!-- render tk table form -->\n<!-- /render -->\n")
+            with self.assertRaises(SystemExit) as cm:
+                main(page)
+            self.assertIn("It has form-25, form-qt-25, form-gtk3-x11-25.", str(cm.exception))
+
+            with open(os.path.join(d, "benchmarks", "data", "tk.json"), "w") as f:
+                json.dump({"sources": [], "runs": runs + [dict(runs[0], variant="qt-10")]}, f)
+            with open(page, "w") as f:
+                f.write("# T\n\n<!-- render tk toolkits -->\n<!-- /render -->\n")
+            with self.assertRaises(SystemExit) as cm:
+                main(page)
+            self.assertIn("one number of questions, not 10, 25", str(cm.exception))
+
+
+def tool_run(task, model, backend, rep, passed, wall, platform="hyprland", focus=0.0, popups=None, dialogs=0):
+    """A run as bench/laptop/analyze.py writes it."""
+    return {"harness": "codex", "model": model, "task": task, "toolkit": "gtk", "platform": platform,
+            "backend": backend, "rep": rep, "passed": passed, "passed_without_hyprland_dialogs": passed,
+            "hyprland_dialogs": [{"at": 1.0}] * dialogs, "wall_seconds": wall, "tool_seconds": wall / 4,
+            "calls": 10, "errors": 0, "usage": {"input_tokens": 200000, "uncached_input_tokens": 20000,
+            "cost_usd": 0.1}, "context": {"peak_input_tokens": 30000},
+            "focus": {"seconds_away_from_user": focus}, **({"popups": popups} if popups else {})}
+
+
+class Comparison(unittest.TestCase):
+    def test_disturbance_uses_the_measured_union(self):
+        row = {"focus": {"seconds_away_from_user": 3.0, "seconds_disturbed": 5.0},
+               "popups": {"seconds_visible": 3.0}}
+        self.assertEqual(render.disturbance(row), (5.0, "focus or windows"))
+
+    """A page named comparison.md takes its runs from comparison/data, joined from several datasets."""
+
+    def test_comparison_views(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "comparison", "data"))
+            with open(os.path.join(d, "comparison", "data", "a.json"), "w") as f:
+                json.dump([tool_run("form", "gpt-6.1-sol", "hyprmasq", r, True, 100 + r, dialogs=2)
+                           for r in (1, 2, 3)], f)
+            with open(os.path.join(d, "comparison", "data", "b.json"), "w") as f:
+                json.dump([tool_run("form", "gpt-6.1-sol", "cua", 1, True, 150, focus=120.0),
+                           tool_run("form", "gpt-6.1-sol", "cua", 2, False, 60),
+                           tool_run("form", "gpt-6.1-sol", "openai-cu", 1, True, 90, platform="macos",
+                                    popups={"shown": 3, "seconds_visible": 20.0}),
+                           dict(tool_run("form", "gpt-6.1-sol", "hyprmasq", 1, True, 80), toolkit="qt"),
+                           # A session that ended before its first token count recorded no usage.
+                           dict(tool_run("form", "claude-sonnet-5-5", "openai-cu", 1, False, 30, platform="macos"),
+                                usage={"input_tokens": None, "uncached_input_tokens": None, "cost_usd": None},
+                                context={})], f)
+            page = os.path.join(d, "comparison.md")
+            with open(page, "w") as f:
+                f.write("# C\n\n<!-- render a,b comparison -->\n<!-- /render -->\n\n"
+                        "<!-- render a,b comparison-table -->\n<!-- /render -->\n")
+            main(page)
+            with open(page) as f:
+                text = f.read()
+            self.assertIn('src="comparison/comparison.svg"', text)
+            self.assertIn("| gpt-6.1-sol | Cua Driver | Hyprland · GTK | 1/2 | 150 |", text)
+            # hyprmasq has a row for each toolkit, GTK's before Qt's, and both before the other tools.
+            outcome = text.split("**Tokens and cost**")[0]
+            tools = [line.split(" | ")[1:3] for line in outcome.splitlines() if line.startswith("| gpt-6.1-sol")]
+            self.assertEqual(tools, [["hyprmasq", "Hyprland · GTK"], ["hyprmasq", "Hyprland · Qt"],
+                                     ["Cua Driver", "Hyprland · GTK"], ["OpenAI computer use", "macOS · GTK"]])
+            # Usage that a run did not record is unknown, in the table and the figure.
+            self.assertIn("| Sonnet 5.5 | OpenAI computer use | macOS · GTK | 0/1 | – | – | 10 | 0 |", text)
+            self.assertIn("| Sonnet 5.5 | OpenAI computer use | macOS · GTK | – | – | – | – |", text)
+            with open(os.path.join(d, "comparison", "comparison.svg")) as f:
+                svg = f.read()
+            # The disturbance counts the passed runs that disturbed the user: the failed Cua run took no focus, the
+            # passed one 120 s.
+            self.assertIn("1 of 1 · 120 s, focus", svg)
+            self.assertIn("1 of 1 · 20 s, windows", svg)
+            self.assertIn("0 of 3, ANR dialogs", svg)
+            main("--check", page)
+
+    def test_a_block_per_task(self):
+        """With a task, a comparison block shows that task's rows alone, in figures named after it."""
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "comparison", "data"))
+            with open(os.path.join(d, "comparison", "data", "a.json"), "w") as f:
+                json.dump([tool_run("form", "gpt-6.1-sol", "hyprmasq", 1, True, 100),
+                           tool_run("inkscape", "gpt-6.1-sol", "cua", 1, True, 40)], f)
+            page = os.path.join(d, "comparison.md")
+            with open(page, "w") as f:
+                f.write("# C\n\n<!-- render a comparison inkscape -->\n<!-- /render -->\n\n"
+                        "<!-- render a comparison-table inkscape -->\n<!-- /render -->\n")
+            main(page)
+            with open(page) as f:
+                text = f.read()
+            self.assertIn('src="comparison/a-comparison-inkscape.svg"', text)
+            self.assertIn("| gpt-6.1-sol | Cua Driver | Hyprland | 1/1 |", text)
+            self.assertNotIn("| Form with dropdowns |", text)
+            # A figure of one task names only the agent above its rows.
+            with open(os.path.join(d, "comparison", "a-comparison-inkscape.svg")) as f:
+                svg = f.read()
+            self.assertIn(">Hyprland · gpt-6.1-sol</text>", svg)
+            self.assertNotIn("Inkscape · gpt-6.1-sol", svg)
+            with open(page, "w") as f:
+                f.write("# C\n\n<!-- render a costs inkscape -->\n<!-- /render -->\n")
+            with self.assertRaises(SystemExit):
+                main(page)
 
 
 if __name__ == "__main__":

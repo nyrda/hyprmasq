@@ -1,48 +1,84 @@
-# The form task's machine: the questionnaire, a GTK 4 app in Python (form.py). benchVariant, from default.nix, is
-# the number of its questions, 10 to 40; items.py has them.
-{ pkgs, lib, benchVariant, ... }:
+# The form task's machine: the questionnaire in one of several UI toolkits. benchVariant, from default.nix, is the
+# number of its questions, 10 to 40, for the GTK 4 app, or TOOLKIT-N for the app of toolkits/TOOLKIT.nix with N
+# questions; items.py has them.
+#
+# Every toolkit's app is the command hyprmasq-bench-form STATE-DIR COUNT [STATE-FD], which the launcher below
+# writes: it records its process id in STATE-DIR/app.pid and runs the app in that process. The app shows the first
+# COUNT questions of items.py in a top-level window titled "Questionnaire", logs every change of an answer to
+# STATE-DIR/events.jsonl and every press of Submit to STATE-DIR/submissions.jsonl as form.py does, and on SIGUSR1
+# to that process writes its state to the file descriptor STATE-FD, or without it to STATE-DIR/state.json, which
+# check.py grades. A toolkit file is a function of { pkgs, lib, task, launcher, xwayland } to
+# { app; packages ? [ ]; popups ? [ ]; }, the packages being others the app needs in the VM. They are values only:
+# the module's shape cannot depend on pkgs. An X11 app runs on Hyprland's XWayland, which the VM's Hyprland has:
+# xwayland runs its arguments with DISPLAY set to it, since setup.py starts the app with Wayland's variables only.
+# Its menus and lists are windows of their own, which Hyprland reports as it does other windows: popups are their
+# classes, which check.py does not count as windows other than the questionnaire.
+{
+  pkgs,
+  lib,
+  benchVariant,
+  ...
+}:
 let
-  python = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
   # The task's files without Python's caches, which a run of the checker on the host may leave.
   task = builtins.path {
     path = ./.;
     name = "hyprmasq-bench-form";
     filter = path: _: baseNameOf path != "__pycache__";
   };
-  # form.py with GTK 4's typelibs, schemas and icons in its environment.
-  form = pkgs.stdenv.mkDerivation {
-    pname = "hyprmasq-bench-form";
-    version = "1";
-    dontUnpack = true;
-    nativeBuildInputs = [
-      pkgs.wrapGAppsHook4
-      pkgs.gobject-introspection
-    ];
-    buildInputs = [ pkgs.gtk4 ];
-    installPhase = ''
-      mkdir -p $out/bin
-      cat > $out/bin/hyprmasq-bench-form <<SCRIPT
-      #!${pkgs.runtimeShell}
-      exec ${python}/bin/python3 ${task}/form.py "\$@"
-      SCRIPT
-      chmod +x $out/bin/hyprmasq-bench-form
-    '';
-  };
-  count = lib.toIntBase10 benchVariant;
+  # $out/bin/hyprmasq-bench-form, which records its process id and execs COMMAND with its arguments.
+  launcher = command: ''
+    cat > $out/bin/hyprmasq-bench-form <<SCRIPT
+    #!${pkgs.runtimeShell}
+    echo \$\$ > "\$1/app.pid"
+    exec ${command} "\$@"
+    SCRIPT
+    chmod +x $out/bin/hyprmasq-bench-form
+  '';
+  # Hyprland starts XWayland on the first free display, the only one in the VM, and listens on its socket from its
+  # own start.
+  xwayland = pkgs.writeShellScript "hyprmasq-bench-xwayland" ''
+    for socket in /tmp/.X11-unix/X*; do
+      export DISPLAY=:''${socket#/tmp/.X11-unix/X}
+      break
+    done
+    exec "$@"
+  '';
+  parts = builtins.match "(([a-z0-9-]+)-)?([0-9]+)" benchVariant;
+  toolkit =
+    if parts == null || builtins.elemAt parts 1 == null then "gtk4" else builtins.elemAt parts 1;
+  count = if parts == null then 0 else lib.toIntBase10 (builtins.elemAt parts 2);
+  file = ./toolkits + "/${toolkit}.nix";
+  chosen =
+    if builtins.pathExists file then
+      import file {
+        inherit
+          pkgs
+          lib
+          task
+          launcher
+          xwayland
+          ;
+      }
+    else
+      { app = pkgs.emptyDirectory; };
 in
 {
   assertions = [
     {
-      assertion = builtins.match "[0-9]+" benchVariant != null && count >= 10 && count <= 40;
-      message = "the form task's variant is its number of questions, 10 to 40, not \"${benchVariant}\"";
+      assertion = parts != null && count >= 10 && count <= 40 && builtins.pathExists file;
+      message = "the form task's variant is N or TOOLKIT-N, N from 10 to 40 and TOOLKIT one of toolkits/, not \"${benchVariant}\"";
     }
   ];
 
   environment.systemPackages = [
-    form
+    chosen.app
     pkgs.python3
-  ];
+  ]
+  ++ (chosen.packages or [ ]);
 
   environment.etc."hyprmasq-bench/form".source = task;
   environment.etc."hyprmasq-bench/form-count".text = toString count;
+  environment.etc."hyprmasq-bench/form-toolkit".text = toolkit;
+  environment.etc."hyprmasq-bench/form-popups".text = lib.concatLines (chosen.popups or [ ]);
 }

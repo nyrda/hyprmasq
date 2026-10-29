@@ -1,0 +1,73 @@
+[
+  {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "task": "form",
+    "platform": "hyprland",
+    "toolkit": "gtk",
+    "backend": "cua",
+    "rep": 1,
+    "passed": false,
+    "passed_without_hyprland_dialogs": false,
+    "hyprland_dialogs": [],
+    "correct": 0,
+    "failures": [
+      "Submit was never pressed"
+    ],
+    "timed_out": false,
+    "wall_seconds": 55.7,
+    "tool_seconds": 11.3,
+    "calls": 9,
+    "errors": 4,
+    "images": 4,
+    "by_tool": {
+      "list_windows": {
+        "calls": 1,
+        "seconds": 0.02,
+        "errors": 0
+      },
+      "get_window_state": {
+        "calls": 1,
+        "seconds": 1.3,
+        "errors": 0
+      },
+      "run_steps": {
+        "calls": 7,
+        "seconds": 9.97,
+        "errors": 4
+      }
+    },
+    "first_prompt_tokens": 12328,
+    "usage": {
+      "input_tokens": 433644,
+      "cache_read_tokens": 391552,
+      "cache_write_tokens": 0,
+      "output_tokens": 1273,
+      "thinking_tokens": 107,
+      "cost_usd": 0.136069,
+      "cost_basis": "API list prices for gpt-6.1-sol",
+      "uncached_input_tokens": 42092
+    },
+    "final": "I couldn\u2019t finish or submit. The text fields and sliders are filled, but checkbox and dropdown input failed because the desktop input plugin is unavailable.",
+    "context": {
+      "source": "Codex transcript token_count records",
+      "request_count": 13,
+      "first_input_tokens": 12328,
+      "peak_input_tokens": 47320,
+      "last_input_tokens": 47320,
+      "growth_input_tokens": 34992,
+      "compactions": 0
+    },
+    "focus": {
+      "changes": 0,
+      "seconds_away_from_user": 0.0,
+      "events": []
+    },
+    "error_texts": [
+      "run_steps: run_steps: step 1 of 1 failed; 0 step(s) ran before it, 0 not run\n1. click ERROR (find): checkbox \"Amber\" is in window 102305485526144 as `checkbox = \"Amber\"` but has no element index (it exposes no a",
+      "run_steps: run_steps: step 1 of 4 failed; 0 step(s) ran before it, 3 not run\n1. click ERROR (action): No screenshot frame for window 102305485526144: its latest read had no screenshot and the window changed size",
+      "run_steps: run_steps: step 1 of 5 failed; 0 step(s) ran before it, 4 not run\n1. click ERROR (action): foreground_unavailable (unsupported_operation): production Hyprland input plugin is unavailable\nobservation: ",
+      "run_steps: run_steps: step 1 of 1 failed; 0 step(s) ran before it, 0 not run\n1. click ERROR (action): AT-SPI element click failed: X11 error X11Error { error_kind: Window, error_code: 3, sequence: 1, bad_value: "
+    ]
+  }
+]

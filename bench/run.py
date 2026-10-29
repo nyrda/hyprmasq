@@ -33,7 +33,8 @@ import time
 import report
 
 BENCH = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_AGENTS = ["codex:gpt-6.1-sol", "codex:gpt-6-astra", "claude:claude-opus-5-5", "claude:claude-sonnet-5-5"]
+DEFAULT_AGENTS = ["codex:gpt-6.1-sol", "codex:gpt-6.1-terra", "codex:gpt-6-astra",
+                  "claude:claude-opus-5-5", "claude:claude-sonnet-5-5"]
 
 HARNESSES = ("claude", "claude-api", "codex", "pi")
 # Harnesses that use API keys of this machine: dispatch.py never sends their runs to another one.
