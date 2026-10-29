@@ -92,8 +92,18 @@ within 1280 pixels and zooms come at the monitor's scale, so what agents can rea
 in software: at 3840×2160 everything draws slower, also hyprmasq's captures, so times compare only between runs
 on the same display. `source.json` records it.
 
-`--lock FILE` holds an exclusive lock on FILE during each run, for machines where other VMs, such as the VM
-test under `flock FILE`, would not fit into memory next to the benchmark's.
+`--lock FILE` holds a shared lock on FILE while each run's VM is up, for machines where other VMs, such as the VM
+test under `flock FILE`, would not fit into memory next to the benchmark's. Benchmark VMs share the lock, so the
+slots of `dispatch.py` run their VMs together, and `flock FILE`, which takes it exclusive, waits for them, as they
+wait for it. flock lets a shared lock in beside another while an exclusive one waits, so slots whose runs overlap
+would hold the lock for ever: a run does not take it while a process waits for it exclusive, which `/proc/locks`
+shows, and the VM test gets its turn once the runs in progress end. A run waiting so, or for a VM test, has not
+started: its agent and times wait with it.
+
+`--cpus LIST`, such as `4-5,12-13`, runs each run's VM, the test driver and QEMU with all its threads, on those
+CPUs alone, through the CPU affinity that they inherit from `run.py` and that any user may set. The agent and the
+rest of the run go on running on any CPU. `run.json` records the CPUs as `cpus`. `dispatch.py`'s `cores=` gives each
+slot such a list.
 
 `--agent HARNESS:MODEL[@EFFORT]` is repeatable. HARNESS is one of:
 
@@ -111,7 +121,8 @@ Repetitions go round the agents, so a slow hour of one API does not land on one 
 
 It needs KVM, Nix, and the harnesses of the agents logged in for the user who runs it; it uses those logins as they
 are, subscriptions included, and copies no credentials. A run takes the VM's boot (about a minute), the
-agent, and the debrief; runs are sequential, so that they do not compete for the CPU.
+agent, and the debrief; runs are sequential, so that they do not compete for the CPU. `dispatch.py` runs several at
+once, each VM on cores of its own.
 
 ### API keys
 
@@ -152,15 +163,52 @@ It takes `run.py`'s options, `--source` and `--out` repeatable, and a `--host` f
   see below); `,cid=N` is the vsock CID of the first slot's VM, by default 4242, the next slot's one more. Each
   run's VM keeps its disk and sockets in `$XDG_RUNTIME_DIR/hyprmasq-bench-vm-CID`, so that the slots' VMs do not
   share them;
-- `,lock=FILE`: `run.py --lock FILE` on that machine, a lock that its other VM users take there;
-- `,local-lock=FILE`: a lock on this machine that the dispatcher holds while that machine's VM is up, for a machine
-  whose other VM users take their lock here, such as VM tests that this machine runs on a remote Nix store;
+- `,cores=N`: each slot's VM runs on N physical cores of its own, with their SMT siblings, through `run.py --cpus`.
+  The slots take the machine's last cores, from the highest down, and the first ones stay to the agents and the
+  host, which may not be left without a core: `slots=3,cores=2` takes 6 of 8 cores, CPUs `6-7,14-15`, `4-5,12-13`
+  and `2-3,10-11` on a Ryzen 7 5800X3D, and is refused on a 6-core Ryzen 5 5600X. The dispatcher reads the cores
+  from the machine's `/sys/devices/system/cpu` and prints each slot's CPUs before the machine takes runs. Without
+  it, the VMs run on any CPU, as before. The VM has 4 vCPUs: with 2 cores, each vCPU has a thread of its own;
+- `,lock=FILE`: `run.py --lock FILE` on that machine, a lock that its other VM users take there, shared by the slots
+  and exclusive for those users, see [Running](#running);
+- `,local-lock=FILE`: a lock on this machine that the dispatcher holds shared, as `run.py --lock` holds its own,
+  while that machine's VM is up, for a machine whose other VM users take their lock here, such as VM tests that this
+  machine runs on a remote Nix store;
 - `,dir=DIR`: where the machine keeps the dispatcher's files, by default `~/.cache/hyprmasq-bench`;
 - `,agents=PATTERN+PATTERN`: the agents the machine takes, each `HARNESS`, `HARNESS:MODEL` or
   `HARNESS:MODEL@EFFORT` with `*`, such as `agents=codex+claude:*opus*`; by default all. A pattern without `@` takes
   the agent at any effort, and one with `@` only at the efforts it matches, such as `codex:*@high`.
 
-A lock is exclusive, so with a lock a machine's slots take turns at the VM.
+A lock is shared among the slots of every host that takes it, so slots run their VMs at once, and a VM test that
+takes it exclusive with `flock FILE` waits for the runs in progress.
+To run the bench VMs and this repository's VM test on one machine, give the lock that the VM test takes first, such
+as `lock=/tmp/vm.lock` for `flock /tmp/vm.lock flock /tmp/hyprmasq-vm.lock nix build …`.
+
+Two more options apply to all hosts:
+
+- `--balance`: every agent's units go to the hosts that take the agent in equal shares, as far as the counts allow,
+  instead of to whichever slot is free. A host that is done with its share of an agent takes other agents' units,
+  or waits. The wall time, the time in tools and hyprmasq's own time depend on the machine's CPU, so without it a
+  faster machine runs more of each agent's runs, and an agent whose runs come first lands mostly on one. Pass rate,
+  tokens and cost do not depend on the machine. A host that is dropped, or cannot be prepared, leaves its share to
+  the others, and a unit that goes to another host after a failure counts for no share. The shares count the units
+  of this dispatch, not the runs that a resume skips.
+- `--max-concurrent PATTERN=N[,PATTERN=N]`, repeatable: at most N units at once, over all hosts, of the agents that
+  match PATTERN, a pattern as in `agents=`, such as `--max-concurrent codex=4,claude-api=3`, so that a provider's rate
+  limits do not stall runs and inflate their wall time. An agent counts against every pattern it matches. A slot that
+  comes for an agent whose limit is full takes another agent's unit, or waits. A pattern that matches none of the
+  agents is refused.
+
+`run.json` of a dispatched run records `dispatch`: its `slot`, `balance`, the limits that applied to its agent
+(`max_concurrent`) and `waited_seconds`, how long a full limit held its unit back from free slots before it started.
+For example, three slots here, three on a 12-thread NAS with one core each, and the API runs limited:
+
+```sh
+python3 bench/dispatch.py --host local,slots=3,cores=2,lock=/tmp/vm.lock --host me@nas,slots=3,cores=1 --balance \
+    --max-concurrent codex=4,claude-api=3 --task form --reps 6 --source ../hyprmasq-main --out bench/results/my-run
+```
+
+Run [the calibration](#calibration) on a machine before giving it more than one slot.
 
 `claude-api` and `pi` runs go only to `local`, since they use this machine's API keys: another machine never takes
 them, whatever its `agents=`, and naming them in an SSH host's `agents=` is an error, as is an agent that no host
@@ -200,15 +248,43 @@ hyprmasq's own time in `analyze.py` depend on the machine's CPU, since the VM dr
 builds only over the same machines, with the same runs on each, interleaved in time, or machine by machine. Given
 several `--source`, the dispatcher does the first: each agent's repetition of every build is one unit that one
 machine runs, the builds one after the other, their order alternating from unit to unit. Units go to whichever
-machine is free, so a faster machine runs more of them; read agents against each other per machine too. A run
+machine is free, so a faster machine runs more of them, unless `--balance` gives each machine an equal share of
+each agent's units. Read agents against each other per machine too. A run
 that goes to another machine after a failure, or that a resume runs again while its unit's other builds finished,
 can land on another machine than they did; the report's table per machine shows where each ran. Check the
 harness versions as well: machines that update their CLIs apart can run different versions of one harness, and
 `run.json` and the report's runs list show which.
 
-`dispatch_test.py` tests the planning, the scheduling and the hosts' agents without machines:
-`python3 bench/dispatch_test.py`. `harness_test.py` tests pi's isolation, claude-api's key and its check, the names
-of runs and the reading of a recorded pi stream, with fake `pi` and `claude`: `python3 bench/harness_test.py`.
+`dispatch_test.py` tests the planning, the scheduling with its shares and limits, the hosts' agents, the slots'
+cores and the shared lock without machines: `python3 bench/dispatch_test.py`. `harness_test.py` tests pi's
+isolation, claude-api's key and its check, the names of runs, the reading of a recorded pi stream and the pinning of
+a run's VM, with fake `pi`, `claude` and test driver: `python3 bench/harness_test.py`.
+
+## Calibration
+
+VMs on one machine compete for its CPU, since they draw in software. `calibrate.py` measures, without a model,
+whether more slots slow the times that runs measure. For each count of VMs it boots that many VMs of a task at once,
+each on cores of its own as `cores=` gives them, and once all are ready runs the same script in each: a shot of the
+task's window, a scroll of 3 notches down, a shot, a scroll back up, a zoom of the middle, and a Tab and a Shift+Tab,
+`--rounds` times. The calls go through `mcp_tap.py`, which times them as it times an agent's calls, and the VMs
+sample the memory they use, but for forgejo, whose user works in the VM meanwhile. It reports per count of VMs the median and the 90th percentile of the seconds a call,
+over all VMs' calls, by kind of call, the most memory in use in a VM and on the host, and QEMU's peak resident
+memory:
+
+```sh
+python3 bench/calibrate.py --vms 1,2,3 --cores 2 --lock /tmp/vm.lock    # the form task, 20 rounds a VM
+python3 bench/calibrate.py --vms 4 --cores 1 --task board --variant dnd --rounds 10
+```
+
+The counts run one after the other, holding `--lock` shared from the first to the last, as `run.py --lock` holds it
+for a run. The
+results go to `bench/results/DATE-calibrate-TASK/` or `--out`: `calibration.md` with the tables, `calibration.json`
+with each VM's numbers, CPUs and the CPUs that QEMU's threads may run on, and a directory per VM with its MCP log and
+the VM's files. Compare the counts with the first one, a VM alone. The script calls without pause, so all VMs draw
+at once, which is more than agents do: they think between calls, mostly while the other VMs wait too. Other load on
+the machine, which `load at start` shows, skews the numbers. A guest's peak in use, page cache aside, says how much
+of its 6 GiB the task needs. QEMU's resident memory, which the host gives a VM as the guest first touches it, keeps
+what the guest freed.
 
 ## What a run is
 
@@ -351,7 +427,7 @@ partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 | File | Contents |
 | --- | --- |
 | `summary.json` | The measures above. |
-| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. The effort asked for and the one the harness ran at (see [Effort](#effort)). For Claude Code, the credentials its init events named; for pi, the thinking level. |
+| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. The CPUs the VM ran on (`cpus`, `null` for any) and, for a dispatched run, its slot and the limits it waited for (`dispatch`). The effort asked for and the one the harness ran at (see [Effort](#effort)). For Claude Code, the credentials its init events named; for pi, the thinking level. |
 | `agent.jsonl`, `agent.stderr` | The agent's event stream, timestamped. |
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |

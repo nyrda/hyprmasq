@@ -15,6 +15,40 @@ import subprocess
 import sys
 
 
+class Session:
+    """An MCP session with hyprmasq-mcp in the VM on vsock CID cid, through mcp_tap.py, which logs it to log."""
+
+    def __init__(self, cid, log, client="hyprmasq-bench-probe"):
+        tap = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_tap.py")
+        self.proc = subprocess.Popen([sys.executable, tap, str(cid), "5000", log], stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE)
+        self.id = 1
+        self.request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
+                                    "clientInfo": {"name": client, "version": "0"}})
+        self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+
+    def send(self, message):
+        self.proc.stdin.write((json.dumps(message) + "\n").encode())
+        self.proc.stdin.flush()
+
+    def request(self, method, params):
+        self.id += 1
+        self.send({"jsonrpc": "2.0", "id": self.id, "method": method, "params": params})
+        for line in self.proc.stdout:
+            message = json.loads(line)
+            if message.get("id") == self.id:
+                return message
+        raise EOFError("the MCP server closed the connection")
+
+    def call(self, tool, arguments):
+        """The result of a tool call."""
+        return self.request("tools/call", {"name": tool, "arguments": arguments})["result"]
+
+    def close(self):
+        self.proc.stdin.close()
+        self.proc.wait(timeout=10)
+
+
 def main():
     args = sys.argv[1:]
     options = {"--image": None, "--log": "/tmp/hyprmasq-bench-probe.jsonl"}
@@ -32,35 +66,13 @@ def main():
         if rest and rest[0].lstrip().startswith("{"):
             arguments, rest = rest[0], rest[1:]
         calls.append((tool, arguments))
-    tap = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_tap.py")
-    proc = subprocess.Popen(
-        [sys.executable, tap, cid, "5000", options["--log"]],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-    )
-
-    def send(message):
-        proc.stdin.write((json.dumps(message) + "\n").encode())
-        proc.stdin.flush()
-
-    def receive(want_id):
-        for line in proc.stdout:
-            message = json.loads(line)
-            if message.get("id") == want_id:
-                return message
-
-    send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
-        "protocolVersion": "2025-11-25", "capabilities": {},
-        "clientInfo": {"name": "hyprmasq-bench-probe", "version": "0"}}})
-    receive(1)
-    send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+    session = Session(cid, options["--log"])
     shot = None
-    for n, (tool, arguments) in enumerate(calls, 2):
+    for n, (tool, arguments) in enumerate(calls, 1):
         if arguments:
             arguments = json.loads(arguments.replace('"@shot"', json.dumps(shot)))
-        send({"jsonrpc": "2.0", "id": n, "method": "tools/call", "params": {"name": tool, "arguments": arguments}})
-        result = receive(n)["result"]
-        last = n == len(calls) + 1
+        result = session.call(tool, arguments)
+        last = n == len(calls)
         for item in result.get("content", []):
             if item["type"] == "text":
                 print(item["text"])
@@ -74,8 +86,7 @@ def main():
             shot = (entry.get("shot") or {}).get("id") or shot
         if structured:
             print(json.dumps(structured, indent=1)[:3000])
-    proc.stdin.close()
-    proc.wait(timeout=10)
+    session.close()
 
 
 if __name__ == "__main__":

@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """Spreads benchmark runs over several machines, into the results directory that run.py would write.
 
-    dispatch.py --host HOST[,slots=N][,lock=FILE][,local-lock=FILE][,cid=N][,dir=DIR][,agents=A+B]... [--source DIR]...
-                [--out DIR]... [--task TASK] [--variant NAME] [--display WxH@S] [--agent HARNESS:MODEL[@EFFORT]]...
-                [--reps N | --rep N...] [--timeout SECONDS] [--no-debrief]
+    dispatch.py --host HOST[,slots=N][,cores=N][,lock=FILE][,local-lock=FILE][,cid=N][,dir=DIR][,agents=A+B]...
+                [--source DIR]... [--out DIR]... [--task TASK] [--variant NAME] [--display WxH@S]
+                [--agent HARNESS:MODEL[@EFFORT]]... [--reps N | --rep N...] [--timeout SECONDS] [--no-debrief]
+                [--balance] [--max-concurrent PATTERN=N[,PATTERN=N]...]
 
 HOST is `local`, this machine, or an SSH destination such as user@machine, which this machine reaches with its
 keys. Each run, one agent's repetition, runs `run.py --rep N` on one host in a fresh VM there, and its directory is
 copied back. agents= limits a host to the agents that match one of its patterns, HARNESS, HARNESS:MODEL or
 HARNESS:MODEL@EFFORT with *, a pattern without @ matching the agent at any effort; the harnesses that use this machine's API keys, claude-api and pi, run only on `local`. The commits of this checkout and of each --source are shipped to every host: the checkouts must be
 clean. Each --source is a build with its own results directory, the --out in the same order; the runs of builds go
-to the same host one after the other. See bench/README.md.
+to the same host one after the other. cores= runs each slot's VM on that many physical cores of its own. --balance
+gives each host an equal share of every agent's runs, and --max-concurrent limits the runs at once of the agents
+that match a pattern, over all hosts. See bench/README.md.
 """
 
 import argparse
 import collections
 import contextlib
-import fcntl
 import fnmatch
 import hashlib
 import json
@@ -58,6 +60,19 @@ def ssh_command(ctl):
             "-o", "ControlMaster=auto", "-o", f"ControlPath={ctl}/%C", "-o", "ControlPersist=300"]
 
 
+def agent_matches(pattern, harness, model, effort=None):
+    """Whether an agent matches a pattern HARNESS, HARNESS:MODEL or HARNESS:MODEL@EFFORT with *: one without @
+    matches the agent at any effort, and one with @ only at the efforts it matches."""
+    pattern = pattern if ":" in pattern else f"{pattern}:*"
+    return fnmatch.fnmatchcase(run.agent_spec(harness, model, effort) if "@" in pattern else f"{harness}:{model}",
+                               pattern)
+
+
+def agent_of(unit):
+    job = unit.jobs[0]  # the jobs of a unit are one agent's
+    return job.harness, job.model, job.effort
+
+
 class Host:
     """A machine that runs jobs: `local` or an SSH destination, with its options."""
 
@@ -67,24 +82,28 @@ class Host:
             raise ValueError(f"no host in {spec!r}")
         self.slots, self.cid, self.lock, self.local_lock, self.dir = 1, 4242, None, None, ".cache/hyprmasq-bench"
         self.agents = None  # the patterns of the agents it takes, or None for all
+        self.cores = None  # the physical cores of each slot's VM, or None to let the VMs run on any
         for option in options:
             key, sep, value = option.partition("=")
             if not sep or not value:
                 raise ValueError(f"{option!r} in {spec!r} is not KEY=VALUE")
-            if key in ("slots", "cid"):
+            if key in ("slots", "cid", "cores"):
                 setattr(self, key, int(value))
             elif key in ("lock", "local-lock", "dir"):
                 setattr(self, key.replace("-", "_"), value)
             elif key == "agents":
                 self.agents = [p if ":" in p else f"{p}:*" for p in value.split("+") if p]
             else:
-                raise ValueError(f"unknown option {key} in {spec!r}: slots, lock, local-lock, cid, dir or agents")
+                raise ValueError(f"unknown option {key} in {spec!r}: slots, cores, lock, local-lock, cid, dir or agents")
         if self.slots < 1:
             raise ValueError(f"{spec!r} needs at least one slot")
+        if self.cores is not None and self.cores < 1:
+            raise ValueError(f"{spec!r} needs at least one core a slot")
         self.local = self.target == "local"
         if not self.local and any(p.split(":", 1)[0] in run.LOCAL_ONLY for p in self.agents or []):
             raise ValueError(f"{spec!r}: {' and '.join(run.LOCAL_ONLY)} use this machine's API keys and run only on local")
         self.base = None  # the absolute directory on the host, once prepared
+        self.cpus = None  # with cores, the CPUs of each slot, once prepared
         self.prepared = None  # True or False once prepare() ran
         self.failures = 0  # jobs in a row that failed before their run started
         self.dropped = False
@@ -99,9 +118,7 @@ class Host:
         A pattern with @ matches the agent with its effort, and one without the agent at any effort."""
         if harness in run.LOCAL_ONLY and not self.local:
             return False
-        return self.agents is None or any(
-            fnmatch.fnmatchcase(run.agent_spec(harness, model, effort) if "@" in p else f"{harness}:{model}", p)
-            for p in self.agents)
+        return self.agents is None or any(agent_matches(p, harness, model, effort) for p in self.agents)
 
     def sh(self, script, ctl, timeout=None):
         """Runs a shell script on the host in its home directory; returns the CompletedProcess, output as bytes."""
@@ -113,23 +130,6 @@ class Host:
     def remote(self, path):
         """A path on the host as git and rsync name it."""
         return path if self.local else f"{self.target}:{path}"
-
-
-@contextlib.contextmanager
-def local_lock(path, queue):
-    """Holds a lock file on this machine while a host's VM is up, for a host whose other VM users take it here. It
-    waits in line with them, and meanwhile counts as waiting in the queue, so that a stopping dispatch need not wait
-    for it."""
-    if not path:
-        yield
-        return
-    with open(path, "a") as f:
-        with queue.waiting():
-            fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 class Build:
@@ -148,6 +148,7 @@ class Job:
         self.name = run.run_name(harness, model, rep, effort)
         self.tried = []  # the hosts it failed on before its run started
         self.outcome = "not run"
+        self.waited = 0.0  # seconds a --max-concurrent limit held it back from free slots
 
     def __repr__(self):
         return f"{self.name} of {self.build.commit[:10]}"
@@ -160,6 +161,8 @@ class Unit:
 
     def __init__(self, jobs, excluded=()):
         self.jobs, self.excluded = list(jobs), set(excluded)
+        self.blocked = None  # when a full --max-concurrent limit first held it back from a slot
+        self.waited = 0.0
 
 
 def plan(builds, agents, reps):
@@ -181,34 +184,88 @@ def plan(builds, agents, reps):
 
 class Queue:
     """The units still to run. A slot waits while units remain that only other hosts may take but jobs still run,
-    since a failure there can give it work."""
+    since a failure there can give it work.
 
-    def __init__(self, units):
+    With balance, a host takes an agent's unit only within its share of that agent's units, which are split equally
+    over the live hosts that take the agent, the remainder to the first that come for it: so a faster host does not
+    run more of one agent's runs, whose times depend on the machine. A unit that failed elsewhere before its run goes
+    to any host. limits are (pattern, n): at most n units of the agents that match the pattern run at once."""
+
+    def __init__(self, units, hosts=(), balance=False, limits=()):
         self.units = collections.deque(units)
         self.cond = threading.Condition()
         self.active = 0
         self.stopping = threading.Event()
         self.waiters = 0  # slots waiting for a local lock
+        self.hosts, self.balance, self.limits = list(hosts), balance, list(limits)
+        self.running = collections.Counter()  # units running per pattern of limits
+        self.planned = collections.Counter(agent_of(u) for u in self.units)
+        self.taken = collections.defaultdict(collections.Counter)  # per agent, the units each host took
+
+    def fair(self, host, unit):
+        """Whether the host's share of the unit's agent has room for it; units that ran on dropped hosts count
+        against no live host's share."""
+        if not self.balance or unit.excluded:
+            return True
+        agent = agent_of(unit)
+        taken = self.taken[agent]
+        live = [str(h) for h in self.hosts if not h.dropped and h.takes(*agent)]
+        left = self.planned[agent] - sum(n for h, n in taken.items() if h not in live)
+        share, extra = divmod(left, len(live))
+        mine = taken[str(host)]
+        return mine < share or (mine == share and sum(taken[h] > share for h in live) < extra)
+
+    def full(self, unit):
+        """The limits that keep the unit's agent from running another unit now."""
+        return [p for p, n in self.limits if agent_matches(p, *agent_of(unit)) and self.running[p] >= n]
 
     def take(self, host):
+        """The next unit for a slot of the host, or None once there is none for it; unit.waited is how long a full
+        limit held it back from slots that came for it."""
         with self.cond:
             while not self.stopping.is_set() and not host.dropped:
+                held = False
                 for unit in self.units:
-                    job = unit.jobs[0]  # the jobs of a unit are one agent's
-                    if str(host) not in unit.excluded and host.takes(job.harness, job.model, job.effort):
-                        self.units.remove(unit)
-                        self.active += 1
-                        return unit
-                if not self.active:
+                    if str(host) in unit.excluded or not host.takes(*agent_of(unit)):
+                        continue
+                    if not self.fair(host, unit):
+                        held = True
+                        continue
+                    if self.full(unit):
+                        unit.blocked = unit.blocked or time.monotonic()
+                        continue
+                    self.units.remove(unit)
+                    self.active += 1
+                    if not unit.excluded:  # a unit that failed elsewhere counts for no share
+                        self.taken[agent_of(unit)][str(host)] += 1
+                    for p, n in self.limits:
+                        if agent_matches(p, *agent_of(unit)):
+                            self.running[p] += 1
+                    unit.waited = time.monotonic() - unit.blocked if unit.blocked else 0.0
+                    return unit
+                # Units held for other hosts' shares wait for those hosts, which take them or are dropped.
+                if not self.active and not held:
                     return None
                 self.cond.wait(5)
             return None
 
-    def finish(self, back=()):
-        """A slot finished its unit; `back` are units it gives back, first in line."""
+    def finish(self, host, unit, back=()):
+        """A slot of the host finished the unit; `back` are units it gives back, first in line."""
         with self.cond:
             self.active -= 1
+            for p, n in self.limits:
+                if agent_matches(p, *agent_of(unit)):
+                    self.running[p] -= 1
+            for u in back:
+                if not u.excluded:
+                    self.taken[agent_of(u)][str(host)] -= 1
             self.units.extendleft(reversed(list(back)))
+            self.cond.notify_all()
+
+    def drop(self, host):
+        """A host takes no more units: the others' shares grow."""
+        with self.cond:
+            host.dropped = True
             self.cond.notify_all()
 
     @contextlib.contextmanager
@@ -232,6 +289,7 @@ def run_slot(host, slot, queue, ready, execute):
     execute(host, slot, job) runs a job and returns "done", "failed" (it failed after its agent started, and stays as
     run.py leaves it), "not started", or "not run" (the dispatch stopped first)."""
     if not ready(host):
+        queue.drop(host)
         return
     while (unit := queue.take(host)) is not None:
         back = []
@@ -239,6 +297,8 @@ def run_slot(host, slot, queue, ready, execute):
             if queue.stopping.is_set() or host.dropped:
                 back.append(Unit(unit.jobs[i:], unit.excluded))
                 break
+            # The unit waited for a limit before its first job; the others follow at once.
+            job.waited = unit.waited if i == 0 else 0.0
             try:
                 job.outcome = execute(host, slot, job)
             except Exception as e:  # a bug or a local error: the run stays without summary.json, for a resume
@@ -252,7 +312,7 @@ def run_slot(host, slot, queue, ready, execute):
                 with host.mutex:
                     host.failures += 1
                     if host.failures >= 2 and not host.dropped:
-                        host.dropped = True
+                        queue.drop(host)
                         say(f"[{host}] dropped: two jobs in a row failed before their run started")
                 if len(job.tried) < 2:
                     say(f"[{host}] {job} failed before its run started; it goes to another host")
@@ -260,7 +320,7 @@ def run_slot(host, slot, queue, ready, execute):
             else:
                 with host.mutex:
                     host.failures = 0
-        queue.finish(back)
+        queue.finish(host, unit, back)
 
 
 def dispatch(hosts, queue, ready, execute):
@@ -331,7 +391,6 @@ class Remote:
             except (RuntimeError, OSError, subprocess.CalledProcessError) as e:
                 detail = e.stderr.decode(errors="replace").strip() if isinstance(e, subprocess.CalledProcessError) else e
                 say(f"[{host}] cannot run jobs: {detail}")
-                host.dropped = True
             return host.prepared
 
     def _prepare(self, host):
@@ -347,6 +406,13 @@ class Remote:
         """).splitlines()
         host.base = info[0].strip()
         say(f"[{host}] {info[1].strip()}, {info[2].strip()}; " + "; ".join(line.strip() for line in info[3:]))
+        if host.cores:
+            siblings = self.sh(host, "cat /sys/devices/system/cpu/cpu[0-9]*/topology/thread_siblings_list")
+            try:
+                host.cpus = run.slot_cpus(run.physical_cores(siblings.splitlines()), host.slots, host.cores)
+            except ValueError as e:
+                raise RuntimeError(f"[{host}] {e}") from None
+            say(f"[{host}] the slots' VMs run on CPUs " + ", ".join(run.format_cpus(c) for c in host.cpus))
         repo = f"{host.base}/repo.git"
         self.sh(host, f"test -d {shlex.quote(repo)} || git init -q --bare {shlex.quote(repo)}")
         commits = {self.harness["commit"]: self.harness["path"]}
@@ -383,10 +449,15 @@ class Remote:
         command += ["--variant", self.args.variant] if self.args.variant else []
         command += ["--no-debrief"] if self.args.no_debrief else []
         command += ["--lock", host.lock] if host.lock else []
+        command += ["--cpus", run.format_cpus(host.cpus[slot])] if host.cpus else []
+        # What run.json records of the dispatch: the slot, the limits on the agent and how long it waited for them.
+        limits = {p: n for p, n in self.queue.limits if agent_matches(p, job.harness, job.model, job.effort)}
+        command += ["--dispatch", json.dumps({"slot": slot, "balance": self.queue.balance, "max_concurrent": limits,
+                                              "waited_seconds": round(job.waited, 1)})]
         q = shlex.quote
         local_run = os.path.join(b.out, job.name)
         say(f"[{host}] {job}: starting" + (f", waiting for {host.local_lock} here" if host.local_lock else ""))
-        with local_lock(host.local_lock, self.queue):
+        with run.vm_lock(host.local_lock, self.queue.waiting):
             if self.stopping.is_set():
                 return "not run"
             shutil.rmtree(local_run, ignore_errors=True)  # a run that failed before, as run.py does
@@ -467,6 +538,21 @@ def outcome_of(run_dir):
     return "not started"
 
 
+def parse_limits(options, agents):
+    """The limits of --max-concurrent, (pattern, n) in order: each PATTERN=N, comma-separated, a pattern of agents as
+    in agents=. A pattern that matches none of the agents is refused, as a typo would be."""
+    limits = {}
+    for option in options:
+        for item in option.split(","):
+            pattern, sep, n = item.partition("=")
+            if not sep or not pattern or not n.isdigit() or int(n) < 1:
+                raise ValueError(f"--max-concurrent {item!r} is not PATTERN=N with N at least 1")
+            if not any(agent_matches(pattern, *agent) for agent in agents):
+                raise ValueError(f"--max-concurrent {pattern} matches none of the agents")
+            limits[pattern] = int(n)
+    return list(limits.items())
+
+
 def checkout_state(path, parser, what):
     state = run.source_commit(path)
     if not state["commit"]:
@@ -480,12 +566,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     run.add_run_options(parser)
     parser.add_argument("--host", action="append", required=True,
-                        help="local or an SSH destination, with ,slots=N ,lock=FILE ,local-lock=FILE ,cid=N ,dir=DIR "
-                             ",agents=PATTERN+PATTERN")
+                        help="local or an SSH destination, with ,slots=N ,cores=N ,lock=FILE ,local-lock=FILE ,cid=N "
+                             ",dir=DIR ,agents=PATTERN+PATTERN")
     parser.add_argument("--source", action="append", help="hyprmasq checkout to run in the VM, repeatable: a build each")
     parser.add_argument("--out", action="append", help="results directory, one per --source in the same order")
+    parser.add_argument("--balance", action="store_true",
+                        help="give each host an equal share of every agent's runs, instead of to whichever is free")
+    parser.add_argument("--max-concurrent", action="append", metavar="PATTERN=N[,PATTERN=N]",
+                        help="at most N runs at once, over all hosts, of the agents that match PATTERN, such as "
+                             "codex=4,claude-api=3; repeatable")
     args = parser.parse_args()
     agents, reps = run.check_run_options(args, parser)
+    try:
+        limits = parse_limits(args.max_concurrent or [], agents)
+    except ValueError as e:
+        parser.error(str(e))
     try:
         hosts = [Host(spec) for spec in args.host]
     except ValueError as e:
@@ -520,8 +615,10 @@ def main():
             json.dump(b.config, f, indent=2)
 
     units = plan(builds, agents, reps)
-    say(f"{sum(len(u.jobs) for u in units)} runs on {', '.join(f'{h} ({h.slots} slots)' for h in hosts)}")
-    queue = Queue(units)
+    say(f"{sum(len(u.jobs) for u in units)} runs on "
+        + ", ".join(f"{h} ({h.slots} slots" + (f" of {h.cores} cores" if h.cores else "") + ")" for h in hosts)
+        + (", each agent's runs in equal shares" if args.balance else ""))
+    queue = Queue(units, hosts, args.balance, limits)
     with tempfile.TemporaryDirectory(prefix="hyprmasq-dispatch-") as ctl:
         remote = Remote(harness, builds, agents, args, ctl, queue)
         dispatch(hosts, queue, remote.prepare, remote.execute)
