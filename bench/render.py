@@ -18,11 +18,12 @@ after the dataset, view and task, the dataset left out when there are several. V
   per passed run.
 - time: each run's wall time and the medians of the time in hyprmasq's tools and outside them, a panel per task,
   or only TASK's.
-- kinds: the form task's seconds per question of each kind, a bar per model.
+- kinds: the form task's seconds per question of each kind, a bar per model. TASK names the task where the dataset
+  holds several, such as form and form-no-dropdowns.
 - act: what the act calls' time went to, as analyze.py splits it.
 - costs: a table of the tokens and the cost of each agent's runs.
 - table: a table of the medians of TASK's runs, a row per agent and effort.
-- kinds-table: a table of the form task's seconds per question of each kind.
+- kinds-table: a table of the form task's seconds per question of each kind, of TASK's runs as kinds takes them.
 - compare: each task's wall time per run beside that of the dataset TASK names, an earlier build's:
   `<!-- render AFTER compare BEFORE -->`.
 - compare-table: a table of each task's runs passed and medians, before → after, as compare takes its datasets.
@@ -37,7 +38,9 @@ after the dataset, view and task, the dataset left out when there are several. V
 
 Where the datasets of a block hold several variants of a task, its runs are named by their variant too, such as
 board-dnd, and TASK names them so. TASK may also name such a task, board, for any view but table of its variants
-alone. The toolkit views take the form task's runs of every variant.
+alone. The form task's variants without dropdowns, such as 25-no-dropdowns, are the task form-no-dropdowns, which
+the figures and tables name Form without dropdowns, as the comparison does. The toolkit views take the form task's
+runs of every other variant.
 
 --check renders in memory and fails when a Markdown block or figure differs from what is on disk, or when a figure
 is drawn by no block; without it, render.py writes them and removes such figures. The figures use
@@ -69,7 +72,10 @@ NAMES = {
 EFFORTS = ["default", "none", "off", "minimal", "low", "medium", "high", "xhigh", "max"]
 KINDS = ["checkbox", "slider", "text", "dropdown"]
 # The milestone each task's table reports, with its column.
-PHASES = {"form": ("all answered correctly", "All right at s")}
+PHASES = {"form": ("all answered correctly", "All right at s"),
+          "form-no-dropdowns": ("all answered correctly", "All right at s")}
+# The form task's variants without dropdowns end in this, such as 25-no-dropdowns.
+NO_DROPDOWNS = "-no-dropdowns"
 ACT_PARTS = [
     ("input", "Input pacing", "the sender's keys and clicks"),
     ("wait", "Settle wait", "until the window is quiet"),
@@ -243,6 +249,10 @@ def load(data_dir, name):
                 runs.append(run)
             sources += loaded.get("sources", [])
             notes += loaded.get("notes", [])
+    # The form without dropdowns is a task of its own, as on the comparison page, and its variant the rest of the
+    # name, such as qt-25.
+    runs = [dict(r, task="form" + NO_DROPDOWNS, variant=r["variant"].removesuffix(NO_DROPDOWNS))
+            if r["task"] == "form" and (r.get("variant") or "").endswith(NO_DROPDOWNS) else r for r in runs]
     # A task that the datasets hold in several variants is named by its variant too, such as board-dnd, so that each
     # view's medians take one variant. task_of gives the task's own name.
     variants = {}
@@ -294,6 +304,14 @@ def groups(runs):
 
 def tasks(data):
     return list(dict.fromkeys(r["task"] for r in data["runs"]))
+
+
+def task_title(task):
+    """A task's name in the benchmark's figures and tables, such as Board-dnd, and the form without dropdowns by its
+    name on the comparison page."""
+    if task.startswith("form" + NO_DROPDOWNS):
+        return TASK_NAMES["form" + NO_DROPDOWNS] + task.removeprefix("form" + NO_DROPDOWNS)
+    return task.capitalize()
 
 
 def median(values):
@@ -366,7 +384,7 @@ def scoreboard(data):
     head_y = top + 14
     svg.text(x_passed, head_y, "Passed", cls="t2", size=12, weight="600")
     for i, t in enumerate(ts):
-        svg.text(x_task + i * task_w, head_y, t.capitalize(), cls="t2", size=12, weight="600")
+        svg.text(x_task + i * task_w, head_y, task_title(t), cls="t2", size=12, weight="600")
     svg.text(x_cost, head_y, "Cost per passed run", cls="t2", size=12, weight="600")
     row_h = 34
     # The dots of a task's runs move closer when there are more than its column holds beside the time.
@@ -472,7 +490,7 @@ def shared_limit(groups_of_runs):
                if r["wall_s"] <= 2 * median(x["wall_s"] for x in rs))
 
 
-def time_figure(data, only=None, title=str.capitalize, noun="task", shared=False):
+def time_figure(data, only=None, title=task_title, noun="task", shared=False):
     """title gives a panel's title for its task. shared puts all panels on one scale, for panels to compare."""
     runs = data["runs"]
     ts = [only] if only else tasks(data)
@@ -563,17 +581,20 @@ def toolkits_figure(data):
     return time_figure({"runs": toolkit_runs(data)}, title=lambda t: t, noun="toolkit", shared=True)
 
 
-def kinds_runs(data):
+def kinds_runs(data, task=None):
     """The runs whose time per kind counts: passed ones, as a run that stopped early has unanswered questions whose
-    time is none."""
-    runs = [r for r in data["runs"] if r.get("kinds") and r["passed"]]
+    time is none. They are TASK's, or the dataset's one task's: the form with and without dropdowns ask other kinds."""
+    runs = [r for r in data["runs"] if r.get("kinds") and r["passed"] and task in (None, r["task"])]
     if not runs:
         raise SystemExit("render.py: the kinds views need passed runs of the form task")
+    several = list(dict.fromkeys(r["task"] for r in runs))
+    if len(several) > 1:
+        raise SystemExit(f"render.py: the kinds views take one task's runs: name one of {', '.join(several)}")
     return runs
 
 
-def kinds_figure(data):
-    runs = kinds_runs(data)
+def kinds_figure(data, task=None):
+    runs = kinds_runs(data, task)
     agents = agent_order(runs)
     if len(agents) > len(THEMES["light"]["series"]):
         raise SystemExit(f"render.py: the kinds figure has colours for {len(THEMES['light']['series'])} models")
@@ -1075,8 +1096,8 @@ def costs_table(data):
                           rows)
 
 
-def kinds_table(data):
-    runs = kinds_runs(data)
+def kinds_table(data, task=None):
+    runs = kinds_runs(data, task)
     labels = row_labels(runs)
     efforts = several_efforts(runs)
     kinds = [k for k in KINDS if k in runs[0]["kinds"]]
@@ -1136,7 +1157,7 @@ def toolkits_table(data):
 TABLES = {"costs": costs_table, "table": task_table, "kinds-table": kinds_table, "compare-table": compare_table,
           "comparison-table": comparison_table, "toolkits-table": toolkits_table}
 # The views that take a TASK, and those that take an earlier build's dataset instead.
-BY_TASK = {"time", "table", "comparison", "comparison-time", "comparison-table"}
+BY_TASK = {"time", "table", "kinds", "kinds-table", "comparison", "comparison-time", "comparison-table"}
 COMPARE = {"compare", "compare-table"}
 
 
@@ -1191,11 +1212,11 @@ def render_block(markdown_path, dataset, view, arg, files):
 def table_summary(view, arg):
     """The line a table's block shows while it is folded, which says what the table holds."""
     if view in TABLE_SUMMARIES:
-        return TABLE_SUMMARIES[view]
+        return TABLE_SUMMARIES[view] + (f": {task_title(arg)}" if view == "kinds-table" and arg else "")
     if not arg:
         return "Numbers"
     # The comparison's tasks by their names on its page, the benchmark's as its figures title them.
-    return f"Numbers: {TASK_NAMES.get(arg, arg) if view.startswith('comparison') else arg.capitalize()}"
+    return f"Numbers: {TASK_NAMES.get(arg, arg) if view.startswith('comparison') else task_title(arg)}"
 
 
 TABLE_SUMMARIES = {"costs": "Tokens and cost per agent", "kinds-table": "Numbers: seconds per question of each kind",
