@@ -126,7 +126,8 @@ once, each VM on cores of its own.
 
 ### API keys
 
-`claude-api` and `pi` use API keys of this machine, so `dispatch.py` runs them only here (see below).
+`claude-api` and `pi` use API keys of this machine, so `dispatch.py` runs `pi` only here, and `claude-api` here or on
+a machine that is named to get the key (see [API keys on other machines](#api-keys-on-other-machines)).
 
 - `claude-api` gives Claude Code `ANTHROPIC_API_KEY`, in that process's environment alone, from
   `$HYPRMASQ_BENCH_ANTHROPIC_API_KEY` if it is set, or else from `pi auth print-api-key --provider anthropic`.
@@ -153,10 +154,12 @@ python3 bench/dispatch.py --host local,lock=/tmp/vm.lock --host me@box --host me
     --task forgejo --agent codex:gpt-6.1-sol --reps 6 --source ../hyprmasq-main --out bench/results/my-run
 python3 bench/dispatch.py --host ... --source ../hyprmasq-main --source ../hyprmasq-feature \
     --out bench/results/main --out bench/results/feature   # two builds, each into its own directory
+python3 bench/dispatch.py --host ... --task forgejo --task board:dnd --task form \
+    --out bench/results/suite                              # three tasks in one queue, a directory each
 python3 bench/dispatch.py --host ... --reps 0              # only ship the commits and build the drivers
 ```
 
-It takes `run.py`'s options, `--source` and `--out` repeatable, and a `--host` for each machine:
+It takes `run.py`'s options, `--source`, `--out` and `--task` repeatable, and a `--host` for each machine:
 
 - `local`, this machine, or an SSH destination such as `user@machine`, which this machine reaches with its keys and
   without a prompt; `,slots=N` runs N VMs there at once (by default one, as runs on one machine compete for its CPU,
@@ -178,6 +181,8 @@ It takes `run.py`'s options, `--source` and `--out` repeatable, and a `--host` f
 - `,agents=PATTERN+PATTERN`: the agents the machine takes, each `HARNESS`, `HARNESS:MODEL` or
   `HARNESS:MODEL@EFFORT` with `*`, such as `agents=codex+claude:*opus*`; by default all. A pattern without `@` takes
   the agent at any effort, and one with `@` only at the efforts it matches, such as `codex:*@high`.
+- `,api-keys`: the machine takes `claude-api` runs too, with this machine's Anthropic key, see
+  [API keys on other machines](#api-keys-on-other-machines).
 
 A lock is shared among the slots of every host that takes it, so slots run their VMs at once, and a VM test that
 takes it exclusive with `flock FILE` waits for the runs in progress.
@@ -186,15 +191,15 @@ as `lock=/tmp/vm.lock` for `flock /tmp/vm.lock flock /tmp/hyprmasq-vm.lock nix b
 
 Two more options apply to all hosts:
 
-- `--balance`: every agent's units go to the hosts that take the agent in equal shares, as far as the counts allow,
-  instead of to whichever slot is free. A host that is done with its share of an agent takes other agents' units,
+- `--balance`: every agent's units of every task go to the hosts that take the agent in equal shares, as far as the
+  counts allow, instead of to whichever slot is free. A host that is done with its share of an agent takes other agents' units,
   or waits. The wall time, the time in tools and hyprmasq's own time depend on the machine's CPU, so without it a
   faster machine runs more of each agent's runs, and an agent whose runs come first lands mostly on one. Pass rate,
   tokens and cost do not depend on the machine. A host that is dropped, or cannot be prepared, leaves its share to
   the others, and a unit that goes to another host after a failure counts for no share. The shares count the units
   of this dispatch, not the runs that a resume skips.
-- `--max-concurrent PATTERN=N[,PATTERN=N]`, repeatable: at most N units at once, over all hosts, of the agents that
-  match PATTERN, a pattern as in `agents=`, such as `--max-concurrent codex=4,claude-api=3`, so that a provider's rate
+- `--max-concurrent PATTERN=N[,PATTERN=N]`, repeatable: at most N units at once, over all hosts and tasks, of the
+  agents that match PATTERN, a pattern as in `agents=`, such as `--max-concurrent codex=4,claude-api=3`, so that a provider's rate
   limits do not stall runs and inflate their wall time. An agent counts against every pattern it matches. A slot that
   comes for an agent whose limit is full takes another agent's unit, or waits. A pattern that matches none of the
   agents is refused.
@@ -210,17 +215,51 @@ python3 bench/dispatch.py --host local,slots=3,cores=2,lock=/tmp/vm.lock --host 
 
 Run [the calibration](#calibration) on a machine before giving it more than one slot.
 
-`claude-api` and `pi` runs go only to `local`, since they use this machine's API keys: another machine never takes
-them, whatever its `agents=`, and naming them in an SSH host's `agents=` is an error, as is an agent that no host
-takes. The dispatcher drops Anthropic keys (`ANTHROPIC_*`, `HYPRMASQ_BENCH_ANTHROPIC_*`) from the environment of ssh, git
-and rsync. For
-example, Codex runs on two machines and the API runs here:
+### Several tasks
+
+`--task TASK[:VARIANT]` is repeatable, such as `--task forgejo --task board:dnd --task trace:rack`. A task without a
+variant takes its default, as in `run.py`, and `--variant` goes only with a single `--task`. The runs of all tasks go
+into one queue, so that no slot waits for the other tasks' last runs before the next task starts. Repetitions go
+round the tasks and each task's round goes round the agents, so that an agent's runs, and a provider's, spread over
+the whole dispatch. `--balance` gives each machine an equal share of every agent's runs of every task, and
+`--max-concurrent` counts the runs of all tasks. Every machine builds the drivers of all tasks before it takes runs.
+
+Each task gets a results directory of its own, `TASK` or `TASK-VARIANT` under `--out`, such as
+`bench/results/suite/board-dnd/`, laid out as a dispatch of that task alone lays out its `--out`, with its
+`source.json`, run directories and `report.md`: `report.py`, `analyze.py` and `export.py` read each as before.
+Without `--out`, the directory is `bench/results/DATE-N-tasks`. With several `--source`, each `--out` holds the
+tasks' directories of its build. A single `--task` writes into `--out` itself, as before. Running the same command
+again resumes every task with its runs that have no `summary.json`.
+
+### API keys on other machines
+
+`pi` runs go only to `local`: it reads its keys from its own files, which a machine would need written. `claude-api`
+runs go to `local` and to the machines named with `,api-keys`, and to no other, whatever its `agents=`. Naming
+`claude-api` in the `agents=` of an SSH host without `api-keys`, or `pi` in any SSH host's, is an error, as is an
+agent that no host takes.
+
+The dispatcher gets the key and the request headers once, as `run.py` gets them here (see [API keys](#api-keys)),
+and refuses to start a dispatch with a `claude-api` agent without them. It gives them to a machine with `api-keys` only on the stdin of the SSH session that starts a `claude-api` run there.
+The script that starts the run reads them into shell variables and passes them in the environment of the run's
+`run.py` alone, as `HYPRMASQ_BENCH_ANTHROPIC_API_KEY` and `HYPRMASQ_BENCH_ANTHROPIC_HEADERS`, before the run detaches
+into its own session: so the run holds them in its memory and environment, and survives a dropped connection as
+other runs do. They are in no argument, which `ps` would show, and neither the dispatcher nor `run.py` writes them
+into a file or log on either machine, `run.json` and `source.json` included, or prints them. `run.py` there passes them on to Claude Code alone, as here,
+and drops them from the environment of the VM driver, `nix-build` and the other harnesses. The dispatcher drops Anthropic
+keys (`ANTHROPIC_*`, `HYPRMASQ_BENCH_ANTHROPIC_*`) from the environment of ssh, git and rsync.
+
+After a `claude-api` run, on any machine, `run.py` refuses `summary.json` if a file of the run holds the key. Before
+the run's directory is copied back, the dispatcher also looks for the key in its files there, with `grep` given the
+key on its stdin, removes the files that hold it, and says which: the run then failed, and a resume runs it again.
+For example, Codex and the API runs on two machines, and pi here:
 
 ```sh
-python3 bench/dispatch.py --host local,lock=/tmp/vm.lock --host me@box,agents=codex \
+python3 bench/dispatch.py --host local,lock=/tmp/vm.lock --host me@box,api-keys \
     --agent codex:gpt-6.1-sol --agent claude-api:claude-sonnet-5-5 --agent pi:tensorx/deepseek/deepseek-v4.1-flash-1017 \
     --task forgejo --reps 3 --source ../hyprmasq-main --out bench/results/my-run
 ```
+
+### How it runs
 
 The dispatcher refuses a checkout with changes, its own or a source's, and ships their commits: it pushes them
 over SSH into a bare repository in DIR, `repo.git`, which needs no access to GitHub, and checks each out in a
@@ -255,8 +294,9 @@ can land on another machine than they did; the report's table per machine shows 
 harness versions as well: machines that update their CLIs apart can run different versions of one harness, and
 `run.json` and the report's runs list show which.
 
-`dispatch_test.py` tests the planning, the scheduling with its shares and limits, the hosts' agents, the slots'
-cores and the shared lock without machines: `python3 bench/dispatch_test.py`. `harness_test.py` tests pi's
+`dispatch_test.py` tests the planning of several tasks, the scheduling with its shares and limits, the hosts' agents,
+the slots' cores, the shared lock, and the way of claude-api's key to a machine with `api-keys`, with fake `ssh`,
+`rsync`, `git` and `run.py`, without machines: `python3 bench/dispatch_test.py`. `harness_test.py` tests pi's
 isolation, claude-api's key and its check, the names of runs, the reading of a recorded pi stream and the pinning of
 a run's VM, with fake `pi`, `claude` and test driver: `python3 bench/harness_test.py`.
 

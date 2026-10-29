@@ -2,7 +2,11 @@
 
 import argparse
 import collections
+import contextlib
 import fcntl
+import hashlib
+import io
+import json
 import os
 import subprocess
 import sys
@@ -69,6 +73,45 @@ class Runs(unittest.TestCase):
                  [(b, "claude-opus-2"), (a, "claude-opus-2")]],
             )
 
+    def tasks(self, *argv):
+        parser = argparse.ArgumentParser()
+        parser.error = lambda message: (_ for _ in ()).throw(ValueError(message))
+        run.add_run_options(parser, tasks=True)
+        return dispatch.parse_tasks(parser.parse_args(list(argv)), parser)
+
+    def test_several_tasks_with_their_variants(self):
+        self.assertEqual(self.tasks(), [("thunderbird", None)])
+        self.assertEqual(self.tasks("--task", "board", "--variant", "pointer"), [("board", "pointer")])
+        self.assertEqual(self.tasks("--task", "forgejo", "--task", "board:dnd", "--task", "form", "--task", "trace:rack"),
+                         [("forgejo", None), ("board", "dnd"), ("form", "25"), ("trace", "rack")])
+        for bad in (["--task", "board:dnd", "--task", "forgejo", "--variant", "dnd"], ["--task", "board:dnd", "--variant", "dnd"],
+                    ["--task", "form", "--task", "form:25"], ["--task", "forgejo:x"], ["--task", "board"], ["--task", "nope"]):
+            with self.assertRaises(ValueError, msg=bad):
+                self.tasks(*bad)
+
+    def test_one_task_writes_into_out_and_several_into_a_directory_each(self):
+        self.assertEqual(dispatch.results_out("/r/one", "board", "dnd", 1), "/r/one")
+        self.assertEqual(dispatch.results_out("/r/all", "board", "dnd", 2), "/r/all/board-dnd")
+        self.assertEqual(dispatch.results_out("/r/all", "forgejo", None, 2), "/r/all/forgejo")
+        self.assertTrue(dispatch.results_out(None, "board", "dnd", 1).endswith("-board-dnd"))
+
+    def test_plan_interleaves_tasks_and_agents(self):
+        with tempfile.TemporaryDirectory() as root:
+            builds = [dispatch.Build(os.path.join(root, f"{task}-{commit}"),
+                                     {"path": "/" + commit, "commit": commit * 40, "task": task, "variant": None})
+                      for task in ("forgejo", "calc") for commit in "ab"]
+            for b in builds:
+                os.makedirs(b.out)
+            finish(builds[2].out, "codex-gpt-2")  # calc on a, rep 2
+            units = dispatch.plan(builds, AGENTS, [1, 2])
+            self.assertEqual(
+                [(u.jobs[0].build.task, u.jobs[0].name, [j.build.commit[0] for j in u.jobs]) for u in units],
+                [("forgejo", "codex-gpt-1", ["a", "b"]), ("forgejo", "claude-opus-1", ["b", "a"]),
+                 ("calc", "codex-gpt-1", ["a", "b"]), ("calc", "claude-opus-1", ["b", "a"]),
+                 ("forgejo", "codex-gpt-2", ["a", "b"]), ("forgejo", "claude-opus-2", ["b", "a"]),
+                 ("calc", "codex-gpt-2", ["b"]), ("calc", "claude-opus-2", ["b", "a"])],
+            )
+
     def test_a_finished_run_counts_only_for_its_own_effort(self):
         with tempfile.TemporaryDirectory() as a:
             finish(a, "codex-gpt-1")
@@ -98,7 +141,7 @@ class Hosts(unittest.TestCase):
         self.assertTrue(dispatch.Host("local").local)
         self.assertEqual(dispatch.Host("box,slots=3,cores=2").cores, 2)
         for bad in ("box,slots=0", "box,colour=red", "box,lock", ",slots=1", "box,agents=pi", "box,agents=codex+claude-api:x",
-                    "box,cores=0"):
+                    "box,cores=0", "box,agents=pi,api-keys", "box,api-keys=yes"):
             with self.assertRaises(ValueError, msg=bad):
                 dispatch.Host(bad)
 
@@ -110,6 +153,15 @@ class Hosts(unittest.TestCase):
         self.assertTrue(box.takes("claude", "sonnet"))
         self.assertEqual([codex_box.takes(*a) for a in (("codex", "gpt"), ("claude", "claude-opus-5-5"), ("claude", "sonnet"))],
                          [True, True, False])
+
+    def test_a_host_with_api_keys_takes_claude_api_but_not_pi(self):
+        for spec in ("me@box,api-keys", "me@box,agents=claude-api+codex,api-keys"):
+            box = dispatch.Host(spec)
+            self.assertTrue(box.takes("claude-api", "sonnet") and box.takes("codex", "gpt"), spec)
+            self.assertFalse(box.takes("pi", "tensorx/deepseek/x"), spec)
+        self.assertFalse(dispatch.Host("me@box,agents=claude-api+codex,api-keys").takes("claude", "sonnet"))
+        with self.assertRaises(ValueError):
+            dispatch.Host("me@box,agents=claude-api")
 
     def test_agents_patterns_and_efforts(self):
         # A pattern without @ takes the agent at any effort; one with @ only at the efforts it matches.
@@ -329,6 +381,22 @@ class Scheduling(unittest.TestCase):
                           lambda host, slot, job: ran.update([str(host)]) or "done")
         self.assertEqual(ran, {"a": 3, "b": 3})
 
+    def test_balance_shares_each_tasks_runs_of_an_agent(self):
+        # Two tasks of one agent on a fast and a slow host: each host runs half of each task's runs, not all of one.
+        builds = [dispatch.Build(f"/{task}", {"path": "/a", "commit": "a" * 40, "task": task}) for task in ("x", "y")]
+        units = [dispatch.Unit([dispatch.Job(b, "codex", "gpt", rep)]) for rep in range(1, 5) for b in builds]
+        hosts = [dispatch.Host("fast,slots=2"), dispatch.Host("slow")]
+        ran, lock = collections.Counter(), threading.Lock()
+
+        def execute(host, slot, job):
+            with lock:
+                ran[str(host), job.build.task] += 1
+            time.sleep(0.01 if str(host) == "fast" else 0.05)
+            return "done"
+
+        dispatch.dispatch(hosts, dispatch.Queue(units, hosts, balance=True), lambda host: True, execute)
+        self.assertEqual(ran, {("fast", "x"): 2, ("fast", "y"): 2, ("slow", "x"): 2, ("slow", "y"): 2})
+
     def test_max_concurrent_limits_an_agents_runs_over_all_hosts(self):
         hosts = [dispatch.Host("a,slots=2"), dispatch.Host("b,slots=2")]
         ran, most, jobs = self.schedule(hosts, [("codex", "gpt"), ("claude", "opus")], 4,
@@ -351,6 +419,151 @@ class Scheduling(unittest.TestCase):
         ran, outcomes, _ = self.dispatch(
             [dispatch.Host("unready"), dispatch.Host("good")], {"good": "done"}, ready=lambda host: str(host) == "good")
         self.assertEqual(sorted(ran), [("good", 1), ("good", 2), ("good", 3)])
+
+
+KEY = "sk-ant-api03-dispatch-test-key"
+HEADERS = "anthropic-workspace-id: wrkspc_1\nx-other: 2"
+
+# Stand-ins for ssh, rsync and git, which log their arguments, environment and stdin to $FAKE_LOG and run the remote
+# command here; and for the remote run.py, which writes a run directory with what it saw of the key.
+FAKE_SSH = """
+import json, os, subprocess, sys
+args, data = sys.argv[1:], sys.stdin.buffer.read()
+with open(os.environ["FAKE_LOG"], "a") as f:
+    f.write(json.dumps({"tool": "ssh", "argv": args, "env": dict(os.environ), "stdin": data.decode()}) + "\\n")
+if "-O" in args:
+    sys.exit(0)
+i = 0
+while args[i].startswith("-"):
+    i += 2
+sys.exit(subprocess.run(["sh", "-c", " ".join(args[i + 1:])], input=data).returncode)
+"""
+FAKE_RSYNC = """
+import json, os, shutil, sys
+with open(os.environ["FAKE_LOG"], "a") as f:
+    f.write(json.dumps({"tool": "rsync", "argv": sys.argv[1:], "env": dict(os.environ)}) + "\\n")
+shutil.copytree(sys.argv[-2].split(":", 1)[1], sys.argv[-1], dirs_exist_ok=True)
+"""
+FAKE_GIT = """
+import json, os, sys
+with open(os.environ["FAKE_LOG"], "a") as f:
+    f.write(json.dumps({"tool": "git", "argv": sys.argv[1:], "env": dict(os.environ)}) + "\\n")
+"""
+FAKE_RUN = """
+import glob, hashlib, json, os, sys
+sys.path.insert(0, os.environ["FAKE_BENCH"])
+import run
+args = sys.argv[1:]
+harness, model, effort = run.parse_agent(args[args.index("--agent") + 1])
+d = os.path.join(args[args.index("--out") + 1], run.run_name(harness, model, int(args[args.index("--rep") + 1]), effort))
+os.makedirs(d)
+key = os.environ.get(run.API_KEY_ENV, "")
+in_ps = []
+for path in glob.glob("/proc/[0-9]*/cmdline"):
+    try:
+        if key and key.encode() in open(path, "rb").read():
+            in_ps.append(path)
+    except OSError:
+        pass
+seen = {"key": hashlib.sha256(key.encode()).hexdigest(),
+        "headers": hashlib.sha256(os.environ.get(run.API_HEADERS_ENV, "").encode()).hexdigest(), "in_ps": in_ps}
+json.dump(seen, open(os.path.join(d, "seen.json"), "w"))
+open(os.path.join(d, "agent.jsonl"), "w").write(key if os.environ.get("FAKE_LEAK") else "{}")
+if not os.environ.get("FAKE_LEAK"):
+    json.dump({"passed": True, "wall_seconds": 1, "calls": 1, "tool_seconds": 1}, open(os.path.join(d, "summary.json"), "w"))
+print("[fake] done", flush=True)
+"""
+
+
+def sha(text):
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+class ApiKeys(unittest.TestCase):
+    """claude-api's key on a host with api-keys: through a run's stdin into its environment, and nowhere else."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        root = self.dir.name
+        self.bin, self.base, self.out, self.log = (os.path.join(root, n) for n in ("bin", "base", "out", "fake.log"))
+        os.makedirs(self.bin)
+        for name, code in (("ssh", FAKE_SSH), ("rsync", FAKE_RSYNC), ("git", FAKE_GIT)):
+            with open(os.path.join(self.bin, name), "w") as f:
+                f.write(f"#!{sys.executable}\n{code}")
+            os.chmod(os.path.join(self.bin, name), 0o755)
+        self.harness = {"path": root, "commit": "h" * 40}
+        fake_run = os.path.join(self.base, "trees", "h" * 40, "bench", "run.py")
+        os.makedirs(os.path.dirname(fake_run))
+        with open(fake_run, "w") as f:
+            f.write(FAKE_RUN)
+        # The dispatcher's own environment holds the key, as the user's may: ssh and the others must not get it.
+        env = mock.patch.dict(os.environ, {"PATH": self.bin + os.pathsep + os.environ["PATH"], "FAKE_LOG": self.log,
+                                           "FAKE_BENCH": os.path.dirname(os.path.abspath(__file__)),
+                                           run.API_KEY_ENV: KEY, "ANTHROPIC_API_KEY": KEY})
+        env.start()
+        self.addCleanup(env.stop)
+        poll = mock.patch.object(dispatch, "POLL_SECONDS", 0.05)
+        poll.start()
+        self.addCleanup(poll.stop)
+
+    def execute(self, spec, harness):
+        """Runs one job of the harness on the host; returns its outcome, the dispatcher's output and the fakes' log."""
+        host = dispatch.Host(spec)
+        host.base = self.base
+        build = dispatch.Build(self.out, {"path": self.dir.name, "commit": "b" * 40, "task": "forgejo", "variant": None})
+        args = argparse.Namespace(display="1920x1080@1", timeout=60, no_debrief=True)
+        keys = {"ANTHROPIC_API_KEY": KEY, "ANTHROPIC_CUSTOM_HEADERS": HEADERS}
+        remote = dispatch.Remote(self.harness, [build], [(harness, "m", None)], args, self.dir.name, dispatch.Queue([]), keys)
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            outcome = remote.execute(host, 0, dispatch.Job(build, harness, "m", 1))
+            remote.git("version")
+        with open(self.log) as f:
+            calls = [json.loads(line) for line in f]
+        return outcome, printed.getvalue(), calls
+
+    def assertNowhereBut(self, calls, printed):
+        """The key and the headers are in no argument or environment of ssh, rsync and git, in nothing the dispatcher
+        printed, and in no file that it or the run left, here or on the host."""
+        for call in calls:
+            for secret in (KEY, HEADERS):
+                self.assertFalse([a for a in call["argv"] if secret in a], call["tool"])
+                self.assertFalse([k for k, v in call["env"].items() if secret in v], call["tool"])
+            self.assertFalse([k for k in call["env"] if k.startswith(("ANTHROPIC_", "HYPRMASQ_BENCH_ANTHROPIC_"))])
+        self.assertEqual({c["tool"] for c in calls}, {"ssh", "rsync", "git"})
+        self.assertNotIn(KEY, printed)
+        self.assertFalse(run.files_holding(self.out, KEY))
+        self.assertFalse(run.files_holding(self.base, KEY))
+
+    def test_the_key_reaches_the_run_through_stdin_alone(self):
+        outcome, printed, calls = self.execute("me@box,api-keys", "claude-api")
+        self.assertEqual(outcome, "done")
+        # One ssh call, the run's start, gets the key and headers on its stdin; the rest get nothing.
+        given = [c for c in calls if c["tool"] == "ssh" and c["stdin"]]
+        self.assertEqual([c["stdin"] for c in given], [f"{KEY}\0{HEADERS}\0", KEY + "\n"])
+        self.assertTrue(any("setsid" in a for a in given[0]["argv"]))
+        self.assertTrue(any("grep" in a for a in given[1]["argv"]))
+        with open(os.path.join(self.out, "claude-api-m-1", "seen.json")) as f:
+            seen = json.load(f)
+        self.assertEqual(seen, {"key": sha(KEY), "headers": sha(HEADERS), "in_ps": []})
+        self.assertNowhereBut(calls, printed)
+
+    def test_files_that_hold_the_key_stay_on_the_host_and_are_removed(self):
+        with mock.patch.dict(os.environ, {"FAKE_LEAK": "1"}):
+            outcome, printed, calls = self.execute("me@box,api-keys", "claude-api")
+        self.assertEqual(outcome, "failed")
+        self.assertIn("the API key was in out/claude-api-m-1/agent.jsonl", printed)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.out, "claude-api-m-1"))), ["seen.json"])
+        self.assertNowhereBut(calls, printed)
+
+    def test_other_runs_get_no_key(self):
+        outcome, printed, calls = self.execute("me@box,api-keys", "codex")
+        self.assertEqual(outcome, "done")
+        self.assertFalse([c for c in calls if c.get("stdin")])
+        with open(os.path.join(self.out, "codex-m-1", "seen.json")) as f:
+            self.assertEqual(json.load(f)["key"], sha(""))
+        self.assertNowhereBut(calls, printed)
 
 
 if __name__ == "__main__":
