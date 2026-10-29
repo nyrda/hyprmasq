@@ -327,6 +327,31 @@ class Scoreboard(unittest.TestCase):
         time = render.time_figure(task_set(NINE))[0].render("light", "")
         self.assertEqual(time.count(">not run</text>"), 6)
 
+    def test_a_bar_gives_each_cell_the_share_of_its_runs_that_passed(self):
+        # Eighteen runs of one agent beside six of another: a share and its count, not a dot per run.
+        runs = [run("gpt-6.1-sol", k, k <= 7, 50.0, 10.0) for k in range(1, 19)]
+        runs += [run("gpt-6.1-terra", k, True, 30.0, 10.0) for k in range(1, 7)]
+        svg = render.scoreboard({"runs": runs})[0].render("light", "")
+        self.assertNotIn("<circle", svg)
+        for text in (">39%</text>", ">7/18</text>", ">100%</text>", ">6/6</text>", "with the count."):
+            self.assertIn(text, svg)
+        self.assertEqual(overlaps(svg), [])
+        # As many runs in every cell: the subtitle says how many, and the cells only the share.
+        svg = render.scoreboard({"runs": runs[:3] + runs[18:21]})[0].render("light", "")
+        self.assertIn("share of a task&#x27;s three runs that passed.", svg)
+        self.assertNotIn('class="m" font-size="11.5">3/3</text>', svg)  # a count beside a share
+
+    def test_columns_too_narrow_for_the_times_leave_them_to_the_time_figure(self):
+        models = ["gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-astra", "claude-opus-5-5", "claude-sonnet-5-5",
+                  "claude-haiku-5-5", "deepseek-v4.1-flash"]
+        runs = [dict(run(m, k, k != 2, 1733.0, 10.0), task=t) for m in models for t in ("board", "calc", "forgejo",
+                "thunderbird") for k in range(1, 4)]
+        svg = render.scoreboard({"runs": runs})[0].render("light", "")
+        self.assertIn(">Runs passed and cost</text>", svg)
+        self.assertIn("The figure below gives the times, which do not fit here.", svg)
+        self.assertNotIn(">1733 s</text>", svg)
+        self.assertEqual(overlaps(svg), [])
+
     def test_every_view_names_a_task_by_task_names(self):
         self.assertEqual([render.task_title(t) for t in ("files", "form", "form-no-dropdowns", "board-dnd",
                                                          "form-no-dropdowns-qt-25", "form-25")],
@@ -419,6 +444,10 @@ class Comparison(unittest.TestCase):
             self.assertIn("1 of 1 · 120 s, focus", svg)
             self.assertIn("1 of 1 · 20 s, windows", svg)
             self.assertIn("0 of 3, ANR dialogs", svg)
+            # Each row's runs as the scoreboard draws them: a share that passed and its count, not a dot per run.
+            self.assertNotIn("<circle", svg)
+            self.assertIn(">50%</text>", svg)
+            self.assertIn(">1/2</text>", svg)
             main("--check", page)
 
     def test_a_block_per_task(self):

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="323" viewBox="0 0 880 323" role="img" aria-label="Seconds per question by kind, a bar per model. Over all runs: checkbox 3.3 s, slider 2.2 s, text 1.6 s, dropdown 4.7 s">
+<title>Seconds per question by kind, a bar per model. Over all runs: checkbox 3.3 s, slider 2.2 s, text 1.6 s, dropdown 4.7 s</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#1f2328}.t2{fill:#59636e}.m{fill:#818b98}.bg{fill:#ffffff;stroke:#d1d9e0}.grid{stroke:#eff2f5;stroke-width:1}.axis{stroke:#d1d9e0;stroke-width:1}.tools{fill:#2a78d6}.out{fill:#c8d1da}.dot{fill:#424a53;stroke:#ffffff;stroke-width:1.5}.miss{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.pass{fill:#1a7f37}.fail{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.cut{stroke:#ffffff;stroke-width:2}.s0{fill:#2a78d6}.s1{fill:#eb6834}.s2{fill:#1baf7a}.s3{fill:#eda100}.s4{fill:#e87ba4}.s5{fill:#008300}.s6{fill:#6250d6}.s7{fill:#e34948}</style>
+<rect x="0.5" y="0.5" width="879" height="322" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Seconds per question by kind</text>
+<text x="24" y="53" class="t2" font-size="12.5">The time from the previous answer to this one. Medians of each model&#x27;s passed runs.</text>
+<rect x="24" y="70" width="12" height="10" class="s0" rx="2"/>
+<text x="42" y="79" class="t2" font-size="12">gpt-6.1-sol</text>
+<rect x="120.7" y="70" width="12" height="10" class="s1" rx="2"/>
+<text x="138.7" y="79" class="t2" font-size="12">gpt-6.1-terra</text>
+<rect x="226.7" y="70" width="12" height="10" class="s2" rx="2"/>
+<text x="244.7" y="79" class="t2" font-size="12">Sonnet 5.5</text>
+<line x1="174" y1="103" x2="174" y2="289" class="axis"/>
+<text x="174" y="305" class="m" font-size="11">0</text>
+<line x1="423.8" y1="103" x2="423.8" y2="289" class="grid"/>
+<text x="423.8" y="305" class="m" font-size="11" text-anchor="middle">2</text>
+<line x1="673.7" y1="103" x2="673.7" y2="289" class="grid"/>
+<text x="673.7" y="305" class="m" font-size="11" text-anchor="middle">4 s</text>
+<text x="24" y="123" class="t" font-size="13" font-weight="600">Checkbox</text>
+<text x="24" y="139" class="t2" font-size="12">3.3 s over all runs</text>
+<path d="M174 109H740.3Q743.3 109 743.3 112V114Q743.3 117 740.3 117H174Z" class="s0"/>
+<text x="749.3" y="116.5" class="t2" font-size="11">4.6</text>
+<path d="M174 120H642.1Q645.1 120 645.1 123V125Q645.1 128 642.1 128H174Z" class="s1"/>
+<text x="651.1" y="127.5" class="t2" font-size="11">3.8</text>
+<path d="M174 131H388.7Q391.7 131 391.7 134V136Q391.7 139 388.7 139H174Z" class="s2"/>
+<text x="397.7" y="138.5" class="t2" font-size="11">1.7</text>
+<text x="24" y="171" class="t" font-size="13" font-weight="600">Slider</text>
+<text x="24" y="187" class="t2" font-size="12">2.2 s over all runs</text>
+<path d="M174 157H456.2Q459.2 157 459.2 160V162Q459.2 165 456.2 165H174Z" class="s0"/>
+<text x="465.2" y="164.5" class="t2" font-size="11">2.3</text>
+<path d="M174 168H384.4Q387.4 168 387.4 171V173Q387.4 176 384.4 176H174Z" class="s1"/>
+<text x="393.4" y="175.5" class="t2" font-size="11">1.7</text>
+<path d="M174 179H477.1Q480.1 179 480.1 182V184Q480.1 187 477.1 187H174Z" class="s2"/>
+<text x="486.1" y="186.5" class="t2" font-size="11">2.4</text>
+<text x="24" y="219" class="t" font-size="13" font-weight="600">Text</text>
+<text x="24" y="235" class="t2" font-size="12">1.6 s over all runs</text>
+<path d="M174 205H351.1Q354.1 205 354.1 208V210Q354.1 213 351.1 213H174Z" class="s0"/>
+<text x="360.1" y="212.5" class="t2" font-size="11">1.4</text>
+<path d="M174 216H353.2Q356.2 216 356.2 219V221Q356.2 224 353.2 224H174Z" class="s1"/>
+<text x="362.2" y="223.5" class="t2" font-size="11">1.5</text>
+<path d="M174 227H404.2Q407.2 227 407.2 230V232Q407.2 235 404.2 235H174Z" class="s2"/>
+<text x="413.2" y="234.5" class="t2" font-size="11">1.9</text>
+<text x="24" y="267" class="t" font-size="13" font-weight="600">Dropdown</text>
+<text x="24" y="283" class="t2" font-size="12">4.7 s over all runs</text>
+<path d="M174 253H788.3Q791.3 253 791.3 256V258Q791.3 261 788.3 261H174Z" class="s0"/>
+<text x="797.3" y="260.5" class="t2" font-size="11">4.9</text>
+<path d="M174 264H743.5Q746.5 264 746.5 267V269Q746.5 272 743.5 272H174Z" class="s1"/>
+<text x="752.5" y="271.5" class="t2" font-size="11">4.6</text>
+<path d="M174 275H774.8Q777.8 275 777.8 278V280Q777.8 283 774.8 283H174Z" class="s2"/>
+<text x="783.8" y="282.5" class="t2" font-size="11">4.8</text>
+</svg>

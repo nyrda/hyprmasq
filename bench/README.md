@@ -29,7 +29,8 @@ python3 bench/export.py --out docs/benchmarks/data/next-run.json \
 
 `--fail` counts a run as failed although the VM's check passed it, and records the reason. Each run records its task's
 variant, and its `context` as `summary.json` has it (see [Measures](#measures)). `--several-machines` takes runs that `bench/dispatch.py` spread over several machines into one dataset, each
-run with its CPU. `python3 bench/render.py` generates each block of `docs/benchmarks.md` and `docs/comparison.md`
+run with its CPU. `--agent PATTERN` keeps only the runs of the agents that match, as `dispatch.py`'s `agents=`
+takes them, such as `'*:*@medium'`, so that one results directory gives several datasets. `python3 bench/render.py` generates each block of `docs/benchmarks.md` and `docs/comparison.md`
 between `<!-- render DATASET VIEW [TASK] -->` and `<!-- /render -->` from a dataset. Where a block's data holds
 several variants of a task, it names them by their variant too, such as `board-dnd`, and TASK takes that name. It also
 writes the figures in `docs/benchmarks` and `docs/comparison`, one for GitHub's light theme and one for its dark

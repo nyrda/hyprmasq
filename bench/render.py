@@ -14,9 +14,10 @@ docs/benchmarks/data for docs/benchmarks.md. DATASET can join several with comma
 directory, one for GitHub's light theme and one for its dark theme, which a <picture> element picks between, named
 after the dataset, view and task, the dataset left out when there are several. Views:
 
-- scoreboard: a row per agent, the runs of each task passed or failed with their median wall time, and the cost
-  per passed run. Where the tasks do not fit as columns, a row per task and a column per agent instead, with each
-  agent's runs passed and cost below. A task an agent did not run reads "not run".
+- scoreboard: a row per agent, for each task a bar of the share of its runs that passed, the share, the count where
+  the tasks' counts differ, and the median wall time, and the cost per passed run. Where the tasks do not fit as
+  columns, a row per task and a column per agent instead, with each agent's runs passed and cost below, and without
+  the times where those columns are too narrow for them. A task an agent did not run reads "not run".
 - time: each run's wall time and the medians of the time in hyprmasq's tools and outside them, a panel per task,
   or only TASK's.
 - kinds: the form task's seconds per question of each kind, a bar per model. TASK names the task where the dataset
@@ -393,17 +394,61 @@ def partial_note(runs):
     return " ".join(partial + ["An agent's runs passed and cost are of the tasks it ran."]) if partial else None
 
 
-def run_cell(svg, x, cy, rs, step):
-    """An agent's runs of a task: a dot per run and their median wall time, or that the agent did not run it."""
+SHARE_W, SHARE_W_NARROW = 56, 30  # the widths of the bar of a task's runs passed, and where columns are narrow
+NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 8: "eight", 9: "nine", 10: "ten", 12: "twelve"}
+
+
+def share_text(ok, n):
+    """The share of n runs that ok passed, and how many of how many."""
+    return f"{round(100 * ok / n)}%", f"{ok}/{n}"
+
+
+def share_layout(shares, time_w, room):
+    """How share_cell draws the shares, (passed, runs) pairs, in columns room wide: the bar's width, the width of the
+    share and that of the count, which is 0 where every cell has as many runs and the subtitle says how many, whether
+    the time stands beside them, and the cell's width. The wider bar where it fits, and the time unless nothing else
+    does."""
+    texts = [share_text(ok, n) for ok, n in shares]
+    pct_w = max(text_width(p, 13) for p, _ in texts)
+    uniform = len({n.split("/")[1] for _, n in texts}) == 1
+    count_w = 0 if uniform else max(text_width(n, 11.5) for _, n in texts)
+    for bar_w, with_time in ((SHARE_W, True), (SHARE_W_NARROW, True), (SHARE_W_NARROW, False)):
+        width = bar_w + 8 + pct_w + (5 + count_w if count_w else 0) + (12 + time_w if with_time else 0)
+        if width <= room:
+            break
+    return bar_w, pct_w, count_w, with_time, width
+
+
+def share_cell(svg, x, cy, ok, n, time, layout):
+    """Runs of a task: a bar of the share that passed, filled, and that failed, outlined, the share and the count,
+    and a time beside them. Which runs failed does not matter, and a bar reads the same for six runs as for
+    eighteen."""
     base = cy + 4.5
+    bar_w, pct_w, count_w, with_time, _ = layout
+    w = bar_w * ok / n
+    if ok < n:
+        svg.rect(x + w + 0.9, cy - 4.1, bar_w - w - 1.8, 8.2, "fail", rx=1.5)
+    if ok:
+        svg.rect(x, cy - 5, w, 10, "pass", rx=2)
+    pct, count = share_text(ok, n)
+    svg.text(x + bar_w + 8, base, pct, size=13)
+    x_time = x + bar_w + 8 + pct_w + 12
+    if count_w:
+        svg.text(x + bar_w + 8 + pct_w + 5, base, count, cls="m", size=11.5)
+        x_time += 5 + count_w
+    if with_time:
+        svg.text(x_time, base, time, cls="t2", size=12.5)
+
+
+def run_cell(svg, x, cy, rs, layout):
+    """An agent's runs of a task as share_cell draws them, with their median wall time, or that the agent did not
+    run it."""
     if not rs:
-        svg.text(x, base, "not run", cls="m", size=12)
+        svg.text(x, cy + 4.5, "not run", cls="m", size=12)
         return
-    for k, r in enumerate(sorted(rs, key=lambda r: r["rep"])):
-        svg.circle(x + 5 + k * step, cy, 5 if r["passed"] else 4.25, "pass" if r["passed"] else "fail")
     wall = median(r["wall_s"] for r in rs)
-    if wall is not None:
-        svg.text(x + 5 + len(rs) * step + 4, base, f"{wall:.0f} s", cls="t2", size=12.5)
+    share_cell(svg, x, cy, sum(r["passed"] for r in rs), len(rs), f"{wall:.0f} s" if wall is not None else "",
+               layout)
 
 
 def cost_cell(svg, x, cy, cost, top_cost, bar_max):
@@ -425,15 +470,8 @@ def scoreboard(data):
     svg = Svg()
     total = len(runs)
     passed = sum(r["passed"] for r in runs)
-    top = header(
-        svg, "Runs passed, wall time and cost",
-        [f"{passed} of {total} runs passed. Each dot is one run. The time is the task's median wall time."]
-        + [line for line in [effort_note(runs), partial_note(runs)] if line],
-        [("dot", "pass", "passed"), ("dot", "fail", "failed")],
-    )
     cells = {(a, t): [r for r in runs if (r["harness"], r["model"]) == a and r["task"] == t]
              for a in agents for t in ts}
-    reps = max(len(rs) for rs in cells.values())
     time_w = max(text_width(f"{median(r['wall_s'] for r in rs):.0f} s", 12.5) for rs in cells.values() if rs)
     per_pass, passed_of = {}, {}
     for a in agents:
@@ -448,17 +486,33 @@ def scoreboard(data):
     passed_w, cost_w = 64, 200
     task_w = (WIDTH - 2 * PAD - label_w - passed_w - cost_w) / len(ts)
     heads = [wrap(task_title(t), 12, task_w - 10, True) for t in ts]
-    # A row per agent while the tasks fit as its columns: their names on two lines at most, and their dots no closer
-    # than 10 apart beside the time. A row per task beyond that, and a column per agent.
-    if (task_w >= 9 + 10 * reps + time_w + 8 and max(len(h) for h in heads) <= 2
-            and max(text_width(line, 12, True) for h in heads for line in h) <= task_w - 10):
+    shares = [(sum(r["passed"] for r in rs), len(rs)) for rs in cells.values() if rs]
+    layout = share_layout(shares, time_w, task_w - 8)
+    # A row per agent while the tasks fit as its columns: their names on two lines at most, and their runs with their
+    # time. A row per task beyond that, and a column per agent.
+    by_agent = (task_w >= layout[4] + 8 and layout[3] and max(len(h) for h in heads) <= 2
+                and max(text_width(line, 12, True) for h in heads for line in h) <= task_w - 10)
+    if not by_agent:
+        label_w = max(text_width(s, 13, True) for s in [task_title(t) for t in ts] + ["Cost per passed run"]) + 24
+        col_w = (WIDTH - 2 * PAD - label_w) / len(agents)
+        layout = share_layout(shares, time_w, col_w - 10)
+    counts = {len(rs) for rs in cells.values() if rs}
+    each = (f"Each bar is the share of a task's {NUMBER_WORDS.get(min(counts), min(counts))} runs that passed."
+            if len(counts) == 1 else "Each bar is the share of a task's runs that passed, with the count.")
+    when = ("The time is the task's median wall time." if layout[3]
+            else "The figure below gives the times, which do not fit here.")
+    top = header(
+        svg, "Runs passed, wall time and cost" if layout[3] else "Runs passed and cost",
+        [f"{passed} of {total} runs passed. {each} {when}"]
+        + [line for line in [effort_note(runs), partial_note(runs)] if line],
+        [("swatch", "pass", "passed"), ("swatch", "fail", "failed")],
+    )
+    if by_agent:
         x_passed = PAD + label_w
         x_task = x_passed + passed_w
         x_cost = x_task + task_w * len(ts)
         head_y = column_heads(svg, [(x_passed, ["Passed"])] + [(x_task + i * task_w, h) for i, h in enumerate(heads)]
                               + [(x_cost, ["Cost per passed run"])], top + 14)
-        # The dots of a task's runs move closer when there are more than its column holds beside the time.
-        step = min(14, (task_w - 60) / reps)
         y0 = head_y + 12
         svg.line(PAD, y0, WIDTH - PAD, y0, "axis")
         for i, a in enumerate(agents):
@@ -466,27 +520,24 @@ def scoreboard(data):
             svg.text(PAD, cy + 4.5, names[a], size=13, weight="600")
             svg.text(x_passed, cy + 4.5, passed_of[a], size=13)
             for j, t in enumerate(ts):
-                run_cell(svg, x_task + j * task_w, cy, cells[(a, t)], step)
+                run_cell(svg, x_task + j * task_w, cy, cells[(a, t)], layout)
             cost_cell(svg, x_cost, cy, per_pass[a], top_cost, cost_w - 64)
             if i < len(agents) - 1:
                 svg.line(PAD, y0 + row_h * (i + 1), WIDTH - PAD, y0 + row_h * (i + 1), "grid")
         svg.height = y0 + row_h * len(agents) + 20
-        alt = (f"Runs passed, wall time and cost. {passed} of {total} runs passed. A row per agent shows its runs of "
-               "each task, their median wall time and the cost per passed run.")
+        alt = (f"Runs passed, wall time and cost. {passed} of {total} runs passed. A row per agent shows the share of "
+               "its runs of each task that passed, their median wall time and the cost per passed run.")
         return svg, alt
-    label_w = max(text_width(s, 13, True) for s in [task_title(t) for t in ts] + ["Cost per passed run"]) + 24
-    col_w = (WIDTH - 2 * PAD - label_w) / len(agents)
     x_col = PAD + label_w
     head_y = column_heads(svg, [(x_col + i * col_w, wrap(names[a], 12, col_w - 10, True))
                                 for i, a in enumerate(agents)], top + 14)
-    step = min(14, (col_w - time_w - 24) / reps)
     y0 = head_y + 12
     svg.line(PAD, y0, WIDTH - PAD, y0, "axis")
     for j, t in enumerate(ts):
         cy = y0 + row_h * j + row_h / 2
         svg.text(PAD, cy + 4.5, task_title(t), size=13, weight="600")
         for i, a in enumerate(agents):
-            run_cell(svg, x_col + i * col_w, cy, cells[(a, t)], step)
+            run_cell(svg, x_col + i * col_w, cy, cells[(a, t)], layout)
         if j < len(ts) - 1:
             svg.line(PAD, y0 + row_h * (j + 1), WIDTH - PAD, y0 + row_h * (j + 1), "grid")
     # Each agent's runs passed and cost per passed run below its column.
@@ -501,9 +552,9 @@ def scoreboard(data):
             else:
                 cost_cell(svg, x_col + i * col_w, cy, per_pass[a], top_cost, col_w - 64)
     svg.height = y1 + row_h * 2 + 20
-    alt = (f"Runs passed, wall time and cost. {passed} of {total} runs passed. A row per task shows each agent's "
-           "runs of it and their median wall time, and the rows below each agent's runs passed and cost per passed "
-           "run.")
+    alt = (f"Runs passed{', wall time' if layout[3] else ''} and cost. {passed} of {total} runs passed. A row per task "
+           f"shows the share of each agent's runs of it that passed{' and their median wall time' if layout[3] else ''}, "
+           "and the rows below each agent's runs passed and cost per passed run.")
     return svg, alt
 
 
@@ -887,23 +938,31 @@ def comparison_figure(data, task=None):
     svg = Svg()
     top = header(
         svg, "Tools compared on the same tasks",
-        ["Each dot is one run, with the median time of the passed runs beside them. Each column of bars has its own",
-         "scale: tokens and cost are medians over all runs. User disturbed counts the passed runs that took the",
-         "focus or drew over the user's window, and its bar is the median seconds of those runs."],
+        ["The first bar is the share of runs that passed, with the count and the passed runs' median time. The other",
+         "bars have a scale each: tokens and cost are medians over all runs. User disturbed counts the passed runs",
+         "that took the focus or drew over the user's window, and its bar is their median seconds."],
         [("swatch", TOOLS[t][1], TOOLS[t][0]) for t in TOOLS if t in tools]
-        + [("dot", "pass", "passed"), ("dot", "fail", "failed")],
+        + [("swatch", "pass", "passed"), ("swatch", "fail", "failed")],
     )
     measures = comparison_measures()
-    label_w = 210
-    # A dot per run, then the median time.
-    runs_w = max(112, 13 * max(len(rs) for _, group in rows for _, rs in group) + 58)
+    label_w = 190
+    # The share of runs passed, then the median time of the passed ones.
+    cells = [rs for _, group in rows for _, rs in group]
+    times = [[r["wall_seconds"] for r in rs if passed(r)] for rs in cells]
+    time_w = max(text_width(f"{median(t):.0f} s" if t else "–", 12.5) for t in times)
+    shares = [(sum(passed(r) for r in rs), len(rs)) for rs in cells]
+    # The narrow bar, and the count even where every row has as many runs, as the figure's subtitle does not say how
+    # many.
+    layout = share_layout(shares, time_w, 0)
+    layout = layout[:2] + (layout[2] or max(text_width(f"{n}/{n}", 11.5) for _, n in shares), True) + layout[4:]
+    runs_w = layout[0] + 8 + layout[1] + 5 + layout[2] + 12 + time_w + 10
     # The disturbance's text says how many runs and how, so its column takes what the others leave.
-    widths = [100] * (len(measures) - 1)
+    widths = [104] * (len(measures) - 1)
     widths.append(WIDTH - 2 * PAD - label_w - runs_w - sum(widths))
     lefts = [sum(widths[:i]) for i in range(len(widths))]
     x_runs = PAD + label_w
     head_y = top + 14
-    svg.text(x_runs, head_y, "Runs, time", cls="t2", size=12, weight="600")
+    svg.text(x_runs, head_y, "Runs passed, time", cls="t2", size=12, weight="600")
     for i, (title, _, _, _) in enumerate(measures):
         svg.text(x_runs + runs_w + lefts[i], head_y, title, cls="t2", size=12, weight="600")
     tops = [max((median(f(r) for r in pick(rs)) or 0) for _, group in rows for _, rs in group) or 1
@@ -921,12 +980,9 @@ def comparison_figure(data, task=None):
             svg.rect(PAD, cy - 9, 4, 18, cls, rx=2)
             svg.text(PAD + 12, cy - 1.5, name, size=12.5, weight="600")
             svg.text(PAD + 12, cy + 12.5, setting(rs), cls="m", size=11)
-            for k, r in enumerate(sorted(rs, key=lambda r: r["rep"])):
-                ok = passed(r)
-                svg.circle(x_runs + 5 + k * 13, cy, 5 if ok else 4.25, "pass" if ok else "fail")
             times = [r["wall_seconds"] for r in rs if passed(r)]
-            svg.text(x_runs + 5 + len(rs) * 13 + 4, base, f"{median(times):.0f} s" if times else "–",
-                     cls="t2", size=12.5)
+            share_cell(svg, x_runs, cy, sum(passed(r) for r in rs), len(rs),
+                       f"{median(times):.0f} s" if times else "–", layout)
             for i, (_, f, pick, label) in enumerate(measures):
                 v = median(f(r) for r in pick(rs))
                 x = x_runs + runs_w + lefts[i]
@@ -942,8 +998,8 @@ def comparison_figure(data, task=None):
             svg.line(PAD, y + 4, WIDTH - PAD, y + 4, "grid")
             y += 8
     svg.height = y + 22
-    alt = ("Tools compared on the same tasks: a row per tool for each task and agent, with its runs passed or "
-           "failed, the median time, and the median uncached input, peak context, cost per run and seconds the "
+    alt = ("Tools compared on the same tasks: a row per tool for each task and agent, with the share of its runs "
+           "that passed, the median time, and the median uncached input, peak context, cost per run and seconds the "
            "user was disturbed.")
     return svg, alt
 

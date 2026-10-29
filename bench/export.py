@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The dataset of benchmark runs that docs/benchmarks.md is rendered from.
 
-    export.py --out docs/benchmarks/data/NAME.json [--several-machines] [--fail RUN=REASON]... RESULTS-DIR...
+    export.py --out docs/benchmarks/data/NAME.json [--several-machines] [--fail RUN=REASON]... [--agent AGENT]...
+              RESULTS-DIR...
 
 computes each finished run of the results directories again from its raw files, as report.py does, and writes
 the measures render.py draws: no transcripts, answers, paths, host names or accounts. RUN is a run's directory
@@ -11,7 +12,9 @@ limit that ended it before the agent finished. Each run records its task and its
 hold several variants of a task, such as board's two or the form task in each toolkit, as long as they share a commit
 and a display. render.py then names the task by its variant too, such as board-dnd. --several-machines takes runs
 of several machines into one dataset, each run with its CPU, for runs that the dispatcher spread over them: their
-times compare only where each build ran on the same machines.
+times compare only where each build ran on the same machines. --agent keeps only the runs of the agents that match
+one of its patterns, HARNESS, HARNESS:MODEL or HARNESS:MODEL@EFFORT with *, as dispatch.py's agents= takes them, such
+as `--agent '*:*@medium'` for the runs at medium effort of a results directory that holds others too.
 """
 
 import argparse
@@ -21,6 +24,7 @@ import os
 import sys
 
 import analyze
+import dispatch
 import report
 
 
@@ -79,7 +83,13 @@ def run_record(results_dir, name, fail, variant):
     return record, tuple(machine.get(k) for k in ("cpu", "threads", "memory_gib"))
 
 
-def export(results_dirs, fail, several_machines=False):
+def wanted(record, agents):
+    """Whether a run's agent matches one of the patterns, or there are none."""
+    effort = None if record["effort"] == "default" else record["effort"]
+    return not agents or any(dispatch.agent_matches(p, record["harness"], record["model"], effort) for p in agents)
+
+
+def export(results_dirs, fail, several_machines=False, agents=()):
     names = [os.path.basename(os.path.normpath(d)) for d in results_dirs]
     if len(set(names)) < len(names):
         sys.exit("export.py: the results directories' names must differ, as runs are named by them: "
@@ -93,6 +103,8 @@ def export(results_dirs, fail, several_machines=False):
         for name in sorted(os.listdir(results_dir)):
             if os.path.exists(os.path.join(results_dir, name, "summary.json")):
                 record, machine = run_record(results_dir, name, fail, s["variant"])
+                if not wanted(record, agents):
+                    continue
                 runs.append(record)
                 machines.add(machine)
     # Times depend on the build and the machine: a dataset holds one of each per task. Its runs name their variant,
@@ -131,6 +143,8 @@ def main(argv):
     parser.add_argument("--out", required=True)
     parser.add_argument("--fail", action="append", default=[], metavar="RUN=REASON")
     parser.add_argument("--several-machines", action="store_true")
+    parser.add_argument("--agent", action="append", default=[], metavar="AGENT",
+                        help="keep only the runs of the agents that match, HARNESS[:MODEL[@EFFORT]] with *; repeatable")
     parser.add_argument("results", nargs="+")
     args = parser.parse_args(argv)
     fail = {}
@@ -139,7 +153,7 @@ def main(argv):
         if not sep or not reason:
             parser.error(f"--fail {item}: expected RUN=REASON")
         fail[run] = reason
-    data = export(args.results, fail, args.several_machines)
+    data = export(args.results, fail, args.several_machines, args.agent)
     with open(args.out, "w", encoding="utf-8", newline="") as f:
         f.write(dumps(data))
     print(f"{args.out}: {len(data['runs'])} runs")

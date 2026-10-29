@@ -17,6 +17,7 @@ from unittest import mock
 
 BENCH = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BENCH)
+import export  # noqa: E402
 import report  # noqa: E402
 import run  # noqa: E402
 
@@ -78,6 +79,19 @@ class Names(unittest.TestCase):
         for agent in ("claude:opus@minimal", "claude-api:sonnet@none", "codex:gpt@off", "pi:p/m@extreme", "codex:gpt@"):
             with self.assertRaisesRegex(ValueError, "takes no effort", msg=agent):
                 self.options(agent)
+
+
+class ExportAgents(unittest.TestCase):
+    def test_agent_patterns_pick_the_runs_of_a_dataset(self):
+        def record(harness, model, effort):
+            return {"harness": harness, "model": model, "effort": effort}
+        sol, sol_high = record("codex", "gpt-6.1-sol", "medium"), record("codex", "gpt-6.1-sol", "high")
+        opus, default = record("claude-api", "claude-opus-5-5", "medium"), record("claude", "claude-sonnet-5-5", "default")
+        self.assertTrue(all(export.wanted(r, []) for r in (sol, sol_high, opus, default)))
+        medium = ["*:*@medium"]
+        self.assertEqual([export.wanted(r, medium) for r in (sol, sol_high, opus, default)], [True, False, True, False])
+        self.assertEqual([export.wanted(r, ["codex:gpt-6.1-sol"]) for r in (sol, sol_high, opus)], [True, True, False])
+        self.assertTrue(export.wanted(default, ["claude:claude-sonnet-5-5"]))
 
 
 class Effort(unittest.TestCase):
