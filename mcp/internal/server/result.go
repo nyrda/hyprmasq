@@ -89,9 +89,12 @@ type actionsOut struct {
 	Interrupted bool `json:"interrupted,omitempty"`
 	// Present only when the window's app started a drag-and-drop during the batch: how the last one went.
 	DragAndDrop *dragOut `json:"drag_and_drop,omitempty"`
-	// Present only when the batch ended with scrolling that act did not send after the actions before it: why. See
-	// split.go.
+	// Present only when act did not send all of the batch, and why: the scrolls that end it, after the actions before
+	// them (see split.go), or a press and the actions after it, when the window had a popup open that the press would
+	// only have closed (see closingPopup). failed_index is the first action held back.
 	HeldBack string `json:"held_back,omitempty"`
+	// The press at failed_index was held back, not the scrolls at the end.
+	heldPress bool
 	// Why characters typed through Compose may have arrived as others, for the hint.
 	composeNote string
 }

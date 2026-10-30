@@ -200,6 +200,7 @@ which is what `./dev.sh vm-test` runs.
 | `anr` | `core` | Hyprland's not-responding dialog, which the VM's `hyprland-dialog` logs: for a stopped app, and never for hidden apps that captures and input drive, one that waits for its dmabuf buffers as Mesa's swapchains do and the form task's GTK 4 questionnaire. |
 | `settle` | `core` | How long `act` waits for a hidden GTK 4 app: the form task's questionnaire, whose overlay scrollbar fades in at each act, settles once its widgets have drawn. |
 | `suspended` | `core` | Hidden windows that Hyprland tells they are suspended: a Qt 6 app, which commits no frame while it is suspended, is shown while driven and draws each act's input and a resize, and every way a hold ends gives it Hyprland's state back, also to a toplevel that unmaps and maps again. |
+| `qt-popups` | `core` | A click after the Enter that picks an item of a Qt dropdown: it reaches the window once the list has closed, and `act` holds it back when Enter opened the list again, as it does with the platform theme of GTK. |
 | `key-pace` | `core` | Repeated plain keys, with every press counted on Qt 6, GTK 3 and Tk sliders. |
 | `scrolling` | `core` | `act`'s scroll at the end of a batch, which comes after the changes of the input before it or is held back, a dropdown that takes the wheel, and scrolls on X11 that move by every notch. |
 | `paging` | `core`, `input` | Measured page scrolls, overlap, edit verification and controls that take the wheel. |
@@ -493,6 +494,17 @@ configure it gets.
 | a hold keeps the Qt window from being told while its workspace is shown and hidden, and gives it Hyprland's state after | A wait that starts while the probe is hidden keeps it from being told while its workspace is shown and hidden again, and one that starts while its workspace is shown keeps it from being told once Hyprland hides it. Cancelling each gets it suspended. The user's focus and workspace come back. |
 | the holds of a session and a wait on the Qt window end in either order before it is told that it is suspended | A wait that outlives the second after a sender's input keeps the probe shown 2 s after it, and the probe is suspended once the wait ends. A sender that holds its devices for 4 s keeps it shown after a wait times out within it, and the probe is suspended once the sender ends. |
 | a held toplevel that unmaps gets Hyprland's state as it maps again, and an older one is never told that it is suspended | `suspend-probe.c`, launched onto a hidden workspace and suspended, is shown for a sender that holds its devices, and unmaps with a commit without a buffer, keeping its `xdg_toplevel`. Its socket closes with the unmap, and no configure comes while it is unmapped. It maps again with the state that Hyprland told it last, which Hyprland does not update for a window that maps on the visible workspace until the workspaces change, and moved to a hidden workspace, which updates nothing for a window that Hyprland took for suspended, it is told that it is suspended. The probe at `xdg_wm_base` version 5, held by a wait while its workspace is shown, hidden during the hold, and unmapped and mapped again after the wait ended `window_closed`, is never told that it is suspended. |
+
+#### `qt-popups`
+
+The Qt probe runs on hidden workspaces of its own, while the user's foot keeps
+the focus. One `act` clicks its dropdown, picks the next planet with Down and
+Enter, and clicks its check box above the list.
+
+| Subtest | Checks |
+| --- | --- |
+| a click after the Enter that closed a Qt dropdown's list reaches the window | With Qt's default platform theme, Enter closes the list, the batch is delivered whole, the probe logs the choice and the check, and `state` reports no popup. The user's focus and workspace stay. |
+| a click after the Enter that opened a Qt dropdown's list again is held back, and lands once the list is closed | With `QT_QPA_PLATFORMTHEME=gtk3`, Enter closes the list and its press opens it again. `act` delivers 3 of 4 actions, holds back the click with `held_back` and the summary and hint that say why, and its shot shows the list. The probe logs the choice and no check, and `state` reports one popup with `grab` below the dropdown. An `act` with Escape and the click delivers both, the probe logs the check, and the popup is gone. The user's focus and workspace stay. |
 
 #### `key-pace`
 

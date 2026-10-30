@@ -6,6 +6,7 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 class CWLSurfaceResource;
 struct wl_client;
@@ -33,6 +34,16 @@ namespace hyprmasq {
 
     // Calls fn for the window's surface, its subsurfaces and its popups with their subsurfaces.
     void forEachSurface(const PHLWINDOW& window, const std::function<void(SP<CWLSurfaceResource>)>& fn);
+
+    // A mapped popup of a Wayland window, as the renderer draws it: the box of its surfaces with a buffer, in window-local
+    // logical pixels, where pointer input reaches it too, and whether it asked for a grab.
+    struct SPopupBox {
+        CBox box;
+        bool grab = false;
+    };
+    // The window's popups in the order of its popup tree, parents before their children. None for an X11 window, whose
+    // menus are windows of their own. Main thread only.
+    std::vector<SPopupBox> popupBoxes(const PHLWINDOW& window);
 
     // True while the window has not caught up with a size Hyprland gave it: it has not yet committed a frame after
     // taking the size, and its content does not have that size either. Its content then shows a frame of another size.

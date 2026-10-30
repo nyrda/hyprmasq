@@ -18,6 +18,7 @@
   { "name": "anr", "requires": ["core"] },
   { "name": "settle", "requires": ["core"] },
   { "name": "suspended", "requires": ["core"] },
+  { "name": "qt-popups", "requires": ["core"] },
   { "name": "key-pace", "requires": ["core"] },
   { "name": "scrolling", "requires": ["core"] },
   { "name": "paging", "requires": ["core", "input"] },

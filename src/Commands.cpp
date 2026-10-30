@@ -305,6 +305,21 @@ namespace hyprmasq {
             return kind ? std::format("override_redirect={} delete_window={}", kind->overrideRedirect, kind->deleteWindow) : "none";
         }
 
+        // Logical pixels, which a popup at a fractional position or scale need not fill whole.
+        std::string popupsJson(const std::vector<SPopupBox>& popups) {
+            std::string json;
+            for (const auto& p : popups)
+                json += std::format(R"({}{{"x":{},"y":{},"width":{},"height":{},"grab":{}}})", json.empty() ? "" : ",", p.box.x, p.box.y, p.box.w, p.box.h, p.grab);
+            return "[" + json + "]";
+        }
+
+        std::string popupsText(const std::vector<SPopupBox>& popups) {
+            std::string text;
+            for (const auto& p : popups)
+                text += std::format("{}{},{} {}x{}{}", text.empty() ? "" : " ", p.box.x, p.box.y, p.box.w, p.box.h, p.grab ? " grab" : "");
+            return text.empty() ? "none" : text;
+        }
+
         std::string state(eOutputFormat format, const std::vector<std::string>& args) {
             if (args.size() != 1)
                 return usage(format);
@@ -327,20 +342,21 @@ namespace hyprmasq {
             const bool             hungry   = starved(window);
             const auto             source   = placement::source(window);
             const auto             kind     = x11::kind(window);
+            const auto             popups   = popupBoxes(window);
             if (format == FORMAT_JSON)
                 return std::format(
                     R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"x11":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"scale":{},)"
-                    R"("socket":{},"socketId":{},"commits":{},"interrupted":{},"lastPause":{},"drag":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"privateDnd":{},"keyboard":"{}"}},"source":{}}})",
+                    R"("socket":{},"socketId":{},"commits":{},"interrupted":{},"lastPause":{},"drag":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"privateDnd":{},"keyboard":"{}"}},"source":{},"popups":{}}})",
                     jsonString(windowAddress(window)), window->metadata().stableID(), window->backend().isX11(), x11Json(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry,
                     jsonOrNull(scale), socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut),
                     paused ? jsonString(*paused) : "null", dragJson(drags), lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, caps.privateDnd,
-                    keyboard, sourceJson(source));
+                    keyboard, sourceJson(source), popupsJson(popups));
             return std::format("address: {}\nstableId: {:x}\nxwayland: {}\nx11: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
-                               "interrupted: {}\nlastPause: {}\ndrag: {}\nlease: {}\ncapabilities: lease={} hold={} dnd={} private_dnd={} keyboard={}\nsource: {}\n",
+                               "interrupted: {}\nlastPause: {}\ndrag: {}\nlease: {}\ncapabilities: lease={} hold={} dnd={} private_dnd={} keyboard={}\nsource: {}\npopups: {}\n",
                                windowAddress(window), window->metadata().stableID(), window->backend().isX11(), x11Text(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry,
                                jsonOrNull(scale), socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none",
                                cut ? std::to_string(*cut) : "none", paused.value_or("none"), dragText(drags), lease ? leaseText(*lease) : "none", caps.lease, caps.hold, caps.dnd,
-                               caps.privateDnd, keyboard, sourceText(source));
+                               caps.privateDnd, keyboard, sourceText(source), popupsText(popups));
         }
 
         constexpr int MAX_LEASE_MS = 600000;

@@ -27,10 +27,11 @@ func TestBatchRunsInOneSender(t *testing.T) {
 		t.Fatal(text(res))
 	}
 	// One sender checks the whole batch, including whether the keymap can type it, before it sends anything. The text
-	// waits for the window's answer to the click, and at least until the click has settled.
+	// waits for the window's answer to the click, and at least until the click has settled. The path, a press after
+	// keys, waits for the window's answer to them.
 	want := [][]string{{
 		"move", "10", "10", "click", "left", "1", "-", "sync", "300", "1000", "text", "hi there", "keys", "enter", "1",
-		"move", "20", "20", "wheel", "0", "2", "sleep", "10", "path", "2", "0", "0", "50", "50", "left", "-",
+		"move", "20", "20", "wheel", "0", "2", "sleep", "10", "sync", "0", "1000", "path", "2", "0", "0", "50", "50", "left", "-",
 	}}
 	if got := e.inputs(); !reflect.DeepEqual(got, want) {
 		t.Errorf("inputs %q\nwant %q", got, want)
@@ -428,8 +429,9 @@ func TestSenderFailures(t *testing.T) {
 			pausedError("fake input_paused", "", true).Hint},
 		{"unconfirmed", "fail:unconfirmed:0:uncertain:0", `[{"action":"key","keys":["a"]}]`, "unconfirmed", "uncertain", 0.0, nil, true, hintUncertain},
 		{"connect failed", "fail:connect_failed:0:none:0", `[{"action":"key","keys":["a"]}]`, "connect_failed", "none", 0.0, nil, true, "Retry once"},
-		// The sender refuses points outside the pointer's regions, which end at the monitor's edges.
-		{"outside the regions", "fail:invalid_arguments:1:none:0", `[{"action":"key","keys":["a"]},{"action":"click","x":5,"y":5}]`, "out_of_bounds", "none", 1.0, nil, true,
+		// The sender refuses points outside the pointer's regions, which end at the monitor's edges: the click's motion,
+		// after the sync that the click after the key gets.
+		{"outside the regions", "fail:invalid_arguments:2:none:0", `[{"action":"key","keys":["a"]},{"action":"click","x":5,"y":5}]`, "out_of_bounds", "none", 1.0, nil, true,
 			hintOutsideRegions},
 		{"wheel", "fail:invalid_arguments:1:none:0", `[{"action":"scroll","x":5,"y":5,"dy":1}]`, "invalid_arguments", "none", 0.0, nil, true, "Fix the action"},
 		// Something other than this server sent the sender SIGTERM.

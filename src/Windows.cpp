@@ -1,4 +1,5 @@
 #include "Windows.hpp"
+#include "FocusPolicy.hpp"
 #include "PrivateAccess.hpp"
 
 #include <hyprland/src/desktop/state/WindowState.hpp>
@@ -11,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <optional>
 
 namespace hyprmasq {
     std::string windowAddress(const PHLWINDOW& window) {
@@ -60,6 +62,34 @@ namespace hyprmasq {
         visit(window->wlSurface()->resource());
         if (window->popupHead())
             window->popupHead()->breadthfirst([&](SP<Desktop::View::CPopup> p, void*) { visit(p->resource()); }, nullptr);
+    }
+
+    std::vector<SPopupBox> popupBoxes(const PHLWINDOW& window) {
+        std::vector<SPopupBox> boxes;
+        if (window->backend().isX11() || !window->popupHead() || !window->backend().valid())
+            return boxes;
+        const auto geometry = geometryOffset(window);
+        window->popupHead()->breadthfirst(
+            [&](SP<Desktop::View::CPopup> popup, void*) {
+                const auto surface = popup->resource();
+                if (!popup->mapped() || !surface || !surface->m_mapped)
+                    return;
+                // At its parent's origin less the window's geometry offset, as the renderer and the plugin's pointer place it.
+                const auto          origin = popup->coordsRelativeToParent() - geometry;
+                std::optional<CBox> extents;
+                surface->breadthfirst(
+                    [&](SP<CWLSurfaceResource> s, const Vector2D& offset, void*) {
+                        if (!s->m_current.texture || s->m_current.size.x < 1 || s->m_current.size.y < 1)
+                            return;
+                        const CBox box{origin + offset, s->m_current.size};
+                        extents = extents ? unite(*extents, box) : box;
+                    },
+                    nullptr);
+                if (extents)
+                    boxes.push_back({.box = *extents, .grab = input::grabbing(surface)});
+            },
+            nullptr);
+        return boxes;
     }
 
     bool resizing(const PHLWINDOW& window) {

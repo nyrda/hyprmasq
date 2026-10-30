@@ -95,7 +95,26 @@ func fakeInput() int {
 	}
 	logLine("start")
 	defer logLine("exit")
+	reply := func(v map[string]any) {
+		if compose, requested, ok := strings.Cut(os.Getenv("FAKE_INPUT_COMPOSE"), ":"); ok {
+			v["compose"] = map[string]any{"locale": compose, "requested": requested}
+		}
+		out, _ := json.Marshal(v)
+		fmt.Println(string(out))
+	}
 	answers := bufio.NewReader(os.Stdin)
+	lines := make(chan string)
+	go func() {
+		defer close(lines)
+		for {
+			line, err := answers.ReadString('\n')
+			if err != nil {
+				return
+			}
+			lines <- line
+		}
+	}()
+	// SIGTERM at a sync ends the sender there, as the real one, which reports the actions before it.
 	syncsBefore := func(end int) {
 		for i := 0; i < end && i < total; i++ {
 			if actions[i] != "sync" {
@@ -104,21 +123,21 @@ func fakeInput() int {
 			// Logged first, since the server may act on the line before a later log entry is written.
 			logLine(fmt.Sprintf("sync %d", i))
 			fmt.Printf("{\"sync\":%d}\n", i)
-			answer, err := answers.ReadString('\n')
-			if err != nil {
-				return
+			select {
+			case answer, ok := <-lines:
+				if !ok {
+					return
+				}
+				logLine("answered " + strings.TrimSpace(answer))
+			case <-signals:
+				logLine("sigterm")
+				reply(map[string]any{"ok": false, "done": i, "total": total, "failedIndex": i, "delivery": "partial", "error": map[string]any{"code": "cancelled", "message": "terminated"}})
+				logLine("exit")
+				os.Exit(1)
 			}
-			logLine("answered " + strings.TrimSpace(answer))
 		}
 	}
 
-	reply := func(v map[string]any) {
-		if compose, requested, ok := strings.Cut(os.Getenv("FAKE_INPUT_COMPOSE"), ":"); ok {
-			v["compose"] = map[string]any{"locale": compose, "requested": requested}
-		}
-		out, _ := json.Marshal(v)
-		fmt.Println(string(out))
-	}
 	switch {
 	case mode == "" || mode == "ok":
 		syncsBefore(total)
@@ -259,6 +278,8 @@ type fakeWindow struct {
 	// The plugin's record of the drag-and-drop operations of the window's app, which state reports with a socket, or
 	// nil as from a plugin that keeps none.
 	Drag *hypr.Drag
+	// The window's mapped popups, which state reports, or nil as from a plugin that does not tell.
+	Popups []hypr.Popup
 }
 
 // fakeHyprland serves Hyprland's request socket with the plugin commands of the contract, and its event socket with
@@ -553,7 +574,7 @@ func (f *fakeHyprland) reply(request string) string {
 func (f *fakeHyprland) state(w *fakeWindow) map[string]any {
 	st := map[string]any{"ok": true, "address": w.Address, "stableId": w.StableID, "xwayland": w.XWayland,
 		"size": map[string]any{"width": w.Width, "height": w.Height}, "resizing": w.Resizing, "starved": w.Starved, "scale": f.scale, "socket": nil, "commits": nil,
-		"lease": nil, "capabilities": w.Caps, "source": w.Source, "x11": w.X11}
+		"lease": nil, "capabilities": w.Caps, "source": w.Source, "x11": w.X11, "popups": w.Popups}
 	if w.Socket {
 		st["socket"] = "/fake/" + w.Address + ".eis"
 		st["socketId"] = w.socketID()

@@ -109,24 +109,29 @@ func TestKeysAfterAClickWaitForTheWindowsAnswer(t *testing.T) {
 	}
 }
 
-// A click alone or at the end of a batch has no sync, and only the wait after the batch.
+// A click alone or at the end of a batch has no sync after it, and only the wait after the batch. One after keys waits
+// at a sync before it for the window's answer to the keys, as it would after a click, see closingPopup.
 func TestAClickAtTheEndWaitsOnce(t *testing.T) {
-	for _, batch := range []string{
-		`[{"action":"click","x":20,"y":20}]`,
-		`[{"action":"click","x":20,"y":20,"count":2}]`,
-		`[{"action":"key","keys":["down"]},{"action":"type","text":"x"},{"action":"click","x":20,"y":20}]`,
+	for _, c := range []struct {
+		batch string
+		syncs int
+	}{
+		{`[{"action":"click","x":20,"y":20}]`, 0},
+		{`[{"action":"click","x":20,"y":20,"count":2}]`, 0},
+		{`[{"action":"key","keys":["down"]},{"action":"type","text":"x"},{"action":"click","x":20,"y":20}]`, 1},
 	} {
 		e := newTestEnv(t)
 		e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Socket, w.Commits = true, 10 })
 		e.screenshot(`{"window":"0xa1"}`)
-		if res := e.act(`{"window":"0xa1","shot":"s1","actions":` + batch + `}`); res.IsError {
+		if res := e.act(`{"window":"0xa1","shot":"s1","actions":` + c.batch + `}`); res.IsError {
 			t.Fatal(text(res))
 		}
-		if got := e.inputs(); len(got) != 1 || strings.Contains(strings.Join(got[0], " "), "sync") {
-			t.Errorf("%s: inputs %q", batch, got)
+		if got := e.inputs(); len(got) != 1 || strings.Count(strings.Join(got[0], " "), "sync") != c.syncs {
+			t.Errorf("%s: inputs %q", c.batch, got)
 		}
-		if waits := e.fake.requestsMatching("j/hyprmasq wait"); len(waits) != 1 || !strings.HasPrefix(waits[0], "j/hyprmasq wait 0xa1 since 10 expect 1000 quiet 200 ") {
-			t.Errorf("%s: waits %q", batch, waits)
+		waits := e.fake.requestsMatching("j/hyprmasq wait")
+		if len(waits) != 1+c.syncs || !strings.HasPrefix(waits[len(waits)-1], "j/hyprmasq wait 0xa1 since 10 expect 1000 quiet 200 ") || len(afterBatch(t, waits)) != 1 {
+			t.Errorf("%s: waits %q", c.batch, waits)
 		}
 	}
 }

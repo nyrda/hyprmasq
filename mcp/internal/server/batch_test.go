@@ -229,7 +229,7 @@ func TestTranslate(t *testing.T) {
 
 // A click or drag that more actions follow gets a sync after it, which belongs to the next action. It lasts until keys
 // and text after the click come 300 ms after its end, counted with the sender's 50 ms between actions, whose first one
-// the sync replaces, and only for the first keys after each click.
+// the sync replaces, and only for the first keys after each click. A click or drag after keys or text gets one before it.
 func TestClickSettle(t *testing.T) {
 	const click, typed, key = `{"action":"click","x":1,"y":1}`, `{"action":"type","text":"a b"}`, `{"action":"key","keys":["enter"]}`
 	for _, c := range []struct {
@@ -251,7 +251,13 @@ func TestClickSettle(t *testing.T) {
 		{`{"action":"click","x":1,"y":1,"count":2},{"action":"scroll","x":1,"y":1,"dy":1}`, []string{"0 move", "0 click", "1 sync 0 1000", "1 move", "1 wheel"}},
 		{`{"action":"scroll","x":1,"y":1,"dy":1},` + key, []string{"0 move", "0 wheel", "1 keys"}},
 		{key + "," + typed, []string{"0 keys", "1 text"}},
-		{typed + "," + click, []string{"0 text", "1 move", "1 click"}},
+		// A click or a path with a button after keys or text waits for the window's answer to them too, see closingPopup.
+		{typed + "," + click, []string{"0 text", "1 sync 0 1000", "1 move", "1 click"}},
+		{key + `,{"action":"pause","ms":100},` + click, []string{"0 keys", "1 sleep 100", "2 sync 0 1000", "2 move", "2 click"}},
+		{click + "," + key + "," + click, []string{"0 move", "0 click", "1 sync 300 1000", "1 keys", "2 sync 0 1000", "2 move", "2 click"}},
+		{key + `,{"action":"path","points":[[1,1],[5,5]]}`, []string{"0 keys", "1 sync 0 1000", "1 path"}},
+		{key + `,{"action":"path","points":[[1,1],[5,5]],"button":"none"}`, []string{"0 keys", "1 path"}},
+		{key + `,{"action":"scroll","x":1,"y":1,"dy":1}`, []string{"0 keys", "1 move", "1 wheel"}},
 	} {
 		var raw []json.RawMessage
 		if err := json.Unmarshal([]byte("["+c.batch+"]"), &raw); err != nil {

@@ -220,6 +220,7 @@ hyprctl hyprmasq lease "$addr" release my-script
 | `lease` | `held`, `remainingMs` and `owner`, or `null`. |
 | `capabilities` | What input can do in the window right now, see below. |
 | `source` | The window this one was opened from, see [New windows](#new-windows), or `null`. |
+| `popups` | The window's mapped popups, parents before their children: `x`, `y`, `width` and `height` in window-local logical pixels, where pointer input reaches them, and `grab`, true for a popup that asked to take the pointer and keys while it is open, as menus and dropdown lists do and tooltips do not. Empty for X11 windows, whose menus are windows of their own. |
 
 | Capability | True when |
 | --- | --- |
@@ -459,6 +460,16 @@ that stays connected with its devices keeps the target awake for as long as
 it stays. A woken application may redraw once, also when the input changed
 nothing. X11 windows have no such state, and neither have the windows of
 clients that bind `xdg_wm_base` below version 6.
+
+**Popups.** Pointer input over an open popup of the target reaches the popup.
+A popup that asks to take the pointer and keys, such as a menu or a dropdown's
+list, closes when a click comes outside it, and many apps, such as Qt ones,
+give that click to nothing else, as they do with your own click. Input that
+closes a popup can also open another one: a Qt dropdown with the platform
+theme of GTK closes its list on Enter and opens it again on the press of the
+same key. `popups` in the [window state](#window-state) tells what is open.
+`hyprmasq-input` sends what it is given, and `hyprmasq-mcp` holds back such a
+click, see [act](mcp.md#a-press-outside-an-open-popup).
 
 **Shared connections.** Two windows of one program, such as two windows of one
 browser, can share a Wayland connection, and a connection has one keyboard and

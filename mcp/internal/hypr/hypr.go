@@ -204,6 +204,24 @@ type State struct {
 	Capabilities Capabilities `json:"capabilities"`
 	// The window a new window came from, as the plugin found it when the window mapped, or nil when it found none.
 	Source *Source `json:"source"`
+	// The window's mapped popups, parents before their children, or nil from a plugin that does not tell. Always empty
+	// for X11 windows, whose menus are windows of their own.
+	Popups []Popup `json:"popups"`
+}
+
+// Popup is a mapped popup of a window: its box in window-local logical pixels, where pointer input reaches it, and
+// whether it asked for a grab, as a menu or a dropdown's list does, which closes when a click comes outside it.
+type Popup struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+	Grab   bool    `json:"grab"`
+}
+
+// Contains tells whether the point, in window-local logical pixels, lies in the popup.
+func (p Popup) Contains(x, y float64) bool {
+	return x >= p.X && y >= p.Y && x < p.X+p.Width && y < p.Y+p.Height
 }
 
 // Drag counts the drag-and-drop operations of a window's app, and tells how the last one went.

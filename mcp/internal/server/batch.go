@@ -91,12 +91,19 @@ const (
 // or a path that holds a button, that more actions follow gets a sync after it, which belongs to the next action and
 // takes the place of the gap between them: the sender waits there while act waits for the window. The sync lasts at
 // least until keys or text after the click come clickSettleMs after its end. That time counts the sender's gap before
-// every action and the sleeps, but not how long motion or scrolling take, which can only make the wait longer.
+// every action and the sleeps, but not how long motion or scrolling take, which can only make the wait longer. A click
+// or such a path that comes after keys or text gets a sync before it too, as the keys may have opened or closed a popup
+// that the click would land in or close, see closingPopup.
 func translateBatch(batch []action, sh *shot) []inputStep {
 	var steps []inputStep
 	sync := -1      // the index of the sync after the last click or held-button path, while no keys followed it
 	sinceClick := 0 // ms from the end of that click or path to the next sender action, without the sync
+	keyed := false  // keys or text went out since the last sync
 	for i, a := range batch {
+		if keyed && (a.Kind == "click" || a.holdsButton()) {
+			steps = append(steps, inputStep{Batch: i, Argv: []string{"sync", "0", strconv.Itoa(answerMaxMs)}})
+			keyed = false
+		}
 		for _, step := range translate(i, a, func(x, y float64) (float64, float64) { return sh.inputPoint(x, y) }) {
 			verb := step.Argv[0]
 			if sync >= 0 {
@@ -115,9 +122,10 @@ func translateBatch(batch []action, sh *shot) []inputStep {
 			}
 			steps = append(steps, step)
 		}
+		keyed = keyed || a.Kind == "key" || a.Kind == "type"
 		if (a.Kind == "click" || a.holdsButton()) && i < len(batch)-1 {
 			steps = append(steps, inputStep{Batch: i + 1, Argv: []string{"sync", "0", strconv.Itoa(answerMaxMs)}})
-			sync, sinceClick = len(steps)-1, 0
+			sync, sinceClick, keyed = len(steps)-1, 0, false
 		}
 	}
 	return steps
