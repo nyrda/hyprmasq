@@ -17,6 +17,7 @@
   { "name": "mcp-shots", "requires": ["core", "mcp"] },
   { "name": "anr", "requires": ["core"] },
   { "name": "settle", "requires": ["core"] },
+  { "name": "recording", "requires": ["core"] },
   { "name": "suspended", "requires": ["core"] },
   { "name": "qt-popups", "requires": ["core"] },
   { "name": "key-pace", "requires": ["core"] },

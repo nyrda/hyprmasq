@@ -569,11 +569,11 @@ class ToolResult:
         self.is_error = reply["result"].get("isError", False)
         self.sent, self.received = reply["sent"], reply["received"]
         # Some clients pass the model only the structured content, so it carries all of the text: the error, the
-        # summary and the hint. The windows tool lists every field of its lines.
+        # summary, the hint and what act did with a recording. The windows tool lists every field of its lines.
         if self.data is not None and "windows" not in self.data:
             error = self.data.get("error")
             lines = [f"error {error['code']}: {error['message']}"] if error else []
-            lines += [self.data[key] for key in ("summary", "hint") if self.data.get(key)]
+            lines += [self.data[key] for key in ("summary", "hint", "recording") if self.data.get(key)]
             assert self.text == "\n".join(lines), reply
 
     def __repr__(self):

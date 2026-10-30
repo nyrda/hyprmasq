@@ -338,6 +338,7 @@ func (s *Server) renderFrame(ctx context.Context, window string) (*frame, error)
 	path, detailPath := filepath.Join(s.shotDir, fmt.Sprintf("f%d.raw", n)), filepath.Join(s.shotDir, fmt.Sprintf("f%d-detail.raw", n))
 	defer os.Remove(path)
 	defer os.Remove(detailPath)
+	at := time.Now()
 	reply, err := s.hypr.Screenshot(ctx, window, hypr.ScreenshotArgs{Path: path, Max: s.cfg.MaxImageSize, Raw: true, DetailPath: detailPath})
 	if err != nil {
 		return nil, err
@@ -346,6 +347,7 @@ func (s *Server) renderFrame(ctx context.Context, window string) (*frame, error)
 	if f.overview, err = hypr.ReadRaw(path, reply.Width, reply.Height); err != nil {
 		return nil, err
 	}
+	s.noteRendered(window, f, at)
 	// Without a detail image, the shot cannot be compared, which a later changes capture answers with a full shot.
 	if reply.Resizing || reply.Scale <= 0 {
 		return f, nil

@@ -199,6 +199,7 @@ which is what `./dev.sh vm-test` runs.
 | `mcp-shots` | `core`, `mcp` | `hyprmasq-mcp`'s concurrency and cancellation, captures, changes and full shots, image sizes, resizes, starved and animated windows, input that closes its window, and the server's exit. |
 | `anr` | `core` | Hyprland's not-responding dialog, which the VM's `hyprland-dialog` logs: for a stopped app, and never for hidden apps that captures and input drive, one that waits for its dmabuf buffers as Mesa's swapchains do and the form task's GTK 4 questionnaire. |
 | `settle` | `core` | How long `act` waits for a hidden GTK 4 app: the form task's questionnaire, whose overlay scrollbar fades in at each act, settles once its widgets have drawn. |
+| `recording` | `core` | `hyprmasq-mcp`'s recordings of `act` calls as slides and as video, with the settings that the NixOS module writes, and the recording that a session leaves running. |
 | `suspended` | `core` | Hidden windows that Hyprland tells they are suspended: a Qt 6 app, which commits no frame while it is suspended, is shown while driven and draws each act's input and a resize, and every way a hold ends gives it Hyprland's state back, also to a toplevel that unmaps and maps again. |
 | `qt-popups` | `core` | A click after the Enter that picks an item of a Qt dropdown: it reaches the window once the list has closed, and `act` holds it back when Enter opened the list again, as it does with the platform theme of GTK. |
 | `key-pace` | `core` | Repeated plain keys, with every press counted on Qt 6, GTK 3 and Tk sliders. |
@@ -385,7 +386,7 @@ and the code drift apart.
 
 | Subtest | Checks |
 | --- | --- |
-| hyprmasq-mcp introduces itself and its tools | `hyprmasq-mcp`, driven over stdio by a JSON-RPC client in the test: the instructions start with a summary line. `tools/list` has `windows`, `launch`, `screenshot`, `act`, `release` and `close` with input schemas, `act` with named or compact actions and `next_page`, and `windows` with `match` and `wait_ms` up to 10000. None is read-only, and `windows`, `screenshot`, `launch` and `release` are not destructive. In every subtest, the structured content of each result carries all of its text: the error, the summary and the hint. |
+| hyprmasq-mcp introduces itself and its tools | `hyprmasq-mcp`, driven over stdio by a JSON-RPC client in the test: the instructions start with a summary line. `tools/list` has `windows`, `launch`, `screenshot`, `act`, `release` and `close` with input schemas, `act` with named or compact actions, `next_page`, and `record` with `slides`, `video` and `stop`, and `windows` with `match` and `wait_ms` up to 10000. None is read-only, and `windows`, `screenshot`, `launch` and `release` are not destructive. In every subtest, the structured content of each result carries all of its text: the error, the summary, the hint and what `act` did with a recording. |
 | hyprmasq-mcp refuses a runtime directory with whitespace | `hyprmasq-mcp` started with an `XDG_RUNTIME_DIR` that has a space exits with status 1 and says that the directory for screenshots contains whitespace, which a request to the plugin cannot carry. |
 | hyprmasq-mcp launches a window on a hidden workspace | `launch` starts foot on a hidden workspace and returns its shot and summary line, and `windows` lists it as launched, not resizing, with its capabilities. Its line leaves out the pid and the capabilities, which it has all of. |
 | hyprmasq-mcp launches an app whose launcher forks it away and exits | The launched shell starts `foot` in a new session from a shell that exits at once, and exits too, as `kate` without `-b` does. `launch` returns the window on its hidden workspace while the user types into a terminal, both shells have exited, and the focus and every typed line stay with the user. |
@@ -478,6 +479,19 @@ sets the output back at its end.
 | --- | --- |
 | a hidden GTK 4 questionnaire settles once its widgets have drawn, while its overlay scrollbar fades in | `hyprmasq-mcp` launches the form task's questionnaire on a hidden workspace and drives it as the benchmark's agents did, an act every 2.5 s, so that GTK fades the overlay scrollbar out between them and in again at each act's first motion, which redraws a strip 5 pixels wide at the right edge for about 800 ms: two clicks on the margin beside the questions, two boxes ticked, the dropdown opened, Saturn chosen in its popover by keys, and text typed into a field after a click. Every act with a click settles within 600 ms, where the strip alone kept it waiting about a second. After the clicks on the margin, which change nothing else, the summary names the strip as an animation. The questionnaire logs each answer, and the changes shot has a zoom on the box, the popover, the dropdown and the field that show it. |
 
+#### `recording`
+
+The VM sets `programs.hyprmasq.mcpSettings` to send recordings to
+`/tmp/hm-recordings` with a GIF of each, and the area's server reads them from
+the `/etc/xdg/hyprmasq/mcp.toml` that the module writes. It launches two
+shells, each on a hidden workspace of its own, and shows a foot on the visible
+one, which it closes at its end, back on the workspace it started on.
+
+| Subtest | Checks |
+| --- | --- |
+| hyprmasq-mcp records slides of acts in two hidden windows, with the settings of the NixOS module | An `act` with `record` `slides` and a `caption` types into the first shell and says where the video goes, in a line after the summary that the structured content carries as `recording`. An act in the second shell is a step too, and an act with `record` `stop` captures without waiting for a change and says that it saved the video and the GIF, with its length and 2 steps. The video is H.264 in `yuv420p`, 640×520, the shells over the bar, with 24 frames over 6 s: each act's input for a second and its result for 1.5, and the last frame for a second more. The GIF has the 4 slides, and the directory holds the two files only. The user's focus stays. |
+| hyprmasq-mcp records video of an act at real speed, and the act settles as soon as without | A shell prints a line every 250 ms for 1.5 s. The same act, waiting for 600 ms of quiet, settles with `record` `video` at most 500 ms later than without it. The video has the act at up to 10 frames a second, its result held for a second and the last frame for one more, over 3.8 s or more. The rows with text in its frames grow from the first frame to the last with counts in between, so the frames show the lines as they came, where frames only from before and after the act would have two counts. |
+| hyprmasq-mcp saves the recording when the session ends | A recording that runs when the server's stdin closes is saved as a stop would: its video of 3.5 s and its GIF are in the directory without a `.part.mp4` or a temporary directory, and the server logs where. |
 #### `suspended`
 
 The area raises the output to 1280×800, as large as a laptop's, and shows a

@@ -655,6 +655,11 @@ between you and the agent or script that drives your windows.
 - X11 has no isolation between the apps of one X server, so these protections
   do not extend to other X11 apps of the target's X server.
 - Screenshots are written with the permissions of the user running Hyprland.
+- `hyprmasq-mcp` writes the [recordings](mcp.md#recording-a-demo) that an
+  agent asks for into `record.dir` of its configuration,
+  `~/Videos/hyprmasq` by default, under names it chooses. The agent passes no
+  path. A recording holds what the windows that the agent drives showed, as
+  their screenshots do.
 
 ## Limitations
 

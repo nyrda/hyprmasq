@@ -7,7 +7,7 @@
 #
 # Besides the plugin, $out/bin/hyprmasq-input is a small libei client for driving a window's socket,
 # $out/bin/hyprmasq-launch starts an application on a hidden workspace, and $out/bin/hyprmasq-mcp is the MCP
-# server for coding agents. $out/libexec/hyprmasq-reaper is the plugin's helper that a launch's command runs under.
+# server for coding agents, with ffmpeg for its recordings. $out/libexec/hyprmasq-reaper is the plugin's helper that a launch's command runs under.
 {
   lib,
   stdenv,
@@ -15,6 +15,7 @@
   pkg-config,
   makeWrapper,
   jq,
+  ffmpeg-headless,
   hyprland,
   aquamarine,
   cairo,
@@ -66,7 +67,7 @@
 
 let
   # Built on its own, so changes to the plugin do not rebuild it.
-  mcp = import ./mcp-package.nix { inherit lib buildGoModule; };
+  mcp = import ./mcp-package.nix { inherit lib buildGoModule ffmpeg-headless; };
 in
 stdenv.mkDerivation {
   pname = "hyprmasq";
@@ -109,8 +110,8 @@ stdenv.mkDerivation {
     make install PREFIX="$out"
     # hyprctl comes from the user's PATH, so it matches the running Hyprland.
     wrapProgram "$out/bin/hyprmasq-launch" --prefix PATH : ${lib.makeBinPath [ jq ]}
-    # The server runs hyprmasq-input from PATH; this one matches the plugin.
-    makeWrapper ${lib.getExe mcp} "$out/bin/hyprmasq-mcp" --prefix PATH : "$out/bin"
+    # The server runs hyprmasq-input from PATH; this one matches the plugin. Recordings run ffmpeg, which needs libx264.
+    makeWrapper ${lib.getExe mcp} "$out/bin/hyprmasq-mcp" --prefix PATH : "$out/bin:${lib.makeBinPath [ ffmpeg-headless ]}"
     runHook postInstall
   '';
 

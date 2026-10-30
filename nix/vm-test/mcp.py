@@ -39,7 +39,8 @@ with subtest("hyprmasq-mcp introduces itself and its tools"):
     assert set(windows_schema["properties"]) == {"match", "wait_ms"} and windows_schema["properties"]["wait_ms"]["maximum"] == 10000, windows_schema
     act_schema = tools["act"]["inputSchema"]
     assert not act_schema.get("required"), act_schema
-    assert set(act_schema["properties"]) == {"window", "shot", "actions", "next_page", "wait", "capture", "deadline_ms"}, act_schema
+    assert set(act_schema["properties"]) == {"window", "shot", "actions", "next_page", "wait", "capture", "deadline_ms", "record", "caption"}, act_schema
+    assert act_schema["properties"]["record"]["enum"] == ["slides", "video", "stop"], act_schema
     assert {form["type"] for form in act_schema["properties"]["actions"]["items"]["anyOf"]} == {"object", "array"}, act_schema
     assert act_schema["properties"]["next_page"]["required"] == ["x", "y"], act_schema
     assert tools["screenshot"]["inputSchema"]["required"] == ["window"], tools["screenshot"]

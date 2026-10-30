@@ -33,6 +33,11 @@ other MCP client six tools. One `act` call clicks and types, waits until the
 window has drawn the result, and returns only what changed, which saves input
 tokens and tool calls.
 
+**Demo recordings.** Asked to prove a change in a video, as for a pull
+request, an agent records its `act` calls as slides or as video, with the
+pointer, clicks and keys drawn in and a caption per step, also in windows on a
+hidden workspace. See [Recording a demo](docs/mcp.md#recording-a-demo).
+
 **A scriptable automation layer.** `hyprctl hyprmasq …`, `hyprmasq-input` and
 `hyprmasq-launch` make the same capabilities usable from shell scripts and
 tests.

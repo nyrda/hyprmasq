@@ -992,7 +992,7 @@ func mirrored(t *testing.T, res *mcp.CallToolResult) *mcp.CallToolResult {
 	if e, ok := data["error"].(map[string]any); ok {
 		lines = append(lines, fmt.Sprintf("error %s: %s", e["code"], e["message"]))
 	}
-	for _, key := range []string{"summary", "hint"} {
+	for _, key := range []string{"summary", "hint", "recording"} {
 		if line, _ := data[key].(string); line != "" {
 			lines = append(lines, line)
 		}

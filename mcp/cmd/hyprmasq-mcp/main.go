@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -15,18 +16,22 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/nyrda/hyprmasq/mcp/internal/config"
+	"github.com/nyrda/hyprmasq/mcp/internal/record"
 	"github.com/nyrda/hyprmasq/mcp/internal/server"
 )
 
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("hyprmasq-mcp: ")
+	defaults := config.Defaults()
+	configFile := flag.String("config", "", "read the settings from `FILE` (default: the first of $XDG_CONFIG_HOME/hyprmasq/mcp.toml and hyprmasq/mcp.toml in $XDG_CONFIG_DIRS)")
 	input := flag.String("input", "", "the hyprmasq-input binary (default: hyprmasq-input from PATH)")
-	maxImage := flag.Int("max-image-size", server.DefaultMaxImageSize, "fit screenshots within `N` pixels on the long side; 0 keeps the monitor's scale")
-	minZoom := flag.Int("min-zoom-size", server.DefaultMinZoomSize, "enlarge zooms smaller than `N` pixels on the long side by a whole factor, at most 4; 0 leaves them as captured")
-	leaseMs := flag.Int("lease-ms", 60000, "length of the focus lease each act starts or renews, in milliseconds")
-	graceMs := flag.Int("new-window-grace-ms", 500, "how long act goes on watching for new windows after its wait, in milliseconds, when it delivered input")
-	structured := flag.String("structured-content", server.StructuredAuto,
+	maxImage := flag.Int("max-image-size", defaults.MaxImageSize, "fit screenshots within `N` pixels on the long side; 0 keeps the monitor's scale")
+	minZoom := flag.Int("min-zoom-size", defaults.MinZoomSize, "enlarge zooms smaller than `N` pixels on the long side by a whole factor, at most 4; 0 leaves them as captured")
+	leaseMs := flag.Int("lease-ms", defaults.LeaseMs, "length of the focus lease each act starts or renews, in milliseconds")
+	graceMs := flag.Int("new-window-grace-ms", defaults.NewWindowGraceMs, "how long act goes on watching for new windows after its wait, in milliseconds, when it delivered input")
+	structured := flag.String("structured-content", defaults.StructuredContent,
 		"give results structured content: `auto` (not to clients that show it to the model in place of the text), always or never")
 	version := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
@@ -34,9 +39,46 @@ func main() {
 		fmt.Println(server.Version)
 		return
 	}
-	validStructured := *structured == server.StructuredAuto || *structured == server.StructuredAlways || *structured == server.StructuredNever
-	if flag.NArg() > 0 || *maxImage < 0 || *minZoom < 0 || *leaseMs < 1 || *leaseMs > 600000 || *graceMs < 0 || *graceMs > 5000 || !validStructured {
+	if flag.NArg() > 0 {
 		flag.Usage()
+		os.Exit(2)
+	}
+
+	// The configuration file sets what the options do not.
+	cfg := defaults
+	path, err := config.Find(*configFile, os.Getenv)
+	if err != nil {
+		log.Printf("the configuration file: %v", err)
+		os.Exit(2)
+	}
+	if path != "" {
+		if err := config.Load(path, &cfg); err != nil {
+			log.Printf("%s: %v", path, err)
+			os.Exit(2)
+		}
+	}
+	set := map[string]bool{}
+	flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	for name, apply := range map[string]func(){
+		"input":               func() { cfg.Input = *input },
+		"max-image-size":      func() { cfg.MaxImageSize = *maxImage },
+		"min-zoom-size":       func() { cfg.MinZoomSize = *minZoom },
+		"lease-ms":            func() { cfg.LeaseMs = *leaseMs },
+		"new-window-grace-ms": func() { cfg.NewWindowGraceMs = *graceMs },
+		"structured-content":  func() { cfg.StructuredContent = *structured },
+	} {
+		if set[name] {
+			apply()
+		}
+	}
+	if err := cfg.Validate(); err != nil {
+		var ke *config.KeyError
+		if errors.As(err, &ke) && set[ke.Key] {
+			log.Printf("-%v", err)
+			flag.Usage()
+		} else {
+			log.Printf("%s: %v", path, err)
+		}
 		os.Exit(2)
 	}
 
@@ -50,23 +92,32 @@ func main() {
 	if strings.ContainsAny(stateDir, " \t\n\v\f\r") {
 		log.Fatalf("the directory for screenshots, %q, contains whitespace, which a request to the plugin cannot carry; run Hyprland with an XDG_RUNTIME_DIR without it", stateDir)
 	}
-	if *input == "" {
+	if cfg.Input == "" {
 		path, err := exec.LookPath("hyprmasq-input")
 		if err != nil {
 			log.Fatal("hyprmasq-input is not on PATH; pass --input")
 		}
-		*input = path
+		cfg.Input = path
 	}
 
 	s := server.New(server.Config{
 		HyprlandSocket:    filepath.Join(runtime, "hypr", instance, ".socket.sock"),
 		StateDir:          stateDir,
-		Input:             *input,
-		MaxImageSize:      *maxImage,
-		MinZoomSize:       *minZoom,
-		LeaseMs:           *leaseMs,
-		NewWindowGrace:    time.Duration(*graceMs) * time.Millisecond,
-		StructuredContent: *structured,
+		Input:             cfg.Input,
+		MaxImageSize:      cfg.MaxImageSize,
+		MinZoomSize:       cfg.MinZoomSize,
+		LeaseMs:           cfg.LeaseMs,
+		NewWindowGrace:    time.Duration(cfg.NewWindowGraceMs) * time.Millisecond,
+		StructuredContent: cfg.StructuredContent,
+		Record: record.Options{
+			Dir:      cfg.Record.Dir,
+			GIF:      cfg.Record.GIF,
+			GIFWidth: cfg.Record.GIFWidth,
+			FPS:      cfg.Record.FPS,
+			MaxSteps: cfg.Record.MaxSteps,
+			MaxTime:  time.Duration(cfg.Record.MaxMinutes) * time.Minute,
+			FFmpeg:   cfg.Record.FFmpeg,
+		},
 	})
 
 	s.RemoveStaleShots()
@@ -74,7 +125,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	// The SDK lets running calls finish before it closes the session, so a signal cancels them first.
 	stopCalls := context.AfterFunc(ctx, s.CancelCalls)
-	err := s.NewMCPServer().Run(ctx, &mcp.StdioTransport{})
+	err = s.NewMCPServer().Run(ctx, &mcp.StdioTransport{})
 	// stop cancels ctx, so whether a signal ended the session is read before.
 	signalled := ctx.Err() != nil
 	stopCalls()

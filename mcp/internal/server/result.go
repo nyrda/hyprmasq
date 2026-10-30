@@ -248,12 +248,14 @@ func sourceShot(src *sourceOut) *shotOut {
 type resultText struct {
 	Summary string `json:"summary,omitempty"`
 	Hint    string `json:"hint,omitempty"`
+	// What act did with the session's recording: started it, or saved it, or why it stopped.
+	Recording string `json:"recording,omitempty"`
 }
 
 // newResult returns a result whose text is the lead line, if any, the summary and the hint, followed by the images.
 func newResult(structured any, rt resultText, images [][]byte, lead string) *mcp.CallToolResult {
 	var lines []string
-	for _, line := range []string{lead, rt.Summary, rt.Hint} {
+	for _, line := range []string{lead, rt.Summary, rt.Hint, rt.Recording} {
 		if line != "" {
 			lines = append(lines, line)
 		}

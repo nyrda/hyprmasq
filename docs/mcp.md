@@ -19,7 +19,7 @@ agent needs once before acting on it, so agents need no further instructions.
 | `windows` | `match`, `wait_ms` (0 to 10000) | List the windows, or those whose class or title contains `match`: address, class, title, workspace, visible or hidden, size, and the capabilities each lacks. When it lists exactly one window, it also returns a shot of it. With `wait_ms`, it first waits for a window that is not there yet. |
 | `launch` | `command` (array), `workspace` (default `hyprmasq`), `timeout_ms` (1000 to 300000, default 30000) | Start an application on a hidden workspace without a shell, wait for its first window to appear and settle, and return its address with a shot. |
 | `screenshot` | `window`, `region` | Take a shot of the window now. With `region`, zoom into part of an earlier shot. |
-| `act` | `window`, `shot`, `actions`, `next_page`, `wait`, `capture`, `deadline_ms` | Send input, wait until the window has drawn the result, and return what changed. See [act](#act). |
+| `act` | `window`, `shot`, `actions`, `next_page`, `wait`, `capture`, `deadline_ms`, `record`, `caption` | Send input, wait until the window has drawn the result, and return what changed. See [act](#act). `record` and `caption` record a demo, see [Recording a demo](#recording-a-demo). |
 | `release` | `window` | End the window's focus lease. The window stays open. |
 | `close` | `window` | Ask the window to close, as Hyprland's close dispatcher does, and report within 2 seconds whether it closed and which windows appeared, such as a confirmation dialog. It refuses X11 menus and X11 windows that take no close request, see [X11 menus](#x11-menus). |
 
@@ -321,7 +321,7 @@ of a batch, goes out as before: the shot it comes from shows what is open.
 Without a lease, a window loses its emulated focus when a batch ends, and
 popovers or dropdowns that close on focus loss may be gone by the agent's
 next call. An `act` that sends input to a window with the `lease` capability
-starts or renews a **focus lease** of 60 seconds (`--lease-ms`): the
+starts or renews a **focus lease** of 60 seconds (`lease-ms`): the
 window keeps its emulated pointer and keyboard focus between calls, so a
 field that a click focused still takes the keys of the next call.
 
@@ -375,6 +375,72 @@ the app once the combo box opens again. For the same reason `close` refuses an
 app's own X11 window that takes no `WM_DELETE_WINDOW`, which few apps lack:
 quit such an app from within it. See [X11 windows](automation.md#x11-windows).
 
+## Recording a demo
+
+When you ask an agent to show or prove a change in a recording, such as for a
+pull request, it records its `act` calls into a video. The tools that monitor
+recorders use cannot see a window on a hidden workspace, and hyprmasq renders
+the windows it drives anyway. Recording needs `ffmpeg` with libx264, which the
+Nix package's wrapper brings.
+
+```json
+{"shot": "s4", "actions": [[412, 88]], "record": "video", "caption": "Open the export dialog"}
+{"shot": "s9", "actions": [["type", "report.pdf"], ["key", "enter"]], "caption": "Export as PDF"}
+{"shot": "s12", "record": "stop"}
+```
+
+`record` `"slides"` or `"video"` starts a recording right before the call's
+input. Every later `act` of the session is a step of it, in whichever window
+it drives, so a dialog that opens in a window of its own is in it when the
+agent acts on it. `record` `"stop"` ends it once the call's result is
+captured, and the result names the video:
+
+```text
+recording saved: /home/me/Videos/hyprmasq/20261030-141203.mp4 (0:31, 6 steps, 2.4 MB)
+```
+
+- **slides** show each step twice: the window before the input, with the
+  input drawn on it, for a second, and the result for a second and a half,
+  longer for a new caption that needs time to read. The frames are those of
+  the act's own captures.
+- **video** records each act at real speed, at up to `record.fps` frames a
+  second, from just before its input until its result, which it then holds for
+  a second. The time between calls, while the agent thinks, is left out. A
+  step that should show a slow load is an `act` without actions that waits for
+  it.
+- **The input is drawn in**: a pointer in the color of the plugin's
+  [virtual cursor](automation.md#configuration), a ripple at each click, the
+  path of a drag, and the keys in a bar below the window. Typing shows as
+  `typing 12 characters` without the text, which may be a password that its
+  field hides.
+- **`caption`** sets a line in that bar, shown from its step until the next
+  caption. An empty caption removes it.
+- A call that only starts or stops a recording captures at once, as
+  `expect_change: false` would.
+
+One recording runs per session, and its acts record one at a time: an act
+that waits for another one's step counts the wait towards its `deadline_ms`,
+as it does for the window lock. Starting a second recording, a `caption`
+without a recording and a `stop` without one fail with `invalid_arguments`
+before anything is sent. A start that cannot run ffmpeg or create the directory fails
+with `recording_failed`. A recording stops itself after `record.max-steps`
+steps or `record.max-minutes` minutes of video and says so in that act's
+result, and when the session ends, the server saves it as a stop would.
+
+The video is H.264 in an MP4 file in `record.dir`, `~/Videos/hyprmasq` by
+default, named after the time the recording started. Its size is that of the
+first step's window: a bigger window is shrunk to fit, and a smaller one is
+centred. With `record.gif` set in the [configuration](#configuration), a GIF
+of the steps is saved next to it, which plays inline wherever it is hosted.
+While the recording runs, ffmpeg writes a fragmented `.part.mp4`, which plays
+up to its last fragment even when the server is killed. The agent passes no
+path, and the server never deletes a recording.
+
+Getting the video into a pull request is the agent's job. GitHub has no API
+to attach a file to a pull request, so agents host it elsewhere, for example
+as a release asset with `gh release upload`, or attach it through the file
+chooser of the pull request page in your browser.
+
 ## Failures
 
 Each result starts with a one-line summary, followed by a hint when one is
@@ -405,6 +471,7 @@ input is not an error.
 | `cancelled` | The server is shutting down, or the call was cancelled. |
 | `unconfirmed`, `connect_failed`, `no_devices` | The sender could not deliver or confirm the input. |
 | `plugin_missing`, `plugin_version` | The plugin is not loaded in this Hyprland, or has another interface version than the server. |
+| `recording_failed` | A recording could not start: ffmpeg cannot be run, or the directory cannot be created. Nothing was sent. |
 | `internal` | Anything else. |
 
 `no_redraw` and `timeout` are not errors: they are wait outcomes, returned
@@ -414,28 +481,59 @@ Several servers can drive one desktop. They take turns on each window
 through lock files in `$XDG_RUNTIME_DIR/hyprmasq/<instance>/`. Scripts that
 run `hyprmasq-input` directly take no locks.
 
-## Command-line options
+## Configuration
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `--input PATH` | `hyprmasq-input` on `PATH` | The sender to run for each batch. The Nix package's `hyprmasq-mcp` wrapper puts its own `hyprmasq-input` first on `PATH`. |
-| `--max-image-size N` | `1280` | Fit shots, zooms included, within N pixels on their long side. `0` keeps the monitor's scale. |
-| `--min-zoom-size N` | `768` | Enlarge a zoom that `screenshot` or `act`'s `capture` asks for, when its long side is under N pixels, by the smallest whole factor that reaches N, at most 4 and within `--max-image-size`. `0` leaves zooms as captured. |
-| `--lease-ms MS` | `60000` | Length of the focus lease that each `act` starts or renews, 1 to 600000. |
-| `--new-window-grace-ms MS` | `500` | How long `act` keeps watching for new windows after its wait, when it delivered input, 0 to 5000. |
-| `--structured-content auto\|always\|never` | `auto` | Whether results carry MCP structured content next to the text. `auto` leaves it out for clients named `claude-code`, which would show it to the model instead of the shorter text. |
-| `--version` | | Print the version and exit. |
+The server reads its settings from the first file that exists of
+`$XDG_CONFIG_HOME/hyprmasq/mcp.toml`, `~/.config/hyprmasq/mcp.toml` by
+default, and `hyprmasq/mcp.toml` in each directory of `$XDG_CONFIG_DIRS`,
+`/etc/xdg` by default, or from the file that `--config` names. Only that one
+file is read. Each agent session starts its own server, so a change applies
+from the next session on. The [NixOS module](installation.md#nixos-module)
+writes `/etc/xdg/hyprmasq/mcp.toml` from `programs.hyprmasq.mcpSettings`.
+
+```toml
+# ~/.config/hyprmasq/mcp.toml
+max-image-size = 1280
+
+[record]
+dir = "~/Videos/hyprmasq"
+gif = true
+```
+
+| Key | Option | Default | Meaning |
+| --- | --- | --- | --- |
+| `input` | `--input PATH` | `hyprmasq-input` on `PATH` | The sender to run for each batch. The Nix package's `hyprmasq-mcp` wrapper puts its own `hyprmasq-input` first on `PATH`. |
+| `max-image-size` | `--max-image-size N` | `1280` | Fit shots, zooms included, within N pixels on their long side. `0` keeps the monitor's scale. |
+| `min-zoom-size` | `--min-zoom-size N` | `768` | Enlarge a zoom that `screenshot` or `act`'s `capture` asks for, when its long side is under N pixels, by the smallest whole factor that reaches N, at most 4 and within `max-image-size`. `0` leaves zooms as captured. |
+| `lease-ms` | `--lease-ms MS` | `60000` | Length of the focus lease that each `act` starts or renews, 1 to 600000. |
+| `new-window-grace-ms` | `--new-window-grace-ms MS` | `500` | How long `act` keeps watching for new windows after its wait, when it delivered input, 0 to 5000. |
+| `structured-content` | `--structured-content auto\|always\|never` | `auto` | Whether results carry MCP structured content next to the text. `auto` leaves it out for clients named `claude-code`, which would show it to the model instead of the shorter text. |
+| `record.dir` | | `~/Videos/hyprmasq` | The directory of [recordings](#recording-a-demo), created with mode `0700` when it is missing. A leading `~` and variables such as `$HOME` are expanded when a recording starts. |
+| `record.gif` | | `false` | Also save a GIF of the steps next to each video. |
+| `record.gif-width` | | `800` | The most pixels the GIF is wide, 128 to 3840. |
+| `record.fps` | | `10` | The most frames a second that video mode records, 1 to 30. Each frame renders the window on Hyprland's main thread, so the server records fewer when a frame takes long. |
+| `record.max-steps` | | `500` | The steps after which a recording stops, 1 to 10000. |
+| `record.max-minutes` | | `10` | The minutes of video after which a recording stops, 1 to 120. |
+| `record.ffmpeg` | | `ffmpeg` on `PATH` | The ffmpeg to run, which needs libx264. The Nix package's wrapper puts one on `PATH`. |
+| | `--config FILE` | | Read this file instead of searching for one. It must exist. |
+| | `--version` | | Print the version and exit. |
+
+An option overrides the key of the same name in the file. A key that the
+server does not know, a value of the wrong type and a value out of range end
+it at start with status 2 and a message that names the file and the key, as an
+invalid option does, so a misspelled key cannot go unnoticed. A client shows
+that as a server that failed to start.
 
 The server needs `XDG_RUNTIME_DIR` and `HYPRLAND_INSTANCE_SIGNATURE` of the
 Hyprland it drives, which it inherits when the agent runs inside the
 Hyprland session and the client passes them on (see
 [Client notes](#client-notes) for Codex), and the plugin loaded with the same
-interface version. It exits with status 2 on invalid options.
+interface version.
 
 The session ends when the client closes stdin or stdout, or on SIGINT,
 SIGTERM or SIGHUP. The server then cancels running calls, releases its
-leases and deletes its shots. Sockets and launched windows stay open, and only
-`close` closes windows.
+leases, saves a recording that still runs and deletes its shots. Sockets and
+launched windows stay open, and only `close` closes windows.
 
 ## Client notes
 
@@ -482,3 +580,9 @@ carry every rule.
   `WM_DELETE_WINDOW`, since to Hyprland it is a Wayland window. Satellite
   kills the X client of one that does not, which ends its app.
 - An `XDG_RUNTIME_DIR` that contains whitespace is not supported.
+- Video mode records frames only while an `act` runs. What a window shows
+  between calls, such as an animation that ends before the next call, is not
+  in the video.
+- A recording shows the window that each step drives, with its popups, and
+  nothing else of the desktop. Where the pointer was before a step's input is
+  known only from earlier steps in the same window.

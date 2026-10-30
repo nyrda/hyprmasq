@@ -42,7 +42,12 @@
       # Builds the plugin with make, and the MCP server with go in mcp/.
       devShells.${system}.default = pkgs.mkShell {
         inputsFrom = [ self.packages.${system}.hyprmasq ];
-        packages = [ pkgs.go pkgs.clang-tools ];
+        packages = [
+          pkgs.go
+          pkgs.clang-tools
+          # The Go tests of recordings make videos.
+          pkgs.ffmpeg-headless
+        ];
       };
     };
 }

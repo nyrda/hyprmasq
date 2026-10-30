@@ -23,20 +23,11 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
+	"github.com/nyrda/hyprmasq/mcp/internal/record"
 )
 
 // Version is set from the repository VERSION file by the Nix build.
 var Version = "dev"
-
-// DefaultMaxImageSize is the default of --max-image-size. In practice runs, agents clicked as accurately in shots of 1280
-// pixels as in larger ones, which Claude Code and Codex shrank to about 2000 pixels anyway, and Claude cost about 40%
-// less. Zoom shots still show small areas in full detail.
-const DefaultMaxImageSize = 1280
-
-// DefaultMinZoomSize is the default of --min-zoom-size. A vision model places points coarsely in a small image, whose
-// encoder works in patches many pixels wide: in a benchmark of tracing a thin line in a photo, Opus 5.5 passed 9 of 12
-// runs with zooms enlarged to it, and 1 of 6 without.
-const DefaultMinZoomSize = 768
 
 // The values of Config.StructuredContent and --structured-content.
 const (
@@ -73,6 +64,8 @@ type Config struct {
 	Exe func(pid int) (string, error)
 	// Tells whether a process runs. Nil asks the kernel.
 	Alive func(pid int) bool
+	// The settings of recordings, which act starts and stops.
+	Record record.Options
 }
 
 type Server struct {
@@ -101,6 +94,13 @@ type Server struct {
 	// Cancels the calls that are running when the session ends.
 	stopCalls context.Context
 	stop      context.CancelFunc
+
+	// The session's recording while one runs, with the last frame of each window, and the turn of the act that records
+	// a step. See recording.go.
+	recMu     sync.Mutex
+	rec       *record.Recording
+	recFrames map[string]*recordedFrame
+	recTurn   chan struct{}
 }
 
 func New(cfg Config) *Server {
@@ -131,6 +131,7 @@ func New(cfg Config) *Server {
 		settled:   map[string]time.Time{},
 		stopCalls: stopCalls,
 		stop:      stop,
+		recTurn:   make(chan struct{}, 1),
 	}
 }
 
@@ -144,7 +145,7 @@ func randomHex(n int) string {
 const shutdownRelease = 2 * time.Second
 
 // Shutdown ends the session: it cancels the calls that still run and waits for them until ctx ends, then releases
-// the leases this server may hold and deletes its shots. Sockets and launched windows stay.
+// the leases this server may hold, finishes its recording and deletes its shots. Sockets and launched windows stay.
 func (s *Server) Shutdown(ctx context.Context) {
 	s.CancelCalls()
 	finished := make(chan struct{})
@@ -170,6 +171,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 	for _, w := range windows {
 		s.hypr.LeaseRelease(release, w, s.owner)
 	}
+	s.finishRecording()
 	s.shots.wait()
 	os.RemoveAll(s.shotDir)
 }
@@ -318,8 +320,15 @@ func actSchema(grace time.Duration) json.RawMessage {
 		"quiet_ms":{"type":"integer","minimum":1,"maximum":10000,"default":200,"description":` + string(quiet) + `}},"additionalProperties":false}`),
 		"capture":     json.RawMessage(captureSchema),
 		"deadline_ms": deadlineSchema,
+		"record":      recordSchema,
+		"caption":     captionSchema,
 	})
 }
+
+var (
+	recordSchema  = json.RawMessage(`{"type":"string","enum":["slides","video","stop"],"description":"Record a demo when asked to show or prove a change in a recording, as for a pull request. slides or video starts before this call's input and records every later act of this session: slides a still of each act's input and result, video each act at real speed. stop ends once this call's result is captured and returns the video's path."}`)
+	captionSchema = json.RawMessage(fmt.Sprintf(`{"type":"string","maxLength":%d,"description":"With a recording: a short line about this step, shown from this call on until the next caption."}`, captionMax))
+)
 
 // captureSchema names the limits of capture "changes", so that an agent knows when a full shot comes.
 var captureSchema = fmt.Sprintf(`{"description":"\"changes\": what changed since the shot, or your last shot, as a zoom shot into each changed region with a margin of %d px, nearby regions joined into at most %d; a full shot instead without an earlier shot, after a resize, for changes over %d%% of the window or too scattered to join, or after %d changes shots in a row, each compared with the one before. Tiny changes, such as a blinking caret, are left out and counted. \"window\" for a full overview shot, such as when you no longer have the earlier one, \"none\", or a region {shot,x,y,width,height} in pixels of an earlier shot.","anyOf":[{"type":"string","enum":["changes","window","none"]},%s],"default":"changes"}`,
