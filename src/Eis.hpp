@@ -88,10 +88,14 @@ namespace hyprmasq {
     // For a window with a socket. Main thread only.
     std::optional<SSocketState> socketState(const PHLWINDOW& window);
 
-    // True while the window is not rendered, has asked for a frame callback that it has not got, and has got none from
-    // hyprmasq: its socket has sent it none since it opened, or it has no socket. It may not have drawn what it would
-    // draw on screen, such as an application that started on a hidden workspace. Main thread only.
+    // True while the window is not rendered, see rendered(), has asked for a frame callback that it has not got, and has
+    // got none from hyprmasq: its socket has sent it none since it opened, or it has no socket. It may not have drawn what
+    // it would draw on screen, such as an application that started on a hidden workspace. Main thread only.
     bool starved(const PHLWINDOW& window);
+    // True while the window is not rendered, has a socket that has sent it frame callbacks, has drawn a change since the
+    // last, such as output that a terminal printed on its own, and has asked for a frame callback that it has not got.
+    // It may have more to draw. Animation does not count. Main thread only.
+    bool outdated(const PHLWINDOW& window);
 
     // Starts or renews the focus lease of a window with a socket for ms milliseconds, see "Focus lease" in docs/automation.md.
     std::expected<SLeaseState, SError> holdLease(const PHLWINDOW& window, int ms, const std::string& owner);

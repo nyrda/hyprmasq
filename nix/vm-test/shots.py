@@ -359,6 +359,31 @@ with subtest("a hidden window that waits for frame callbacks is starved until hy
     dispatch(f'hl.dsp.window.close({{ window = "address:{starving}" }})')
     wait_for("hm-p-frames closed", lambda: client("hm-p-frames") is None)
 
+with subtest("a hidden window that draws a change on its own after a wait is outdated"):
+    # foot prints a line every 200 ms once the flag file exists. It draws at once when it got the callback of its last
+    # frame, and then waits for the next, which nothing sends a hidden window. Reading the state sends none.
+    machine.succeed("rm -f /tmp/hm-p-ticker-go")
+    command = "while [ ! -e /tmp/hm-p-ticker-go ]; do sleep 0.1; done; while :; do date +%s%N; sleep 0.2; done"
+    ticker = alice(f"{ipc} hyprmasq-launch --workspace hm-p-ticker -- foot -T hm-p-ticker sh -c {shlex.quote(command)}").strip()
+    open_socket(ticker)
+    reply = json.loads(hypr(f"-j hyprmasq wait {ticker} since {window_state(ticker)['commits']} quiet 200 deadline 3000"))
+    assert reply["ended"] == "quiet", reply
+    settled = window_state(ticker)
+    assert not settled["starved"] and not settled["outdated"], settled
+    assert "\noutdated: false\n" in hypr(f"hyprmasq state {ticker}")
+    machine.succeed("touch /tmp/hm-p-ticker-go")
+    wait_for("the ticker waiting for a frame callback", lambda: window_state(ticker)["outdated"], timeout=10)
+    state = window_state(ticker)
+    assert not state["starved"], state
+    time.sleep(1)
+    assert window_state(ticker)["commits"] == state["commits"], (state, window_state(ticker))
+    path, reply = shot(ticker, "ticker-outdated")
+    assert reply["outdated"] and not reply["starved"], reply
+    reply = json.loads(hypr(f"-j hyprmasq wait {ticker} since {state['commits']} quiet 100 deadline 1500"))
+    assert reply["redrawObserved"], reply
+    dispatch(f'hl.dsp.window.close({{ window = "address:{ticker}" }})')
+    wait_for("hm-p-ticker closed", lambda: client("hm-p-ticker") is None)
+
 with subtest("a popup of a window with an xdg geometry offset gets input where shots show it"):
     # The window has a margin of 30x20 above and left of its xdg window geometry, as client-side shadows do, and its
     # popup lies at 100,50 of that geometry. A click where the shot shows the popup reaches it at the point the shot

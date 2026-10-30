@@ -12,6 +12,7 @@
 
 #include <xcb/xcb.h>
 
+class CIdleNotifyProtocol;
 class CPrimarySelectionDevice;
 class CPrimarySelectionProtocol;
 class CWLDataDeviceProtocol;
@@ -131,6 +132,11 @@ namespace hyprmasq {
     // CX11Backend::m_xwaylandSurface: an X11 window's XWayland surface, with its X window, override-redirect flag and
     // window types.
     WP<CXWaylandSurface>& xwaylandSurfaceOf(Desktop::View::CX11Backend& backend);
+
+    // Idle notifications, src/protocols/IdleNotify.hpp.
+    // CIdleNotifyProtocol::isInhibited: whether an idle inhibitor holds off the notifications that obey inhibitors, as
+    // CIdleNotifyProtocol::setInhibit last set it.
+    bool& inhibitedOf(CIdleNotifyProtocol& protocol);
 
     // The renderer, src/render/Renderer.hpp.
     // IHyprRenderer::renderWindow, protected: draws a window into the render of ctx, presented as presentation says.

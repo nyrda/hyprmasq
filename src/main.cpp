@@ -3,6 +3,7 @@
 #include "Deferred.hpp"
 #include "Eis.hpp"
 #include "Hooks.hpp"
+#include "Idle.hpp"
 #include "Launch.hpp"
 #include "Placement.hpp"
 #include "Selection.hpp"
@@ -57,6 +58,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         hyprmasq::launch::init();
         hyprmasq::placement::init(handle);
         hyprmasq::suspension::init(handle);
+        hyprmasq::idle::init(handle);
     } catch (...) {
         shutdownAll();
         throw;

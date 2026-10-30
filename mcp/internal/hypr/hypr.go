@@ -182,9 +182,12 @@ type State struct {
 	Resizing bool `json:"resizing"`
 	// The window is hidden, waits for a frame callback and has got none from hyprmasq, so it may not have drawn what it
 	// would draw on screen. A wait sends it frame callbacks.
-	Starved bool    `json:"starved"`
-	Scale   float64 `json:"scale"`
-	Socket  *string `json:"socket"`
+	Starved bool `json:"starved"`
+	// The window is hidden, has drawn a change on its own since hyprmasq last sent it frame callbacks, such as output
+	// that a terminal printed, and waits for another, so it may have more to draw. A wait sends it frame callbacks.
+	Outdated bool    `json:"outdated"`
+	Scale    float64 `json:"scale"`
+	Socket   *string `json:"socket"`
 	// Names the open socket, whose counter starts again at 0, or nil without one or from a plugin that names none.
 	SocketID *string `json:"socketId"`
 	Commits  *int64  `json:"commits"`
@@ -346,6 +349,8 @@ type Screenshot struct {
 	Resizing bool `json:"resizing"`
 	// The window was starved when it was rendered (see State), so the image may show an older frame.
 	Starved bool `json:"starved"`
+	// The window was outdated when it was rendered (see State), so the image may lack what it would draw next.
+	Outdated bool `json:"outdated"`
 	// The detail image that ScreenshotArgs.DetailPath asked for, or nil when the image has as many pixels as it would.
 	Detail *Detail `json:"detail"`
 }

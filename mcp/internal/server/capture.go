@@ -144,7 +144,8 @@ const (
 )
 
 // catchUp waits for a window that has not caught up with a resize to draw a frame of its size, and for a starved one
-// to draw a frame, within starvedExpectMs; then for a short quiet. The plugin's wait does not end quiet before the
+// to draw a frame, within starvedExpectMs; then for a short quiet. An outdated window gets only the quiet, during which
+// the frame callbacks let it draw what it has, and its shot is not marked when it draws nothing. The plugin's wait does not end quiet before the
 // window has caught up, and sends a hidden window the frame callbacks it may need to draw. A window that does not catch
 // up or draw in time is captured anyway, and its shot says so. For a starved window, it returns how long the window had
 // to draw, 0 when the wait did not run, and whether it drew.
@@ -180,8 +181,8 @@ func (s *Server) waitID() string {
 }
 
 // capture takes a shot of the window with the stable_id, or a zoom into it, and remembers it. A window that has not
-// caught up with a resize gets a short time to do so first, and a starved window frame callbacks and a short time to
-// draw. A new window at the address is not captured, and a zoom only while the window has the size of the shot it was
+// caught up with a resize gets a short time to do so first, and a starved or outdated window frame callbacks and a
+// short time to draw. A new window at the address is not captured, and a zoom only while the window has the size of the shot it was
 // read from. A shot of the whole window comes from one render, which gives its image and its detail image.
 func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) (*shot, []byte, error) {
 	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
@@ -211,7 +212,7 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 		if z != nil && pre.Size != z.from.Size {
 			return nil, nil, &zoomResized{from: z.from, size: pre.Size}
 		}
-		if (pre.Resizing || pre.Starved) && !caughtUp {
+		if (pre.Resizing || pre.Starved || pre.Outdated) && !caughtUp {
 			if err := catchUp(pre, pre.Starved); err != nil {
 				return nil, nil, err
 			}
@@ -258,7 +259,7 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 			continue
 		}
 		// A resize, or a wait for a frame callback, that started after the state was read.
-		if (reply.Resizing || reply.Starved) && !caughtUp {
+		if (reply.Resizing || reply.Starved || reply.Outdated) && !caughtUp {
 			os.Remove(path)
 			if err := catchUp(post, reply.Starved); err != nil {
 				return nil, nil, err

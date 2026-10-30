@@ -218,9 +218,19 @@ namespace hyprmasq {
                             .lastPause        = std::string{session->lastPause}};
     }
     bool starved(const PHLWINDOW& window) {
-        if (g_pHyprRenderer->shouldRenderWindow(window))
+        if (rendered(window))
             return false;
         if (auto* session = sessionOf(window); session && session->content->fed())
+            return false;
+        bool waiting = false;
+        forEachSurface(window, [&](SP<CWLSurfaceResource> s) { waiting = waiting || !s->m_current.callbacks.empty(); });
+        return waiting;
+    }
+    bool outdated(const PHLWINDOW& window) {
+        if (rendered(window))
+            return false;
+        auto* session = sessionOf(window);
+        if (!session || !session->content->fed() || !session->content->changedSinceFrames())
             return false;
         bool waiting = false;
         forEachSurface(window, [&](SP<CWLSurfaceResource> s) { waiting = waiting || !s->m_current.callbacks.empty(); });

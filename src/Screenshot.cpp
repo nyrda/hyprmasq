@@ -408,9 +408,9 @@ namespace hyprmasq {
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot begin offscreen render"});
         const auto guard = abortUnfinished();
 
-        // Visible windows already get frame callbacks from the normal render loop.
+        // Rendered windows already get frame callbacks from the normal render loop.
         auto& ctx                  = g_pHyprRenderer->context();
-        ctx.m_blockSurfaceFeedback = g_pHyprRenderer->shouldRenderWindow(window);
+        ctx.m_blockSurfaceFeedback = rendered(window);
         {
             const CGoalGeometry goal{window};
             {

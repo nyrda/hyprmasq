@@ -468,7 +468,7 @@ namespace hyprmasq::wait {
     void CContentWatch::sendFrames() {
         const auto window = m_window.lock();
         const auto now    = Time::steadyNow();
-        if (!window || !window->mapped() || g_pHyprRenderer->shouldRenderWindow(window) || now - m_lastFrames < milliseconds(16))
+        if (!window || !window->mapped() || rendered(window) || now - m_lastFrames < milliseconds(16))
             return;
         m_lastFrames = now;
         forEachSurface(window, [&](SP<CWLSurfaceResource> s) {

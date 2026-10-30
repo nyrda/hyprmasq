@@ -179,6 +179,12 @@ nix-build nix/hyprmasq-vm-test.nix --argstr areas "mcp unload"
 The gate for PRs is the whole test, `nix build .#checks.x86_64-linux.vm-test`,
 which is what `./dev.sh vm-test` runs.
 
+The VM runs Hyprland on its headless backend, which goes on rendering when
+DPMS turns a monitor off. The test therefore cannot show that windows of a
+visible workspace then get frame callbacks only from the plugin. Check a
+change there on a real monitor: with the monitor off, a terminal on the
+visible workspace that prints on its own redraws during `wait … since`.
+
 | Area | Needs | Covers |
 | --- | --- | --- |
 | `core` | | Screenshots of the colored foot windows that most areas use, the socket lifecycle and input to a hidden shell. Every area needs it, some through another. |
@@ -206,6 +212,7 @@ which is what `./dev.sh vm-test` runs.
 | `scrolling` | `core` | `act`'s scroll at the end of a batch, which comes after the changes of the input before it or is held back, a dropdown that takes the wheel, and scrolls on X11 that move by every notch. |
 | `paging` | `core`, `input` | Measured page scrolls, overlap, edit verification and controls that take the wheel. |
 | `unload` | `core`, `waits`, `suspended` | Unloading and loading the plugin again, with pending waits on the busy window of `waits` and the Qt window of `suspended`, selections and screenshot writes. |
+| `idle` | `core` | An idle client, hypridle, and DPMS: windows that map and unmap on a hidden workspace and the agent's input end neither, real input does. |
 | `compositor-log` | `drag` | Hyprland's log after its exit, with the serials of `drag`'s protections subtest rejected. It ends Hyprland, so it runs last. |
 
 ### Subtests
@@ -287,6 +294,7 @@ and the code drift apart.
 | the pointer device follows resizes and moves | A resize and a move each replace the pointer device with regions for the new geometry, and a click reaches a part of the window that exists only since the resize. |
 | a window that has not caught up with a resize says so in its state, shots and waits | A focus-probe window whose tiled neighbour closes while it is hidden holds back the configure for its new size, unacked or acked and not drawn: `state`, the screenshot reply and a `wait … since` that times out say `resizing`, and the shot has the new size but shows the frame of the old one. A wait that runs when the probe answers ends `quiet` only after it has drawn, and then nothing says `resizing`. A window that acked a configure of the size it has drawn, without a commit, is not resizing. |
 | a hidden window that waits for frame callbacks is starved until hyprmasq sends it some | focus-probe's frames mode, started on a hidden workspace, draws only in answer to frame callbacks, one at a time: a blank frame, then its content at the third callback. Hyprland may answer the first as it maps the window. `state` and the screenshot reply say `starved`. A screenshot answers one callback and shows the blank frame, and the probe asks for the next. Opening the socket sends none. A `wait … since` lets the probe draw its content, after which nothing says `starved`, although the content asked for another callback. |
+| a hidden window that draws a change on its own after a wait is outdated | A launched foot on a hidden workspace with an open socket, settled by a `wait … since`, is neither starved nor outdated. Once its command starts to print a line every 200 ms, it draws the first and waits for a frame callback: `state` and the screenshot reply say `outdated`, not `starved`, and its counter stands still for a second. A `wait … since` lets it draw again. |
 | a popup of a window with an xdg geometry offset gets input where shots show it | For a window with a margin outside its xdg window geometry, as client-side shadows have, a click where the shot shows its popup reaches the popup at that point, and a click beside the popup reaches the window. |
 | shots taken while Hyprland animates a window's size show the window at the size input uses | With slow window animations, a focus-probe window and an `xev` window pop in on a visible workspace. While the screen still shows them smaller, their shots have their size and show the probe's green edge and xev's inner window where they lie once the animation has ended, and `state` and a `wait … since` that ends `quiet` say that they are not resizing. A point at the edge in the shot reaches the probe there. |
 | input reaches the popups of a moving window where shots show them | A click on the popup of a window that moves slowly reaches the popup at the point where the shot shows it, while Hyprland's own hit testing would not yet place the popup there. |
@@ -564,6 +572,12 @@ positions. These tests check page movement at two window heights.
 | unloading ends screenshot writes that wait for a pipe at once, and Hyprland keeps answering | Unloading while a screenshot waits for a FIFO without a reader, and a raw one for room in the pipe of a reader that never reads, returns within 2 s and answers both with code `unloaded`. `hyprctl version`, run every 100 ms throughout, answers within a second each time. No `hyprmasq-job` thread is left, the library is unmapped, and the batch command works without the plugin. Loaded again, screenshots reach a file, a FIFO whose reader opens it after the screenshot started, and a pipe whose reader reads the raw pixels, more than fit in the pipe, as they come. |
 | the plugin can be unloaded from within a batch | The plugin can be unloaded from within a batch. Once the batch has returned, the library is released and the batch command still works, and the plugin loads again. |
 
+#### `idle`
+
+| Subtest | Checks |
+| --- | --- |
+| windows that map and unmap on a hidden workspace and the agent's input end neither idle nor DPMS, and real input does | With `key_press_enables_dpms` and `mouse_move_enables_dpms` on, hypridle with a timeout of a second goes idle and DPMS turns the monitor off. Launching foot on a hidden workspace, typing, pressing Enter, moving and clicking in it through its socket, and closing it neither make hypridle resume nor turn the monitor on. A move of `wlrctl`'s virtual pointer does both. |
+
 #### `compositor-log`
 
 | Subtest | Checks |
@@ -615,6 +629,7 @@ nix-build bench/tasks/calc/check-test.nix
 | `src/Deferred.cpp` | Background work for hyprctl replies, which it answers through promises. |
 | `src/Eis.cpp` | Opening and closing a window's EIS socket and the private directories it lies in, and the API of `src/Eis.hpp`: socket state, the focus lease, capabilities, and whether a window waits for frame callbacks. |
 | `src/Session.cpp` | A window's EIS session: its sender and devices, input delivery, pointer regions and device replacement, the focus lease, frame callbacks, the X11 focus rule, and the admission of private drags. |
+| `src/Idle.cpp` | The hook on `CIdleNotifyProtocol::setInhibit` that keeps windows that map, unmap or take the focus from restarting idle timers when no idle inhibitor comes or goes. |
 | `src/Suspension.cpp` | The hook on `CXDGToplevelResource::setSuspeneded` that keeps a driven window from being told that it is suspended, and the holds of sessions and waits that ask for it. |
 | `src/FocusPolicy.cpp` | The popup-grab, drag and activation hooks that keep driven windows from taking the user's focus, the hooks that keep a lease's focus, and the cancels that the user's input brings. |
 | `src/PrivateAccess.cpp` | Every private or protected member of Hyprland that the plugin reaches, with the Hyprland source it mirrors: what to check when the pinned Hyprland changes. |

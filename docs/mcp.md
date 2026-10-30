@@ -58,7 +58,9 @@ the agent never converts anything.
   pass 1280. The zooms that `act` returns for changes are not enlarged.
 - Before each capture, the server waits briefly, at most 1.5 s, for a window
   that has not yet redrawn at a new size, or a hidden window that has not
-  drawn yet. A shot taken anyway is marked stale or "may be stale" in the
+  drawn yet. A hidden window that drew a change on its own since it was last
+  driven, such as a terminal that printed more, gets 100 ms to draw what it
+  has. A shot taken anyway is marked stale or "may be stale" in the
   summary.
 - The server keeps the 64 most recently used shots of each window, as files
   under `$XDG_RUNTIME_DIR/hyprmasq/<instance>/mcp/<pid>/`, and deletes them
@@ -574,8 +576,8 @@ carry every rule.
   only the first notch of each scroll.
 - The comparison misses changes below its thresholds, such as a faint hover
   highlight, and a window that keeps animating tends to get full shots.
-- A hidden window that was driven and later wants to draw again may show an
-  older frame without a stale mark. An `act` without actions lets it draw.
+- A hidden window that only animates, such as a spinner, shows the frame of
+  its animation from when it was last driven.
 - `close` cannot tell whether a window of xwayland-satellite takes
   `WM_DELETE_WINDOW`, since to Hyprland it is a Wayland window. Satellite
   kills the X client of one that does not, which ends its app.

@@ -73,7 +73,7 @@ JSON too, with `hyprctl` exiting 0, so check `ok`:
 
 | Command | JSON reply |
 | --- | --- |
-| `screenshot` | `{"ok":true,"path":"/tmp/w.png","width":1280,"height":960,"scale":2,"region":{"x":0,"y":0,"width":640,"height":480},"commits":123,"socketId":"9f3a61c2-3","resizing":false,"starved":false,"detail":null}` |
+| `screenshot` | `{"ok":true,"path":"/tmp/w.png","width":1280,"height":960,"scale":2,"region":{"x":0,"y":0,"width":640,"height":480},"commits":123,"socketId":"9f3a61c2-3","resizing":false,"starved":false,"outdated":false,"detail":null}` |
 | `wait` | `{"ok":true,"settled":true,"waited":230,"frames":0,"framesSinceInput":3}` |
 | `wait … since` | `{"ok":true,"ended":"quiet","commits":131,"socketId":"9f3a61c2-3","redrawObserved":true,"commitsSince":8,"quietMs":200,"elapsedMs":412,"resizing":false,"animated":[]}` |
 | `cancel` | `{"ok":true,"cancelled":true}` |
@@ -122,9 +122,10 @@ captured part of the window in logical pixels, which at fractional scales can
 be slightly larger than requested. `commits` and `socketId` are the
 [commit counter](#waiting) at the moment of rendering, or `null` without a
 socket. `resizing` is true when the window had not yet redrawn at a new size,
-and `starved` when a hidden window was waiting for a frame callback it never
-got. In both cases the image may show an older frame: wait with
-`wait … since` and take it again.
+`starved` when a hidden window was waiting for a frame callback it never got,
+and `outdated` when one had drawn a change on its own since the plugin last
+sent it frame callbacks and was waiting for another. In each case the image
+may show an older frame: wait with `wait … since` and take it again.
 
 Only the rendering runs on Hyprland's main thread. The PNG is encoded and
 written on a background thread, and the reply comes once the file is
@@ -158,8 +159,8 @@ option may come once, in any order, and all times are 1 to 60000 ms.
 | `drags ID` | none | Neither phase ends while a drag-and-drop newer than drag ID is going on, and its end counts as a change. See [Drag-and-drop](#drag-and-drop). |
 
 The wait also ends with `window_closed` when the window closes. While it runs,
-a window that Hyprland does not render, such as one on a hidden workspace,
-gets a frame callback every 16 ms and is not told that it is suspended, so it
+a window that Hyprland does not render, such as one on a hidden workspace or on
+a monitor that DPMS turned off, gets a frame callback every 16 ms and is not told that it is suspended, so it
 keeps drawing. Compare counter values only when their `socketId` is the same:
 the counter starts again at 0 when a socket is reopened, and a COMMITS above
 the counter is an error.
@@ -213,6 +214,7 @@ hyprctl hyprmasq lease "$addr" release my-script
 | `size`, `scale` | Logical size, and the monitor's scale. |
 | `resizing` | The window has not yet drawn a frame at the size Hyprland gave it. Screenshots show an older frame, and pointer input may not land where they show things. |
 | `starved` | The window is hidden, waits for a frame callback, and has got none from hyprmasq. It may show an older frame. Input and `wait … since` send frame callbacks. |
+| `outdated` | The window is hidden, has an open socket, has drawn a change on its own since hyprmasq last sent it frame callbacks, such as output that a terminal printed, and waits for another. It may have more to draw. Frames of an animation do not count. |
 | `socket`, `socketId`, `commits` | The open socket, its id and its commit counter, or `null`. |
 | `interrupted` | How often your own input to the same Wayland connection took the keyboard focus back within a quarter of a second of an emulated shortcut. See [Input delivery](#input-delivery). |
 | `lastPause` | Why the plugin last paused the socket's input: `user_button`, `user_key`, `x11_focus` or `x11_unresponsive`, or `null`. |
@@ -449,12 +451,16 @@ click brings the window keyboard focus with it, as Hyprland's click-to-focus
 does.
 
 **Hidden windows.** Hyprland sends no frame callbacks to windows it does not
-render, and many applications stop drawing without them. The plugin sends a
-hidden target frame callbacks every 16 ms with its input, for about a second
-after it while a sender is connected, and during a `wait … since`. Hyprland
-also tells the windows of hidden workspaces that they are suspended, and some
-applications, such as Qt ones, then draw nothing at all, neither input nor a
-new size. For as long as the target gets frame callbacks, the plugin keeps
+render, and many applications stop drawing without them. Hyprland renders
+nothing on a monitor that DPMS turned off, or while the session is on another
+VT, so the plugin treats the windows of visible workspaces as hidden then. It
+sends a hidden target frame callbacks every 16 ms with its input, for about a
+second after it while a sender is connected, and during a `wait … since`. A
+target that draws a change on its own after that, such as output that a
+terminal prints, then waits for the next, and `state` and screenshots say
+`outdated`. Hyprland also tells the windows of hidden workspaces that they are
+suspended, and some applications, such as Qt ones, then draw nothing at all,
+neither input nor a new size. For as long as the target gets frame callbacks, the plugin keeps
 Hyprland from telling it, and then tells it Hyprland's state again. A sender
 that stays connected with its devices keeps the target awake for as long as
 it stays. A woken application may redraw once, also when the input changed
@@ -470,6 +476,16 @@ theme of GTK closes its list on Enter and opens it again on the press of the
 same key. `popups` in the [window state](#window-state) tells what is open.
 `hyprmasq-input` sends what it is given, and `hyprmasq-mcp` holds back such a
 click, see [act](mcp.md#a-press-outside-an-open-popup).
+
+**Idle.** Hyprland restarts the idle timers of idle clients such as hypridle
+whenever a window maps, unmaps or takes the focus, which those clients take for
+activity: hypridle runs its `on-resume` commands, such as turning the monitors
+back on. The plugin keeps Hyprland from doing so unless an idle inhibitor
+comes or goes, so launching and closing windows on hidden workspaces leaves
+monitors that DPMS turned off dark. The plugin's input never counts as
+activity, and never turns monitors on through `misc:key_press_enables_dpms`
+or `misc:mouse_move_enables_dpms`: it reaches the window without passing
+through Hyprland's input devices.
 
 **Shared connections.** Two windows of one program, such as two windows of one
 browser, can share a Wayland connection, and a connection has one keyboard and

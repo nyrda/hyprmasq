@@ -5,6 +5,7 @@
 #include <hyprland/src/desktop/view/window/X11Backend.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/pointer/cursor/CursorManager.hpp>
+#include <hyprland/src/protocols/IdleNotify.hpp>
 #include <hyprland/src/protocols/PrimarySelection.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/DataDevice.hpp>
@@ -132,6 +133,11 @@ namespace hyprmasq {
         };
         template struct SExpose<SX11Surface, &Desktop::View::CX11Backend::m_xwaylandSurface>;
 
+        struct SIdleInhibited {
+            friend constexpr auto exposed(SIdleInhibited);
+        };
+        template struct SExpose<SIdleInhibited, &CIdleNotifyProtocol::isInhibited>;
+
         struct SGLPendingBuffers {
             friend constexpr auto exposed(SGLPendingBuffers);
         };
@@ -241,6 +247,10 @@ namespace hyprmasq {
 
     WP<CXWaylandSurface>& xwaylandSurfaceOf(Desktop::View::CX11Backend& backend) {
         return backend.*exposed(SX11Surface{});
+    }
+
+    bool& inhibitedOf(CIdleNotifyProtocol& protocol) {
+        return protocol.*exposed(SIdleInhibited{});
     }
 
     void renderWindow(Render::IHyprRenderer& renderer, Render::CRenderContext& ctx, PHLWINDOW window, PHLMONITOR monitor, const Render::SWindowRenderPresentation& presentation,
