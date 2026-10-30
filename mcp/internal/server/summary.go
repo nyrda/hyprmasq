@@ -89,6 +89,10 @@ func actionsText(a *actionsOut, batch []action) string {
 	case "none":
 		text += ", nothing sent"
 	case "partial":
+		if a.HeldBack != "" && a.heldPress && failed != "" {
+			text += ", " + failed + " and after held back: popup open"
+			break
+		}
 		if a.HeldBack != "" {
 			text += ", scroll held back"
 			break

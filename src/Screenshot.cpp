@@ -225,29 +225,11 @@ namespace hyprmasq {
             return fb;
         }
 
-        // The window-local logical box of the popups that renderWindow draws: mapped popups, their surfaces with a
-        // buffer, at their parent's origin less the window's geometry offset, as the renderer places them.
+        // The window-local logical box of the popups that renderWindow draws, see popupBoxes.
         std::optional<CBox> popupExtents(const PHLWINDOW& window) {
-            if (window->m_isX11 || !window->m_popupHead || !window->m_xdgSurface)
-                return std::nullopt;
-            const auto          geometry = geometryOffset(window);
             std::optional<CBox> extents;
-            window->m_popupHead->breadthfirst(
-                [&](SP<Desktop::View::CPopup> popup, void*) {
-                    const auto surface = popup->resource();
-                    if (!popup->m_mapped || !surface || !surface->m_mapped)
-                        return;
-                    const auto origin = popup->coordsRelativeToParent() - geometry;
-                    surface->breadthfirst(
-                        [&](SP<CWLSurfaceResource> s, const Vector2D& offset, void*) {
-                            if (!s->m_current.texture || s->m_current.size.x < 1 || s->m_current.size.y < 1)
-                                return;
-                            const CBox box{origin + offset, s->m_current.size};
-                            extents = extents ? unite(*extents, box) : box;
-                        },
-                        nullptr);
-                },
-                nullptr);
+            for (const auto& popup : popupBoxes(window))
+                extents = extents ? unite(*extents, popup.box) : popup.box;
             return extents;
         }
 

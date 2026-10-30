@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
@@ -114,10 +115,25 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 	inputBy, _ := sendCtx.Deadline()
 	left := time.Until(inputBy)
 	base := currentBaseline(st)
-	answer := func(step int) {
-		if step >= 0 && step < len(steps) && steps[step].Argv[0] == "sync" {
-			base = s.answerClick(runCtx, r.window, base, steps[step+1:], inputBy)
+	held := -1 // the sync where the batch stopped for a popup that its press would only close
+	answer := func(step int) bool {
+		if step < 0 || step >= len(steps) || steps[step].Argv[0] != "sync" {
+			return true
 		}
+		x, y, press := pressAfter(steps, step)
+		most := answerMaxMs * time.Millisecond
+		if press {
+			most -= popupCheckMs * time.Millisecond
+		}
+		base = s.answerClick(runCtx, r.window, base, steps[step+1:], inputBy, most)
+		if !press {
+			return true
+		}
+		if cur, err := s.hypr.State(runCtx, r.window); err == nil && cur.StableID == st.StableID && closingPopup(cur.Popups, x, y) {
+			held = step
+			return false
+		}
+		return true
 	}
 	reply, err := s.runSender(runCtx, *st.Socket, steps, paceBudget(left), locale.name, answer)
 	stop(nil)
@@ -127,6 +143,13 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 	}
 	var changed *toolError
 	errors.As(context.Cause(runCtx), &changed)
+	// The sender stopped at that sync, unless it went on by itself first.
+	if held >= 0 && err == nil && changed == nil && clientCtx.Err() == nil && reply.FailedIndex != nil && *reply.FailedIndex == held {
+		at := steps[held].Batch
+		out.Done, out.Delivery, out.FailedIndex = at, "partial", ptr(at)
+		out.HeldBack, out.heldPress = heldPressReason, true
+		return out, nil
+	}
 	if err == nil && reply.Delivery == "none" && reply.Error != nil && reply.Error.Code == "too_long" {
 		return out, tooLong(reply, r.deadline, left, batchTypes(r.batch[r.from:]))
 	}
@@ -192,6 +215,47 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 	return out, s.senderError(clientCtx, sendCtx, reply, r, out.Done, failed, failedStep, out.Delivery)
 }
 
+// The popup check before a press, see closingPopup: what it leaves of the sync's longest wait for reading the window's
+// popups, before the sender goes on by itself.
+const popupCheckMs = 100
+
+// heldPressReason is why act held back a press and the actions after it.
+const heldPressReason = "the window had a popup open, such as a menu or a dropdown's list, and the press lay outside it, where it would only close the popup"
+
+// pressAfter is the point in window-local logical pixels where the action after the sync at step presses a button: the
+// motion of a click, or the first point of a path with a button.
+func pressAfter(steps []inputStep, step int) (x, y float64, ok bool) {
+	if step+1 >= len(steps) {
+		return 0, 0, false
+	}
+	// move X Y, then click, or path N X1 Y1 … XN YN BUTTON MODS.
+	next, first := steps[step+1].Argv, 1
+	switch {
+	case next[0] == "move" && step+2 < len(steps) && steps[step+2].Argv[0] == "click" && steps[step+2].Batch == steps[step+1].Batch:
+	case next[0] == "path" && next[len(next)-2] != "none":
+		first = 2
+	default:
+		return 0, 0, false
+	}
+	x, errX := strconv.ParseFloat(next[first], 64)
+	y, errY := strconv.ParseFloat(next[first+1], 64)
+	return x, y, errX == nil && errY == nil
+}
+
+// closingPopup tells whether a press at x,y in window-local logical pixels would only close a popup: one that asked for
+// a grab is open, and the point lies outside every popup of the window. Apps such as Qt close such a popup on the press
+// and give the press to nothing else, as they do for the user's own click. A press in a popup reaches it.
+func closingPopup(popups []hypr.Popup, x, y float64) bool {
+	grab := false
+	for _, p := range popups {
+		if p.Contains(x, y) {
+			return false
+		}
+		grab = grab || p.Grab
+	}
+	return grab
+}
+
 // pausesFrom is the first step after the pauses that the sender failed at, or -1 when it failed at no pause. A sync,
 // where the sender waits for act, is a pause too.
 func pausesFrom(steps []inputStep, reply senderReply) int {
@@ -206,12 +270,12 @@ func pausesFrom(steps []inputStep, reply senderReply) int {
 	return next
 }
 
-// answerClick waits for the window to answer a click while the sender waits at the sync after it: with the plugin's
-// wait for a change since base, at most answerExpectMs, then for answerQuietMs of quiet, within answerMaxMs, and early
-// enough that the rest of the batch still fits before inputBy. It returns the baseline for the next sync, the counter
-// when the wait ended. A wait that fails leaves the sender to go on after its sync's least time.
-func (s *Server) answerClick(ctx context.Context, window string, base baseline, rest []inputStep, inputBy time.Time) baseline {
-	limit := min(answerMaxMs*time.Millisecond, time.Until(inputBy)-sendTime(rest)).Milliseconds()
+// answerClick waits for the window to answer a click, or keys before a click, while the sender waits at the sync after
+// them: with the plugin's wait for a change since base, at most answerExpectMs, then for answerQuietMs of quiet, within
+// most, and early enough that the rest of the batch still fits before inputBy. It returns the baseline for the next
+// sync, the counter when the wait ended. A wait that fails leaves the sender to go on after its sync's least time.
+func (s *Server) answerClick(ctx context.Context, window string, base baseline, rest []inputStep, inputBy time.Time, most time.Duration) baseline {
+	limit := min(most, time.Until(inputBy)-sendTime(rest)).Milliseconds()
 	if limit < 1 || ctx.Err() != nil {
 		return base
 	}

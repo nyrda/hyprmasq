@@ -126,6 +126,16 @@ func (s *Server) actSplit(ctx, sendCtx context.Context, c splitCall) *mcp.CallTo
 		}
 		return withError(s.finish(ctx, r, out, cur, c.end, c.region, applied, c.before), te, out, r.batch)
 	}
+	// A press that was held back holds back the scrolls after it too: the result shows the window after the input before.
+	if actions.heldPress {
+		c.p.set("waiting for the window to settle")
+		wait, err := s.waitForWindow(ctx, r, currentBaseline(cur), dragBaseline(cur), c.sendBy)
+		if err != nil {
+			return withError(s.finish(ctx, r, out, cur, c.end, c.region, applied, c.before), asToolError(err), out, r.batch)
+		}
+		out.Wait = wait
+		return s.finish(ctx, r, out, cur, c.end, c.region, applied, c.before)
+	}
 	// The state just before the input, which the result's checks of the whole batch count from.
 	st := cur
 	inputBy, _ := sendCtx.Deadline()
@@ -278,10 +288,15 @@ func splitHint(out *actOut) string {
 	return fmt.Sprintf("%s Shot %s shows the window after the scroll: read the next coordinates from %s.", what, after.ID, after.ID)
 }
 
-// heldBackHint tells that the scrolls at the end of the batch were not sent, and why.
-func heldBackHint(a *actionsOut) string {
+// heldBackHint tells that the scrolls at the end of the batch, or a press and the actions after it, were not sent, and
+// why.
+func heldBackHint(a *actionsOut, batch []action) string {
 	if a == nil || a.HeldBack == "" {
 		return ""
+	}
+	if a.heldPress && a.FailedIndex != nil && *a.FailedIndex < len(batch) {
+		return fmt.Sprintf("%s and the actions after it were not sent: %s. Look at the shot: act in the popup, or close it, for example with Escape, "+
+			"and send what is left again.", describe(*a.FailedIndex, batch[*a.FailedIndex]), a.HeldBack)
 	}
 	return "The scroll was not sent: " + a.HeldBack + ". The page has not moved: look at the result, and scroll in an act of its own if you still want to."
 }

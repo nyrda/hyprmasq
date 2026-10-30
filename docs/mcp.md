@@ -105,7 +105,10 @@ One `act` call:
 3. **Sends the input** through `hyprmasq-input`.
    After a click, or a path with a button, that more actions follow, it waits
    for the window to answer before sending the rest, and keys after a click start at
-   least 300 ms after it.
+   least 300 ms after it. A click or a path with a button that comes after keys
+   or text waits for the window's answer to them too. When the window then has
+   a popup open that the press lies outside of, the press is
+   [held back](#a-press-outside-an-open-popup).
 4. **Waits** until the window has drawn the result: first for a redraw
    (`expect_ms`), then until it has been quiet for `quiet_ms`. It does not
    wait for animations, such as a spinner, or the overlay scrollbar that
@@ -290,6 +293,28 @@ yours. X11 apps of one X server share its selections, so an X11 app the agent
 drives can paste your X11 clipboard, and what it copies is available to your
 other apps on that X server. See
 [Clipboard and selections](automation.md#clipboard-and-selections).
+
+### A press outside an open popup
+
+A menu or a dropdown's list closes when a click comes outside it, and apps
+such as Qt give that click to nothing else, also when the user clicks. So
+before a click or a path with a button that comes after a click, a path with
+a button, keys or text of the same batch, `act` reads the window's popups
+once the window has answered that input. When a popup that takes the pointer and keys while it is open, as menus
+and lists do and tooltips do not, is open, and the press lies outside every
+popup of the window, `act` sends neither the press nor the actions after it.
+A dropdown of Qt with the platform theme of GTK does this on Enter: the list
+closes, and the press of the same key opens it again.
+
+```text
+3/4 delivered, actions[3] (click) and after held back: popup open · redraw observed · quiet 200 ms · 652 ms · shot s2 = s1 + 2 changes · lease 60 s
+actions[3] (click) and the actions after it were not sent: the window had a popup open, such as a menu or a dropdown's list, and the press lay outside it, where it would only close the popup. Look at the shot: act in the popup, or close it, for example with Escape, and send what is left again.
+```
+
+The result is that of the actions before the press, with `delivery`
+`partial`, `failed_index` at the press and `held_back` naming the reason,
+and its shot shows the popup. A press in a popup, or one in the first action
+of a batch, goes out as before: the shot it comes from shows what is open.
 
 ## Focus lease
 

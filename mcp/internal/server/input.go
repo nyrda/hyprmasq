@@ -243,9 +243,10 @@ func composeNote(reply senderReply, locale targetLocale) string {
 // runSender runs hyprmasq-input with the steps and returns its JSON reply. The sender types characters without a key of
 // their own through the Compose table of locale, or of its own locale when that is "". It sends nothing when the steps
 // take longer than budget at their pace. At a sync step, once the plugin has processed the steps before it, answer gets
-// the step's index, and the sender goes on when answer returns. When ctx ends, the sender gets SIGTERM, releases
-// everything it pressed and reports how far it got. An error means that there is no reply to read.
-func (s *Server) runSender(ctx context.Context, socket string, steps []inputStep, budget time.Duration, locale string, answer func(step int)) (senderReply, error) {
+// the step's index, and the sender goes on when answer returns true. When it returns false, or when ctx ends, the
+// sender gets SIGTERM, releases everything it pressed and reports how far it got: at that sync, it sends nothing more.
+// An error means that there is no reply to read.
+func (s *Server) runSender(ctx context.Context, socket string, steps []inputStep, budget time.Duration, locale string, answer func(step int) bool) (senderReply, error) {
 	args := []string{"--socket", socket, "--json", "--budget", strconv.FormatInt(max(0, budget.Milliseconds()), 10)}
 	if locale != "" {
 		args = append(args, "--locale", locale)
@@ -275,7 +276,7 @@ func (s *Server) runSender(ctx context.Context, socket string, steps []inputStep
 	// The reply is the last line. A sync line before it waits for its answer, which a sender that has exited meanwhile
 	// does not read.
 	var last []byte
-	printed := false
+	printed, stopped := false, false
 	lines := bufio.NewScanner(stdout)
 	lines.Buffer(nil, 1<<20)
 	for lines.Scan() {
@@ -284,8 +285,14 @@ func (s *Server) runSender(ctx context.Context, socket string, steps []inputStep
 			Sync *int `json:"sync"`
 		}
 		if json.Unmarshal(lines.Bytes(), &sync) == nil && sync.Sync != nil {
-			if answer != nil {
-				answer(*sync.Sync)
+			if stopped {
+				continue
+			}
+			// Unanswered, the sender waits at the sync until SIGTERM ends it.
+			if answer != nil && !answer(*sync.Sync) {
+				stopped = true
+				cmd.Process.Signal(syscall.SIGTERM)
+				continue
 			}
 			fmt.Fprintf(stdin, "%d\n", *sync.Sync)
 			continue

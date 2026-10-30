@@ -34,6 +34,8 @@ namespace hyprmasq::input {
         void*               originalPointerButton = nullptr;
         void*               originalTouchDown     = nullptr;
         CHyprSignalListener realKey;
+        // The popups that asked for a grab, while they live.
+        std::vector<WP<CXDGPopupResource>> grabs;
 
         // The session of the driven window that the surface belongs to, unless that window is the active one.
         SSession* protectedSession(const SP<CWLSurfaceResource>& surface) {
@@ -52,6 +54,9 @@ namespace hyprmasq::input {
             return protectedSession(surface) != nullptr;
         }
         void popupGrab(CXDGShellProtocol* self, SP<CXDGPopupResource> popup) {
+            std::erase_if(grabs, [](const WP<CXDGPopupResource>& p) { return p.expired(); });
+            if (popup)
+                grabs.emplace_back(popup);
             // The new popup need not be mapped or in the window's popup tree yet.
             auto parent = popup->m_parent.lock();
             while (parent) {
@@ -277,6 +282,15 @@ namespace hyprmasq::input {
         }
     }
 
+    bool grabbing(const SP<CWLSurfaceResource>& surface) {
+        // An app may give the surface of a popup that it closed another popup role, so the popup itself must live.
+        return surface && std::ranges::any_of(grabs, [&](const WP<CXDGPopupResource>& p) {
+                   const auto popup = p.lock();
+                   const auto xdg   = popup ? popup->m_surface.lock() : nullptr;
+                   return xdg && xdg->m_surface.lock() == surface;
+               });
+    }
+
     void initFocusPolicy(void* handle) {
         originalPopupGrab     = hook(handle, "CXDGShellProtocol::addOrStartGrab", reinterpret_cast<void*>(&popupGrab));
         originalStartDrag     = hook(handle, "CWLDataDeviceProtocol::initiateDrag", reinterpret_cast<void*>(&startDrag));
@@ -297,5 +311,6 @@ namespace hyprmasq::input {
 
     void shutdownFocusPolicy() {
         realKey.reset();
+        grabs.clear();
     }
 }

@@ -162,7 +162,7 @@ func TestScrollIsHeldBack(t *testing.T) {
 				if summary := summaryOf(t, res); !strings.HasPrefix(summary, "1/2 delivered, scroll held back · "+c.wait) || strings.Contains(summary, "before the scroll") {
 					t.Errorf("summary %q", summary)
 				}
-				if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, heldBackHint(&actionsOut{HeldBack: c.reason})) {
+				if hint, _ := get(t, res, "hint").(string); !strings.HasPrefix(hint, heldBackHint(&actionsOut{HeldBack: c.reason}, nil)) {
 					t.Errorf("hint %q", hint)
 				}
 				// The shot is of the click's changes against the call's shot, as for the click alone.
