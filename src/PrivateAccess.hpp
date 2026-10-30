@@ -11,6 +11,7 @@
 #include <xcb/xcb.h>
 
 class CHyprCtl;
+class CIdleNotifyProtocol;
 class CPrimarySelectionDevice;
 class CPrimarySelectionProtocol;
 class CWLDataDeviceProtocol;
@@ -116,6 +117,11 @@ namespace hyprmasq {
     // Window rules, src/desktop/rule/windowRule/WindowRuleApplicator.hpp.
     // CWindowRuleApplicator::m_window: the window whose rules an applicator reads.
     PHLWINDOWREF& windowOf(Desktop::Rule::CWindowRuleApplicator& applicator);
+
+    // Idle notifications, src/protocols/IdleNotify.hpp.
+    // CIdleNotifyProtocol::isInhibited: whether an idle inhibitor holds off the notifications that obey inhibitors, as
+    // CIdleNotifyProtocol::setInhibit last set it.
+    bool& inhibitedOf(CIdleNotifyProtocol& protocol);
 
     // The renderer, src/render/Renderer.hpp.
     // IHyprRenderer::renderWindow, protected: draws a window into the current render.

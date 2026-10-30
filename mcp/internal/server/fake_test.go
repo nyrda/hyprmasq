@@ -257,6 +257,9 @@ type fakeWindow struct {
 	// The window waits for a frame callback and has got none from hyprmasq. Waits send it frame callbacks, which end
 	// that, also with onWait.
 	Starved bool
+	// The window has drawn a change on its own since hyprmasq last sent it frame callbacks. Waits end that, also with
+	// onWait.
+	Outdated bool
 	// The animations that a wait without onWait reports, in window-local logical pixels. They keep drawing, so a wait
 	// without onWait that does not ignore animations sees the window draw also when it is idle.
 	Animated []hypr.IntRect
@@ -573,7 +576,7 @@ func (f *fakeHyprland) reply(request string) string {
 
 func (f *fakeHyprland) state(w *fakeWindow) map[string]any {
 	st := map[string]any{"ok": true, "address": w.Address, "stableId": w.StableID, "xwayland": w.XWayland,
-		"size": map[string]any{"width": w.Width, "height": w.Height}, "resizing": w.Resizing, "starved": w.Starved, "scale": f.scale, "socket": nil, "commits": nil,
+		"size": map[string]any{"width": w.Width, "height": w.Height}, "resizing": w.Resizing, "starved": w.Starved, "outdated": w.Outdated, "scale": f.scale, "socket": nil, "commits": nil,
 		"lease": nil, "capabilities": w.Caps, "source": w.Source, "x11": w.X11, "popups": w.Popups}
 	if w.Socket {
 		st["socket"] = "/fake/" + w.Address + ".eis"
@@ -707,7 +710,7 @@ func (f *fakeHyprland) plugin(words []string) string {
 		}
 		onWait := f.onWait
 		commits, socketID := w.Commits, w.socketID()
-		w.Starved = false
+		w.Starved, w.Outdated = false, false
 		f.mu.Unlock()
 		defer func() {
 			f.mu.Lock()
@@ -794,7 +797,7 @@ func (f *fakeHyprland) screenshot(w *fakeWindow, args []string) string {
 	if err != nil {
 		return pluginError("internal", err.Error())
 	}
-	reply := map[string]any{"ok": true, "path": path, "width": width, "height": height, "scale": scale, "region": region, "resizing": w.Resizing, "starved": w.Starved, "detail": nil}
+	reply := map[string]any{"ok": true, "path": path, "width": width, "height": height, "scale": scale, "region": region, "resizing": w.Resizing, "starved": w.Starved, "outdated": w.Outdated, "detail": nil}
 	// The detail image has a pixel per logical pixel, or the monitor's pixels where they are fewer.
 	if least := math.Min(f.scale, 1); detailPath != "" && scale < least-1e-6 {
 		limit := 0

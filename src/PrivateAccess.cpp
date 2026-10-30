@@ -4,6 +4,7 @@
 #include <hyprland/src/desktop/rule/windowRule/WindowRuleApplicator.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/pointer/cursor/CursorManager.hpp>
+#include <hyprland/src/protocols/IdleNotify.hpp>
 #include <hyprland/src/protocols/PrimarySelection.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/DataDevice.hpp>
@@ -122,6 +123,11 @@ namespace hyprmasq {
         };
         template struct SExpose<SApplicatorWindow, &Desktop::Rule::CWindowRuleApplicator::m_window>;
 
+        struct SIdleInhibited {
+            friend constexpr auto exposed(SIdleInhibited);
+        };
+        template struct SExpose<SIdleInhibited, &CIdleNotifyProtocol::isInhibited>;
+
         struct SRenderWindow {
             friend constexpr auto exposed(SRenderWindow);
         };
@@ -218,6 +224,10 @@ namespace hyprmasq {
 
     PHLWINDOWREF& windowOf(Desktop::Rule::CWindowRuleApplicator& applicator) {
         return applicator.*exposed(SApplicatorWindow{});
+    }
+
+    bool& inhibitedOf(CIdleNotifyProtocol& protocol) {
+        return protocol.*exposed(SIdleInhibited{});
     }
 
     void renderWindow(Render::IHyprRenderer& renderer, PHLWINDOW window, PHLMONITOR monitor, const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode,

@@ -158,6 +158,7 @@ namespace hyprmasq {
 
             // Rendering answers the frame callbacks that a hidden window waits for, so this is read before.
             const bool hungry  = starved(window);
+            const bool late    = outdated(window);
             auto       capture = captureWindow(window, options);
             if (!capture)
                 return error(format, capture.error());
@@ -170,7 +171,7 @@ namespace hyprmasq {
 
             // Rendering needs the compositor, encoding does not. An unload ends a write that waits for a pipe.
             const int stop = deferred::stopFd();
-            return defer(format, [format, path, raw, detailPath, stop, commits, socketId, behind, hungry, capture = std::move(*capture)] mutable -> std::string {
+            return defer(format, [format, path, raw, detailPath, stop, commits, socketId, behind, hungry, late, capture = std::move(*capture)] mutable -> std::string {
                 // A write that the main thread waits for must not wait for a reader.
                 const bool waited = deferred::waited();
                 if (auto written = raw ? writeRaw(capture.image, path, stop, waited) : writePNG(capture.image, path, stop, waited); !written)
@@ -189,9 +190,9 @@ namespace hyprmasq {
                                                      jsonString(detailPath.string()), d.width, d.height, d.scale, dr.x, dr.y, dr.width, dr.height, jsonOrNull(d.maxPixels));
                     }
                     return std::format(
-                        R"({{"ok":true,"path":{},"width":{},"height":{},"scale":{},"region":{{"x":{},"y":{},"width":{},"height":{}}},"commits":{},"socketId":{},"resizing":{},"starved":{},"detail":{}}})",
+                        R"({{"ok":true,"path":{},"width":{},"height":{},"scale":{},"region":{{"x":{},"y":{},"width":{},"height":{}}},"commits":{},"socketId":{},"resizing":{},"starved":{},"outdated":{},"detail":{}}})",
                         jsonString(path.string()), capture.image.width, capture.image.height, capture.image.scale, r.x, r.y, r.width, r.height, jsonOrNull(commits), socketId,
-                        behind, hungry, detail);
+                        behind, hungry, late, detail);
                 }
                 return "ok";
             });
@@ -336,23 +337,25 @@ namespace hyprmasq {
             const std::string_view keyboard = caps.x11Focus ? "x11-focus" : "yes";
             const bool             behind   = resizing(window);
             const bool             hungry   = starved(window);
+            const bool             late     = outdated(window);
             const auto             source   = placement::source(window);
             const auto             kind     = x11::kind(window);
             const auto             popups   = popupBoxes(window);
             if (format == FORMAT_JSON)
                 return std::format(
-                    R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"x11":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"scale":{},)"
+                    R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"x11":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"outdated":{},"scale":{},)"
                     R"("socket":{},"socketId":{},"commits":{},"interrupted":{},"lastPause":{},"drag":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"privateDnd":{},"keyboard":"{}"}},"source":{},"popups":{}}})",
                     jsonString(windowAddress(window)), window->m_stableID, window->m_isX11, x11Json(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry,
-                    jsonOrNull(scale), socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut),
+                    late, jsonOrNull(scale), socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut),
                     paused ? jsonString(*paused) : "null", dragJson(drags), lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, caps.privateDnd,
                     keyboard, sourceJson(source), popupsJson(popups));
-            return std::format("address: {}\nstableId: {:x}\nxwayland: {}\nx11: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
-                               "interrupted: {}\nlastPause: {}\ndrag: {}\nlease: {}\ncapabilities: lease={} hold={} dnd={} private_dnd={} keyboard={}\nsource: {}\npopups: {}\n",
-                               windowAddress(window), window->m_stableID, window->m_isX11, x11Text(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry,
-                               jsonOrNull(scale), socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none",
-                               cut ? std::to_string(*cut) : "none", paused.value_or("none"), dragText(drags), lease ? leaseText(*lease) : "none", caps.lease, caps.hold, caps.dnd,
-                               caps.privateDnd, keyboard, sourceText(source), popupsText(popups));
+            return std::format(
+                "address: {}\nstableId: {:x}\nxwayland: {}\nx11: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\noutdated: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
+                "interrupted: {}\nlastPause: {}\ndrag: {}\nlease: {}\ncapabilities: lease={} hold={} dnd={} private_dnd={} keyboard={}\nsource: {}\npopups: {}\n",
+                windowAddress(window), window->m_stableID, window->m_isX11, x11Text(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry, late,
+                jsonOrNull(scale), socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none", cut ? std::to_string(*cut) : "none",
+                paused.value_or("none"), dragText(drags), lease ? leaseText(*lease) : "none", caps.lease, caps.hold, caps.dnd, caps.privateDnd, keyboard, sourceText(source),
+                popupsText(popups));
         }
 
         constexpr int MAX_LEASE_MS = 600000;

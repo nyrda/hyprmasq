@@ -394,6 +394,43 @@ func TestShotsOfAStarvedWindow(t *testing.T) {
 	}
 }
 
+// A hidden window that drew a change on its own after it was driven, such as a terminal that printed more, and waits
+// for a frame callback may have more to draw. A capture sends it frame callbacks for a short quiet first, and its shot
+// is not marked when it draws nothing.
+func TestShotsOfAnOutdatedWindow(t *testing.T) {
+	e := newTestEnv(t)
+	w := e.window("0xa1", "1a", 640, 400, func(w *fakeWindow) { w.Outdated = true })
+	res := e.screenshot(`{"window":"0xa1"}`)
+	if res.IsError || get(t, res, "shot.may_be_stale") != nil {
+		t.Fatalf("after drawing: %s", text(res))
+	}
+	waits := e.fake.requestsMatching("j/hyprmasq wait")
+	if len(waits) != 1 {
+		t.Fatalf("waits %q", waits)
+	}
+	if args := waitArgsOf(t, waits[0]); args["expect"] != "" || args["quiet"] != "100" {
+		t.Errorf("wait %q", waits[0])
+	}
+	if res := e.screenshot(`{"window":"0xa1"}`); res.IsError {
+		t.Errorf("fed: %s", text(res))
+	}
+	if waits := e.fake.requestsMatching("j/hyprmasq wait"); len(waits) != 1 {
+		t.Errorf("waits after it was fed %q", waits)
+	}
+
+	// A window with nothing more to draw.
+	e.fake.with(func() {
+		w.Outdated = true
+		e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+			return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": w.Commits, "socketId": w.socketID(), "redrawObserved": false,
+				"commitsSince": 0, "quietMs": 100, "elapsedMs": 100, "resizing": false})
+		}
+	})
+	if res := e.screenshot(`{"window":"0xa1"}`); res.IsError || get(t, res, "shot.may_be_stale") != nil || get(t, res, "hint") != nil {
+		t.Errorf("nothing to draw: %s", text(res))
+	}
+}
+
 // The wait for a window to catch up comes out of the call's time: after its wait ran into the deadline, act captures
 // at once.
 func TestCatchingUpWithinTheDeadline(t *testing.T) {

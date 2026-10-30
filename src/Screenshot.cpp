@@ -391,8 +391,8 @@ namespace hyprmasq {
         if (!beginRender(monitor, fb, width, height))
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot begin offscreen render"});
 
-        // Visible windows already get frame callbacks from the normal render loop.
-        g_pHyprRenderer->m_bBlockSurfaceFeedback = g_pHyprRenderer->shouldRenderWindow(window);
+        // Rendered windows already get frame callbacks from the normal render loop.
+        g_pHyprRenderer->m_bBlockSurfaceFeedback = rendered(window);
         {
             const CGoalGeometry goal{window};
             {

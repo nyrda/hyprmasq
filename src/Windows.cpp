@@ -1,11 +1,14 @@
 #include "Windows.hpp"
 #include "FocusPolicy.hpp"
 
+#include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
+#include <hyprland/src/render/Renderer.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -50,6 +53,14 @@ namespace hyprmasq {
 
     bool sharesConnection(const PHLWINDOW& w, const WP<CWLSurfaceResource>& focus) {
         return w->resource() && sharesConnection(w->resource()->client(), focus);
+    }
+
+    bool rendered(const PHLWINDOW& window) {
+        if (!g_pHyprRenderer->shouldRenderWindow(window) || !g_pCompositor->m_sessionActive)
+            return false;
+        // CMonitor::setDPMS clears m_dpmsStatus as its fade to black starts, and disables the output when it ends.
+        const auto monitor = window->m_monitor.lock();
+        return monitor && monitor->m_enabled && monitor->m_dpmsStatus;
     }
 
     void forEachSurface(const PHLWINDOW& window, const std::function<void(SP<CWLSurfaceResource>)>& fn) {

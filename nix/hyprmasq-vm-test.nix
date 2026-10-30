@@ -165,6 +165,8 @@ pkgs.testers.runNixOSTest {
       environment.systemPackages = [
         pkgs.foot
         pkgs.grim
+        # An idle client, as the user's that turns the monitors off and on again.
+        pkgs.hypridle
         pkgs.jq
         pkgs.procps
         # Over the questionnaire module's python3, which has no Pillow.

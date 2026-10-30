@@ -32,6 +32,11 @@ namespace hyprmasq {
     bool sharesConnection(wl_client* client, const WP<CWLSurfaceResource>& focus);
     bool sharesConnection(const PHLWINDOW& window, const WP<CWLSurfaceResource>& focus);
 
+    // True while Hyprland renders the window on a monitor that shows frames, so that its render loop sends the window frame
+    // callbacks. A window on a visible workspace gets none while DPMS has turned its monitor off, or while the session is
+    // inactive, as on another VT: Hyprland renders nothing then, so the window counts as hidden. Main thread only.
+    bool rendered(const PHLWINDOW& window);
+
     // Calls fn for the window's surface, its subsurfaces and its popups with their subsurfaces.
     void forEachSurface(const PHLWINDOW& window, const std::function<void(SP<CWLSurfaceResource>)>& fn);
 

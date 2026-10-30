@@ -45,6 +45,10 @@ namespace hyprmasq::wait {
         bool fed() const {
             return m_fed;
         }
+        // True when the window has drawn a change, a commit that is not part of an animation, since sendFrames last ran.
+        bool changedSinceFrames() const {
+            return lastChange > m_lastFrames;
+        }
 
         uint64_t          commits          = 0; // never reset
         Time::steady_tp   lastCommit       = Time::steadyNow();
