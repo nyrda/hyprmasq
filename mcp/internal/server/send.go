@@ -135,6 +135,7 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 		}
 		return true
 	}
+	r.rec.inputStarted(time.Now(), steps)
 	reply, err := s.runSender(runCtx, *st.Socket, steps, paceBudget(left), locale.name, answer)
 	stop(nil)
 	<-watched

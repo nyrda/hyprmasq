@@ -4,6 +4,7 @@
 {
   lib,
   buildGoModule,
+  ffmpeg-headless,
 }:
 
 buildGoModule (finalAttrs: {
@@ -12,11 +13,13 @@ buildGoModule (finalAttrs: {
   ldflags = [ "-X github.com/nyrda/hyprmasq/mcp/internal/server.Version=${finalAttrs.version}" ];
 
   src = lib.cleanSource ../mcp;
-  vendorHash = "sha256-NbuvbsmNbz3aKdjyyfpkbi52yRhXl473j3LvAUDn3L8=";
+  vendorHash = "sha256-U8ji2eRfPS6QeT/lzwtTY9avPLzNcksO7VpBnzsF2kw=";
   # Every package is built and tested; only the command is installed. The tests that wait on real time are left to
   # CI, which runs all of them.
   env.CGO_ENABLED = 0;
   checkFlags = [ "-short" ];
+  # The tests of recordings make videos.
+  nativeCheckInputs = [ ffmpeg-headless ];
 
   meta = {
     description = "MCP server for driving Hyprland windows through the hyprmasq plugin";

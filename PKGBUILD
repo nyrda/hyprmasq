@@ -11,7 +11,7 @@ pkgdesc='Computer use for Hyprland: per-window screenshots and input, with an MC
 arch=(x86_64)
 url='https://github.com/nyrda/hyprmasq'
 license=(MIT)
-depends=(glibc hyprland jq libei libgcc libglvnd libpng libstdc++ libxcb libxkbcommon sh)
+depends=(ffmpeg glibc hyprland jq libei libgcc libglvnd libpng libstdc++ libxcb libxkbcommon sh)
 makedepends=(git go)
 
 # makepkg works in $BUILDDIR/src, or $BUILDDIR/$pkgname/src when BUILDDIR is set elsewhere. When that is this clone's

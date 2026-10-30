@@ -26,7 +26,7 @@ Go (see [Manual build](#manual-build)). hyprpm installs only the plugin.
 | `hyprmasq-input` | The libei sender for scripts. |
 | `hyprmasq-launch` | Starts an application on a hidden workspace. Needs `hyprctl` and `jq`. |
 | `hyprmasq-reaper` | The helper that launched commands run under. The plugin finds it next to `hyprmasq.so`, in `../libexec` relative to it, or on `PATH`. |
-| `hyprmasq-mcp` | The [MCP server](mcp.md), built with Go. Included in the Nix and Arch packages. |
+| `hyprmasq-mcp` | The [MCP server](mcp.md), built with Go. Included in the Nix and Arch packages. Its [recordings](mcp.md#recording-a-demo) need `ffmpeg` with libx264. |
 
 After installing, [load the plugin](#loading-the-plugin) and
 [register the MCP server](#mcp-server) with your agents.
@@ -68,6 +68,8 @@ The module:
 - adds the plugin package to `environment.systemPackages`, which puts
   `hyprmasq-input`, `hyprmasq-launch` and `hyprmasq-mcp` on your `PATH`
 - writes `/etc/xdg/hypr/hyprmasq_plugin.lua`, which loads the plugin
+- writes `/etc/xdg/hyprmasq/mcp.toml` from `programs.hyprmasq.mcpSettings`,
+  when it is set
 - asserts that `programs.hyprland.package` is the exact Hyprland build that
   `programs.hyprmasq.package` was built against, and fails evaluation
   otherwise.
@@ -76,6 +78,7 @@ The module:
 | --- | --- | --- |
 | `programs.hyprmasq.enable` | `false` | Install the plugin, its tools, the loader, and the matching Hyprland. |
 | `programs.hyprmasq.package` | the flake's plugin | The plugin package. It must be built against `programs.hyprland.package`. |
+| `programs.hyprmasq.mcpSettings` | `{ }` | The [settings of `hyprmasq-mcp`](mcp.md#configuration), such as `{ record.gif = true; }`. A user's own `~/.config/hyprmasq/mcp.toml` is read instead. |
 
 Updating the hyprmasq input updates the compositor and the plugin together.
 
@@ -120,7 +123,8 @@ in {
 The flake's `overlays.default` adds `pkgs.hyprmasq`, built against
 `pkgs.hyprland` of your package set. `hm.hyprmasq` contains
 `bin/hyprmasq-mcp`, a wrapper that runs the MCP server with the package's own
-`hyprmasq-input`. The flake's `hyprmasq-mcp` package is the server alone.
+`hyprmasq-input` and an ffmpeg for its recordings. The flake's `hyprmasq-mcp`
+package is the server alone.
 
 ## Arch and Omarchy
 
@@ -165,9 +169,10 @@ With makepkg's `debug` option, which Arch's `makepkg.conf` enables, makepkg
 also builds `hyprmasq-debug` with the debug symbols, and `makepkg -i`
 installs it too. `pacman -Ql hyprmasq` lists the installed files.
 
-The package depends on `hyprland`, on `jq` and `sh` for `hyprmasq-launch`, and
-on the libraries that the plugin and the tools link: `libei`, `libxkbcommon`,
-`libpng`, `libxcb`, `libglvnd`, `libstdc++`, `libgcc` and `glibc`.
+The package depends on `hyprland`, on `jq` and `sh` for `hyprmasq-launch`, on
+`ffmpeg` for the recordings of `hyprmasq-mcp`, and on the libraries that the
+plugin and the tools link: `libei`, `libxkbcommon`, `libpng`, `libxcb`,
+`libglvnd`, `libstdc++`, `libgcc` and `glibc`.
 
 ### Checking what you build
 
@@ -265,7 +270,8 @@ to `$PREFIX/lib`, `hyprmasq-input` and `hyprmasq-launch` to `$PREFIX/bin`,
 and `hyprmasq-reaper` to `$PREFIX/libexec`, where the plugin finds it. Set
 `PREFIX` and `DESTDIR` for a staged install, such as
 `make install PREFIX=/usr DESTDIR=/tmp/stage`. Copy `hyprmasq-mcp` onto your
-`PATH` yourself, and install `jq` for `hyprmasq-launch`.
+`PATH` yourself, and install `jq` for `hyprmasq-launch` and `ffmpeg` with
+libx264 for the recordings of `hyprmasq-mcp`.
 
 For a one-off test in a running session:
 
@@ -378,11 +384,12 @@ server. It needs:
   it inherits when the agent runs inside the Hyprland session and the client
   passes them on, as Codex does only when told to
 - `hyprmasq-input`, from the Nix package's wrapper, from `PATH`, or given
-  with `--input`.
+  with `--input`
+- for [recordings](mcp.md#recording-a-demo), `ffmpeg` with libx264, from the
+  Nix package's wrapper or from `PATH`.
 
-Its options, `--input`, `--max-image-size`, `--lease-ms`,
-`--new-window-grace-ms`, `--structured-content` and `--version`, are
-described in [Command-line options](mcp.md#command-line-options).
+Its settings, in `~/.config/hyprmasq/mcp.toml` or as options such as
+`--max-image-size`, are described in [Configuration](mcp.md#configuration).
 
 **Claude Code:**
 
@@ -456,3 +463,5 @@ instructions, but the tool descriptions carry every rule, so nothing is lost.
 | `hyprmasq-mcp` tools fail with `plugin_missing` | The plugin is not loaded, or the server's `HYPRLAND_INSTANCE_SIGNATURE` names another Hyprland. Start the agent inside the Hyprland session. |
 | `hyprmasq-mcp` tools fail with `plugin_version` | The plugin and the server come from different releases. Use both from one release, and reload the plugin after updating it. |
 | `hyprmasq-input is not on PATH; pass --input` | Use the Nix package's `hyprmasq-mcp` wrapper, put `hyprmasq-input` on `PATH`, or pass `--input`. |
+| `hyprmasq-mcp` fails to start with a message about `mcp.toml` | A key or value in its [configuration file](mcp.md#configuration) is not valid. The message names the file and the key. |
+| A recording fails with `recording needs ffmpeg` | Install `ffmpeg` with libx264, or set `record.ffmpeg` in the configuration file. |

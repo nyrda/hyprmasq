@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -96,5 +97,72 @@ func TestStructuredContentOption(t *testing.T) {
 	var exit *exec.ExitError
 	if err := cmd.Run(); !errors.As(err, &exit) || exit.ExitCode() != 2 || !strings.Contains(stderr.String(), "-structured-content auto") {
 		t.Errorf("an unknown value: %v, %q", err, stderr.String())
+	}
+}
+
+// The configuration file is the first that exists of $XDG_CONFIG_HOME/hyprmasq/mcp.toml and hyprmasq/mcp.toml in each
+// directory of $XDG_CONFIG_DIRS, or the one --config names. Options beat it, and a key or value that is not valid ends
+// the server with status 2 and a message that names the file and the key.
+func TestConfigurationFile(t *testing.T) {
+	write := func(dir, content string) string {
+		path := filepath.Join(dir, "hyprmasq", "mcp.toml")
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	for _, c := range []struct {
+		name          string
+		home, system  string // the files in XDG_CONFIG_HOME and in the second directory of XDG_CONFIG_DIRS, or ""
+		options       string
+		status        int
+		stderr        string // what stderr contains, with HOME and SYSTEM for the paths of the files
+		stderrIsEmpty bool
+	}{
+		{name: "valid", home: "max-image-size = 0\n[record]\ndir = \"~/clips\"\ngif = true\nfps = 30\n", stderrIsEmpty: true},
+		{name: "unknown key", home: "[record]\ngfi = true\n", status: 2, stderr: "HOME: unknown key record.gfi"},
+		// The TOML decoder would take it for lease-ms.
+		{name: "key in other case", home: "LEASE-MS = 1000\n", status: 2, stderr: "HOME: unknown key LEASE-MS"},
+		{name: "wrong type", home: "lease-ms = \"long\"\n", status: 2, stderr: "HOME: toml: line 1 (last key \"lease-ms\")"},
+		{name: "out of range", home: "[record]\nfps = 60\n", status: 2, stderr: "HOME: record.fps must be 1 to 30, not 60"},
+		{name: "relative directory", home: "[record]\ndir = \"clips\"\n", status: 2, stderr: `HOME: record.dir must be an absolute path, or start with ~ or a variable, not "clips"`},
+		{name: "system directory", system: "structured-content = \"sometimes\"\n", status: 2, stderr: `SYSTEM: structured-content must be auto, always or never, not "sometimes"`},
+		// Only the first file counts, so the second one's value is never read.
+		{name: "first file", home: "lease-ms = 5000\n", system: "lease-ms = 0\n", stderrIsEmpty: true},
+		{name: "option beats file", home: "structured-content = \"sometimes\"\n", options: "--structured-content never", stderrIsEmpty: true},
+		{name: "option checked", home: "lease-ms = 5000\n", options: "--lease-ms 0", status: 2, stderr: "-lease-ms must be 1 to 600000, not 0\n"},
+		{name: "missing --config", options: "--config /nonexistent/mcp.toml", status: 2, stderr: "the configuration file: stat /nonexistent/mcp.toml: no such file or directory"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			home, first, second := t.TempDir(), t.TempDir(), t.TempDir()
+			homePath, systemPath := "", ""
+			if c.home != "" {
+				homePath = write(home, c.home)
+			}
+			if c.system != "" {
+				systemPath = write(second, c.system)
+			}
+			cmd := exec.Command(os.Args[0])
+			cmd.Env = []string{"HYPRMASQ_MCP_TEST_MAIN=--input /bin/true " + c.options, "XDG_RUNTIME_DIR=" + t.TempDir(), "HYPRLAND_INSTANCE_SIGNATURE=hyprmasq-test-none",
+				"HOME=" + t.TempDir(), "XDG_CONFIG_HOME=" + home, "XDG_CONFIG_DIRS=" + first + ":" + second}
+			cmd.Stdin = strings.NewReader("")
+			var stderr bytes.Buffer
+			cmd.Stderr = &stderr
+			status := 0
+			if err := cmd.Run(); err != nil {
+				var exit *exec.ExitError
+				if !errors.As(err, &exit) {
+					t.Fatal(err)
+				}
+				status = exit.ExitCode()
+			}
+			want := strings.NewReplacer("HOME", homePath, "SYSTEM", systemPath).Replace(c.stderr)
+			if status != c.status || (c.stderrIsEmpty && stderr.Len() > 0) || !strings.Contains(stderr.String(), want) {
+				t.Errorf("status %d, %q; want status %d, %q", status, stderr.String(), c.status, want)
+			}
+		})
 	}
 }

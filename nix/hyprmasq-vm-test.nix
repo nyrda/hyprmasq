@@ -170,6 +170,11 @@ pkgs.testers.runNixOSTest {
       ];
       _module.args.benchVariant = "25";
       programs.hyprmasq.enable = true;
+      # The recording area reads its recordings here, and checks that the module writes these settings.
+      programs.hyprmasq.mcpSettings.record = {
+        dir = "/tmp/hm-recordings";
+        gif = true;
+      };
 
       users.users.alice = {
         isNormalUser = true;
@@ -208,6 +213,8 @@ pkgs.testers.runNixOSTest {
         pkgs.xwayland-satellite
         # A select on X11, whose popup Chromium closes once its window loses the X focus.
         pkgs.chromium
+        # ffprobe and ffmpeg, which read the recordings of hyprmasq-mcp.
+        pkgs.ffmpeg-headless
       ];
 
       environment.etc."hyprmasq-test.lua".source = testConfig;

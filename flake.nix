@@ -56,6 +56,8 @@
         packages = [
           goPkgs.go
           goPkgs.clang-tools
+          # The Go tests of recordings make videos.
+          pkgs.ffmpeg-headless
         ];
       };
     };

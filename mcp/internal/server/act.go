@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"time"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
@@ -27,6 +28,8 @@ type actArgs struct {
 	Wait       json.RawMessage   `json:"wait"`
 	Capture    json.RawMessage   `json:"capture"`
 	DeadlineMs *int              `json:"deadline_ms"`
+	Record     string            `json:"record"`
+	Caption    *string           `json:"caption"`
 }
 
 // waitArgs are the fields of act's wait argument.
@@ -56,6 +59,10 @@ type actRequest struct {
 	// scrolling in two parts, see split.go.
 	from        int
 	joinChanges bool
+	// record and caption as given, and the step of the session's recording that the call is, or nil.
+	record  string
+	caption *string
+	rec     *recStep
 }
 
 // regionShot is the shot of a capture region, or "".
@@ -125,6 +132,22 @@ func parseActArgs(c *call) (*actRequest, int, error) {
 			return nil, total, err
 		}
 	}
+	switch args.Record {
+	case "", "slides", "video", "stop":
+		r.record = args.Record
+	default:
+		return nil, total, invalidf("record must be slides, video or stop, not %q", args.Record)
+	}
+	if args.Caption != nil {
+		if n := utf8.RuneCountInString(*args.Caption); n > captionMax {
+			return nil, total, invalidf("caption has %d characters, at most %d", n, captionMax)
+		}
+		r.caption = args.Caption
+	}
+	// A call that only starts or stops a recording captures at once.
+	if r.record != "" && len(r.batch) == 0 {
+		r.expectChange = false
+	}
 	if w.ExpectChange != nil {
 		r.expectChange = *w.ExpectChange
 	}
@@ -169,8 +192,14 @@ func (s *Server) actTool(ctx context.Context, c *call) *mcp.CallToolResult {
 	if err != nil {
 		return errorResult(asToolError(err), &actOut{Actions: &actionsOut{Total: total, Delivery: "none"}, NewWindows: []newWindowOut{}}, nil, nil)
 	}
+	if err := s.recordCheck(r); err != nil {
+		return errorResult(asToolError(err), &actOut{Actions: &actionsOut{Total: total, Delivery: "none"}, NewWindows: []newWindowOut{}}, nil, nil)
+	}
 	p := c.startProgress(ctx, r.deadline)
 	defer p.stop()
+	if s.recordsAct(r) {
+		return s.recordedAct(ctx, r, start, p)
+	}
 	return s.act(ctx, r, start, p)
 }
 
@@ -391,6 +420,7 @@ func lockError(ctx context.Context, err error, start time.Time, what string) err
 
 // finish captures, renews the lease and lists new windows, for every outcome after the locks were taken.
 func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr.State, end time.Time, region *zoom, applied bool, before []hypr.Window) *mcp.CallToolResult {
+	r.rec.finishing()
 	waited := time.Now()
 	capCtx, cancel := captureContext(ctx, end)
 	defer cancel()
