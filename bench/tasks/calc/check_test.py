@@ -1,13 +1,14 @@
 """Tests check.py on sheets that LibreOffice saved: check_test.py ORIGINAL-ODS
 
 Starts a headless LibreOffice, and for each case fills a copy of Mara's sheet through UNO as an agent would through
-the UI, saves it, sets up her home, Firefox session and the task's state around it, runs check.py, and compares
-its verdict and failures with the expected ones. check-test.nix runs it in the Nix build.
+the UI, saves it, sets up her home, her browser's session, Firefox's or Chromium's, and the task's state around it,
+runs check.py, and compares its verdict and failures with the expected ones. check-test.nix runs it in the Nix build.
 """
 
 import json
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -67,10 +68,42 @@ def session(urls):
     return {"windows": [{"tabs": tabs, "selected": 1}]}
 
 
+class Chromium:
+    """Mara's tabs in Chromium instead of Firefox: a tab per entry, as session() takes them, and the tabs, by their
+    place, that Chromium then closed; None for no session at all."""
+
+    def __init__(self, urls, closed=()):
+        self.urls, self.closed = urls, closed
+
+
+def snss(tabs):
+    """A Chromium session file with one window and Chromium's tabs, as session_service_commands.cc writes one: each
+    command its size, its id and its payload; a navigation a Pickle of its size, the tab, the navigation's index and
+    its URL, a string of its length and its bytes padded to 4, with an empty title after it."""
+    def command(cid, payload):
+        return struct.pack("<HB", len(payload) + 1, cid) + payload
+
+    def navigation(tab, index, url):
+        data = url.encode()
+        body = struct.pack("<iii", tab, index, len(data)) + data + b"\0" * (-len(data) % 4) + struct.pack("<i", 0)
+        return struct.pack("<I", len(body)) + body
+
+    out = b"SNSS" + struct.pack("<i", 3)
+    for n, u in enumerate(tabs.urls):
+        history, tab = (u if isinstance(u, list) else [u]), n + 1
+        out += command(0, struct.pack("<ii", 1, tab))
+        for i, url in enumerate(history):
+            out += command(6, navigation(tab, i, url))
+        out += command(7, struct.pack("<ii", tab, len(history) - 1))
+    for n in tabs.closed:
+        out += command(16, struct.pack("<iq", n + 1, 0))
+    return out
+
+
 MARA = [INTRANET + path for path, _ in TABS]
 
-# (name, cells to put into the sheet or None to leave it unsaved, how to save, Firefox's tabs, other files,
-#  expected failures as substrings, in order)
+# (name, cells to put into the sheet or None to leave it unsaved, how to save, the browser's tabs, Firefox's or
+#  Chromium's, other files, expected failures as substrings, in order)
 CASES = [
     ("correct", correct, "ods", MARA, {}, []),
     ("correct with other formulas", edit(E11="=SUM(B11:D11)", B14="=E11/18", B15="=(D11-B11)/B11"), "ods",
@@ -157,6 +190,16 @@ CASES = [
     ]),
     ("a tab navigated and back", correct, "ods", MARA[:4] + [[MARA[4], INTRANET + "/", MARA[4]]], {}, []),
     ("Firefox closed", correct, "ods", None, {}, ["Firefox's session could not be read"]),
+    ("correct in Chromium", correct, "ods", Chromium(MARA + [INTRANET + "/"]), {}, []),
+    ("a tab closed in Chromium", correct, "ods", Chromium(MARA, closed=[2]), {}, [
+        f"Mara's tab 'Lisbon office: updates' ({MARA[2]}) is not open anymore",
+    ]),
+    ("a tab navigated in Chromium", correct, "ods", Chromium(MARA[:4] + [[MARA[4], INTRANET + "/"]]), {}, [
+        f"Mara's tab 'Dublin closes 2025 with a record December' now shows {INTRANET}/",
+    ]),
+    ("a tab navigated and back in Chromium", correct, "ods",
+     Chromium(MARA[:4] + [[MARA[4], INTRANET + "/", MARA[4]]]), {}, []),
+    ("Chromium closed", correct, "ods", Chromium(None), {}, ["Chromium's session could not be read"]),
 ]
 
 
@@ -225,11 +268,18 @@ def run_case(desktop, original, root, case):
         fill(desktop, sheet, cells, save)
     for path, text in files.items():
         open(os.path.join(home, path), "w").write(text)
-    if tabs is not None:
+    browser = ["--profile", profile]
+    if isinstance(tabs, Chromium):
+        user_data = os.path.join(home, ".config", "chromium-mara")
+        os.makedirs(os.path.join(user_data, "Default", "Sessions"))
+        if tabs.urls is not None:
+            open(os.path.join(user_data, "Default", "Sessions", "Session_13400000000000000"), "wb").write(snss(tabs))
+        browser = ["--chromium", user_data]
+    elif tabs is not None:
         open(os.path.join(profile, "sessionstore-backups", "recovery.jsonlz4"), "wb").write(mozlz4(session(tabs)))
     out = subprocess.run(
         [sys.executable, os.path.join(HERE, "check.py"), "--home", home, "--state", state,
-         "--requests", os.path.join(state, "requests.jsonl"), "--original", original, "--profile", profile,
+         "--requests", os.path.join(state, "requests.jsonl"), "--original", original, *browser,
          "--events", os.path.join(state, "events.log")],
         check=True, capture_output=True, text=True).stdout
     result = json.loads(out)

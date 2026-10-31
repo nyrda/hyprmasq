@@ -81,6 +81,176 @@ class Names(unittest.TestCase):
                 self.options(agent)
 
 
+class CuaBackend(unittest.TestCase):
+    """The Cua backend's agent: Cua's skill and server as its documentation sets them up, in a home of its own."""
+
+    def parse(self, command):
+        """The options of a Claude Code command line that this contract is about, in any order."""
+        values = {}
+        for flag in ("--tools", "--allowedTools", "--mcp-config", "--setting-sources"):
+            if flag in command:
+                values[flag] = command[command.index(flag) + 1]
+        values["slash commands"] = "--disable-slash-commands" not in command
+        return values
+
+    def test_the_agent_gets_cuas_skill_and_server_and_the_debrief_neither(self):
+        tap = ["python3", "mcp_tap.py", "4242", "5000", "log"]
+        claude = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, backend="cua"))
+        # The skill and the user settings of its fresh home, where Claude Code finds the skill.
+        self.assertEqual((claude["--tools"], claude["slash commands"], claude["--setting-sources"]),
+                         ("Skill", True, "user"))
+        self.assertEqual(set(claude["--allowedTools"].split()), {"Skill", "mcp__cua-driver"})
+        self.assertEqual(json.loads(claude["--mcp-config"])["mcpServers"],
+                         {"cua-driver": {"command": tap[0], "args": tap[1:]}})
+        debrief = self.parse(run.agent_command("claude-api", "m", "Why?", None, resume="s", backend="cua"))
+        self.assertEqual((debrief["--tools"], debrief["slash commands"], debrief["--setting-sources"]), ("", False, ""))
+        # hyprmasq's runs stay as they were: no tools but its server's, no slash commands.
+        hyprmasq = self.parse(run.agent_command("claude-api", "m", "Do it.", tap))
+        self.assertEqual((hyprmasq["--tools"], hyprmasq["slash commands"], hyprmasq["--allowedTools"],
+                          hyprmasq["--setting-sources"]), ("", False, "mcp__hyprmasq", ""))
+
+        codex = run.agent_command("codex", "m", "Do it.", tap, backend="cua")
+        settings = [codex[i + 1] for i, a in enumerate(codex[:-1]) if a == "-c"]
+        self.assertIn(f"mcp_servers.cua-driver.command={json.dumps(tap[0])}", settings)
+        self.assertIn(f"mcp_servers.cua-driver.tool_timeout_sec={run.TOOL_TIMEOUT}", settings)
+        self.assertIn('mcp_servers.cua-driver.default_tools_approval_mode="approve"', settings)
+        self.assertNotIn("skills.include_instructions=false", settings)
+        self.assertIn("skills.include_instructions=false", run.agent_command("codex", "m", "Do it.", tap))
+
+        # The prompt names the skill as each harness takes it; hyprmasq's prompt is the task's alone.
+        self.assertEqual(run.task_prompt("claude-api", "cua", "Do it."), "/cua-driver Do it.")
+        self.assertEqual(run.task_prompt("codex", "cua", "Do it."), "$cua-driver Do it.")
+        self.assertEqual(run.task_prompt("codex", "hyprmasq", "Do it."), "Do it.")
+        with self.assertRaisesRegex(ValueError, "pi runs only with hyprmasq"):
+            run.agent_command("pi", "p/m", "Do it.", tap, sessions="/s", backend="cua")
+
+    def test_hypruse_gets_its_server_alone_and_computer_use_linux_its_skill_too(self):
+        tap = ["python3", "mcp_tap.py", "4242", "5000", "log"]
+        # hypruse: the server, named as its README registers it, and no skill, whose verbs need a shell.
+        claude = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, backend="hypruse"))
+        self.assertEqual((claude["--tools"], claude["slash commands"], claude["--allowedTools"],
+                          claude["--setting-sources"]), ("", False, "mcp__hypruse", ""))
+        self.assertEqual(list(json.loads(claude["--mcp-config"])["mcpServers"]), ["hypruse"])
+        codex = run.agent_command("codex", "m", "Do it.", tap, backend="hypruse")
+        settings = [codex[i + 1] for i, a in enumerate(codex[:-1]) if a == "-c"]
+        self.assertIn("skills.include_instructions=false", settings)
+        self.assertIn(f"mcp_servers.hypruse.tool_timeout_sec={run.TOOL_TIMEOUT}", settings)
+        self.assertEqual(run.task_prompt("codex", "hypruse", "Do it."), "Do it.")
+
+        # computer-use-linux: its server and its plugin's skill, named first in the prompt as Cua's is.
+        claude = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, backend="computer-use-linux"))
+        self.assertEqual((claude["--tools"], claude["slash commands"], claude["--setting-sources"]),
+                         ("Skill", True, "user"))
+        self.assertEqual(set(claude["--allowedTools"].split()), {"Skill", "mcp__computer-use-linux"})
+        codex = run.agent_command("codex", "m", "Do it.", tap, backend="computer-use-linux")
+        settings = [codex[i + 1] for i, a in enumerate(codex[:-1]) if a == "-c"]
+        self.assertNotIn("skills.include_instructions=false", settings)
+        self.assertIn(f"mcp_servers.computer-use-linux.command={json.dumps(tap[0])}", settings)
+        self.assertEqual(run.task_prompt("claude", "computer-use-linux", "Do it."), "/computer-use-linux Do it.")
+        self.assertEqual(run.task_prompt("codex", "computer-use-linux", "Do it."), "$computer-use-linux Do it.")
+        for backend in ("hypruse", "computer-use-linux"):
+            with self.assertRaisesRegex(ValueError, "pi runs only with hyprmasq"):
+                run.agent_command("pi", "p/m", "Do it.", tap, sessions="/s", backend=backend)
+
+    def test_the_agent_home_holds_the_skill_and_only_the_login_it_needs(self):
+        with tempfile.TemporaryDirectory() as user, tempfile.TemporaryDirectory() as skill:
+            os.makedirs(os.path.join(user, ".claude"))
+            open(os.path.join(user, ".claude", ".credentials.json"), "w").close()
+            with mock.patch.dict(os.environ, {"HOME": user}):
+                homes = {h: run.skill_home(h, skill) for h in ("claude-api", "claude", "codex")}
+            try:
+                for harness in ("claude-api", "claude"):
+                    home, env = homes[harness]
+                    config = env["CLAUDE_CONFIG_DIR"]
+                    self.assertEqual(list(env), ["CLAUDE_CONFIG_DIR"])
+                    self.assertEqual(os.readlink(os.path.join(config, "skills", "cua-driver")), skill)
+                    # The subscription's login, linked; an API key needs none.
+                    expected = ["skills"] + ([".credentials.json"] if harness == "claude" else [])
+                    self.assertEqual(sorted(os.listdir(config)), sorted(expected))
+                home, env = homes["codex"]
+                self.assertEqual(env, {"HOME": home, "CODEX_HOME": os.path.join(user, ".codex")})
+                self.assertEqual(os.readlink(os.path.join(home, ".agents", "skills", "cua-driver")), skill)
+                self.assertEqual(os.listdir(home), [".agents"])
+            finally:
+                for home, _ in homes.values():
+                    shutil.rmtree(home)
+            self.assertEqual(os.listdir(skill), [])
+
+    def test_a_results_directory_keeps_one_backend_and_prompt(self):
+        parser = argparse.ArgumentParser()
+        parser.error = lambda message: (_ for _ in ()).throw(ValueError(message))
+        config = {"commit": "c", "task": "forgejo", "variant": None, "display": "1920x1080@1"}
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "codex-gpt-1"))
+            open(os.path.join(out, "codex-gpt-1", "summary.json"), "w").close()
+            # A source.json from before the options: its runs were hyprmasq's, with the task's prompt.
+            with open(os.path.join(out, "source.json"), "w") as f:
+                json.dump(config, f)
+            run.check_resume(out, {**config, "backend": "hyprmasq", "prompt": "task"}, parser, [])
+            for change in ({"backend": "cua"}, {"prompt": "comparison"}):
+                with self.assertRaisesRegex(ValueError, f"another {list(change)[0]}"):
+                    run.check_resume(out, {**config, "backend": "hyprmasq", "prompt": "task", **change}, parser, [])
+            with open(os.path.join(out, "source.json"), "w") as f:
+                json.dump({**config, "backend": "cua", "prompt": "comparison"}, f)
+            run.check_resume(out, {**config, "backend": "cua", "prompt": "comparison"}, parser, [])
+            with self.assertRaisesRegex(ValueError, "another backend"):
+                run.check_resume(out, {**config, "backend": "hyprmasq", "prompt": "comparison"}, parser, [])
+            with self.assertRaisesRegex(ValueError, "another browser"):
+                run.check_resume(out, {**config, "backend": "cua", "prompt": "comparison", "browser": "chromium"},
+                                 parser, [])
+
+    def test_chromium_stands_in_for_firefox_only_in_the_tasks_that_list_it_and_the_prompt_names_it(self):
+        parser = argparse.ArgumentParser()
+        parser.error = lambda message: (_ for _ in ()).throw(ValueError(message))
+        for task, variant in (("board", "dnd"), ("trace", "rack"), ("calc", None)):
+            run.check_task(task, variant, parser, "comparison", "chromium")
+        for task, variant in (("form", "25"), ("forgejo", None), ("thunderbird", None)):
+            with self.assertRaisesRegex(ValueError, f"task {task} has no browser chromium"):
+                run.check_task(task, variant, parser, "comparison", "chromium")
+        with open(run.task_file(os.path.join(run.BENCH, "tasks", "board"), "dnd", "prompt-comparison.md")) as f:
+            text = f.read()
+        self.assertIn("Firefox", text)
+        prompt = run.task_prompt("codex", "cua", text, "chromium")
+        self.assertNotIn("Firefox", prompt)
+        self.assertIn("Her browser, Chromium, is already running.", prompt)
+        self.assertEqual(run.task_prompt("codex", "hyprmasq", text), text)
+
+    def test_every_task_and_variant_has_a_tool_neutral_comparison_prompt(self):
+        parser = argparse.ArgumentParser()
+        parser.error = lambda message: (_ for _ in ()).throw(AssertionError(message))
+        tasks = sorted(t for t in os.listdir(os.path.join(run.BENCH, "tasks"))
+                       if os.path.isdir(os.path.join(run.BENCH, "tasks", t)))
+        for task in tasks:
+            for variant in run.task_variants(task)[0] or [None]:
+                run.check_task(task, variant, parser, "comparison")
+                path = run.task_file(os.path.join(run.BENCH, "tasks", task), variant, run.PROMPTS["comparison"])
+                with open(path) as f:
+                    text = f.read()
+                self.assertNotIn("hyprmasq", text, path)
+                self.assertIn("only through your desktop tools", text, path)
+                self.assertIn("She has authorized foreground input and focus changes on this desktop if your tools "
+                              "need them, but prefer ways that leave her window alone.", text, path)
+
+
+class ExportBackends(unittest.TestCase):
+    def test_a_dataset_holds_one_backend_prompt_and_browser_of_each_task(self):
+        with tempfile.TemporaryDirectory() as root:
+            def results(name, **source):
+                path = os.path.join(root, name)
+                os.makedirs(path)
+                with open(os.path.join(path, "source.json"), "w") as f:
+                    json.dump({"commit": "c", "dirty": False, "task": "form", "variant": "25",
+                               "display": "1920x1080@1", **source}, f)
+                return path
+            old, cua = results("old"), results("cua", backend="cua", prompt="comparison")
+            chromium = results("chromium", backend="cua", prompt="comparison", browser="chromium")
+            self.assertEqual([(s["backend"], s["prompt"], s["browser"]) for s in export.export([old], {})["sources"]],
+                             [("hyprmasq", "task", "firefox")])
+            for other in (cua, chromium):
+                with self.assertRaisesRegex(SystemExit, "backends, prompts or browsers of form"):
+                    export.export([old if other is cua else cua, other], {})
+
+
 class ExportAgents(unittest.TestCase):
     def test_agent_patterns_pick_the_runs_of_a_dataset(self):
         def record(harness, model, effort):

@@ -19,10 +19,15 @@ def prepare():
         f"certutil -N -d sql:{PROFILE} --empty-password && "
         f"certutil -A -n 'hyprmasq bench test CA' -t 'C,,' -i {TB_ETC}/ca.pem -d sql:{PROFILE}"
     )
-    # The user started Thunderbird earlier on a workspace of its own, which is not the visible one.
-    address = alice(
-        f"{ipc} hyprmasq-launch --workspace mail --timeout 180 -- thunderbird --profile {PROFILE}"
-    ).strip()
+    # The user started Thunderbird earlier on a workspace of its own, which is not the visible one: started like a user
+    # would, on the visible workspace, and moved to the hidden workspace `mail`, as the other tasks start their apps,
+    # whichever the tool. The focus goes back to the user's terminal.
+    alice(f"{client_env} nohup thunderbird --profile {PROFILE} > /tmp/hyprmasq-bench-thunderbird.log 2>&1 &")
+    wait_for("Thunderbird's window", lambda: window(lambda c: c["class"] != "foot") is not None, timeout=180)
+    address = window(lambda c: c["class"] != "foot")["address"]
+    move(address, "mail")
+    terminal = window(lambda c: c["title"] == "user-terminal")["address"]
+    hypr("dispatch " + shlex.quote(f'hl.dsp.focus({{ window = "address:{terminal}" }})'))
 
     # Thunderbird keeps drawing for a while after its window maps: the account setup loads in a tab. Wait
     # until its windows stop changing, so that every run starts from the same screen.

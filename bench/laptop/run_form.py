@@ -2,7 +2,7 @@
 """One questionnaire run on a real Hyprland machine: hyprmasq or Cua Driver, each from its own agent home.
 
     run_form.py --backend cua|hyprmasq --rep N --out DIR [--count 25] [--harness codex|claude] [--model M]
-                [--effort E] [--timeout S] [--no-agent]
+                [--effort E] [--timeout S] [--claude-auth api-key|login] [--no-agent]
 
 Port of bench/tasks/form/setup.py from the NixOS VM to a live Hyprland session, with the same app, items and
 checker from this checkout. See README.md for the agent homes in $BENCH_HOMES, default ~/bench/homes. A foot terminal titled user-terminal stands in for the user's
@@ -52,8 +52,12 @@ SKILL_MENTION = {"cua": "$cua-driver ", "hyprmasq": ""}
 CLAUDE_SKILL = {"cua": "/cua-driver ", "hyprmasq": ""}
 
 
+# The variables that bill Claude Code to an API key: given to Claude Code alone, not to the task's apps.
+API_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_CUSTOM_HEADERS")
+
+
 def session_env():
-    env = dict(os.environ)
+    env = {k: v for k, v in os.environ.items() if k not in API_KEYS}
     out = subprocess.run(["systemctl", "--user", "show-environment"], capture_output=True, text=True).stdout
     for line in out.splitlines():
         key, _, value = line.partition("=")
@@ -181,6 +185,11 @@ def claude_command(backend, model, effort):
             "--allowedTools", f"Skill mcp__{CLAUDE_SERVER[backend]}"]
 
 
+# How Claude Code bills: "api-key", the key and headers the series was started with, or "login", the login in the
+# agent home's .claude, with no API key in its environment.
+CLAUDE_AUTH = "api-key"
+
+
 def run_agent(backend, model, effort, out, timeout, harness="codex"):
     home = f"{HOMES}/{backend}" if harness == "codex" else f"{HOMES}/claude-{backend}"
     env = dict(ENV, HOME=home)
@@ -188,14 +197,15 @@ def run_agent(backend, model, effort, out, timeout, harness="codex"):
         env["CODEX_HOME"] = f"{home}/.codex"
     # Claude Code bills to the API key and headers the series was started with; nothing else of a surrounding
     # agent session.
-    keep = ("CODEX_HOME", "ANTHROPIC_API_KEY", "ANTHROPIC_CUSTOM_HEADERS") if harness == "claude" else ("CODEX_HOME",)
     for key in [k for k in env if k.startswith(("CLAUDE", "CODEX_", "OPENAI_", "ANTHROPIC_", "T3CODE"))]:
-        if key not in keep:
+        if key != "CODEX_HOME":
             del env[key]
     if harness == "claude":
+        if CLAUDE_AUTH == "api-key":
+            env.update({k: os.environ[k] for k in API_KEYS if k in os.environ})
+            if "ANTHROPIC_API_KEY" not in env:
+                raise SystemExit("no ANTHROPIC_API_KEY for Claude Code")
         env.update({"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1", "DISABLE_AUTOUPDATER": "1"})
-        if "ANTHROPIC_API_KEY" not in env:
-            raise SystemExit("no ANTHROPIC_API_KEY for Claude Code")
     workdir = f"{out}/workdir"
     os.makedirs(workdir)
     command = codex_command(backend, model, effort) if harness == "codex" else claude_command(backend, model, effort)
@@ -280,8 +290,12 @@ def main():
     parser.add_argument("--effort", default="medium")
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--harness", choices=["codex", "claude"], default="codex")
+    parser.add_argument("--claude-auth", choices=["api-key", "login"], default="api-key",
+                        help="Claude Code billed to $ANTHROPIC_API_KEY, or to the login in its agent home")
     parser.add_argument("--no-agent", action="store_true")
     args = parser.parse_args()
+    global CLAUDE_AUTH
+    CLAUDE_AUTH = args.claude_auth
     if args.no_dropdowns:
         # The app and check.py read it, through ENV and this process's environment.
         os.environ["HYPRMASQ_FORM_KINDS"] = ENV["HYPRMASQ_FORM_KINDS"] = "checkbox,slider,text"

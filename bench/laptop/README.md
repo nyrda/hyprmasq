@@ -1,6 +1,6 @@
 # Runs on a real Hyprland machine
 
-These scripts ran the [comparisons](../../docs/comparison.md) on a laptop with Omarchy and on a Mac, outside the
+These scripts ran the earlier comparisons on a laptop with Omarchy and on a Mac, outside the
 NixOS VMs of `bench/run.py`. They drive the user's live Hyprland session over SSH, so the machine must be idle,
 unlocked and with its display on, and nobody may use it during a run.
 
@@ -11,7 +11,11 @@ unlocked and with its display on, and nobody may use it during a run.
 - `run_inkscape.py` runs the [Inkscape task](../tasks/inkscape): move the rectangle in its
   [drawing.svg](../tasks/inkscape/drawing.svg) from x=120 to x=122 px and save. The grade reads the saved file with `inkscape --query-all`.
 - `run_files.py` runs the file manager task: in a Nautilus window on a fresh folder, rename `report-draft.txt` to
-  `report-final.txt` and move it into `Archive`. The grade compares every file's contents and place.
+  `report-final.txt` and move it into `Archive`. The grade compares every file's contents and place, and a window
+  of another app fails the run. A dialog of xdg-desktop-portal, such as the folder chooser of Nautilus's Move to…,
+  counts as the file manager's own, and the focus it takes as disturbance. Each run
+  starts a Nautilus process of its own and ends it, so that a drag an agent left unfinished does not carry into the
+  next run, and it stops if Nautilus already runs.
 - `series.sh OUT "backend rep"...` runs several, `RUNNER=run_inkscape.py` for Inkscape and `EXTRA` for options
   such as `--harness claude --model claude-sonnet-5-5`.
 - `analyze.py OUT` writes `OUT/comparison.json`, one entry a run, as [docs/comparison/data](../../docs/comparison/data)
@@ -53,7 +57,9 @@ skill or the user's own setup:
   a link to `~/.cua-driver`.
 - `claude-hyprmasq` and `claude-cua` for Claude Code, made with `HOME=... claude mcp add --scope user`, the
   command each tool documents, and Cua's skill installed in `claude-cua` the same way. Claude Code runs bill to
-  `ANTHROPIC_API_KEY` and `ANTHROPIC_CUSTOM_HEADERS` from the environment `series.sh` starts with.
+  `ANTHROPIC_API_KEY` and `ANTHROPIC_CUSTOM_HEADERS` from the environment `series.sh` starts with, or with
+  `--claude-auth login` to the Claude login in the home's `.claude`, such as a link to `~/.claude/.credentials.json`,
+  with no API key in their environment.
 
 The runners call Codex and Claude Code by their real paths under `~/.local/share/mise/installs`, since mise's
 shims do not work with another `HOME`.

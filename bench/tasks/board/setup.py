@@ -1,9 +1,10 @@
 # The board task's hooks for bench/vm.py, which runs this file in its own namespace before it starts Hyprland.
 #
-# Mara's Firefox shows her guide's figure of the motherboard. It is started like a user would, on the visible
-# workspace, and moved to the hidden workspace `web`, not with hyprmasq's launch. The user stays on workspace 1 with
-# the terminal. With HYPRMASQ_BENCH_WAYLAND_DEBUG set in the driver's environment, Firefox logs its Wayland
-# protocol (WAYLAND_DEBUG=1) to vm-firefox.log, for checks by hand.
+# Mara's browser, Firefox or, with BROWSER chromium, Chromium (vm.py's start_browser), shows her guide's figure of the
+# motherboard. It is started like a user would, on the visible workspace, and moved to the hidden workspace `web`, not
+# with hyprmasq's launch. The user stays on workspace 1 with the terminal. With HYPRMASQ_BENCH_WAYLAND_DEBUG set in
+# the driver's environment, the browser logs its Wayland protocol (WAYLAND_DEBUG=1) to vm-firefox.log or
+# vm-chromium.log, for checks by hand.
 
 HYPRLAND_ENV = "MOZ_ENABLE_WAYLAND=1"
 
@@ -20,23 +21,16 @@ def page_laid_out():
 def prepare():
     machine.wait_for_unit("hyprmasq-bench-guide.service")
     machine.wait_for_open_port(80)
-    alice(f"mkdir -p {PROFILE} && install -m 0644 {ETC}/user.js {PROFILE}/")
-    debug = "WAYLAND_DEBUG=1" if os.environ.get("HYPRMASQ_BENCH_WAYLAND_DEBUG") else ""
-    alice(
-        f"{client_env} {HYPRLAND_ENV} {debug} nohup firefox --profile {PROFILE} {shlex.quote(URL)} "
-        "> /tmp/hyprmasq-bench-firefox.log 2>&1 &"
-    )
-    wait_for("Firefox", lambda: window(lambda c: c["class"] == "firefox") is not None, timeout=120)
-    firefox = window(lambda c: c["class"] == "firefox")["address"]
+    browser = start_browser([URL], PROFILE, f"{ETC}/user.js", HYPRLAND_ENV)
     wait_for("the figure to load", page_laid_out, timeout=120)
-    move(firefox, "web")
+    move(browser, "web")
 
     terminal = window(lambda c: c["title"] == "user-terminal")["address"]
     hypr("dispatch " + shlex.quote(f'hl.dsp.focus({{ window = "address:{terminal}" }})'))
 
     settle("the windows to settle", initial_delay=5, interval=5,
            fields=("address", "title", "workspace", "size"))
-    return firefox
+    return browser
 
 
 def collect():
@@ -46,7 +40,7 @@ def collect():
         (f"{STATE}/board.json", "vm-board.json"),
         (f"{STATE}/places.jsonl", "vm-board-places.jsonl"),
         (f"{STATE}/events.jsonl", "vm-board-events.jsonl"),
-        ("/tmp/hyprmasq-bench-firefox.log", "vm-firefox.log"),
+        (f"/tmp/hyprmasq-bench-{BROWSER}.log", f"vm-{BROWSER}.log"),
     ]:
         fetch(path, name)
     events = check.pop("events")

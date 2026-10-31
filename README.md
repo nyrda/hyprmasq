@@ -139,7 +139,7 @@ only to agents you would trust with your shell. See the
 | [Automation](docs/automation.md) | `hyprctl hyprmasq` commands, waiting, `hyprmasq-input`, `hyprmasq-launch`, configuration, security model, limitations |
 | [Development](docs/development.md) | Building, tests, contributing, source layout |
 | [Benchmarks](docs/benchmarks.md) | How agents are measured with hyprmasq, and benchmark results |
-| [Comparisons](docs/comparison.md) | hyprmasq and Cua Driver on an Omarchy laptop, and Cua Driver and OpenAI's computer use on macOS |
+| [Comparisons](docs/comparison.md) | hyprmasq beside Cua Driver, computer-use-linux and hypruse on the benchmark's tasks |
 
 ## License
 

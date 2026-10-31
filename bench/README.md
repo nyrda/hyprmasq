@@ -12,8 +12,8 @@ thunderbird and trace.
 Run results are in [docs/benchmarks.md](../docs/benchmarks.md). `export.py` turns results directories into the
 datasets that page is generated from, and `render.py` draws its figures and tables; see
 [Updating the results](#updating-the-results). `render.py` draws
-[docs/comparison.md](../docs/comparison.md) as well, from the runs in `docs/comparison/data` that
-[laptop/analyze.py](laptop/README.md) writes.
+[docs/comparison.md](../docs/comparison.md) as well, from the datasets in `docs/comparison/data` that `export.py`
+writes of the other backends' runs.
 
 ## Updating the results
 
@@ -28,7 +28,9 @@ python3 bench/export.py --out docs/benchmarks/data/next-run.json \
 ```
 
 `--fail` counts a run as failed although the VM's check passed it, and records the reason. Each run records its task's
-variant, and its `context` as `summary.json` has it (see [Measures](#measures)). `--several-machines` takes runs that `bench/dispatch.py` spread over several machines into one dataset, each
+variant, its `backend`, `prompt` and `browser` (see [Cua Driver](#cua-driver)), the tool's `refusals`, and its `context`
+as `summary.json` has it (see [Measures](#measures)). A Cua run's `act_s` is `null`: it has no act calls. A dataset
+holds one backend, one prompt and one browser of each task. `--several-machines` takes runs that `bench/dispatch.py` spread over several machines into one dataset, each
 run with its CPU. `--agent PATTERN` keeps only the runs of the agents that match, as `dispatch.py`'s `agents=`
 takes them, such as `'*:*@medium'`, so that one results directory gives several datasets. `python3 bench/render.py` generates each block of `docs/benchmarks.md` and `docs/comparison.md`
 between `<!-- render DATASET VIEW [TASK] -->` and `<!-- /render -->` from a dataset. Where a block's data holds
@@ -73,14 +75,19 @@ python3 bench/run.py --task board --variant pointer     # a task's variant: one 
 python3 bench/run.py --task form --variant 10           # a quick probe: 10 questions instead of the default 25
 python3 bench/run.py --task form --variant 25-no-dropdowns  # the form without dropdowns
 python3 bench/run.py --rep 2 --rep 3                    # only these repetitions, instead of --reps
+python3 bench/run.py --prompt comparison                # the tool-neutral prompt of a comparison
+python3 bench/run.py --backend cua --prompt comparison --source ../hyprmasq-0.56  # Cua Driver instead of hyprmasq
+python3 bench/run.py --backend hypruse --prompt comparison  # hypruse, or computer-use-linux, instead of hyprmasq
+python3 bench/run.py --task board --browser chromium    # Chromium as the user's browser instead of Firefox
 python3 bench/report.py bench/results/my-run            # the report again
 ```
 
 `--source DIR` builds the plugin, `hyprmasq-mcp` and the NixOS module from another checkout, for example a
 feature branch's worktree, so that a branch can be benchmarked without the benchmark in it. The plugin is
 built from the files Git tracks there, as in a flake build. `source.json` in the results records its commit,
-the task, its variant and the display; `run.py` refuses to add runs to a directory whose finished runs had another
-of them.
+the task, its variant, the display, the backend and the prompt, and `run.py` refuses to add runs to a directory
+whose finished runs had another of them. A `source.json` from before the backend and the prompt counts as hyprmasq's with
+the task's own prompt.
 
 `--variant NAME` picks one of a task's variants, which `tasks/TASK/variants` lists, one a line. A task with that
 file needs it, unless a line there is `NAME default`, which it then takes; others refuse it. A variant's directory,
@@ -124,6 +131,134 @@ It needs KVM, Nix, and the harnesses of the agents logged in for the user who ru
 are, subscriptions included, and copies no credentials. A run takes the VM's boot (about a minute), the
 agent, and the debrief; runs are sequential, so that they do not compete for the CPU. `dispatch.py` runs several at
 once, each VM on cores of its own.
+
+`--prompt comparison` gives the agent the task's `prompt-comparison.md` instead of its `prompt.md`, the wording of
+the [comparisons](../docs/comparison.md) for every tool: the agent sees and controls the desktop only through its
+desktop tools, and the user, working in another window, has authorized foreground input and focus changes if the
+tools need them, but prefers ways that leave their window alone. The task's own prompt, which names hyprmasq and asks
+not to disturb the user, stays the default, so that runs such as the 0.57.0 baseline can be repeated. `run.json` and
+`source.json` record the prompt as `prompt`, `task` or `comparison`.
+
+`--browser chromium` gives the user Chromium in place of Firefox in the tasks with a browser of the user's that list it
+in `tasks/TASK/browsers`: board, trace and calc. It shows the same page, from the same server, in a window of the same
+size on the same workspace, with a profile of its own (`~/.config/chromium-mara`) and the Forgejo task's policies
+against first-run screens, sign-in and promotions ([tasks/browser.nix](tasks/browser.nix)), on Wayland, and with
+`--force-renderer-accessibility` for Cua, as its browser guide asks. `vm.py`'s `start_browser` starts either browser.
+The prompt and the debrief name Chromium where the task's text names Firefox. The checks are the same: the pages save
+their state on their server, and calc reads Mara's tabs from Chromium's session file instead of Firefox's. Firefox
+stays the default, and hyprmasq, which works with any browser, keeps it. `run.json` and `source.json` record the
+browser as `browser`, and `run.py` refuses to mix browsers in one results directory.
+
+### Cua Driver
+
+`--backend cua` runs the task with [Cua Driver](https://github.com/trycua/cua) in place of hyprmasq, set up as its
+documentation sets it up on Linux and Hyprland, for comparing the two on the whole suite. The task, its VM, its
+grading and the measures are the same: only the desktop tool differs.
+
+- **Release:** Cua Driver 0.38.0, the newest non-nightly release of `cua-driver-rs`, from the release tag's source,
+  unchanged ([cua/default.nix](cua/default.nix)). The driver is built by Cua's own Nix package with the features of
+  its Linux release binary (`portal-input`), the Hyprland plugin with CMake as its README builds it, with
+  `-DCUA_HYPRLAND_INPUT=ON` as its release build kit and Omarchy's package build it, against the VM's Hyprland and
+  with Hyprland's compiler, and its CTest suite passes.
+- **Hyprland 0.56.2:** the plugin's input build refuses any other Hyprland, and its driver sees no window of
+  Hyprland 0.57.0, whose `j/monitors` leaves out a workspace's `id`. So the Cua backend runs with `--source` at a
+  checkout of the `hyprland-0.56` branch, which gives the VM Hyprland 0.56.2. A comparison runs hyprmasq from the
+  same checkout. `default.nix` refuses the Cua backend on another Hyprland.
+- **Plugin:** loaded and enabled as its README says: `hyprctl plugin load`, then
+  `hl.config({plugin = {cua = {enabled = true}}})` in the configuration and `hyprctl reload`. `vm.py` waits for
+  `hyprctl -j cua:status` to report its input transport ready, and `ready.json` keeps that status as `cua_status`.
+- **Server:** `cua-driver mcp`, served on the vsock port as `hyprmasq-mcp` is, with `CUA_DRIVER_RS_ENABLE_WAYLAND=1`
+  (its skill's `LINUX.md`), the session's variables, and `CUA_DRIVER_RS_TELEMETRY_ENABLED=false`, as the VM is
+  offline (its guide's Telemetry). It runs in Cua's default `standard` permission mode. The agent knows the server as
+  `cua-driver`, the name in Cua's table of harnesses.
+- **Skill:** the skill pack as `cua-driver skills install` installs it on Linux, the release's `Skills/cua-driver`
+  without the other platforms' guides, in an agent home of the run's own, and named at the start of the prompt, as
+  the [laptop's runs](laptop/README.md) did. Claude Code gets `CLAUDE_CONFIG_DIR` with `skills/cua-driver`, its Skill
+  tool beside the server's tools, `--setting-sources user`, which in that fresh home holds the skill alone, and
+  `/cua-driver ` before the prompt. Codex gets a `HOME` with `.agents/skills/cua-driver`, its skills listed, and
+  `$cua-driver ` before the prompt, with `CODEX_HOME` the user's for the login and the sessions. The debrief names
+  Cua Driver where it named hyprmasq. pi does not run with Cua, whose documentation has pi call its CLI.
+- **Forgejo:** Cua's browser tools attach to the user's own browser with `cua-driver mcp --grant existing-profile`,
+  and on Linux ask for the browser to be started with `--force-renderer-accessibility` (its guide's Attach to a
+  logged-in profile). The Forgejo task's Cua runs get both. Cua's `browser_prepare` turns on Chromium's remote
+  debugging itself, through `chrome://inspect`, and nothing in the VM does it for it.
+- **Apps:** no app is in the input plugin's qualification, which admits only Arch's exact `libreoffice-fresh` and
+  `inkscape` packages, checked in the pacman database. On NixOS every app's background raw input is refused with
+  `client_not_qualified`, Cua's behaviour on a system other than Arch: its accessibility actions and its foreground
+  input remain. `report.py` counts the refusals.
+- **Firefox:** Cua refuses every raw action to Firefox on Hyprland: in the background with `client_not_qualified`, and
+  in the foreground with `foreground_primary_binding`, as Firefox binds the user's seat more than once, which the
+  plugin refuses (`unique_primary_seat` in its `input_experiment.cpp`). Its browser tools take Chromium only
+  (`guides/browsers.mdx`), and their `browser_prepare` refuses on Hyprland with `browser_wrong_target_refused`, as it
+  attaches through a GNOME Shell helper there. So Cua cannot do the board, trace and calc tasks in Firefox, and a
+  comparison runs them for Cua with `--browser chromium`, where its foreground pointer input works. In Chromium:
+  - Board's pointer variant: foreground drags place the labels where aimed.
+  - Board's dnd variant: a foreground drag starts the page's drag-and-drop and is then refused with
+    `foreground_dnd`, as the plugin refuses input while a drag-and-drop is active, so no label moves.
+  - Trace: each foreground `drag` draws a straight stroke. Cua has no path of several points on Hyprland:
+    `mouse_button_down` and `mouse_drag` are X11's and do not run in `run_steps`, and Shift and a click is refused
+    with `modified clicks are unsupported`, so a curve is straight segments.
+  - Background input is refused with `client_not_qualified`, as in every app.
+
+`bench/cua/probe.py CID DIR` checks a VM of the Cua backend that `smoke.sh` booted, without an agent: it reads each
+window but the user's terminal with `get_window_state` and writes how many accessibility elements and what screenshot
+each had to `DIR/probe.json`.
+
+### hypruse and computer-use-linux
+
+`--backend hypruse` and `--backend computer-use-linux` run the task with one of two Linux computer-use MCP servers that
+claim Hyprland support, in place of hyprmasq, each set up as its own documentation sets it up on Hyprland, for a
+comparison on the whole suite with `--prompt comparison`. Both run on the suite's Hyprland 0.57.0, as released and
+without hyprmasq's plugin or any other, and keep their defaults. The task, its VM, its grading, the timeouts (the
+agent's, and 600 s a tool call) and the agent's isolation are the same as for the other backends: no shell, and the
+tool's MCP server alone, behind `mcp_tap.py` on the vsock port. The tables list each aspect of the setup, what the
+tool's documentation says, and what the suite does, with every difference and its reason.
+
+[hypruse](https://github.com/IlyasKhallouki/hypruse) ([hypruse/default.nix](hypruse/default.nix)):
+
+| Aspect | Its documentation | The suite | Difference and why |
+| --- | --- | --- | --- |
+| Release | PyPI `hypruse`, run with `uvx hypruse` | 0.13.0, the newest, from its PyPI sdist (SHA-256 `321362…e114b`), unchanged, built with nixpkgs' Python 3.14 and `mcp` 1.29.0, its 1040 unit tests passing | Nix in place of uv, as the VM is offline. `mcp` is in its range, `>=1.21.1,<2` |
+| Hyprland | 0.54+ for a window's own screenshot, both config managers | 0.57.0 with the Lua configuration. Its `doctor` passes every check | None |
+| Programs | `grim` (1.5+), `wtype`, `busctl`, optional ImageMagick for `marks` and `wl-clipboard` for the opt-in clipboard tool | grim 1.5.0, wtype 0.4, systemd's busctl and ImageMagick with Ghostscript on its PATH | ImageMagick's build with Ghostscript, whose fonts draw the marks' numbers, which the build without cannot. No wl-clipboard, as the clipboard tool is off by default |
+| libxkbcommon | Found with `ctypes.util.find_library`, through ldconfig on other distributions | The wrapper gives `LD_LIBRARY_PATH` and `ld`, with which Python finds it on NixOS | NixOS has no ldconfig cache. Without it, keys to a hidden window are refused |
+| Server | `claude mcp add -s user hypruse -- uvx hypruse`, a stdio server named `hypruse` | `hypruse` on the vsock port, named `hypruse` for the agent, with the session's variables | None |
+| Screenshots | `HYPRUSE_SCREENSHOT_MODE=file` by default, `image` for a client that renders MCP images and cannot read files (its README and `server.json`) | `HYPRUSE_SCREENSHOT_MODE=image` | The default writes the capture in the VM and returns its path, which the agent on the host, without a file reader, could not open |
+| Background mode | Automatic by default: actions on a window other than the user's run in the background, the pointer is refused there unless `background=false` | Automatic, unset | None |
+| Other settings | All opt-in: read-only, confinement, strict, mark, journal, dry run, clipboard. The authentication guard on | Defaults | None |
+| Skill | A skill that teaches its shell verbs, "for agents that run shell commands", installed with `hypruse skill install` | Not given. The server's own instructions reach the agent | The agent has the MCP server and no shell, and the skill's verbs need one |
+| `launch` | Runs a command through a shell, behind the client's approval | Kept, as in its default tool set | hyprmasq's `launch` also starts any program. The tasks' apps are running already |
+| Browser | Firefox exposes its accessibility tree. Chrome without `--force-renderer-accessibility` has none | Firefox, the tasks' default. Forgejo's Chromium, as for every backend, started with `--force-renderer-accessibility`, as for Cua | The user's Chromium gets the flag that its README names, as a user of hypruse would start it. Without it, `ui` finds nothing in Forgejo's window |
+
+[computer-use-linux](https://github.com/agent-sh/computer-use-linux) ([computer-use-linux/default.nix](computer-use-linux/default.nix)):
+
+| Aspect | Its documentation | The suite | Difference and why |
+| --- | --- | --- | --- |
+| Release | `cargo install computer-use-linux`, its plugins, npm or prebuilt binaries | 0.7.32, the newest, its crate from crates.io (SHA-256 `6dafe72d…e985`), unchanged, built as `cargo install` builds it with the crate's `Cargo.lock`, all three binaries in one directory | Nix in place of cargo, as the VM is offline |
+| Hyprland | Window targeting with `hyprctl clients -j` and `hyprctl dispatch` | 0.57.0. Its `doctor` reports no blocker, and the Hyprland backend lists and focuses windows | None |
+| Pointer | The absolute uinput pointer: `/dev/uinput` for the user, through the `input` group, the udev rule its `install.sh` prints, and the module loaded | All three: the rule, alice in `input`, `uinput` loaded at boot | None |
+| Keys | A keyboard-capable RemoteDesktop portal, xdotool on X11, or ydotool 1.0.3+ with `ydotoold` as the user service its `install.sh` writes | ydotool 1.0.4 and that service, unchanged. xdg-desktop-portal-hyprland has no RemoteDesktop portal | alice gets a group of her own number, 1000: the service's `--socket-own=%U:%U` names it, as on the distributions `install.sh` supports, where each user has one, and NixOS's alice is in `users` |
+| Text | `wtype` on Hyprland | wtype 0.4 | None |
+| Screenshots | GNOME Shell, else the XDG Screenshot portal, which may ask for consent on the first capture | xdg-desktop-portal 1.22.1 with xdg-desktop-portal-hyprland 1.4.1 for Screenshot, started with the session's `graphical-session.target`, and the screenshot permission granted in the portal's permission store | The portal asks once, "Allow Apps to Take Screenshots?", and keeps the answer. Here the user has answered yes, as they would have before the agent's first screenshot. Nobody could answer in the VM |
+| Accessibility | AT-SPI on, `toolkit-accessibility` true (`setup`) | The suite's accessibility session, the same for every backend | None |
+| Server | `claude mcp add --scope user computer-use-linux -- computer-use-linux mcp`, the plugins' `computer-use-linux` | `computer-use-linux mcp` on the vsock port, named `computer-use-linux`, with the session's variables, which its Codex plugin forwards | None |
+| Settings | None needed. The indicator on, `run_shell` and the completion cue off | Defaults: the indicator draws on the user's screen | None |
+| Skill | Its Claude Code and Codex plugins ship the skill `computer-use-linux` | The plugin's skill, delivered as Cua's: in an agent home of the run's own, and named at the start of the prompt, `/computer-use-linux` or `$computer-use-linux` | As for Cua, the skill is named in the prompt, which the laptop's Cua runs did |
+| Browser | Its results ask to relaunch Chromium with `--force-renderer-accessibility` when it exposes no tree | Firefox, the tasks' default. Forgejo's Chromium, as for every backend, started with `--force-renderer-accessibility`, as for Cua | The user's Chromium is started as its results ask, which the agent could not do itself |
+
+`ready.json` keeps each tool's own readiness report as `doctor`: the lines of `hypruse doctor`, or the readiness,
+input and windowing of `computer-use-linux doctor`. With computer-use-linux, `vm.py` starts the portal's session and
+grants the screenshot permission before the agent starts, and `vm-user-journal.log` keeps alice's journal, with the
+portal's and ydotoold's logs. pi does not run with either.
+
+Both act with the user's own pointer, at points on the screen. The board and trace attributions take a pointer call's
+window to be the one Hyprland had focused when the call started (`vm-events.log`), and `report.py` counts hypruse's
+refusals by kind (`background`, `auth_guard`, `confinement`, `layer`, `session_locked`, `window_moved`) and
+computer-use-linux's (`not_sent`, `refused`, `focus_unverified`).
+
+`bench/hypruse/probe.py CID DIR` and `bench/computer-use-linux/probe.py CID DIR` check a VM of each backend that
+`smoke.sh` booted, without an agent: the tool lists the task's window on its hidden workspace, reads its screenshot
+and its accessibility tree, and presses Escape in it. They write what each call gave to `DIR/probe.json`.
 
 ### API keys
 
@@ -353,6 +488,15 @@ run without a feature, or tell which result saved it a call, and asked for a los
 what the agents did, before and after it; see
 [how the runs are read](../docs/benchmarks.md#how-the-runs-are-read).
 
+With `--backend cua`, Cua's plugin takes hyprmasq's place in Hyprland and `cua-driver mcp` that of `hyprmasq-mcp`
+(see [Cua Driver](#cua-driver)). With `--backend hypruse` or `computer-use-linux`, Hyprland runs without a plugin and
+the tool's MCP server serves the port (see [hypruse and computer-use-linux](#hypruse-and-computer-use-linux)).
+
+The VM has an accessibility session as a desktop does, whichever the backend: the AT-SPI bus on the user's session
+bus, which Hyprland and every app get in `DBUS_SESSION_BUS_ADDRESS`, and `toolkit-accessibility` on, so that apps
+expose their accessibility tree from their start. hyprmasq reads none of it. `run.json` records it as
+`accessibility`. Runs before it, the 0.57.0 baseline among them, had no accessibility bus.
+
 The VM is offline. Its only connection to the host is vsock, and every server the task needs runs in it. Its
 clock starts at 2026-03-10 09:30 UTC on every boot. Each task fixes its app profiles and starting data so every
 run of that task starts from the same screen.
@@ -367,6 +511,8 @@ any agent session around it (`CLAUDE*`, `CODEX*`, `T3CODE*`, …).
   `CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` and `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.
 - Codex: `--ignore-user-config --ignore-rules`, the shell, computer use, browser, apps, plugins, multi-agent,
   image generation, memories and web search disabled, a read-only sandbox, and only the tap as MCP server.
+- With Cua or computer-use-linux, Claude Code and Codex get its skill in an agent home of the run's own instead, as
+  [Cua Driver](#cua-driver) describes.
 - pi: an agent directory of the run's own (`PI_CODING_AGENT_DIR`), with links to the user's `auth.json` and
   `models.json` and nothing else of theirs: an `mcp.json` with only the tap, its tools declared to the model
   directly (`exposure: direct`, without codemode), and a `settings.json` that trusts no project. So none of the
@@ -425,9 +571,10 @@ the run's directory after the debrief, and pi's MCP log, if it wrote one, to `pi
 | `tool_seconds` | The union of the tool calls' intervals in the MCP log: time spent in hyprmasq, the vsock and the VM. |
 | `outside_tool_seconds` | The rest: the model's reasoning and output, and the harness. |
 | `first_call_seconds`, `longest_gap_seconds`, `median_gap_seconds` | Time before the first call, and the longest and the median stretch between calls: the model's and the harness's time per step. |
-| `calls`, `by_tool`, `actions` | Tool calls by tool, and the actions of all `act` calls. |
+| `calls`, `by_tool`, `actions` | Tool calls by tool, and the actions of all `act` calls, or Cua's action calls and the steps of its `run_steps`. |
 | `images`, `image_kib` | Images in results, and their size. |
 | `no_change`, `errors` | Results whose summary says `no change`, and tool errors. |
+| `refusals` | The tool's refusals by code or kind, such as Cua's `client_not_qualified` or `foreground_grab`, or hypruse's `background`: how many calls turned each up. |
 | `phases` | The task's milestones from the VM's state, in seconds after the agent's start, such as `account verified` and `reply sent` for Thunderbird. |
 | `checks` | The checker's details, such as the user's notes for the Forgejo task. |
 | `user` | From Hyprland's events in the VM: windows that opened on the user's visible workspace, the seconds the keyboard focus was away from the user's window, and switches of the visible workspace. `undisturbed` when there were none. |
@@ -468,14 +615,14 @@ partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 | File | Contents |
 | --- | --- |
 | `summary.json` | The measures above. |
-| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. The CPUs the VM ran on (`cpus`, `null` for any) and, for a dispatched run, its slot and the limits it waited for (`dispatch`). The effort asked for and the one the harness ran at (see [Effort](#effort)). For Claude Code, the credentials its init events named; for pi, the thinking level. |
+| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. The CPUs the VM ran on (`cpus`, `null` for any) and, for a dispatched run, its slot and the limits it waited for (`dispatch`). The effort asked for and the one the harness ran at (see [Effort](#effort)). For Claude Code, the credentials its init events named; for pi, the thinking level. The `backend`, the `prompt`, the accessibility session (`accessibility`), and `timeouts`: the seconds the agent and one tool call may take, the same for both backends (600 s a tool call, for every harness). |
 | `agent.jsonl`, `agent.stderr` | The agent's event stream, timestamped. |
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |
-| `start-*.png`, `end-*.png` | Screenshots of every window and of the screen. |
+| `start-*.png`, `end-*.png` | Screenshots of the screen, and with hyprmasq of every window. |
 | `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json`, `vm-form-state.json`, `drawing.svg`, `vm-trace-strokes.json`, `vm-files-watch.jsonl` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board), the questionnaire's answers, submissions and changes (form), the drawing as saved (inkscape), the drawing (trace), the folder at each change (files). |
 | `vm-events.log` | Hyprland's events (`socket2`), each with the VM's time. |
-| `vm-*.log`, `vm-*.jsonl` | Hyprland, hyprmasq-mcp, socat, and the task's servers and apps, such as the intranet's requests and the watch of the sheet (Calc), or the page's events and saves (board, trace). |
+| `vm-*.log`, `vm-*.jsonl` | Hyprland, the MCP server, socat, and the task's servers and apps, such as the browser (`vm-firefox.log` or `vm-chromium.log`), such as the intranet's requests and the watch of the sheet (Calc), or the page's events and saves (board, trace). |
 | `attribution.json` | Board and trace: who each drag's or stroke's outcome is due to, written by the task's `attribute.py`. |
 | `debrief-prompt.md`, `debrief.md`, `debrief.jsonl` | The debrief. |
 | `transcript-*.jsonl` | The harness's own transcript of the session. |
@@ -509,8 +656,9 @@ answer, room 4.12, is in the facilities mail of week 11. The facilities mail of 
 - `check.py`: passes when exactly one message was sent, to Jonas alone, from Mara, with `In-Reply-To` set to
   his question's Message-ID, a `Re:` subject, and 4.12 in the text above the quote. It also reports the copy
   in Sent and other rooms named.
-- `setup.py`: the profile, Thunderbird's launch with `hyprmasq-launch`, and the collection of the grade and
-  the phase events.
+- `setup.py`: the profile, Thunderbird's launch, started like a user would on the visible workspace and moved to
+  `mail`, as the other tasks start their apps, and the collection of the grade and the phase events. Runs before
+  the [Cua backend](#cua-driver) started it with `hyprmasq-launch`.
 - `prompt.md`, `debrief.md`: what the agent is told.
 
 ### forgejo
@@ -544,7 +692,8 @@ The user's own Firefox 157 shows five reports of the company intranet as tabs, a
 Mara's sheet `~/Documents/Office revenue Q4 2025.ods` open: one row per office, the months as columns, and a
 summary. Both apps are started like a user would, on the visible workspace, and moved to hidden ones: side by
 side on `work` when the monitor is 2560 logical pixels wide or more, below that Firefox on `web` and Calc on
-`calc`. The user stays on workspace 1 with the terminal. The prompt asks the agent to enter each office's
+`calc`. The user stays on workspace 1 with the terminal. With `--browser chromium`, Chromium shows the tabs instead.
+The prompt asks the agent to enter each office's
 revenue for October to December, to fill in the Q4 totals, the "All offices" row, the average per office and
 month and the growth from October to December as formulas, to save the sheet, and to leave Mara's tabs open on
 their reports.
@@ -580,13 +729,14 @@ Calc does not get it: its External Data import (Sheet ▸ External Links) of a r
   numbers; holds formulas for the Q4 totals, the "All offices" row, the average and the growth that read every
   figure their result comes from, directly or through the other totals, with the results that the sheet's own
   figures give, so that a wrong figure is one failure; keeps Mara's labels and note, and has no content outside
-  its layout and no other sheet; Mara's five tabs are open on their pages, from Firefox's session
-  file; and no other file in Mara's home, hidden ones aside, was added, removed or changed. A failure names the
+  its layout and no other sheet; Mara's five tabs are open on their pages, from the session file of Firefox or, with
+  `--browser chromium`, of Chromium (its commands of the tabs' navigations, selected pages and closings); and no
+  other file in Mara's home, hidden ones aside, was added, removed or changed. A failure names the
   cell, what it holds and, for a trap, which one: `B10 (Vienna, October) is 112.4, in EUR thousands as the
   report gives it; expected 112400`. It also reports requests without Mara's session, such as Calc's, and when
   Stockholm's page 2 and Lisbon's older updates were loaded.
 - `check_test.py`, `check-test.nix`: `nix-build bench/tasks/calc/check-test.nix` fills Mara's sheet through UNO
-  in a headless LibreOffice in 28 ways, a right one and ones wrong in each way above, saves it, and checks each
+  in a headless LibreOffice in 33 ways, a right one and ones wrong in each way above, saves it, and checks each
   verdict and its failures.
 - `setup.py`: the profiles, the two windows and their workspaces, a window rule that ignores Calc's request to be
   maximized, as Hyprland's example configuration does for every app, the watch, the list of Mara's files to
@@ -599,7 +749,8 @@ Mara is writing a guide to building a PC. Her Firefox 157 shows the guide's figu
 micro-ATX server board on a blue mat with a RAM module, a USB stick, an AA battery, thermal paste and tweezers around
 it, and a tray of nine labels: CPU socket, Memory slots, 24-pin ATX power, CPU power headers, SATA ports, First PCIe
 slot, USB 3.0 header, BMC chip and M.2 slots. Firefox is started like a user would, on the visible workspace, and
-moved to the hidden workspace `web`; the user stays on workspace 1 with the terminal. The prompt asks the agent to put
+moved to the hidden workspace `web`; the user stays on workspace 1 with the terminal. With `--browser chromium`,
+Chromium shows the figure instead (see [Running](#running)). The prompt asks the agent to put
 each label on its part of the board. It names no tools and gives no coordinates.
 
 The task exercises what the others do not: drags, and a target that only the image shows. Parts of the board look
@@ -692,7 +843,7 @@ slider.
 
 A variant that ends in `-no-dropdowns`, `25-no-dropdowns` in GTK 4 and `qt-25-no-dropdowns` in Qt, asks no
 dropdowns: the first 25 of the 30 checkboxes, sliders and texts, in the same order and numbered from 1. That is the
-form without dropdowns of [docs/comparison.md](../docs/comparison.md), which `bench/laptop` runs with
+form without dropdowns of the earlier comparison on a laptop, which `bench/laptop` runs with
 `--no-dropdowns`: the same questions and the same grade, so the VM's runs and the comparison's measure the same
 questionnaire. The prompt is the task's own, which, like the comparison's, does not name the kinds of question.
 `vm.nix` names the kinds, `checkbox,slider,text`, and `setup.py` gives them to the app and to `check.py` in
@@ -763,7 +914,8 @@ SIGUSR1. The engine does not inherit the state's file descriptor.
 Mara is writing a blog post and marks up its figure, a photo, with a brush in her Firefox 157: the prompt asks the
 agent to draw a line along a line of the photo, and nothing else. It names no tools and gives no coordinates. Firefox
 is started like a user would, on the visible workspace, and moved to the hidden workspace `web`. The user stays on
-workspace 1 with the terminal. The task's variants are the figures, each a directory with its photo, the line to
+workspace 1 with the terminal. With `--browser chromium`, Chromium shows the figure instead. The task's variants are
+the figures, each a directory with its photo, the line to
 trace (`track.json`), the page's texts (`figure.json`) and its prompt (`prompt.md`):
 
 - `river`, the default: a river from above, where it bends through a gorge, 731×600 pixels. The agent draws along
@@ -851,7 +1003,7 @@ stays within a tenth of a photo pixel of the pointer's path.
 ### files
 
 Mara's folder `Project` in Nautilus 50.2.2, GNOME's file manager, on the hidden workspace `files`. It is the file
-manager task of [docs/comparison.md](../docs/comparison.md#file-manager), which [laptop/run_files.py](laptop/run_files.py)
+manager task of the earlier comparison on a laptop, which [laptop/run_files.py](laptop/run_files.py)
 runs on a real machine in Nautilus 50.3.1, Omarchy's, with the same folder, prompt and grade. Nautilus is started like
 a user would, on the visible workspace, and moved there. The user stays on workspace 1 with the terminal. The prompt
 asks the agent to rename `report-draft.txt` to `report-final.txt` and move it into the folder `Archive`, leaving every
@@ -890,8 +1042,8 @@ y=120, on a 640×480 page. Inkscape is started like a user would, on the visible
 workspace `drawing`. The user stays on workspace 1 with the terminal. The prompt asks the agent to move the rectangle
 exactly 2 px to the right, to x=122, and to save the drawing with Ctrl+S.
 
-It is the task that [bench/laptop/run_inkscape.py](laptop/README.md) runs on a real machine for
-[docs/comparison.md](../docs/comparison.md), with the same drawing and the same task in the prompt, so that the VM's
+It is the task that [bench/laptop/run_inkscape.py](laptop/README.md) runs on a real machine for the earlier
+comparison on a laptop, with the same drawing and the same task in the prompt, so that the VM's
 runs compare with the laptop's. Its first paragraph is the one of the other VM tasks: the agent has the hyprmasq tools
 and must not disturb the user, where the laptop's allowed foreground input and focus changes, which Cua Driver needs. The laptop had Arch's Inkscape 1.4.4 as well. The grade is the laptop's, the rectangle's
 geometry as saved and no other app's window, and checks besides that the file was saved and that nothing else of the
@@ -925,7 +1077,9 @@ nudge by keyboard, and a save that only the file shows.
 ## Adding a task
 
 A task is a directory under `tasks/` with a NixOS module (`vm.nix`, which `default.nix` imports for the task
-it is given), a `setup.py` for `vm.py`, a `prompt.md` and a `debrief.md`, and, if it comes in variants, a `variants`
+it is given), a `setup.py` for `vm.py`, a `prompt.md`, a `prompt-comparison.md`, its tool-neutral wording for
+`--prompt comparison`, and a `debrief.md`, a `browsers` file if it takes Chromium in place of Firefox
+(`--browser`), and, if it comes in variants, a `variants`
 file, in which a line `NAME default` names the variant a run takes without `--variant`. `setup.py` defines `prepare()`,
 which returns the address of the agent's window, and `collect()`, which returns `check` with `passed` and
 `failures` and `events` with VM times that `report.metrics()` turns into milestones. It may define

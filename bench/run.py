@@ -2,14 +2,19 @@
 """Runs a benchmark task: one fresh VM per run, an agent on the host, grading, and a debrief.
 
     run.py [--agent HARNESS:MODEL[@EFFORT]]... [--reps N | --rep N...] [--out DIR] [--timeout SECONDS] [--cid CID]
-           [--cpus LIST] [--lock FILE] [--no-debrief]
+           [--cpus LIST] [--lock FILE] [--no-debrief] [--backend hyprmasq|cua|hypruse|computer-use-linux]
+           [--prompt task|comparison]
+           [--browser firefox|chromium]
 
 HARNESS is claude (Claude Code) or codex (Codex CLI), which use the logins of the user running this; claude-api
 (Claude Code billed to the user's Anthropic API key); or pi, with MODEL as PROVIDER/MODEL of the user's pi setup.
 EFFORT is the reasoning effort the harness runs the model at, one of the harness's levels in EFFORTS; without it,
 the harness's default. Each run gets RESULTS/<harness>-<model>[-<effort>]-<rep>/, with any / in the model as _,
 holding the agent's event stream, the MCP log, screenshots, the VM's logs, the grade, the debrief and summary.json.
-RESULTS/report.md compares the runs.
+RESULTS/report.md compares the runs. --backend gives the agent another desktop tool in place of hyprmasq, set up as its
+documentation sets it up: cua, Cua Driver with its skill; hypruse; or computer-use-linux with its skill. --prompt
+comparison gives the tasks' tool-neutral prompts (prompt-comparison.md), which every backend takes in a comparison.
+--browser chromium gives the user Chromium in place of Firefox in the tasks that list it in tasks/TASK/browsers.
 See bench/README.md.
 """
 
@@ -51,6 +56,38 @@ EFFORTS = {
 # Where claude-api's key and request headers come from when the environment does not give them.
 API_KEY_ENV, API_HEADERS_ENV = "HYPRMASQ_BENCH_ANTHROPIC_API_KEY", "HYPRMASQ_BENCH_ANTHROPIC_HEADERS"
 
+# The desktop tools an agent can get: hyprmasq, or another as its documentation sets it up: Cua Driver (bench/cua),
+# hypruse (bench/hypruse) or computer-use-linux (bench/computer-use-linux).
+BACKENDS = ("hyprmasq", "cua", "hypruse", "computer-use-linux")
+# The MCP server's name each backend has for the agent, as its documentation registers it: Cua's table of harnesses
+# names it cua-driver (docs/content/docs/cua-driver/guides/connect-your-agent.mdx), as the laptop's runs did; hypruse's
+# README `claude mcp add -s user hypruse -- uvx hypruse`; computer-use-linux's README and plugin computer-use-linux.
+SERVER = {"hyprmasq": "hyprmasq", "cua": "cua-driver", "hypruse": "hypruse", "computer-use-linux": "computer-use-linux"}
+# What the debrief calls the tool.
+TOOL_NAME = {"hyprmasq": "hyprmasq", "cua": "Cua Driver", "hypruse": "hypruse",
+             "computer-use-linux": "computer-use-linux"}
+# The backends whose agent skill the agent gets, the skill's name, and the Nix file under bench that builds it (its
+# attribute skills). hypruse's skill teaches its shell verbs, to agents that run commands instead of MCP, and an agent
+# here has its MCP server and no shell.
+SKILLS = {"cua": ("cua-driver", "cua"), "computer-use-linux": ("computer-use-linux", "computer-use-linux")}
+# The prompts of a task: its own, prompt.md, which names hyprmasq and asks not to disturb the user, or the
+# tool-neutral one of a comparison, prompt-comparison.md, with the laptop's wording: the user has authorized foreground
+# input and focus changes if the tools need them, and prefers ways that leave their window alone.
+PROMPTS = {"task": "prompt.md", "comparison": "prompt-comparison.md"}
+# The user's browser in the tasks that have one: Firefox, the default, or Chromium, for a tool that refuses Firefox, as
+# Cua Driver does every raw action to it on Hyprland. A task lists the browsers it takes in tasks/TASK/browsers.
+BROWSERS = ("firefox", "chromium")
+# How long one tool call may take, in seconds, for every harness and backend: Codex's tool_timeout_sec, Claude Code's
+# MCP_TOOL_TIMEOUT and pi's MCP timeout.
+TOOL_TIMEOUT = 600
+# How the agent is told to use the backend's skill at the start of the prompt, as the laptop's runs did with Cua's:
+# Codex injects an installed skill's SKILL.md when the prompt names it, and Claude Code runs a skill named as a slash
+# command.
+SKILL_MENTION = {"codex": "${skill} ", "claude": "/{skill} "}
+# pi runs only with hyprmasq: Cua documents pi with its CLI and computer-use-linux with pi's native tools, not their MCP
+# servers, and the comparisons run Claude Code and Codex.
+PI_ONLY_HYPRMASQ = "pi runs only with hyprmasq: the comparisons with other tools run Claude Code and Codex"
+
 # Codex features that would give the agent tools besides hyprmasq's, or load the user's own setup.
 CODEX_DISABLED = [
     "shell_tool", "unified_exec", "hooks", "computer_use", "browser_use", "browser_use_external", "in_app_browser",
@@ -59,14 +96,25 @@ CODEX_DISABLED = [
 ]
 
 
-def build_driver(out, source, task, variant, display):
+def build_driver(out, source, task, variant, display, backend="hyprmasq", browser="firefox"):
+    """Builds the VM's test driver into OUT/driver, and with a backend that has a skill (SKILLS) the skill into
+    OUT/BACKEND-skill."""
     link = os.path.join(out, "driver")
     command = ["nix-build", os.path.join(BENCH, "default.nix"), "-A", "driver", "-o", link, "--argstr", "task", task,
-               "--argstr", "variant", variant or "", "--argstr", "display", display]
+               "--argstr", "variant", variant or "", "--argstr", "display", display, "--argstr", "backend", backend,
+               "--argstr", "browser", browser]
     if source:
         command += ["--arg", "source", source]
     subprocess.run(command, check=True, stdout=subprocess.DEVNULL, env=without_api_keys(os.environ))
+    if backend in SKILLS:
+        subprocess.run(["nix-build", os.path.join(BENCH, SKILLS[backend][1]), "-A", "skills", "-o",
+                        skill_link(out, backend)], check=True, stdout=subprocess.DEVNULL,
+                       env=without_api_keys(os.environ))
     return link
+
+
+def skill_link(out, backend="cua"):
+    return os.path.join(out, f"{backend}-skill")
 
 
 def task_variants(task):
@@ -194,32 +242,43 @@ def tap_command(cid, log):
     return [sys.executable, os.path.join(BENCH, "mcp_tap.py"), str(cid), "5000", log]
 
 
-def claude_command(model, prompt, tap, resume=None, effort=None):
+def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprmasq"):
+    server = SERVER[backend]
+    # A backend's skill (Cua's or computer-use-linux's) runs through Claude Code's Skill tool, from its own agent home
+    # (skill_home), when the prompt names it as a slash command, as on the laptop; the debrief gets no tools. Claude Code
+    # reads a user's skills only with the user's settings, which in that fresh home are the skill alone.
+    skill = backend in SKILLS and not resume
     command = [
         "claude", "-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose",
-        # Only hyprmasq's tools, and none of the user's CLAUDE.md, settings, hooks, skills or MCP servers.
-        "--tools", "", "--setting-sources", "", "--disable-slash-commands", "--strict-mcp-config",
+        # Only the backend's tools, and none of the user's CLAUDE.md, settings, hooks, skills or MCP servers.
+        "--tools", "Skill" if skill else "", "--setting-sources", "user" if skill else "", "--strict-mcp-config",
     ]
+    if not skill:
+        command += ["--disable-slash-commands"]
     if effort:
         command += ["--effort", effort]
     if resume:
         command += ["--resume", resume]
     else:
-        config = {"mcpServers": {"hyprmasq": {"command": tap[0], "args": tap[1:]}}}
-        command += ["--mcp-config", json.dumps(config), "--allowedTools", "mcp__hyprmasq"]
+        config = {"mcpServers": {server: {"command": tap[0], "args": tap[1:]}}}
+        command += ["--mcp-config", json.dumps(config),
+                    "--allowedTools", ("Skill " if skill else "") + f"mcp__{server}"]
     return command
 
 
-def codex_command(model, prompt, tap, resume=None, effort=None):
+def codex_command(model, prompt, tap, resume=None, effort=None, backend="hyprmasq"):
+    server = SERVER[backend]
     command = ["codex", "exec"]
     if resume:
         command += ["resume", resume]
     command += [
         "--json", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "-m", model,
         "-c", 'web_search="disabled"',
-        # The user's skills would be listed to the model.
-        "-c", "skills.include_instructions=false",
     ]
+    # The user's skills would be listed to the model. With a backend's skill, the agent home has that skill alone
+    # (skill_home).
+    if backend not in SKILLS:
+        command += ["-c", "skills.include_instructions=false"]
     if effort:
         command += ["-c", f"model_reasoning_effort={json.dumps(effort)}"]
     if not resume:
@@ -228,11 +287,11 @@ def codex_command(model, prompt, tap, resume=None, effort=None):
         command += ["--disable", feature]
     if not resume:
         command += [
-            "-c", f"mcp_servers.hyprmasq.command={json.dumps(tap[0])}",
-            "-c", f"mcp_servers.hyprmasq.args={json.dumps(tap[1:])}",
-            "-c", "mcp_servers.hyprmasq.tool_timeout_sec=600",
+            "-c", f"mcp_servers.{server}.command={json.dumps(tap[0])}",
+            "-c", f"mcp_servers.{server}.args={json.dumps(tap[1:])}",
+            "-c", f"mcp_servers.{server}.tool_timeout_sec={TOOL_TIMEOUT}",
             # In the read-only sandbox, Codex asks to approve every tool without readOnlyHint, and exec cannot ask.
-            "-c", 'mcp_servers.hyprmasq.default_tools_approval_mode="approve"',
+            "-c", f'mcp_servers.{server}.default_tools_approval_mode="approve"',
         ]
     return command + [prompt]
 
@@ -267,7 +326,7 @@ def pi_agent_dir(tap, sessions):
             os.symlink(os.path.join(user, name), os.path.join(agent_dir, name))
     config = {
         "autoEnableCodemode": False,
-        "mcpServers": {"hyprmasq": {"command": tap[0], "args": tap[1:], "exposure": "direct", "timeout": 600}},
+        "mcpServers": {"hyprmasq": {"command": tap[0], "args": tap[1:], "exposure": "direct", "timeout": TOOL_TIMEOUT}},
     }
     with open(os.path.join(agent_dir, "mcp.json"), "w") as f:
         json.dump(config, f, indent=2)
@@ -277,12 +336,48 @@ def pi_agent_dir(tap, sessions):
     return agent_dir
 
 
-def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effort=None):
+def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effort=None, backend="hyprmasq"):
     if harness == "pi":
+        if backend != "hyprmasq":
+            raise ValueError(PI_ONLY_HYPRMASQ)
         return pi_command(model, prompt, tap, resume, sessions, effort)
     if family(harness) == "claude":
-        return claude_command(model, prompt, tap, resume, effort)
-    return codex_command(model, prompt, tap, resume, effort)
+        return claude_command(model, prompt, tap, resume, effort, backend)
+    return codex_command(model, prompt, tap, resume, effort, backend)
+
+
+def task_prompt(harness, backend, text, browser="firefox"):
+    """The prompt the agent gets: with a backend's skill, naming it first, as the laptop's runs did with Cua's, and with
+    Chromium as the user's browser, naming it where the task's prompt names Firefox."""
+    mention = SKILL_MENTION[family(harness)].format(skill=SKILLS[backend][0]) if backend in SKILLS else ""
+    return mention + browser_text(text, browser)
+
+
+def browser_text(text, browser):
+    """A task's prompt or debrief for the user's browser: the tasks' texts name Firefox, their default."""
+    return text.replace("Firefox", "Chromium") if browser == "chromium" else text
+
+
+def skill_home(harness, skill, name="cua-driver"):
+    """A fresh agent home that holds a backend's skill, named name, and nothing else of the user's, as
+    `cua-driver skills install` links Cua's for each agent (docs/content/docs/cua-driver/guides/connect-your-agent.mdx,
+    Install the agent skill) and computer-use-linux's plugin installs its own, and the environment that points the
+    harness at it: Claude Code's configuration directory with skills/NAME and, for its subscription, a link to the
+    user's credentials; or for Codex a HOME with .agents/skills/NAME, its CODEX_HOME staying the user's for the login and
+    the sessions. Returns (directory, environment)."""
+    home = tempfile.mkdtemp(prefix="hyprmasq-bench-skill-home-")
+    skill = os.path.realpath(skill)
+    if family(harness) == "claude":
+        config = os.path.join(home, "claude")
+        os.makedirs(os.path.join(config, "skills"))
+        os.symlink(skill, os.path.join(config, "skills", name))
+        credentials = os.path.expanduser("~/.claude/.credentials.json")
+        if harness == "claude" and os.path.exists(credentials):
+            os.symlink(credentials, os.path.join(config, ".credentials.json"))
+        return home, {"CLAUDE_CONFIG_DIR": config}
+    os.makedirs(os.path.join(home, ".agents", "skills"))
+    os.symlink(skill, os.path.join(home, ".agents", "skills", name))
+    return home, {"HOME": home, "CODEX_HOME": os.path.expanduser("~/.codex")}
 
 
 def agent_env(extra=None):
@@ -294,7 +389,8 @@ def agent_env(extra=None):
                              "HYPRMASQ_BENCH_ANTHROPIC_"))
         and k != "AI_AGENT"
     }
-    env.update({"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"})
+    env.update({"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+                "MCP_TOOL_TIMEOUT": str(TOOL_TIMEOUT * 1000)})
     env.update(extra or {})
     return env
 
@@ -403,12 +499,12 @@ def final_text(harness, stream_path):
     return report.agent_usage(harness, report.load_jsonl(stream_path)).get("final")
 
 
-def claude_project(cwd):
-    """Where Claude Code keeps the transcripts of sessions that ran in cwd."""
-    return os.path.expanduser(f"~/.claude/projects/{re.sub(r'[^A-Za-z0-9]', '-', cwd)}")
+def claude_project(cwd, config=None):
+    """Where Claude Code keeps the transcripts of sessions that ran in cwd, under its configuration directory."""
+    return os.path.join(config or os.path.expanduser("~/.claude"), "projects", re.sub(r"[^A-Za-z0-9]", "-", cwd))
 
 
-def move_transcript(harness, session, cwd, run_dir, sessions=None):
+def move_transcript(harness, session, cwd, run_dir, sessions=None, config=None):
     """Moves the harness's own transcript of the session into the run's directory."""
     if not session:
         return
@@ -416,7 +512,7 @@ def move_transcript(harness, session, cwd, run_dir, sessions=None):
     if harness == "pi":
         paths = glob.glob(os.path.join(sessions, f"*_{session}.jsonl"))
     elif family(harness) == "claude":
-        project = claude_project(cwd)
+        project = claude_project(cwd, config)
         # The transcript, and a directory of the same name with the session's tool results.
         paths = glob.glob(os.path.join(project, f"{session}*"))
     else:
@@ -455,14 +551,14 @@ def pi_session(sessions, session):
     return path, (levels[0] if levels else None)
 
 
-def ran_effort(harness, run_dir, cwd, session, thinking):
+def ran_effort(harness, run_dir, cwd, session, thinking, config=None):
     """The effort the harness says the agent ran at, and where it says so; None where it says nothing. Codex gives it
     in the metadata of each MCP tool call, Claude Code in the requests its transcript logs (its stream-json has
     none), and pi in its session's thinking level."""
     if harness == "pi":
         found = [thinking] if thinking else []
     elif family(harness) == "claude":
-        path = os.path.join(claude_project(cwd), f"{session}.jsonl")
+        path = os.path.join(claude_project(cwd, config), f"{session}.jsonl")
         found = report.claude_efforts(report.load_jsonl(path)) if session else []
     else:
         found = report.codex_efforts(report.load_jsonl(os.path.join(run_dir, "mcp.jsonl")))
@@ -492,7 +588,7 @@ def files_holding(run_dir, secret):
 
 
 def task_file(task_dir, variant, name):
-    """A task's prompt.md or debrief.md: a variant's own, in its directory, or else the task's."""
+    """A task's prompt.md, prompt-comparison.md or debrief.md: a variant's own, in its directory, or else the task's."""
     own = os.path.join(task_dir, variant or "", name)
     return own if variant and os.path.exists(own) else os.path.join(task_dir, name)
 
@@ -529,7 +625,7 @@ def booted_vm(driver, run_dir, cid, timeout, cpus=None, env=None):
 
 
 def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief, cpus=None,
-            dispatched=None):
+            dispatched=None, backend="hyprmasq", prompt_kind="task", browser="firefox"):
     task_dir = os.path.join(BENCH, "tasks", task)
     run_dir = os.path.join(out, run_name(harness, model, rep, effort))
     label = f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}]"
@@ -543,23 +639,38 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
     # they run in and its parents, and a run directory inside this checkout would give the agent hyprmasq's.
     cwd = tempfile.mkdtemp(prefix="hyprmasq-bench-agent-")
     tap = tap_command(cid, os.path.join(run_dir, "mcp.jsonl"))
-    agent_dir = sessions = None
+    agent_dir = sessions = home = None
     if harness == "pi":
         sessions = os.path.join(tempfile.mkdtemp(prefix="hyprmasq-bench-pi-sessions-"), "sessions")
         agent_dir = pi_agent_dir(tap, sessions)
         api_env = {"PI_CODING_AGENT_DIR": agent_dir}
+    # The variables of the agent's process: claude-api's key or pi's directory, and with a backend's skill the agent
+    # home with it.
+    agent_vars = dict(api_env or {})
+    if backend in SKILLS:
+        home, home_env = skill_home(harness, skill_link(out, backend), SKILLS[backend][0])
+        agent_vars.update(home_env)
+    config = agent_vars.get("CLAUDE_CONFIG_DIR")
     agent, leaked = {"session": None}, []
     try:
         print(f"{label} booting the VM", flush=True)
         with booted_vm(driver, run_dir, cid, timeout + 120, cpus):
-            prompt = open(task_file(task_dir, variant, "prompt.md")).read()
-            command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort)
+            prompt = task_prompt(harness, backend, open(task_file(task_dir, variant, PROMPTS[prompt_kind])).read(),
+                                 browser)
+            command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort, backend=backend)
             print(f"{label} agent running", flush=True)
             agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
-                              os.path.join(run_dir, "agent.stderr"), timeout, api_env, api_key=harness == "claude-api")
+                              os.path.join(run_dir, "agent.stderr"), timeout, agent_vars,
+                              api_key=harness == "claude-api")
 
         run = {
             "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
+            "backend": backend, "prompt": prompt_kind, "browser": browser,
+            # The VM's session has the AT-SPI bus and toolkit-accessibility on (default.nix), which runs before
+            # these fields had not.
+            "accessibility": True,
+            # How long the agent may take, and one tool call, in seconds: the same for both backends.
+            "timeouts": {"agent_seconds": timeout, "tool_seconds": TOOL_TIMEOUT},
             "agent_start": agent["start"], "agent_end": agent["end"], "agent_exit": agent["exit"],
             "timed_out": agent["timed_out"], "session": agent["session"],
             "harness_version": version([executable(harness), "--version"]), "machine": machine(),
@@ -576,7 +687,7 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         session_file = None
         if harness == "pi":
             session_file, run["thinking"] = pi_session(sessions, agent["session"])
-        ran_at, reported_by = ran_effort(harness, run_dir, cwd, agent["session"], run.get("thinking"))
+        ran_at, reported_by = ran_effort(harness, run_dir, cwd, agent["session"], run.get("thinking"), config)
         # The effort asked for, None for the harness's default, and the one the harness says it ran at.
         run["effort"] = {"requested": effort, "ran_at": ran_at, "reported_by": reported_by}
         with open(os.path.join(run_dir, "run.json"), "w") as f:
@@ -588,13 +699,16 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         if debrief and resume:
             calls = report.tool_calls(report.load_jsonl(os.path.join(run_dir, "mcp.jsonl")))
             text = open(task_file(task_dir, variant, "debrief.md")).read().replace(
-                "{report}", report.debrief_report(summary, calls))
+                "{report}", report.debrief_report(summary, calls, TOOL_NAME[backend]))
+            # The debriefs name hyprmasq, the tool the run used: with another backend, that one.
+            text = browser_text(text.replace("hyprmasq", TOOL_NAME[backend]), browser)
             with open(os.path.join(run_dir, "debrief-prompt.md"), "w") as f:
                 f.write(text)
             print(f"{label} debrief", flush=True)
-            command = agent_command(harness, model, text, None, resume=resume, effort=effort)
+            command = agent_command(harness, model, text, None, resume=resume, effort=effort, backend=backend)
             told = run_agent(command, cwd, os.path.join(run_dir, "debrief.jsonl"),
-                             os.path.join(run_dir, "debrief.stderr"), 900, api_env, api_key=harness == "claude-api")
+                             os.path.join(run_dir, "debrief.stderr"), 900, agent_vars,
+                             api_key=harness == "claude-api")
             answer = None if told["refused"] else final_text(harness, os.path.join(run_dir, "debrief.jsonl"))
             with open(os.path.join(run_dir, "debrief.md"), "w") as f:
                 f.write(answer or "(no answer)\n")
@@ -604,8 +718,11 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
                     json.dump(run, f, indent=2)
             check_api_key_used(told, "debrief")
     finally:
-        move_transcript(harness, agent["session"], cwd, run_dir, sessions)
+        move_transcript(harness, agent["session"], cwd, run_dir, sessions, config)
         shutil.rmtree(cwd, ignore_errors=True)
+        if home:
+            # Links to the skill and the user's credentials, which rmtree removes and does not follow.
+            shutil.rmtree(home, ignore_errors=True)
         if agent_dir:
             if os.path.exists(os.path.join(agent_dir, "mcp.log")):
                 shutil.move(os.path.join(agent_dir, "mcp.log"), os.path.join(run_dir, "pi-mcp.log"))
@@ -667,8 +784,10 @@ def vm_lock(path, waiting=contextlib.nullcontext):
 
 
 def check_resume(out, config, parser, agents):
-    """Refuse to add runs to a results directory whose finished runs had another commit, task, variant or display,
-    so that one report never mixes them. Keys that an older source.json lacks are not compared. Refuse also an agent
+    """Refuse to add runs to a results directory whose finished runs had another commit, task, variant, display,
+    backend, prompt or browser, so that one report never mixes them. Keys that an older source.json lacks are not
+    compared, but for its backend, prompt and browser, which were hyprmasq, the task's own and Firefox
+    (DEFAULT_CONFIG). Refuse also an agent
     whose run directory holds another agent's run, such as codex:gpt-high's for codex:gpt@high: a resume would count
     that run as its own, or remove it."""
     runs = {}
@@ -686,11 +805,16 @@ def check_resume(out, config, parser, agents):
     if not finished or not os.path.exists(path):
         return
     with open(path) as f:
-        before = json.load(f)
-    differ = [k for k in ("commit", "task", "variant", "display") if k in before and before[k] != config[k]]
+        before = {**DEFAULT_CONFIG, **json.load(f)}
+    differ = [k for k in ("commit", "task", "variant", "display", "backend", "prompt", "browser")
+              if k in before and before[k] != config.get(k, DEFAULT_CONFIG.get(k))]
     if differ:
         parser.error(f"{out} has runs with another {', '.join(differ)}: "
                      + ", ".join(f"{k} {before[k]} against {config[k]}" for k in differ) + "; use another --out")
+
+
+# What results directories from before the backend and prompt options ran with.
+DEFAULT_CONFIG = {"backend": "hyprmasq", "prompt": "task", "browser": "firefox"}
 
 
 def pending_runs(out, reps, agents):
@@ -720,12 +844,19 @@ def add_run_options(parser, tasks=False):
     reps.add_argument("--rep", type=int, action="append", help="run only this repetition, repeatable; instead of --reps")
     parser.add_argument("--timeout", type=int, default=1800, help="seconds an agent may take")
     parser.add_argument("--no-debrief", action="store_true")
+    parser.add_argument("--backend", choices=BACKENDS, default="hyprmasq",
+                        help="the desktop tool the agent gets: hyprmasq, from --source, or Cua Driver (bench/cua), "
+                             "hypruse (bench/hypruse) or computer-use-linux (bench/computer-use-linux)")
+    parser.add_argument("--prompt", choices=tuple(PROMPTS), default="task",
+                        help="the task's own prompt, or the tool-neutral one of a comparison (prompt-comparison.md)")
+    parser.add_argument("--browser", choices=BROWSERS, default="firefox",
+                        help="the user's browser, in the tasks that list it in tasks/TASK/browsers")
 
 
 def check_run_options(args, parser):
     """The agents and the repetitions of the runs, after checking the task and its variant."""
     agents, reps = check_runs(args, parser)
-    args.variant = check_task(args.task, args.variant, parser)
+    args.variant = check_task(args.task, args.variant, parser, args.prompt, args.browser)
     return agents, reps
 
 
@@ -742,12 +873,15 @@ def check_runs(args, parser):
                      "letters, digits, ., _ and -, or in the @ of an effort")
     if any(rep < 1 for rep in args.rep or []):
         parser.error("--rep counts from 1")
+    if args.backend != "hyprmasq" and any(harness == "pi" for harness, _, _ in agents):
+        parser.error(PI_ONLY_HYPRMASQ)
     reps = sorted(set(args.rep)) if args.rep else list(range(1, args.reps + 1))
     return agents, reps
 
 
-def check_task(task, variant, parser):
-    """The variant of a task after checking both: the task's default if it has variants and none is given."""
+def check_task(task, variant, parser, prompt="task", browser="firefox"):
+    """The variant of a task after checking both: the task's default if it has variants and none is given. Checks also
+    that the task has the prompt asked for, and takes the browser: Firefox, or one its browsers file lists."""
     if not os.path.isdir(os.path.join(BENCH, "tasks", task)):
         parser.error(f"no task {task} in {os.path.join(BENCH, 'tasks')}")
     variants, default = task_variants(task)
@@ -757,7 +891,21 @@ def check_task(task, variant, parser):
         parser.error(f"task {task} needs --variant, one of {', '.join(variants)}")
     if not variants and variant:
         parser.error(f"task {task} has no variants")
+    if not os.path.exists(task_file(os.path.join(BENCH, "tasks", task), variant, PROMPTS[prompt])):
+        parser.error(f"task {task} has no {PROMPTS[prompt]}" + (f" for variant {variant}" if variant else ""))
+    if browser != "firefox" and browser not in task_browsers(task):
+        parser.error(f"task {task} has no browser {browser}: its tasks/{task}/browsers lists "
+                     + (", ".join(task_browsers(task)) or "none"))
     return variant
+
+
+def task_browsers(task):
+    """The browsers a task takes, from tasks/TASK/browsers, one a line; none for a task without the user's browser."""
+    path = os.path.join(BENCH, "tasks", task, "browsers")
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        return [line.split()[0] for line in f if line.strip()]
 
 
 def results_name(task, variant):
@@ -793,9 +941,10 @@ def main():
     out = os.path.abspath(args.out or default_out(args.task, args.variant))
     os.makedirs(out, exist_ok=True)
     source = os.path.abspath(args.source) if args.source else None
-    config = {**source_commit(source), "task": args.task, "variant": args.variant, "display": args.display}
+    config = {**source_commit(source), "task": args.task, "variant": args.variant, "display": args.display,
+              "backend": args.backend, "prompt": args.prompt, "browser": args.browser}
     check_resume(out, config, parser, agents)
-    driver = build_driver(out, source, args.task, args.variant, args.display)
+    driver = build_driver(out, source, args.task, args.variant, args.display, args.backend, args.browser)
     with open(os.path.join(out, "source.json"), "w") as f:
         json.dump(config, f, indent=2)
     for rep, harness, model, effort in pending_runs(out, reps, agents):
@@ -803,7 +952,7 @@ def main():
         try:
             with vm_lock(args.lock):
                 run_one(driver, args.task, args.variant, harness, model, effort, rep, out, args.cid, args.timeout,
-                        not args.no_debrief, cpus, args.dispatch)
+                        not args.no_debrief, cpus, args.dispatch, args.backend, args.prompt, args.browser)
         except Exception as e:  # one broken run does not end the benchmark
             print(f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}] error: {e}", flush=True)
     print(report.report(out))

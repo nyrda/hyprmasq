@@ -466,7 +466,9 @@ for path in glob.glob("/proc/[0-9]*/cmdline"):
     except OSError:
         pass
 seen = {"key": hashlib.sha256(key.encode()).hexdigest(),
-        "headers": hashlib.sha256(os.environ.get(run.API_HEADERS_ENV, "").encode()).hexdigest(), "in_ps": in_ps}
+        "headers": hashlib.sha256(os.environ.get(run.API_HEADERS_ENV, "").encode()).hexdigest(), "in_ps": in_ps,
+        "backend": args[args.index("--backend") + 1], "prompt": args[args.index("--prompt") + 1],
+        "browser": args[args.index("--browser") + 1]}
 json.dump(seen, open(os.path.join(d, "seen.json"), "w"))
 open(os.path.join(d, "agent.jsonl"), "w").write(key if os.environ.get("FAKE_LEAK") else "{}")
 if not os.environ.get("FAKE_LEAK"):
@@ -507,12 +509,13 @@ class ApiKeys(unittest.TestCase):
         poll.start()
         self.addCleanup(poll.stop)
 
-    def execute(self, spec, harness):
+    def execute(self, spec, harness, backend="hyprmasq", prompt="task", browser="firefox"):
         """Runs one job of the harness on the host; returns its outcome, the dispatcher's output and the fakes' log."""
         host = dispatch.Host(spec)
         host.base = self.base
         build = dispatch.Build(self.out, {"path": self.dir.name, "commit": "b" * 40, "task": "forgejo", "variant": None})
-        args = argparse.Namespace(display="1920x1080@1", timeout=60, no_debrief=True)
+        args = argparse.Namespace(display="1920x1080@1", timeout=60, no_debrief=True, backend=backend, prompt=prompt,
+                                  browser=browser)
         keys = {"ANTHROPIC_API_KEY": KEY, "ANTHROPIC_CUSTOM_HEADERS": HEADERS}
         remote = dispatch.Remote(self.harness, [build], [(harness, "m", None)], args, self.dir.name, dispatch.Queue([]), keys)
         printed = io.StringIO()
@@ -546,7 +549,8 @@ class ApiKeys(unittest.TestCase):
         self.assertTrue(any("grep" in a for a in given[1]["argv"]))
         with open(os.path.join(self.out, "claude-api-m-1", "seen.json")) as f:
             seen = json.load(f)
-        self.assertEqual(seen, {"key": sha(KEY), "headers": sha(HEADERS), "in_ps": []})
+        self.assertEqual(seen, {"key": sha(KEY), "headers": sha(HEADERS), "in_ps": [], "backend": "hyprmasq",
+                                "prompt": "task", "browser": "firefox"})
         self.assertNowhereBut(calls, printed)
 
     def test_files_that_hold_the_key_stay_on_the_host_and_are_removed(self):
@@ -556,6 +560,14 @@ class ApiKeys(unittest.TestCase):
         self.assertIn("the API key was in out/claude-api-m-1/agent.jsonl", printed)
         self.assertEqual(sorted(os.listdir(os.path.join(self.out, "claude-api-m-1"))), ["seen.json"])
         self.assertNowhereBut(calls, printed)
+
+    def test_the_run_gets_the_dispatchs_backend_prompt_and_browser(self):
+        outcome, printed, calls = self.execute("me@box", "codex", backend="cua", prompt="comparison",
+                                               browser="chromium")
+        self.assertEqual(outcome, "done")
+        with open(os.path.join(self.out, "codex-m-1", "seen.json")) as f:
+            self.assertEqual({k: v for k, v in json.load(f).items() if k in ("backend", "prompt", "browser")},
+                             {"backend": "cua", "prompt": "comparison", "browser": "chromium"})
 
     def test_other_runs_get_no_key(self):
         outcome, printed, calls = self.execute("me@box,api-keys", "codex")

@@ -15,6 +15,9 @@ let
   );
 in
 {
+  # Chromium in place of Firefox, for a run with --browser chromium.
+  imports = [ ../browser.nix ];
+
   assertions = [
     {
       assertion = builtins.elem benchVariant variants;

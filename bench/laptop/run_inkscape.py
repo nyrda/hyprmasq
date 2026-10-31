@@ -2,7 +2,7 @@
 """One Inkscape run on a real Hyprland machine: hyprmasq or Cua Driver, each from its own agent home.
 
     run_inkscape.py --backend cua|hyprmasq --rep N --out DIR [--harness codex|claude] [--model M] [--effort E]
-                    [--timeout S] [--no-agent]
+                    [--timeout S] [--claude-auth api-key|login] [--no-agent]
 
 The Inkscape task on a live Hyprland session: move the blue rectangle from x=120 to x=122 px and save. The VM
 benchmark's bench/tasks/inkscape is the same task, with the same drawing and prompt. Inkscape 1.4.4-6 from
@@ -54,8 +54,11 @@ def main():
     parser.add_argument("--effort", default="medium")
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--harness", choices=["codex", "claude"], default="codex")
+    parser.add_argument("--claude-auth", choices=["api-key", "login"], default="api-key",
+                        help="Claude Code billed to $ANTHROPIC_API_KEY, or to the login in its agent home")
     parser.add_argument("--no-agent", action="store_true")
     args = parser.parse_args()
+    rf.CLAUDE_AUTH = args.claude_auth
 
     out = os.path.join(args.out, f"{args.backend}-{args.rep}")
     os.makedirs(out)

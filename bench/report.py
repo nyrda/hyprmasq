@@ -7,9 +7,11 @@ computes summary.json of every finished run in it again from the run's raw files
 RESULTS-DIR/report.md and RESULTS-DIR/runs.json. run.py calls metrics() for each run when it finishes.
 """
 
+import collections
 import glob
 import json
 import os
+import re
 import statistics
 import sys
 
@@ -50,9 +52,114 @@ def named_actions(arguments):
     return out
 
 
+# Cua Driver's tools that act on the desktop, each one action, and its batch, whose steps are the actions.
+CUA_ACTIONS = {
+    "click", "double_click", "right_click", "drag", "scroll", "move_cursor", "mouse_button_down", "mouse_button_up",
+    "mouse_drag", "parallel_mouse_drag", "type_text", "type_text_chars", "press_key", "hotkey", "set_value",
+    "invoke_menu", "launch_app", "bring_to_front", "set_window_frame", "kill_app", "browser_click", "browser_type",
+    "browser_navigate", "browser_select", "browser_pointer", "browser_dialog", "browser_set_input_files",
+}
+# The codes of Cua's refusals, from its driver and its Hyprland plugin: a route that did not deliver, as
+# background_unavailable (client_not_qualified) for an app outside its input plugin's qualification, or
+# foreground_unavailable (primary_target_busy): foreground_grab while a popup holds the seat; and its browser tools'.
+REFUSAL = re.compile(
+    r"\b(background_unavailable|foreground_unavailable|client_not_qualified|primary_target_busy|agent_target_busy"
+    r"|lane_busy|lane_not_claimed|stale_target|stale_geometry|session_unavailable|unsupported_layout"
+    r"|action_not_admitted|route_mismatch|foreground_[a-z_]+|browser_requires_setup|browser_consent_required"
+    r"|browser_consent_revoked|browser_input_trust_unavailable|browser_route_unavailable"
+    r"|browser_wrong_target_refused|browser_endpoint_owner_mismatch)\b")
+
+
+# hypruse's tools that act, each one action, named by its action where it has one (pointer click, keyboard type, hypr
+# focus_window), and its batch, sequence, whose steps are the actions; a wait_for step only waits.
+HYPRUSE_ACTIONS = {"pointer", "keyboard", "click_ui", "hypr", "launch", "use_bind"}
+# What hypruse refused, by kind, from its errors' text: an action its background mode cannot do (the pointer on a
+# window other than the user's, a key it cannot send to one window), its authentication guard, its confinement, a layer
+# that would take the input, a locked session, and a window that moved when it was focused.
+HYPRUSE_REFUSALS = {
+    "background": r"cannot be done in the background",
+    "auth_guard": r"authentication|credential|password field",
+    "confinement": r"confinement scope|HYPRUSE_CONFINE",
+    "layer": r"layer surface|keyboard grab|is covered by",
+    "session_locked": r"session is locked",
+    "window_moved": r"the window moved when it was focused|the click would land on something else",
+}
+# computer-use-linux's tools that act on the desktop, each one action. Its setup tools change the desktop's settings,
+# and its screenshot raises the window it captures: neither is an action on the task.
+CUL_ACTIONS = {"click", "drag", "scroll", "press_key", "type_text", "perform_action", "set_value", "activate_window",
+               "move_window", "resize_window"}
+# What computer-use-linux did not deliver, by kind, from its results' text: input it did not send, as coordinate input
+# without an accurate pointer or text its backend cannot type, a capture or an action it refused, and keyboard input
+# whose target window it could not focus or verify.
+CUL_REFUSALS = {
+    "not_sent": r"\bwas not sent\b|\bno text was sent\b|\bwere not sent\b",
+    "refused": r"\brefusing\b",
+    "focus_unverified": r"could not be focused|cannot safely focus|requires the window to already be focused",
+}
+# The tools by which a run's server is known, and the backend it is.
+SERVER_TOOLS = (("act", "hyprmasq"), ("run_steps", "cua"), ("click_ui", "hypruse"), ("get_app_state",
+                                                                                   "computer-use-linux"))
+
+
+def server_backend(tap):
+    """The backend whose server a run's MCP log talked to, from the tools it listed: hyprmasq where none is known."""
+    for entry in tap:
+        names = {t.get("name") for t in ((entry.get("msg") or {}).get("result") or {}).get("tools") or []}
+        if names:
+            return next((backend for tool, backend in SERVER_TOOLS if tool in names), "hyprmasq")
+    return "hyprmasq"
+
+
+def call_actions(tool, args, backend=None):
+    """The actions of a call: act's, the steps of Cua's run_steps or hypruse's sequence, or the one action of Cua's,
+    hypruse's or computer-use-linux's tools that act; none for a read. backend is the run's (server_backend): without
+    it, act's and Cua's."""
+    if tool == "act":
+        return [a.get("action") for a in named_actions(args)]
+    if backend == "hypruse":
+        if tool == "sequence":
+            steps = args.get("steps") if isinstance(args.get("steps"), list) else []
+            return [hypruse_action(step.get("op"), step) for step in steps
+                    if isinstance(step, dict) and step.get("op") in HYPRUSE_ACTIONS]
+        return [hypruse_action(tool, args)] if tool in HYPRUSE_ACTIONS else []
+    if backend == "computer-use-linux":
+        return [tool] if tool in CUL_ACTIONS else []
+    if tool == "run_steps":
+        steps = args.get("steps") if isinstance(args.get("steps"), list) else []
+        return [cua_step(step)[0] for step in steps]
+    return [tool] if tool in CUA_ACTIONS else []
+
+
+def hypruse_action(tool, args):
+    """A hypruse action's name: its tool, and the action of pointer, keyboard and hypr, such as `pointer drag`."""
+    action = args.get("action") if tool in ("pointer", "keyboard", "hypr") else None
+    return f"{tool} {action}" if isinstance(action, str) and action else tool
+
+
+def call_refusals(text, backend, failed):
+    """A call's refusals, each code or kind once: Cua's codes in any result, and hypruse's kinds in its errors and
+    computer-use-linux's in any result."""
+    if backend == "hypruse":
+        return sorted(k for k, pattern in HYPRUSE_REFUSALS.items() if failed and re.search(pattern, text))
+    if backend == "computer-use-linux":
+        return sorted(k for k, pattern in CUL_REFUSALS.items() if re.search(pattern, text))
+    return sorted(set(REFUSAL.findall(text)))
+
+
+def cua_step(step):
+    """A step of Cua's run_steps as (tool, args): {tool, args} or {<tool>: args}."""
+    if not isinstance(step, dict):
+        return None, {}
+    if "tool" in step:
+        return step.get("tool"), step.get("args") if isinstance(step.get("args"), dict) else {}
+    tool = next((k for k in step if k not in ("wait_for", "expect", "timeout_ms")), None)
+    return tool, step.get(tool) if isinstance(step.get(tool), dict) else {}
+
+
 def tool_calls(tap):
     """The tools/call requests in the MCP log with their responses."""
     pending, calls = {}, []
+    backend = server_backend(tap)
     for entry in tap:
         msg = entry.get("msg") or {}
         if entry["dir"] == "request" and msg.get("method") == "tools/call":
@@ -69,8 +176,10 @@ def tool_calls(tap):
                 "start": start,
                 "end": entry["t"],
                 "seconds": entry["t"] - start,
-                "actions": [a.get("action") for a in named_actions(args)],
+                "actions": call_actions(params.get("name"), args, backend),
                 "error": bool(result.get("isError")) or "error" in msg,
+                # The backend's refusals in the result, each once (call_refusals).
+                "refusals": call_refusals(text, backend, bool(result.get("isError")) or "error" in msg),
                 "summary": text.split("\n", 1)[0][:300],
                 "hint": "\n".join(text.split("\n")[1:])[:600],
                 "images": len(images),
@@ -451,6 +560,9 @@ def metrics(run_dir):
     return {
         "harness": run["harness"],
         "model": run["model"],
+        "backend": run.get("backend", "hyprmasq"),
+        "prompt": run.get("prompt", "task"),
+        "browser": run.get("browser", "firefox"),
         "effort": run_effort(run, run_dir, tap),
         "rep": run["rep"],
         "passed": bool(check.get("passed")),
@@ -469,6 +581,8 @@ def metrics(run_dir):
         "by_tool": by_tool,
         "actions": sum(len(c["actions"] or []) for c in finished if c.get("actions")),
         "errors": sum(1 for c in finished if c.get("error")),
+        # The backend's refusals, by code or kind: how many calls each turned up in.
+        "refusals": dict(collections.Counter(code for c in finished for code in c.get("refusals") or [])),
         "no_change": sum(1 for c in finished if c.get("no_change")),
         "images": sum(c.get("images", 0) for c in finished),
         "image_kib": round(sum(c.get("image_bytes", 0) for c in finished) / 1024),
@@ -483,13 +597,13 @@ def metrics(run_dir):
     }
 
 
-def debrief_report(summary, calls):
-    """What the agent is told about its run before the debrief questions."""
+def debrief_report(summary, calls, tool="hyprmasq"):
+    """What the agent is told about its run before the debrief questions; tool is what it calls the tool."""
     s = summary
     lines = [
         f"- Result: {'passed' if s['passed'] else 'failed'}"
         + (f" ({'; '.join(s['failures'])})" if s["failures"] else "") + ".",
-        f"- Time: {s['wall_seconds']} s in total, {s['tool_seconds']} s inside hyprmasq tool calls, "
+        f"- Time: {s['wall_seconds']} s in total, {s['tool_seconds']} s inside {tool} tool calls, "
         f"{s['outside_tool_seconds']} s outside them (your thinking and output, and the harness).",
         f"- Calls: {s['calls']} ("
         + ", ".join(f"{k} {v['calls']}" for k, v in sorted(s["by_tool"].items())) + f"), {s['actions']} actions, "
@@ -608,6 +722,8 @@ def report(results_dir):
             f"{r['calls']} calls"
             + (f", on {machine.get('host')} ({machine.get('cpu')})" if machine else "")
             + (f", {r['harness_version']}" if r.get("harness_version") else "")
+            + (f", refusals {', '.join(f'{k} {v}' for k, v in sorted(r['refusals'].items()))}"
+               if r.get("refusals") else "")
             + (f" — {'; '.join(r['failures'])}" if r["failures"] else "")
         )
     with open(os.path.join(results_dir, "report.md"), "w") as f:

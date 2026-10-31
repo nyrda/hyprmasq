@@ -7,12 +7,24 @@
 # run.py --source points it at another worktree, to benchmark a branch without the benchmark in it.
 # `display` is the monitor, WIDTHxHEIGHT@SCALE in device pixels: hyprmasq's shots and zooms depend on it.
 # `variant` is the task's variant, for a task that has them (tasks/TASK/variants): its vm.nix gets it as benchVariant.
+# `backend` is the desktop tool the agent gets: hyprmasq, from `source`, or in its place cua, Cua Driver with its
+# Hyprland plugin (cua/default.nix), hypruse (hypruse/default.nix) or computer-use-linux (computer-use-linux/default.nix),
+# each set up as its documentation sets it up. `source` then gives only the Hyprland that the VM runs, and hyprmasq's
+# plugin is not loaded.
+# `browser` is the user's browser in the tasks that have one, firefox or chromium (tasks/TASK/browsers lists a task's):
+# its vm.nix gets it as benchBrowser and its setup.py as BROWSER.
+#
+# Every VM has an accessibility session as a desktop has one, whichever the backend: the AT-SPI bus on the user's
+# session bus, which Hyprland and the apps get, with toolkit-accessibility on. Runs before it, such as the
+# 0.57.0 baseline, had none.
 {
   system ? "x86_64-linux",
   task ? "thunderbird",
   variant ? "",
   source ? ../.,
   display ? "1920x1080@1",
+  backend ? "hyprmasq",
+  browser ? "firefox",
   nixpkgs ?
     let
       lock = builtins.fromJSON (builtins.readFile (source + "/flake.lock"));
@@ -67,6 +79,36 @@ let
       inherit (goPkgs) buildGoModule;
     }
   );
+  checkedBackend =
+    if
+      builtins.elem backend [
+        "hyprmasq"
+        "cua"
+        "hypruse"
+        "computer-use-linux"
+      ]
+    then
+      backend
+    else
+      throw "backend must be hyprmasq, cua, hypruse or computer-use-linux, got ${backend}";
+  isHyprmasq = checkedBackend == "hyprmasq";
+  isCua = checkedBackend == "cua";
+  isHypruse = checkedBackend == "hypruse";
+  isCul = checkedBackend == "computer-use-linux";
+  checkedBrowser =
+    if
+      builtins.elem browser [
+        "firefox"
+        "chromium"
+      ]
+    then
+      browser
+    else
+      throw "browser must be firefox or chromium, got ${browser}";
+  # Cua's input build, which accepts only the Hyprland its release pins.
+  cua = import ./cua { inherit pkgs; };
+  hypruse = import ./hypruse { inherit pkgs hyprland; };
+  cul = import ./computer-use-linux { inherit pkgs; };
   module = import (source + "/nix/module.nix") {
     packages.${system} = {
       hyprmasq = plugin;
@@ -75,8 +117,18 @@ let
     };
   };
 
+  # hyprmasq's module loads its plugin. Cua's README loads its plugin by hand (`hyprctl plugin load`) and then enables
+  # it in the configuration and reloads: vm.py loads it and writes CUA_CONFIG, which this file reads once it exists.
+  # hypruse and computer-use-linux are clients of Hyprland as released, with no plugin.
   hyprlandConfig = pkgs.writeText "hyprmasq-bench.lua" ''
-    dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
+    ${
+      if isCua then
+        ''pcall(dofile, "${cuaConfig}")''
+      else if isHyprmasq then
+        ''dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")''
+      else
+        "-- ${checkedBackend}: no plugin"
+    }
 
     hl.monitor({ output = "HYPRMASQ-BENCH", mode = "${monitor.mode}@60", position = "0x0", scale = "${monitor.scale}" })
     hl.monitor({ output = "", disabled = true })
@@ -97,12 +149,160 @@ let
     })
   '';
 
+  cuaConfig = "/tmp/hyprmasq-bench-cua.lua";
+
+  hyprmasqModule = {
+    imports = [ module ];
+    programs.hyprmasq.enable = true;
+  };
+  # Hyprland as hyprmasq's module sets it up, with the same packages, for the other backends.
+  hyprlandModule = {
+    programs.hyprland = {
+      enable = true;
+      package = hyprland;
+      portalPackage = pkgs.xdg-desktop-portal-hyprland;
+    };
+  };
+  # Cua Driver on PATH as its installer puts it.
+  cuaModule = {
+    imports = [ hyprlandModule ];
+    environment.systemPackages = [ cua.driver ];
+  };
+  # hypruse on PATH, as its AUR package and `uv tool install` put it, with grim and wtype, which its README requires.
+  hypruseModule = {
+    imports = [ hyprlandModule ];
+    environment.systemPackages = [
+      hypruse
+      pkgs.wtype
+    ];
+  };
+  # computer-use-linux as its README sets it up on Hyprland, where xdg-desktop-portal-hyprland implements no
+  # RemoteDesktop portal: its three binaries on PATH, as `cargo install` puts them; /dev/uinput for its absolute
+  # pointer, open to the input group with the udev rule its install.sh gives, the kernel module loaded and alice in the
+  # group (README, Troubleshooting: input.uinput.ok = false); ydotool 1.0.3+ and ydotoold as the user service its
+  # install.sh writes, for keys; wtype for text (README: optional Unicode typing on wlroots/Hyprland Wayland); and the
+  # desktop portal, whose Screenshot interface, xdg-desktop-portal-hyprland's, takes its screenshots where GNOME
+  # Shell's is missing. Its on-screen indicator stays on, as by default.
+  culModule =
+    { lib, ... }:
+    {
+      imports = [ hyprlandModule ];
+      environment.systemPackages = [
+        cul.server
+        pkgs.ydotool
+        pkgs.wtype
+      ];
+      boot.kernelModules = [ "uinput" ];
+      services.udev.extraRules = ''
+        KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"
+      '';
+      # The socket's owner in its unit is %U:%U, the user and the group of the user's number, which a user has on the
+      # distributions its install.sh supports, where each user has a group of their own. alice's is users: she gets
+      # that group too.
+      users.groups.alice.gid = 1000;
+      users.users.alice.extraGroups = [
+        "input"
+        "alice"
+      ];
+      systemd.user.services.ydotoold = {
+        description = "ydotool user daemon";
+        documentation = [
+          "man:ydotool(1)"
+          "man:ydotoold(8)"
+        ];
+        serviceConfig = {
+          Type = "simple";
+          UMask = "0077";
+          ExecStart = "${pkgs.ydotool}/bin/ydotoold --socket-path=%t/.ydotool_socket --socket-own=%U:%U --socket-perm=0600";
+          Restart = "on-failure";
+        };
+        wantedBy = [ "default.target" ];
+      };
+      xdg.portal = {
+        enable = lib.mkForce true;
+        config.hyprland."org.freedesktop.impl.portal.Screenshot" = [ "hyprland" ];
+      };
+      # A desktop session starts graphical-session.target, which xdg-desktop-portal requires: vm.py starts this target
+      # once Hyprland runs, as the Forgejo task's setup.py does, whose vm.nix has it already.
+      systemd.user.targets = lib.mkIf (task != "forgejo") {
+        hyprmasq-bench-session = {
+          description = "The benchmark's graphical session";
+          bindsTo = [ "graphical-session.target" ];
+          wants = [ "graphical-session-pre.target" ];
+          after = [ "graphical-session-pre.target" ];
+        };
+      };
+    };
+
   # Starts hyprmasq-mcp for one vsock connection, in the session the test script started.
-  mcpServer = pkgs.writeShellScript "hyprmasq-bench-mcp" ''
+  hyprmasqServer = pkgs.writeShellScript "hyprmasq-bench-mcp" ''
     export XDG_RUNTIME_DIR=/run/user/1000
     export HYPRLAND_INSTANCE_SIGNATURE="$(cat /tmp/hyprmasq-bench-instance)"
     exec ${plugin.mcp}/bin/hyprmasq-mcp 2>>/tmp/hyprmasq-bench-mcp.log
   '';
+
+  # `cua-driver mcp` for one vsock connection, in the session the test script started, with what Cua documents for a
+  # Wayland session: CUA_DRIVER_RS_ENABLE_WAYLAND=1 (its skill's LINUX.md) and the session's variables, which the
+  # laptop's agent homes passed to it. The VM is offline: telemetry off with Cua's own switch
+  # (docs/content/docs/cua-driver/guides/operate.mdx, Telemetry). The Forgejo task needs Mara's own browser, for
+  # which Cua's browser tools need `cua-driver mcp --grant existing-profile` (guides/browsers.mdx, Attach to a
+  # logged-in profile); no other task gets a grant.
+  cuaServer = pkgs.writeShellScript "hyprmasq-bench-cua-mcp" ''
+    export XDG_RUNTIME_DIR=/run/user/1000
+    export HYPRLAND_INSTANCE_SIGNATURE="$(cat /tmp/hyprmasq-bench-instance)"
+    export WAYLAND_DISPLAY="$(cat /tmp/hyprmasq-bench-display)"
+    export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+    export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=Hyprland
+    export CUA_DRIVER_RS_ENABLE_WAYLAND=1
+    export CUA_DRIVER_RS_TELEMETRY_ENABLED=false
+    exec ${cua.driver}/bin/cua-driver mcp${
+      pkgs.lib.optionalString (task == "forgejo") " --grant existing-profile"
+    } 2>>/tmp/hyprmasq-bench-mcp.log
+  '';
+  # The session's variables, which a server started from the user's desktop has.
+  sessionEnv = ''
+    export XDG_RUNTIME_DIR=/run/user/1000
+    export HYPRLAND_INSTANCE_SIGNATURE="$(cat /tmp/hyprmasq-bench-instance)"
+    export WAYLAND_DISPLAY="$(cat /tmp/hyprmasq-bench-display)"
+    export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+    export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=Hyprland
+  '';
+
+  # hypruse's MCP server, `uvx hypruse` in its README, for one vsock connection, with its defaults (the automatic
+  # background mode among them) but one: HYPRUSE_SCREENSHOT_MODE=image, which its README and server.json give for a
+  # client that renders MCP images and cannot read files. Its default, file, writes captures in the VM and returns
+  # their path, which the agent on the host, without a file reader, could not open.
+  hypruseServer = pkgs.writeShellScript "hyprmasq-bench-hypruse-mcp" ''
+    ${sessionEnv}
+    export HYPRUSE_SCREENSHOT_MODE=image
+    exec ${hypruse}/bin/hypruse 2>>/tmp/hyprmasq-bench-mcp.log
+  '';
+
+  # `computer-use-linux mcp` for one vsock connection, with the session's variables, which its Codex plugin forwards
+  # to it, and no setting of its own: its README says most setups need none.
+  culServer = pkgs.writeShellScript "hyprmasq-bench-computer-use-linux-mcp" ''
+    ${sessionEnv}
+    exec ${cul.server}/bin/computer-use-linux mcp 2>>/tmp/hyprmasq-bench-mcp.log
+  '';
+
+  mcpServer =
+    if isCua then
+      cuaServer
+    else if isHypruse then
+      hypruseServer
+    else if isCul then
+      culServer
+    else
+      hyprmasqServer;
+  backendModule =
+    if isCua then
+      cuaModule
+    else if isHypruse then
+      hypruseModule
+    else if isCul then
+      culModule
+    else
+      hyprmasqModule;
 
   # Logs Hyprland's events (windows opening and closing, focus, workspaces) with the time of each, so that
   # report.py can tell whether the run disturbed the user's workspace at any point.
@@ -117,17 +317,20 @@ let
   '';
 in
 pkgs.testers.runNixOSTest {
-  name = "hyprmasq-bench-${task}${pkgs.lib.optionalString (variant != "") "-${variant}"}";
+  name = "hyprmasq-bench-${task}${pkgs.lib.optionalString (variant != "") "-${variant}"}${
+    pkgs.lib.optionalString (!isHyprmasq) "-${checkedBackend}"
+  }${pkgs.lib.optionalString (browser != "firefox") "-${browser}"}";
 
   nodes.machine =
     { pkgs, ... }:
     {
       imports = [
-        module
         (./tasks + "/${task}/vm.nix")
+        backendModule
       ];
       _module.args.benchVariant = variant;
-      programs.hyprmasq.enable = true;
+      _module.args.benchBackend = backend;
+      _module.args.benchBrowser = checkedBrowser;
 
       users.users.alice = {
         isNormalUser = true;
@@ -135,6 +338,7 @@ pkgs.testers.runNixOSTest {
       };
 
       environment.systemPackages = [
+        pkgs.gsettings-desktop-schemas
         pkgs.foot
         pkgs.grim
         pkgs.jq
@@ -147,6 +351,20 @@ pkgs.testers.runNixOSTest {
       environment.etc."hyprmasq-bench/hyprland.lua".source = hyprlandConfig;
       environment.etc."hyprmasq-bench/mcp".source = mcpServer;
       environment.etc."hyprmasq-bench/events".source = eventLogger;
+      environment.etc."hyprmasq-bench/backend".text = backend;
+      environment.etc."hyprmasq-bench/cua-plugin".text =
+        pkgs.lib.optionalString isCua "${cua.plugin}/lib/cua/hyprland/cua-hyprland-plugin.so";
+
+      # The accessibility session: the AT-SPI bus, activated on the user's session bus, and toolkit-accessibility
+      # on, which its bus launcher reads for org.a11y.Status (Cua's LINUX.md: an accessibility bus must run and
+      # toolkit-accessibility must be on).
+      services.gnome.at-spi2-core.enable = true;
+      programs.dconf = {
+        enable = true;
+        profiles.user.databases = [
+          { settings."org/gnome/desktop/interface".toolkit-accessibility = true; }
+        ];
+      };
 
       environment.variables = {
         XDG_CACHE_HOME = "/tmp";
@@ -179,6 +397,8 @@ pkgs.testers.runNixOSTest {
   testScript = ''
     TASK_DIR = "${./tasks + "/${task}"}"
     VARIANT = "${variant}"
+    BACKEND = "${backend}"
+    BROWSER = "${checkedBrowser}"
     exec(open("${./vm.py}").read())
   '';
 }

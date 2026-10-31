@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Renders the benchmark results in docs/benchmarks.md from the datasets that export.py writes, and the comparison
-in docs/comparison.md from the runs that bench/laptop/analyze.py writes.
+in docs/comparison.md from the runs that bench/laptop/analyze.py writes and from export.py's datasets of other
+backends than hyprmasq, which its views take as runs on the VM's Hyprland.
 
     render.py [--check] [MARKDOWN...]
 
@@ -32,8 +33,13 @@ after the dataset, view and task, the dataset left out when there are several. V
 - comparison: for docs/comparison.md, a row per tool and where it ran for each task and agent, with its runs and median time and
   columns of uncached input, peak context, cost per run and the seconds the user was disturbed. With TASK, only
   that task's rows, as in the two views below.
+- comparison-pooled: comparison with a row per tool for each task that holds the runs of every agent.
 - comparison-time: each tool's median time inside its calls and outside them, and a dot per run.
 - comparison-table: a table of the comparison's medians and ranges.
+- probe: comparison of the tasks and agents that ran with hyprmasq and with another tool, a row per tool for each
+  agent that holds the runs of every such task, for the tools that ran each of them.
+- probe-tasks: comparison of those tasks and agents, a row per tool for each task and agent.
+- probe-table: comparison-table of those tasks and agents.
 - toolkits: the form task's wall time per run and its medians in hyprmasq's tools and outside them, a panel per
   toolkit, which the run's variant names.
 - toolkits-table: a table of the form task's medians, a row per toolkit and agent, with the act calls' settle wait.
@@ -778,7 +784,8 @@ def kinds_figure(data, task=None):
 
 def act_figure(data):
     runs = data["runs"]
-    totals = {key: sum(r["act_s"].get(key, 0) for r in runs) for key, _, _ in ACT_PARTS}
+    # A Cua run has no act calls, and no act_s.
+    totals = {key: sum((r["act_s"] or {}).get(key, 0) for r in runs) for key, _, _ in ACT_PARTS}
     # A part without time has no segment. The rest, which analyze.py does not clamp, can even be negative.
     parts = [(i, key, label, detail) for i, (key, label, detail) in enumerate(ACT_PARTS) if totals[key] > 0]
     whole = sum(totals[key] for _, key, _, _ in parts)
@@ -817,17 +824,46 @@ def act_figure(data):
 # The comparison with other computer-use tools, from bench/laptop's runs.
 
 # Each tool's name and series colour, the same in every figure.
-TOOLS = {"hyprmasq": ("hyprmasq", "s0"), "cua": ("Cua Driver", "s1"), "openai-cu": ("OpenAI computer use", "s2")}
-PLATFORMS = {"hyprland": "Hyprland", "macos": "macOS"}
+TOOLS = {"hyprmasq": ("hyprmasq", "s0"), "cua": ("Cua Driver", "s1"), "openai-cu": ("OpenAI computer use", "s2"),
+         "hypruse": ("hypruse", "s3"), "computer-use-linux": ("computer-use-linux", "s4")}
+PLATFORMS = {"hyprland": "Hyprland", "hyprland-vm": "Hyprland VM", "macos": "macOS"}
+# The tasks whose page is in the user's browser, Firefox or Chromium, which the VM's runs name. Forgejo's is always
+# Chromium.
+BROWSER_TASKS = {"board", "trace", "calc"}
 
 
-def tool_rows(runs):
+def compared(r):
+    """A run in the form of bench/laptop's runs, which the comparison's views read. A run of the benchmark's VM, as
+    export.py writes it, runs on the VM's Hyprland, and its user was disturbed while the focus was away from them. Its
+    form task is one task in each toolkit, as on the laptop, with the toolkit of its variant: qt-25 is the Qt port,
+    25 the GTK 4 app."""
+    if "wall_seconds" in r:
+        return r
+    uncached = r["input_tokens"] - (r["cache_read_tokens"] or 0) if r.get("input_tokens") is not None else None
+    if r.get("task_of", r["task"]).startswith("form"):
+        variant = r.get("variant") or ""
+        r = dict(r, task=r.get("task_of", r["task"]), toolkit=variant.split("-", 1)[0] if not variant[:1].isdigit()
+                 else "gtk4")
+    return dict(r, platform="hyprland-vm", wall_seconds=r["wall_s"], tool_seconds=r["tools_s"],
+                usage={"input_tokens": r.get("input_tokens"), "uncached_input_tokens": uncached,
+                       "cost_usd": r.get("cost_usd")},
+                focus={"seconds_away_from_user": r.get("focus_away_s")})
+
+
+def tool_rows(runs, pooled=None):
     """The runs grouped by task, platform and agent, a row per tool and where it ran, such as hyprmasq with the
     questionnaire in GTK and in Qt: [((task, platform, model), [(tool, runs)])]. The platforms' times do not compare,
-    so their rows stand apart."""
+    so their rows stand apart. Pooled "agents", a row holds the runs of every agent, and the model is None. Pooled
+    "tasks", it holds the runs of every task, which is "all"."""
     order = list(NAMES)
+    if pooled == "agents":
+        runs = [dict(r, model=None) for r in runs]
+    elif pooled == "tasks":
+        runs = [dict(r, task="all", task_of="all") for r in runs]
     keys = list(dict.fromkeys((r["task"], r.get("platform"), r["model"]) for r in runs))
-    keys.sort(key=lambda k: (list(TASK_NAMES).index(k[0]) if k[0] in TASK_NAMES else 9,
+    # Tasks without a name in TASK_NAMES come after those, in the order the runs hold them, each with its agents.
+    seen = list(dict.fromkeys(r["task"] for r in runs))
+    keys.sort(key=lambda k: (list(TASK_NAMES).index(k[0]) if k[0] in TASK_NAMES else 9, seen.index(k[0]),
                              list(PLATFORMS).index(k[1]) if k[1] in PLATFORMS else len(PLATFORMS),
                              order.index(k[2]) if k[2] in order else len(order)))
     out = []
@@ -846,7 +882,9 @@ def setting(rs):
     r = rs[0]
     parts = [PLATFORMS.get(r.get("platform"), r.get("platform") or "")]
     if r["task"].startswith("form"):
-        parts.append({"gtk": "GTK", "qt": "Qt"}.get(r.get("toolkit"), r.get("toolkit") or ""))
+        parts.append({"gtk": "GTK", "gtk4": "GTK 4", "qt": "Qt"}.get(r.get("toolkit"), r.get("toolkit") or ""))
+    if r.get("task_of", r["task"]) in BROWSER_TASKS and r.get("browser"):
+        parts.append(r["browser"].capitalize())
     if r["harness"] == "codex-desktop":
         parts.append("ChatGPT app")
     elif r["harness"] == "codex-exec":
@@ -862,7 +900,7 @@ def passed(r):
 def group_title(key, rows):
     """A group's platform and agent, after its task where the figure has several."""
     task, platform, model = key
-    title = f"{PLATFORMS.get(platform, platform or '')} · {model_name(model)}"
+    title = f"{PLATFORMS.get(platform, platform or '')} · {model_name(model) if model else 'all agents'}"
     if len({k[0] for k, _ in rows}) == 1:
         return title
     return f"{task_title(task)} · {title}"
@@ -928,19 +966,22 @@ def comparison_measures():
 
 def of_task(data, task):
     """The runs of one task, or all of them without one: a page can show each task's comparison in its own block."""
-    return [r for r in data["runs"] if task is None or r["task"] == task]
+    return [compared(r) for r in data["runs"] if task is None or r["task"] == task]
 
 
-def comparison_figure(data, task=None):
-    runs = of_task(data, task)
-    rows = tool_rows(runs)
+def comparison_figure(data, task=None, pooled=None, runs=None):
+    runs = runs if runs is not None else of_task(data, task)
+    rows = tool_rows(runs, pooled)
     tools = list(dict.fromkeys(r["backend"] for r in runs))
     svg = Svg()
     top = header(
         svg, "Tools compared on the same tasks",
         ["The first bar is the share of runs that passed, with the count and the passed runs' median time. The other",
          "bars have a scale each: tokens and cost are medians over all runs. User disturbed counts the passed runs",
-         "that took the focus or drew over the user's window, and its bar is their median seconds."],
+         "that took the focus or drew over the user's window, and its bar is their median seconds."]
+        + ({"agents": ["Each row pools the runs of every agent."],
+            "tasks": ["Each row pools the runs of every task that the agent ran with hyprmasq and with the other tools."]}
+           .get(pooled, [])),
         [("swatch", TOOLS[t][1], TOOLS[t][0]) for t in TOOLS if t in tools]
         + [("swatch", "pass", "passed"), ("swatch", "fail", "failed")],
     )
@@ -998,7 +1039,9 @@ def comparison_figure(data, task=None):
             svg.line(PAD, y + 4, WIDTH - PAD, y + 4, "grid")
             y += 8
     svg.height = y + 22
-    alt = ("Tools compared on the same tasks: a row per tool for each task and agent, with the share of its runs "
+    alt = (f"Tools compared on the same tasks: a row per tool for each "
+           f"{ {'agents': 'task', 'tasks': 'agent'}.get(pooled, 'task and agent') }, with "
+           "the share of its runs "
            "that passed, the median time, and the median uncached input, peak context, cost per run and seconds the "
            "user was disturbed.")
     return svg, alt
@@ -1091,6 +1134,34 @@ def comparison_table(data, task=None):
     return split_table(columns, rows, 4)
 
 
+def matched(runs):
+    """The runs of the tasks and agents that ran with hyprmasq and with another tool: a probe of a tool ran fewer
+    agents than hyprmasq's set."""
+    tools = {}
+    for r in runs:
+        tools.setdefault((r["task"], r["model"]), set()).add(r["backend"])
+    return [r for r in runs if len(tools[(r["task"], r["model"])]) > 1 and "hyprmasq" in tools[(r["task"], r["model"])]]
+
+
+def probe_figure(data):
+    runs = matched(of_task(data, None))
+    # A row of every task holds only a tool that ran each of the agent's tasks: one that ran some of them would have
+    # medians of other tasks than hyprmasq's row.
+    tasks_of = {}
+    for r in runs:
+        tasks_of.setdefault((r["model"], r["backend"]), set()).add(r["task"])
+    runs = [r for r in runs if tasks_of[(r["model"], r["backend"])] == tasks_of[(r["model"], "hyprmasq")]]
+    return comparison_figure(data, pooled="tasks", runs=runs)
+
+
+def probe_tasks_figure(data):
+    return comparison_figure(data, runs=matched(of_task(data, None)))
+
+
+def probe_table(data):
+    return comparison_table(dict(data, runs=matched(data["runs"])))
+
+
 def compare_figure(data, before):
     """Each task's wall time per run before a change and after it, the medians over all agents."""
     builds = [("before", before["runs"]), ("after", data["runs"])]
@@ -1155,6 +1226,8 @@ def compare_figure(data, before):
 
 FIGURES = {"scoreboard": scoreboard, "time": time_figure, "kinds": kinds_figure, "act": act_figure,
            "compare": compare_figure, "comparison": comparison_figure, "comparison-time": comparison_time_figure,
+           "comparison-pooled": lambda data: comparison_figure(data, pooled="agents"),
+           "probe": probe_figure, "probe-tasks": probe_tasks_figure,
 
            "toolkits": toolkits_figure}
 
@@ -1283,7 +1356,7 @@ def toolkits_table(data):
         for (a, _), rs in groups([r for r in runs if r["task"] == t]):
             rows.append([t, names[a]] + ([effort_text(rs)] if efforts else []) + [f"{sum(r['passed'] for r in rs)}/{len(rs)}",
                 fmt([r["wall_s"] for r in rs]), fmt([r["tools_s"] for r in rs]),
-                fmt([r["act_s"]["wait"] for r in rs]), fmt([r["turn_s"] for r in rs], 1),
+                fmt([(r["act_s"] or {}).get("wait") for r in rs]), fmt([r["turn_s"] for r in rs], 1),
                 fmt([r["calls"] for r in rs]), fmt([r["actions"] for r in rs]),
                 fmt([thousands(r, "input_tokens") for r in rs]), fmt([cached(r) for r in rs]),
                 fmt([r["cost_usd"] for r in rs], 3),
@@ -1295,7 +1368,7 @@ def toolkits_table(data):
 
 
 TABLES = {"costs": costs_table, "table": task_table, "kinds-table": kinds_table, "compare-table": compare_table,
-          "comparison-table": comparison_table, "toolkits-table": toolkits_table}
+          "comparison-table": comparison_table, "toolkits-table": toolkits_table, "probe-table": probe_table}
 # The views that take a TASK, and those that take an earlier build's dataset instead.
 BY_TASK = {"time", "table", "kinds", "kinds-table", "comparison", "comparison-time", "comparison-table"}
 COMPARE = {"compare", "compare-table"}
