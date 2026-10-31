@@ -1,9 +1,10 @@
 # The Calc task's hooks for bench/vm.py, which runs this file in its own namespace before it starts Hyprland.
 #
-# Mara's Firefox shows her five reports as tabs, and Calc her sheet. Both are started like a user would, on the
-# visible workspace, and moved to hidden ones, not with hyprmasq's launch: side by side on `work` when the monitor
-# is 2560 logical pixels wide or more, else Firefox on `web` and Calc on `calc`. The user stays on workspace 1 with
-# the terminal. Calc gets a UNO pipe, through which watch.py follows the sheet for the milestones.
+# Mara's browser, Firefox or, with BROWSER chromium, Chromium (vm.py's start_browser), shows her five reports as tabs,
+# and Calc her sheet. Both are started like a user would, on the visible workspace, and moved to hidden ones, not with
+# hyprmasq's launch: side by side on `work` when the monitor is 2560 logical pixels wide or more, else the browser on
+# `web` and Calc on `calc`. The user stays on workspace 1 with the terminal. Calc gets a UNO pipe, through which
+# watch.py follows the sheet for the milestones.
 
 HYPRLAND_ENV = "MOZ_ENABLE_WAYLAND=1 SAL_USE_VCLPLUGIN=gtk3"
 
@@ -34,25 +35,19 @@ def prepare():
     machine.succeed(f"install -d -o alice -g users -m 0755 {STATE}")
     q = shlex.quote
     alice(
-        f"mkdir -p ~/Documents ~/Downloads ~/.config/libreoffice/4/user {PROFILE} && "
+        f"mkdir -p ~/Documents ~/Downloads ~/.config/libreoffice/4/user && "
         f"install -m 0644 {q(ORIGINAL)} ~/Documents/ && "
-        f"install -m 0644 {ETC}/registrymodifications.xcu ~/.config/libreoffice/4/user/ && "
-        f"install -m 0644 {ETC}/user.js {PROFILE}/"
+        f"install -m 0644 {ETC}/registrymodifications.xcu ~/.config/libreoffice/4/user/"
     )
     monitor = json.loads(hypr("-j monitors"))[0]
     wide = monitor["width"] / monitor["scale"] >= 2560
     web, calc = ("work", "work") if wide else ("web", "calc")
 
-    # Firefox with Mara's tabs, signed in to the intranet while sign-in-open exists.
-    alice(
-        f"{client_env} {HYPRLAND_ENV} nohup firefox --profile {PROFILE} {' '.join(map(q, URLS))} "
-        "> /tmp/hyprmasq-bench-firefox.log 2>&1 &"
-    )
-    wait_for("Firefox", lambda: window(lambda c: c["class"] == "firefox") is not None, timeout=120)
-    firefox = window(lambda c: c["class"] == "firefox")["address"]
+    # The browser with Mara's tabs, signed in to the intranet while sign-in-open exists.
+    browser = start_browser(URLS, PROFILE, f"{ETC}/user.js", HYPRLAND_ENV)
     wait_for("Mara's tabs to load", tabs_loaded, timeout=120)
     machine.succeed(f"rm {INTRANET_STATE}/sign-in-open")
-    move(firefox, web)
+    move(browser, web)
 
     # Calc with Mara's sheet. LibreOffice asks for a maximized window, which would cover Firefox on a shared
     # workspace; Hyprland's example configuration ignores such requests from every app, as this rule does for Calc.
@@ -81,22 +76,23 @@ def prepare():
     settle("the windows to settle", initial_delay=5, interval=5,
            fields=("address", "title", "workspace", "size"))
     machine.succeed(f"python3 {ETC}/check.py --manifest /home/alice > {STATE}/home-before.json")
-    machine.succeed(f"echo {q(json.dumps({'firefox': firefox, 'calc': sheet_window}))} > {STATE}/windows.json")
-    return firefox
+    machine.succeed(f"echo {q(json.dumps({'browser': browser, 'calc': sheet_window}))} > {STATE}/windows.json")
+    return browser
 
 
 def collect():
-    time.sleep(3)  # Firefox writes its session every 2 s
+    time.sleep(3)  # Firefox writes its session every 2 s, Chromium 2.5 s after a change
+    session = f"--chromium {CHROMIUM_PROFILE}" if BROWSER == "chromium" else f"--profile {PROFILE}"
     check = json.loads(machine.succeed(
         f"python3 {ETC}/check.py --home /home/alice --state {STATE} --requests {INTRANET_STATE}/requests.jsonl "
-        f"--original {shlex.quote(ORIGINAL)} --profile {PROFILE} --events /tmp/hyprmasq-bench-events.log "
+        f"--original {shlex.quote(ORIGINAL)} {session} --events /tmp/hyprmasq-bench-events.log "
         f"--since {vm_time}"
     ))
     fetch(SHEET, "sheet.ods")
     for path, name in [
         (f"{STATE}/watch.jsonl", "vm-calc-watch.jsonl"),
         (f"{INTRANET_STATE}/requests.jsonl", "vm-intranet.jsonl"),
-        ("/tmp/hyprmasq-bench-firefox.log", "vm-firefox.log"),
+        (f"/tmp/hyprmasq-bench-{BROWSER}.log", f"vm-{BROWSER}.log"),
         ("/tmp/hyprmasq-bench-calc.log", "vm-calc.log"),
         ("/tmp/hyprmasq-bench-calc-watch.log", "vm-calc-watch.log"),
     ]:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Attributes each stroke of a trace run to the model or to hyprmasq: attribute.py RUN-DIR | RESULTS-DIR
+"""Attributes each stroke of a trace run to the model or to its tool: attribute.py RUN-DIR | RESULTS-DIR
 
 For every act action on the figure's window in mcp.jsonl that draws (a drag, a click, a Shift+click line, a path), it
 maps where the agent aimed from shot pixels to the page's coordinates, finds the stroke the page drew for it
@@ -17,6 +17,11 @@ against the line of the run's variant as check.py measures the drawing: how far 
 pixels, and how much of it lies off it. The per-run summary counts how the agent drew: actions per act call,
 strokes of each kind, undos and clears, and how many strokes did not last to the end (vm-trace-strokes.json), which
 is the work the agent redid or took back. Prints a table per run and writes RUN-DIR/attribution.json.
+
+The tool is the run's backend (run.json): hyprmasq, whose blame its outcome is named after; cua, Cua Driver, whose
+pointer calls and run_steps steps actlog.cua_calls reads as act's, in the pixels of the window's latest
+get_window_state screenshot; or hypruse or computer-use-linux, whose pointer calls actlog reads at their points on the
+screen, on the window focused when each call started.
 """
 
 import json
@@ -27,7 +32,8 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
-from actlog import (TOLERANCE, act_calls, action_shot, calibrate, layout_at, load_json, load_jsonl,  # noqa: E402
+import actlog  # noqa: E402
+from actlog import (TOLERANCE, action_shot, calibrate, layout_at, load_json, load_jsonl,  # noqa: E402
                     page_events, to_page, zoom)
 import check  # noqa: E402
 from check import samples, to_line  # noqa: E402
@@ -88,7 +94,9 @@ def attribute(run_dir):
     ready = load_json(os.path.join(run_dir, "ready.json"))
     window = ready["task_window"]
     offset = ready["host_time"] - ready["vm_time"]  # VM time + offset = host time
-    calls = act_calls(load_jsonl(os.path.join(run_dir, "mcp.jsonl")))
+    calls = actlog.calls(load_jsonl(os.path.join(run_dir, "mcp.jsonl")), run_dir)
+    # The tool the run used, which takes the blame: hyprmasq, or the run's other backend.
+    tool = (load_json(os.path.join(run_dir, "run.json")) or {}).get("backend", "hyprmasq")
     page = page_events(run_dir, EVENTS, offset)
     layouts = [e for e in page if e["type"] == "layout"]
     content, calibration = calibrate(calls, page, window)
@@ -143,7 +151,7 @@ def attribute(run_dir):
                     stroke["aimed_photo"] = [photo_point(layout, p) for p in client]
                 if down is None:
                     why = "the page saw no press" if not call["downs"] else "the page saw no press where the action aimed"
-                    stroke.update(outcome="hyprmasq", blame="hyprmasq", why=why)
+                    stroke.update(outcome=tool, blame=tool, why=why)
                     continue
                 later = [e for e in page if e["t"] >= down["t"]]
                 nxt = next((e["t"] for e in later if e["type"] == "pointerdown" and e is not down), math.inf)
@@ -154,7 +162,7 @@ def attribute(run_dir):
                     if where != "photo":
                         stroke.update(outcome="model", blame="model", why=f"pressed on the {where}, not the photo")
                     else:
-                        stroke.update(outcome="hyprmasq", blame="hyprmasq", why="the page drew no stroke for the press")
+                        stroke.update(outcome=tool, blame=tool, why="the page drew no stroke for the press")
                     continue
                 # A press with Shift and no stroke to go on from, on an empty drawing or after Clear or an Undo of the last
                 # one, draws as a press without it does: a dot, or a stroke along the drag or path.
@@ -171,10 +179,10 @@ def attribute(run_dir):
                               off_line_px=off, farthest_px=round(farthest, 1))
                 stroke["_drawn"] = stroke_key(drawn)
                 if drawn["kind"] != skind:
-                    stroke.update(outcome="hyprmasq", blame="hyprmasq",
+                    stroke.update(outcome=tool, blame=tool,
                                   why=f"the page drew a {drawn['kind']} stroke for a {skind} one")
                 elif landed_off > TOLERANCE:
-                    stroke.update(outcome="hyprmasq", blame="hyprmasq",
+                    stroke.update(outcome=tool, blame=tool,
                                   why=f"drawn {landed_off:.0f} px from where the agent aimed")
                 elif off > 0:
                     stroke.update(outcome="model", blame="model",
@@ -208,7 +216,7 @@ def attribute(run_dir):
         "actions": kinds,
         "undos": sum(1 for e in page if e["type"] == "undo"),
         "clears": sum(1 for e in page if e["type"] == "clear"),
-        "hyprmasq": sum(1 for s in strokes if s.get("blame") == "hyprmasq"),
+        tool: sum(1 for s in strokes if s.get("blame") == tool),
         "model": sum(1 for s in strokes if s.get("blame") == "model"),
         "max_landed_off": max((s["landed_off"] for s in strokes if "landed_off" in s), default=None),
         "not_kept": sum(1 for s in strokes if s.get("kept") is False),

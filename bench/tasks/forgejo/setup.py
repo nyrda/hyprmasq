@@ -18,6 +18,12 @@ CHROMIUM = (
     "chromium --user-data-dir=/home/alice/.config/chromium-bench --no-first-run --no-default-browser-check "
     "--password-store=basic --disable-search-engine-choice-screen --ozone-platform=wayland"
 )
+# Cua's browser tools attach to Mara's own browser, which on Linux they ask to be started with
+# --force-renderer-accessibility (Cua's docs/content/docs/cua-driver/guides/browsers.mdx, Attach to a logged-in
+# profile), and hypruse and computer-use-linux read Chromium's tree only with it (vm.py's CHROMIUM_ACCESSIBILITY).
+# hyprmasq reads no accessibility, so its runs keep the browser as it was.
+if CHROMIUM_ACCESSIBILITY:
+    CHROMIUM += " --force-renderer-accessibility"
 
 # What the user typed, line by line, for collect().
 TYPED = []

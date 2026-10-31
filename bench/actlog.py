@@ -8,6 +8,13 @@ does not tell the page: calibrate() takes it from the presses that the page saw.
 hyprmasq-mcp gives Claude Code results without structured content, so their shots and the actions act delivered come
 from the text, and their frames from what made each shot (see text_content). A shot whose frame the text does not tell
 is unknown, with why.
+
+Cua Driver's runs have no act: cua_calls makes the same records of its pointer tools and of the steps of its
+run_steps, their points in the pixels of the window's latest get_window_state screenshot (calls() picks the reader by
+the run's tools). hypruse's and computer-use-linux's pointers act at points on the screen, as the user's own cursor:
+hypruse_calls and cul_calls take a call's window to be the last one other than the user's that Hyprland focused
+during the call, as a tool focuses a window before its pointer acts there, or else the one focused when the call
+started, from the run's vm-events.log, and its frame to be where that window was on the screen.
 """
 
 import json
@@ -15,6 +22,8 @@ import math
 import os
 import re
 import statistics
+
+from report import cua_step, server_backend
 
 # The fields of act's array form of each action after its name, in order, as expandAction in
 # mcp/internal/server/actions.go reads them.
@@ -408,3 +417,310 @@ def calibrate(calls, page, window):
 def to_page(shot, point, content, z):
     """A point in a shot's pixels, in the page's CSS pixels at zoom z."""
     return [(v - c) / z for v, c in zip(to_window(shot, point), content)]
+
+
+def calls(tap, run_dir=None):
+    """The calls of a run that act on windows, by the run's server (report.server_backend): hyprmasq's act calls, Cua's
+    (cua_calls), or hypruse's or computer-use-linux's (hypruse_calls, cul_calls), which need the run's directory for
+    the focus and the windows' places."""
+    backend = server_backend(tap)
+    if backend == "cua":
+        return cua_calls(tap)
+    if backend == "hypruse":
+        return hypruse_calls(tap, Screen(run_dir))
+    if backend == "computer-use-linux":
+        return cul_calls(tap, Screen(run_dir))
+    return act_calls(tap)
+
+
+# Cua Driver's pointer tools as act's actions: a click with its button and count, or a drag. Their points are in the
+# pixels of the window's own get_window_state screenshot. mouse_button_down presses and releases in later calls: a
+# press, which the attributions do not pair.
+CUA_POINTER = {
+    "click": ("click", None, None),
+    "double_click": ("click", None, 2),
+    "right_click": ("click", "right", None),
+    "drag": ("drag", None, None),
+    "mouse_button_down": ("press", None, None),
+}
+
+
+# What Cua answers when a foreground action failed after its input may have reached the app, as a drag whose
+# drag-and-drop the plugin then refused: the action counts as sent, and the page tells what it got.
+UNKNOWN_DELIVERY = "final input delivery is unknown"
+
+
+def cua_window(args, defaults=None):
+    """The window a Cua call or step names, as hyprmasq writes addresses: Cua's window_id is Hyprland's address."""
+    target = args.get("target") if isinstance(args.get("target"), dict) else {}
+    for source in (args, target, defaults or {}):
+        if isinstance(source.get("window_id"), int):
+            return f"0x{source['window_id']:x}"
+    return None
+
+
+def cua_action(tool, args):
+    """A step of Cua's as an action object, as action_object makes act's, with why its point cannot be mapped to the
+    window's screenshot, or None: points in a zoom or on the desktop."""
+    kind, button, count = CUA_POINTER.get(tool, (tool, None, None))
+    action = {"action": kind}
+    if kind == "drag":
+        action.update({"from": [args.get("from_x"), args.get("from_y")], "to": [args.get("to_x"), args.get("to_y")]})
+    elif kind in ("click", "press"):
+        if not isinstance(args.get("x"), (int, float)) or not isinstance(args.get("y"), (int, float)):
+            # By element_token: Cua acts through the accessibility tree, with no point of the agent's.
+            return {"action": f"{tool} by element"}, None
+        action.update({"x": args["x"], "y": args["y"]})
+    else:
+        return action, None
+    action["button"] = args.get("button") or button or "left"
+    if count or args.get("count"):
+        action["count"] = count or args.get("count")
+    if args.get("modifier"):
+        action["modifiers"] = args["modifier"]
+    why = None
+    if args.get("from_zoom"):
+        why = "its points are in a zoom"
+    elif args.get("scope") == "desktop" or args.get("coordinate_frame") == "desktop" or (
+            (args.get("target") or {}).get("kind") == "desktop"):
+        why = "its points are on the desktop"
+    return action, why
+
+
+def cua_frame(state):
+    """The shot a get_window_state result defines, as to_window reads one: its screenshot's size and the window's
+    logical size, at the window's origin."""
+    bounds = state.get("window_bounds") or {}
+    if not (state.get("screenshot_width") and state.get("screenshot_height") and bounds.get("width")):
+        return None
+    return {"frame": {"x": 0, "y": 0, "width": bounds["width"], "height": bounds["height"]},
+            "width": state["screenshot_width"], "height": state["screenshot_height"]}
+
+
+def cua_calls(tap):
+    """The answered calls of Cua's tools that act, as act_calls gives act's: each with its window, its actions (one, or
+    a step each of run_steps), how many of them ran (result.actions.done), counting one whose delivery Cua says is
+    unknown, and the shot their points are in, the window's latest get_window_state screenshot before the call, under
+    the call's own id in args.shot."""
+    pending, out, frames = {}, [], {}
+    for entry in tap:
+        msg = entry.get("msg") or {}
+        if entry["dir"] == "request" and msg.get("method") == "tools/call":
+            pending[msg.get("id")] = (entry["t"], msg["params"])
+            continue
+        if entry["dir"] != "response" or msg.get("id") not in pending:
+            continue
+        start, params = pending.pop(msg["id"])
+        name, args = params.get("name"), params.get("arguments") or {}
+        result = msg.get("result") or {}
+        sc = result.get("structuredContent") or {}
+        text = "\n".join(c.get("text", "") for c in result.get("content") or [] if c.get("type") == "text")
+        failed = bool(result.get("isError")) or "error" in msg
+        if name == "run_steps":
+            steps = [cua_step(step) for step in args.get("steps") or []]
+            window = next((w for w in (cua_window(a, args) for _, a in steps) if w), None)
+            failed_step = sc.get("failed_step")
+            # The steps before the one that failed ran, and that one too where its input may have been delivered; a
+            # batch refused as a whole ran none.
+            if isinstance(failed_step, int):
+                done = failed_step + (UNKNOWN_DELIVERY in text)
+            else:
+                done = 0 if failed and not sc.get("steps") else len(steps)
+        elif name in CUA_POINTER:
+            steps = [(name, args)]
+            window = cua_window(args)
+            done = 0 if failed and UNKNOWN_DELIVERY not in text else 1
+        else:
+            steps = None
+        if steps is not None:
+            shot_id = f"call-{msg['id']}"
+            actions, why = [], None
+            for tool, step_args in steps:
+                action, unmapped = cua_action(tool, step_args)
+                actions.append(action)
+                why = why or unmapped
+            frame = frames.get(window)
+            unknown = {}
+            if why:
+                unknown[shot_id] = why
+            elif not frame:
+                unknown[shot_id] = "no get_window_state screenshot of the window before it"
+            out.append({"start": start, "end": entry["t"], "args": {"shot": shot_id}, "window": window,
+                        "actions": actions, "result": {"actions": {"done": done}},
+                        "summary": text.split("\n", 1)[0],
+                        "shots": {shot_id: frame} if frame and not why else {}, "unknown": unknown})
+        # The frames that later calls' points are in: of a read, and of a batch's observation.
+        for state in (sc, sc.get("observation") if isinstance(sc.get("observation"), dict) else {}):
+            frame = cua_frame(state)
+            if frame and isinstance(state.get("window_id"), int):
+                frames[f"0x{state['window_id']:x}"] = frame
+    return out
+
+
+class Screen:
+    """What a run's directory tells of the screen, for the tools whose points are on it: which window Hyprland had
+    focused when (vm-events.log, in host time), where each window was (ready.json's clients, until a result tells
+    otherwise) and the monitor's scale (the results directory's source.json)."""
+
+    def __init__(self, run_dir):
+        ready = load_json(os.path.join(run_dir, "ready.json"), {}) if run_dir else {}
+        self.places = {c["address"]: (c["at"], c["size"]) for c in ready.get("clients") or []}
+        self.user = (ready.get("user") or {}).get("window")
+        self.focus = [(-math.inf, self.user)]
+        offset = ready["host_time"] - ready["vm_time"] if "host_time" in ready else 0
+        events = os.path.join(run_dir, "vm-events.log") if run_dir else ""
+        if os.path.exists(events):
+            with open(events) as f:
+                for line in f:
+                    t, _, event = line.rstrip("\n").partition(" ")
+                    name, _, data = event.partition(">>")
+                    if name == "activewindowv2":
+                        self.focus.append((float(t) + offset, canonical("0x" + data.removeprefix("0x")) if data
+                                           else None))
+        source = load_json(os.path.join(os.path.dirname(os.path.normpath(run_dir)), "source.json"), {}) if run_dir \
+            else {}
+        m = re.search(r"@([0-9.]+)$", source.get("display") or "")
+        self.scale = float(m.group(1)) if m else 1.0
+
+    def focused(self, t):
+        """The window that had the keyboard focus at host time t."""
+        return [w for at, w in self.focus if at <= t][-1]
+
+    def acted_on(self, start, end):
+        """The window that a call from start to end acted on: the last window other than the user's that took the
+        focus during it, as a tool focuses the window before its pointer acts, even where it gives the focus back
+        afterwards, or else the window focused when it started."""
+        taken = [w for at, w in self.focus if start < at <= end and w and w != self.user]
+        return taken[-1] if taken else self.focused(start)
+
+    def frame(self, window, scale=1.0):
+        """The shot that points on the screen define for window: at scale screen pixels a logical pixel, the window
+        where it is."""
+        if window not in self.places:
+            return None
+        (x, y), (w, h) = self.places[window]
+        return {"frame": {"x": -x, "y": -y, "width": w, "height": h}, "width": w * scale, "height": h * scale}
+
+
+def screen_record(start, end, window, actions, done, summary, screen, why=None, scale=1.0, shot=None):
+    """A call of a tool whose points are on the screen, as act_calls makes act's: its shot is the screen as its window
+    was placed then (Screen.frame), or the shot given, under the call's own id."""
+    shot_id = f"call-{start}"
+    frame = shot if shot is not None else screen.frame(window, scale)
+    unknown = {}
+    if why:
+        unknown[shot_id] = why
+    elif not frame:
+        unknown[shot_id] = "where its window was is not known"
+    return {"start": start, "end": end, "args": {"shot": shot_id}, "window": window, "actions": actions,
+            "result": {"actions": {"done": done}}, "summary": summary,
+            "shots": {shot_id: frame} if frame and not why else {}, "unknown": unknown}
+
+
+def tool_results(tap):
+    """The answered tools/call requests of an MCP log: (start, end, tool, arguments, result, its text)."""
+    pending = {}
+    for entry in tap:
+        msg = entry.get("msg") or {}
+        if entry["dir"] == "request" and msg.get("method") == "tools/call":
+            pending[msg.get("id")] = (entry["t"], msg["params"])
+        elif entry["dir"] == "response" and msg.get("id") in pending:
+            start, params = pending.pop(msg["id"])
+            result = msg.get("result") or {"isError": True}
+            text = "\n".join(c.get("text", "") for c in result.get("content") or [] if c.get("type") == "text")
+            yield start, entry["t"], params.get("name"), params.get("arguments") or {}, result, text
+
+
+def hypruse_pointer(args):
+    """A hypruse pointer call as an action object, as action_object makes act's: a click or a drag at global logical
+    points, or a move or scroll, which press nothing."""
+    action = args.get("action")
+    if action == "click":
+        if not isinstance(args.get("x"), (int, float)) or not isinstance(args.get("y"), (int, float)):
+            return {"action": "click at the cursor"}
+        out = {"action": "click", "x": args["x"], "y": args["y"], "button": args.get("button") or "left"}
+        if args.get("double"):
+            out["count"] = 2
+        return out
+    if action == "drag":
+        return {"action": "drag", "from": [args.get("x"), args.get("y")], "to": [args.get("to_x"), args.get("to_y")],
+                "button": args.get("button") or "left"}
+    return {"action": action or "pointer"}
+
+
+def hypruse_calls(tap, screen):
+    """hypruse's calls that act, as act_calls gives act's: its pointer, and the steps of its sequence, each step's
+    other tools as actions that press nothing (click_ui presses through the accessibility tree). The pointer's points
+    are global logical pixels, on the window focused when the call started (Screen); its desktop results tell where
+    the windows are."""
+    out = []
+    for start, end, name, args, result, text in tool_results(tap):
+        failed = bool(result.get("isError"))
+        if name == "pointer":
+            steps, done = [("pointer", args)], 0 if failed else 1
+        elif name == "sequence":
+            steps = [(step.get("op"), step) for step in args.get("steps") or [] if isinstance(step, dict)]
+            # Each step that ran has a line [N] of the result, from 0; the first that raised did not deliver.
+            lines = re.findall(r"^\[(\d+)\] .*", text, re.M)
+            errors = [int(n) for n in re.findall(r"^\[(\d+)\] \S+: ERROR", text, re.M)]
+            done = min(errors) if errors else len(lines)
+        else:
+            steps = None
+        if steps is not None:
+            actions = [hypruse_pointer(a) if op == "pointer" else {"action": f"{op} by element" if op == "click_ui"
+                                                                    else op or "step"} for op, a in steps]
+            out.append(screen_record(start, end, screen.acted_on(start, end), actions, done, text.split("\n", 1)[0],
+                                     screen))
+        # Where the windows are: desktop's list, also after an action's then='desktop'.
+        sc = result.get("structuredContent") or {}
+        for w in sc.get("windows") or [] if isinstance(sc, dict) else []:
+            if isinstance(w, dict) and w.get("address") and w.get("at") and w.get("size"):
+                screen.places[canonical(w["address"])] = (w["at"], w["size"])
+    return out
+
+
+def cul_window(args):
+    """The window a computer-use-linux call names by its window_id, which is Hyprland's address."""
+    return f"0x{args['window_id']:x}" if isinstance(args.get("window_id"), int) else None
+
+
+def cul_calls(tap, screen):
+    """computer-use-linux's calls that act with its pointer, as act_calls gives act's: click and drag. Their points
+    are the screen's capture pixels (coordinate_space capture), on the window focused when the call started (Screen),
+    or with relative=true the capture pixels of the window's own crop. A click by element_index or a selector presses
+    through the accessibility tree, at no point of the agent's. Its window lists tell where the windows are."""
+    out = []
+    for start, end, name, args, result, text in tool_results(tap):
+        try:
+            sc = json.loads(text) if text.startswith("{") else {}
+        except ValueError:
+            sc = {}
+        failed = bool(result.get("isError")) or sc.get("ok") is False
+        if name in ("click", "drag"):
+            window, shot, why = cul_window(args) or screen.acted_on(start, end), None, None
+            if name == "drag":
+                action = {"action": "drag", "from": [args.get("start_x"), args.get("start_y")],
+                          "to": [args.get("end_x"), args.get("end_y")], "button": "left"}
+                window = screen.acted_on(start, end)
+            elif isinstance(args.get("x"), (int, float)) and isinstance(args.get("y"), (int, float)):
+                action = {"action": "click", "x": args["x"], "y": args["y"], "button": args.get("button") or "left"}
+                if args.get("click_count"):
+                    action["count"] = args["click_count"]
+                if args.get("coordinate_space") == "atspi":
+                    why = "its points are AT-SPI screen coordinates"
+                elif args.get("relative") and window in screen.places:
+                    w, h = screen.places[window][1]
+                    shot = {"frame": {"x": 0, "y": 0, "width": w, "height": h}, "width": w * screen.scale,
+                            "height": h * screen.scale}
+            else:
+                action = {"action": "click by element"}
+            out.append(screen_record(start, end, window, [action], 0 if failed else 1,
+                                     (sc.get("message") or text).split("\n", 1)[0][:300], screen, why,
+                                     screen.scale, shot))
+        for w in (sc.get("windows") or []) + [sc.get("focused_window"), sc.get("window_context")]:
+            bounds = (w or {}).get("bounds") if isinstance(w, dict) else None
+            if bounds and isinstance(w.get("window_id"), int):
+                screen.places[f"0x{w['window_id']:x}"] = ([bounds["x"] / screen.scale, bounds["y"] / screen.scale],
+                                                          [bounds["width"] / screen.scale,
+                                                           bounds["height"] / screen.scale])
+    return out

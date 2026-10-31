@@ -24,7 +24,7 @@ and the security model; `docs/mcp.md` covers `hyprmasq-mcp`;
 `docs/development.md` covers builds, tests and contributing;
 `docs/benchmarks.md` holds the release benchmark results, whose figures and
 tables `bench/render.py` generates from `docs/benchmarks/data`;
-`docs/comparison.md` compares hyprmasq with Cua Driver and OpenAI's computer use,
+`docs/comparison.md` compares hyprmasq with Cua Driver, computer-use-linux and hypruse,
 its figures and tables generated the same way from `docs/comparison/data`. Keep them in step
 with the code: a changed command, option, default or exit code updates the
 page that documents it. Agents use the MCP tools; there is no agent skill.

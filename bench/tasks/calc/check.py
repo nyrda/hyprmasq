@@ -4,17 +4,21 @@ checks and events.
 The task passes when Mara's sheet was saved as ODS under its own name with each office's figures in euros, the
 Q4 totals, the "All offices" row and the summary as formulas that give the right results from those figures, no
 other content in the sheet, every one of Mara's tabs still open on its page, and no other file in her home
-changed. The milestones come from watch.py's log, Hyprland's events and the intranet's requests.
+changed. The milestones come from watch.py's log, Hyprland's events and the intranet's requests. Mara's tabs come from
+her browser's session: Firefox's profile (--profile), or Chromium's user data directory (--chromium).
 
-    check.py --home HOME --state DIR --requests LOG --original ODS --profile DIR --events LOG --since VM-TIME
+    check.py --home HOME --state DIR --requests LOG --original ODS (--profile DIR | --chromium DIR) --events LOG
+             --since VM-TIME
     check.py --manifest HOME   prints the manifest of HOME's files that the grade compares with
 """
 
 import argparse
+import glob
 import hashlib
 import json
 import os
 import re
+import struct
 import sys
 import zipfile
 import xml.etree.ElementTree as ET
@@ -296,18 +300,80 @@ def read_session(profile):
     return json.loads(lz4_block(data[12:]))
 
 
-def grade_tabs(profile):
-    failures, checks = [], {}
-    try:
-        session = read_session(profile)
-    except (OSError, ValueError) as e:
-        return [f"Firefox's session could not be read, so Mara's tabs could not be checked ({e})"], checks
+def firefox_tabs(profile):
+    """Firefox's open tabs, each its url and history, from its session."""
     tabs = []
-    for window in session.get("windows", []):
+    for window in read_session(profile).get("windows", []):
         for tab in window.get("tabs", []):
             entries = tab.get("entries") or [{}]
             index = max(1, min(tab.get("index", len(entries)), len(entries)))
             tabs.append({"url": entries[index - 1].get("url"), "history": [e.get("url") for e in entries]})
+    return tabs
+
+
+# The commands of Chromium's session files (components/sessions/core/session_service_commands.cc) that say which tabs
+# are open and on which page: a tab's window, a navigation of a tab, its selected navigation, the navigations it
+# dropped, and the tabs and windows closed.
+SET_TAB_WINDOW, PRUNED_FROM_BACK, UPDATE_TAB_NAVIGATION, SET_SELECTED_NAVIGATION_INDEX = 0, 5, 6, 7
+TAB_CLOSED, WINDOW_CLOSED, PRUNED = 16, 17, 24
+
+
+def chromium_tabs(user_data):
+    """Chromium's open tabs, each its url and history, from its newest session file, Default/Sessions/Session_*,
+    to which it appends commands while it runs (SNSS: a header, then commands, each its size, an id and a payload).
+    A navigation's payload is a Pickle (a size, the tab, the navigation's index, and its URL as a string with its
+    length); the others are fixed structs."""
+    paths = sorted(glob.glob(os.path.join(user_data, "Default", "Sessions", "Session_*")), key=os.path.getmtime)
+    if not paths:
+        raise ValueError("no session file")
+    data = open(paths[-1], "rb").read()
+    if data[:4] != b"SNSS":
+        raise ValueError("not a session file")
+    navigations, selected, windows, closed, closed_windows = {}, {}, {}, set(), set()
+    pos = 8
+    while pos + 2 <= len(data):
+        size = struct.unpack_from("<H", data, pos)[0]
+        command, payload = data[pos + 2], data[pos + 3:pos + 2 + size]
+        pos += 2 + size
+        if size == 0 or len(payload) < size - 1:
+            break
+        if command == UPDATE_TAB_NAVIGATION and len(payload) >= 16:
+            tab, index, length = struct.unpack_from("<iii", payload, 4)
+            navigations.setdefault(tab, {})[index] = payload[16:16 + length].decode(errors="replace")
+        elif command == SET_SELECTED_NAVIGATION_INDEX and len(payload) >= 8:
+            tab, index = struct.unpack_from("<ii", payload)
+            selected[tab] = index
+        elif command == SET_TAB_WINDOW and len(payload) >= 8:
+            window, tab = struct.unpack_from("<ii", payload)
+            windows[tab] = window
+        elif command == PRUNED_FROM_BACK and len(payload) >= 8:
+            tab, count = struct.unpack_from("<ii", payload)
+            navigations[tab] = {i: u for i, u in navigations.get(tab, {}).items() if i < count}
+        elif command == PRUNED and len(payload) >= 12:
+            tab, index, count = struct.unpack_from("<iii", payload)
+            navigations[tab] = {i: u for i, u in navigations.get(tab, {}).items() if not index <= i < index + count}
+        elif command == TAB_CLOSED and len(payload) >= 4:
+            closed.add(struct.unpack_from("<i", payload)[0])
+        elif command == WINDOW_CLOSED and len(payload) >= 4:
+            closed_windows.add(struct.unpack_from("<i", payload)[0])
+    tabs = []
+    for tab, pages in sorted(navigations.items()):
+        if tab in closed or windows.get(tab) in closed_windows or not pages:
+            continue
+        index = selected.get(tab, max(pages))
+        tabs.append({"url": pages.get(index, pages[max(pages)]), "history": [pages[i] for i in sorted(pages)]})
+    return tabs
+
+
+def grade_tabs(profile=None, chromium=None):
+    """Whether each of Mara's tabs is still open on its page, in Firefox, from its profile, or in Chromium, from its
+    user data directory."""
+    failures, checks = [], {}
+    browser = "Chromium" if chromium else "Firefox"
+    try:
+        tabs = chromium_tabs(chromium) if chromium else firefox_tabs(profile)
+    except (OSError, ValueError, struct.error) as e:
+        return [f"{browser}'s session could not be read, so Mara's tabs could not be checked ({e})"], checks
     checks["tabs"] = [t["url"] for t in tabs]
     for path, title in TABS:
         url = INTRANET + path
@@ -366,7 +432,9 @@ def events(state_dir, events_log, since):
     """The milestones, in VM time: when the agent had looked at every tab, entered the first figure and all of
     them, all formulas, and saved the file; and when it opened the hidden parts of two pages."""
     out = {}
-    firefox = json.load(open(os.path.join(state_dir, "windows.json")))["firefox"].removeprefix("0x")
+    # The browser's window: "browser", or "firefox" in runs from before Chromium could stand in for it.
+    windows = json.load(open(os.path.join(state_dir, "windows.json")))
+    browser = (windows.get("browser") or windows["firefox"]).removeprefix("0x")
     seen, viewed = set(), None
     for line in open(events_log, errors="replace") if os.path.exists(events_log) else []:
         t, _, event = line.rstrip("\n").partition(" ")
@@ -374,7 +442,7 @@ def events(state_dir, events_log, since):
         if name != "windowtitlev2":
             continue
         address, _, title = data.partition(",")
-        if address != firefox:
+        if address != browser:
             continue
         for _, page in TABS:
             if title.startswith(page):
@@ -431,6 +499,7 @@ def main():
     parser.add_argument("--requests", help="the intranet's log of requests")
     parser.add_argument("--original", help="the sheet as it was at the start")
     parser.add_argument("--profile", help="Firefox's profile")
+    parser.add_argument("--chromium", help="Chromium's user data directory, in place of Firefox's profile")
     parser.add_argument("--events", help="Hyprland's event log")
     parser.add_argument("--since", type=float, default=0, help="VM time of the agent's start")
     args = parser.parse_args()
@@ -440,7 +509,7 @@ def main():
     failures, checks = [], {}
     for f, c in (
         grade_sheet(os.path.join(args.home, "Documents", FILE_NAME), args.original),
-        grade_tabs(args.profile),
+        grade_tabs(args.profile, args.chromium),
         grade_files(args.home, json.load(open(os.path.join(args.state, "home-before.json")))),
     ):
         failures += f

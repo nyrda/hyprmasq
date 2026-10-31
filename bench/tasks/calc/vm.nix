@@ -22,6 +22,9 @@ let
   '';
 in
 {
+  # Chromium in place of Firefox, for a run with --browser chromium.
+  imports = [ ../browser.nix ];
+
   networking.hosts."127.0.0.1" = [ "intranet.example.test" ];
 
   environment.systemPackages = [

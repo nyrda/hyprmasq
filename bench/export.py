@@ -14,7 +14,11 @@ and a display. render.py then names the task by its variant too, such as board-d
 of several machines into one dataset, each run with its CPU, for runs that the dispatcher spread over them: their
 times compare only where each build ran on the same machines. --agent keeps only the runs of the agents that match
 one of its patterns, HARNESS, HARNESS:MODEL or HARNESS:MODEL@EFFORT with *, as dispatch.py's agents= takes them, such
-as `--agent '*:*@medium'` for the runs at medium effort of a results directory that holds others too.
+as `--agent '*:*@medium'` for the runs at medium effort of a results directory that holds others too. Each source and
+run records its backend, hyprmasq, cua, hypruse or computer-use-linux, and its prompt, the task's own or the
+comparison's (run.py --backend and --prompt), and the user's browser (--browser): a dataset holds one of each per task.
+A run of another backend than hyprmasq has no act_s, the split of hyprmasq's act calls, and records its tool's
+refusals.
 """
 
 import argparse
@@ -35,12 +39,19 @@ def run_record(results_dir, name, fail, variant):
     s = report.metrics(run_dir)
     usage = s.get("usage") or {}
     effort = s.get("effort") or {}
-    # A run that ended before any tool call has no act tool description for analyze.py to read.
-    act = analyze.analyze(run_dir) if s["calls"] else {part + "_s": 0.0 for part in ("input", "wait", "watch", "pause", "rest")}
+    parts = ("input", "wait", "watch", "pause", "rest")
+    # A run that ended before any tool call has no act tool description for analyze.py to read, and the other backends
+    # have no act.
+    act = None
+    if s["backend"] == "hyprmasq":
+        act = analyze.analyze(run_dir) if s["calls"] else {part + "_s": 0.0 for part in parts}
     record = {
         "run": f"{os.path.basename(os.path.normpath(results_dir))}/{name}",
         "task": s["task"],
         "variant": variant,
+        "backend": s["backend"],
+        "prompt": s["prompt"],
+        "browser": s["browser"],
         "harness": s["harness"],
         "model": s["model"],
         # The harness's default when the run asked for none.
@@ -65,9 +76,13 @@ def run_record(results_dir, name, fail, variant):
         "context": s.get("context"),
         # None where the run's events were not recorded.
         "user_undisturbed": (s.get("user") or {}).get("undisturbed"),
+        # Seconds the focus was away from the user's window, which the comparison's figures count as disturbed.
+        "focus_away_s": (s.get("user") or {}).get("focus_away_seconds"),
         "phases": s.get("phases") or {},
-        "act_s": {part: act[part + "_s"] for part in ("input", "wait", "watch", "pause", "rest")},
+        "act_s": {part: act[part + "_s"] for part in parts} if act else None,
     }
+    if s.get("refusals"):
+        record["refusals"] = s["refusals"]
     kinds = (s.get("checks") or {}).get("kinds")
     # The form task's kinds of question, with their times; the trace task counts its kinds of stroke there.
     if kinds and all(isinstance(v, dict) for v in kinds.values()):
@@ -98,7 +113,9 @@ def export(results_dirs, fail, several_machines=False, agents=()):
     for results_dir in results_dirs:
         with open(os.path.join(results_dir, "source.json")) as f:
             source = json.load(f)
-        sources.append({k: source.get(k) for k in ("commit", "dirty", "task", "variant", "display")})
+        sources.append({**{k: source.get(k) for k in ("commit", "dirty", "task", "variant", "display")},
+                        "backend": source.get("backend", "hyprmasq"), "prompt": source.get("prompt", "task"),
+                        "browser": source.get("browser", "firefox")})
     for results_dir, s in zip(results_dirs, sources):
         for name in sorted(os.listdir(results_dir)):
             if os.path.exists(os.path.join(results_dir, name, "summary.json")):
@@ -111,10 +128,11 @@ def export(results_dirs, fail, several_machines=False, agents=()):
     # by which render.py tells a task's variants apart.
     builds = {}
     for s in sources:
-        builds.setdefault(s["task"], set()).add(tuple(s[k] for k in ("commit", "dirty", "display")))
+        build = tuple(s[k] for k in ("commit", "dirty", "display", "backend", "prompt", "browser"))
+        builds.setdefault(s["task"], set()).add(build)
     mixed = sorted(task for task, b in builds.items() if len(b) > 1)
     if mixed:
-        sys.exit(f"export.py: the results directories hold several commits or displays of "
+        sys.exit(f"export.py: the results directories hold several commits, displays, backends, prompts or browsers of "
                  f"{', '.join(mixed)}. Export each to its own dataset.")
     if len(machines) > 1 and not several_machines:
         sys.exit("export.py: the runs ran on several machines, whose times differ. Export each machine's runs to "

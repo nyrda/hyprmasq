@@ -6,6 +6,8 @@
                 [--source DIR]... [--out DIR]... [--task TASK[:VARIANT]]... [--variant NAME] [--display WxH@S]
                 [--agent HARNESS:MODEL[@EFFORT]]... [--reps N | --rep N...] [--timeout SECONDS] [--no-debrief]
                 [--balance] [--max-concurrent PATTERN=N[,PATTERN=N]...]
+                [--backend hyprmasq|cua|hypruse|computer-use-linux] [--prompt task|comparison]
+                [--browser firefox|chromium]
 
 HOST is `local`, this machine, or an SSH destination such as user@machine, which this machine reaches with its
 keys. Each run, one agent's repetition, runs `run.py --rep N` on one host in a fresh VM there, and its directory is
@@ -17,7 +19,8 @@ the checkouts must be clean. Each --source is a build with its own results direc
 the runs of builds go to the same host one after the other. Several --task run in one queue, each into its own
 directory TASK[-VARIANT] under each --out. cores= runs each slot's VM on that many physical cores of its own.
 --balance gives each host an equal share of every task's and agent's runs, and --max-concurrent limits the runs at
-once of the agents that match a pattern, over all hosts and tasks. See bench/README.md.
+once of the agents that match a pattern, over all hosts and tasks. --backend, --prompt and --browser go to every run,
+as run.py takes them. See bench/README.md.
 """
 
 import argparse
@@ -432,7 +435,8 @@ class Remote:
         return f"{host.base}/trees/{commit}"
 
     def driver_dir(self, host, build):
-        name = f"{self.harness['commit'][:12]}-{build.commit[:12]}-{build.task}-{build.variant or ''}-{self.args.display}"
+        name = (f"{self.harness['commit'][:12]}-{build.commit[:12]}-{build.task}-{build.variant or ''}-"
+                f"{self.args.display}-{self.args.backend}-{self.args.browser}")
         return f"{host.base}/drivers/{name}"
 
     def prepare(self, host):
@@ -488,7 +492,7 @@ class Remote:
             say(f"[{host}] building the driver of {b.commit[:10]} for {run.results_name(b.task, b.variant)}")
             driver_dir = self.driver_dir(host, b)
             call = (f"run.build_driver({driver_dir!r}, {self.tree(host, b.commit)!r}, {b.task!r}, "
-                    f"{b.variant!r}, {self.args.display!r})")
+                    f"{b.variant!r}, {self.args.display!r}, {self.args.backend!r}, {self.args.browser!r})")
             self.sh(host, f"""
                 mkdir -p {shlex.quote(driver_dir)}
                 cd {shlex.quote(self.tree(host, self.harness['commit']))}/bench && python3 -c {shlex.quote('import run; ' + call)}
@@ -502,6 +506,7 @@ class Remote:
             "--agent", run.agent_spec(job.harness, job.model, job.effort), "--rep", str(job.rep),
             "--timeout", str(self.args.timeout),
             "--out", f"{jobs}/out", "--cid", str(host.cid + slot), "--source", self.tree(host, b.commit),
+            "--backend", self.args.backend, "--prompt", self.args.prompt, "--browser", self.args.browser,
         ]
         command += ["--variant", b.variant] if b.variant else []
         command += ["--no-debrief"] if self.args.no_debrief else []
@@ -639,7 +644,8 @@ def parse_tasks(args, parser):
         task, sep, variant = spec.partition(":")
         if sep and args.variant:
             parser.error(f"--task {spec} has a variant already: leave out --variant")
-        tasks.append((task, run.check_task(task, (variant or None) if sep else args.variant, parser)))
+        variant = (variant or None) if sep else args.variant
+        tasks.append((task, run.check_task(task, variant, parser, args.prompt, args.browser)))
     if len(set(tasks)) < len(tasks):
         parser.error("a task variant is given twice")
     return tasks
@@ -711,7 +717,8 @@ def main():
         if not out and len(tasks) > 1:
             out = run.results_dir(f"{len(tasks)}-tasks{suffix}")
         for task, variant in tasks:
-            config = {**state, "task": task, "variant": variant, "display": args.display}
+            config = {**state, "task": task, "variant": variant, "display": args.display, "backend": args.backend,
+                      "prompt": args.prompt, "browser": args.browser}
             builds.append(Build(results_out(out, task, variant, len(tasks), suffix), config))
     if len({b.out for b in builds}) < len(builds):
         parser.error("two builds have the same --out")
