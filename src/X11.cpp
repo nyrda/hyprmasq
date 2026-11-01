@@ -548,15 +548,16 @@ namespace hyprmasq::x11 {
         if (!c)
             return;
         drain();
-        // Nothing else may move focus between the check and the restore.
-        xcb_grab_server(c);
+        // The check and the restore are not atomic: an X client that moves the X focus in between loses it to the
+        // restore. A server grab cannot close that, since rootless XWayland grabs the server only for the window manager
+        // and only pretends to for other clients, such as this connection (xwl_server_grab in xwayland-screen.c).
         if (auto current = inputFocus(c); current && current->focus == focus.window && takes(c)) {
             xcb_set_input_focus(c, focus.revertTo, focus.previous, XCB_CURRENT_TIME);
             // Focus stays put if the previous window is gone or no longer viewable.
             if (auto after = inputFocus(c); after && after->focus == focus.window && takes(c))
                 xcb_set_input_focus(c, XCB_INPUT_FOCUS_POINTER_ROOT, XCB_NONE, XCB_CURRENT_TIME);
         }
-        xcb_ungrab_server(c);
+        // The round trip makes the restore land before the keys that follow, which travel over Wayland.
         inputFocus(c);
         announceActiveWindow(c);
     }
