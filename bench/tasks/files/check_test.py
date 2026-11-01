@@ -95,9 +95,10 @@ class Grade(unittest.TestCase):
 
     def test_the_laptops_folder_is_the_same(self):
         sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "laptop"))
-        import run_files
-        self.assertEqual(check.START, run_files.START)
-        self.assertEqual(check.EXPECTED, run_files.EXPECTED)
+        # The laptop's and the Mac's runners take the folder from files_task.
+        import files_task
+        self.assertEqual(check.START, files_task.START)
+        self.assertEqual(check.EXPECTED, files_task.EXPECTED)
 
 
 class OtherWindows(unittest.TestCase):

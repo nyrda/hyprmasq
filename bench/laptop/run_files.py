@@ -12,7 +12,6 @@ Move to…, counts as the file manager's own. The setup, agent run and event log
 """
 
 import argparse
-import hashlib
 import json
 import os
 import signal
@@ -21,18 +20,7 @@ import subprocess
 import time
 
 import run_form as rf
-
-# The folder at the start: path relative to Project, and the file's contents, or None for a folder.
-START = {
-    "Archive": None,
-    "Archive/report-2025.txt": "Quarterly report 2025, final.\n",
-    "Drafts": None,
-    "Drafts/ideas.txt": "Ideas for the spring campaign.\n",
-    "budget.csv": "item,amount\nprinting,120\nvenue,800\n",
-    "notes.txt": "Call the printer on Monday.\n",
-    "report-draft.txt": "Quarterly report 2026, ready for review.\n",
-}
-EXPECTED = {("Archive/report-final.txt" if p == "report-draft.txt" else p): c for p, c in START.items()}
+from files_task import grade, make, tree
 
 PROMPT = (
     "You are helping Mara Lindqvist on her Linux desktop. You can see and control it only through your desktop "
@@ -43,30 +31,6 @@ PROMPT = (
     "file and folder as it is. Work only in that window: do not start other programs. When you are done, say "
     "\"Done\"."
 )
-
-
-def tree(root):
-    """The folder's files and folders, relative to root: a file's SHA-256, None for a folder."""
-    found = {}
-    for path, dirs, files in os.walk(root):
-        for name in dirs:
-            found[os.path.relpath(os.path.join(path, name), root)] = None
-        for name in files:
-            with open(os.path.join(path, name), "rb") as f:
-                found[os.path.relpath(os.path.join(path, name), root)] = hashlib.sha256(f.read()).hexdigest()
-    return found
-
-
-def expected_tree():
-    return {p: (hashlib.sha256(c.encode()).hexdigest() if c is not None else None) for p, c in EXPECTED.items()}
-
-
-def grade(root):
-    found, want = tree(root), expected_tree()
-    failures = [f"missing: {p}" for p in sorted(want) if p not in found]
-    failures += [f"unexpected: {p}" for p in sorted(found) if p not in want]
-    failures += [f"changed: {p}" for p in sorted(want) if p in found and found[p] != want[p]]
-    return failures, found
 
 
 def own_window(opened, app_class):
@@ -136,14 +100,7 @@ def main():
 
         # A fresh folder in the run's directory, named as in the task.
         root = f"{out}/files/Project"
-        for path, contents in START.items():
-            full = os.path.join(root, path)
-            if contents is None:
-                os.makedirs(full, exist_ok=True)
-            else:
-                os.makedirs(os.path.dirname(full), exist_ok=True)
-                with open(full, "w") as f:
-                    f.write(contents)
+        make(root)
         # Nautilus runs as one process for all its windows, and outlives them: a run gets a process of its own,
         # which it ends, so that a drag or dialog an agent left in it does not carry into the next run.
         if running_nautilus():

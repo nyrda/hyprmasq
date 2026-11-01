@@ -13,7 +13,8 @@ Each block of a Markdown file, by default docs/benchmarks.md and docs/comparison
 is replaced with the view of DATASET.json in the data directory of the directory named after the page beside it,
 docs/benchmarks/data for docs/benchmarks.md. DATASET can join several with commas. Figures are SVG files in that
 directory, one for GitHub's light theme and one for its dark theme, which a <picture> element picks between, named
-after the dataset, view and task, the dataset left out when there are several. Views:
+after the dataset, view and task, the dataset left out when there are several, unless an earlier block of the page
+has that name: then the last of the datasets names it too. Views:
 
 - scoreboard: a row per agent, for each task a bar of the share of its runs that passed, the share, the count where
   the tasks' counts differ, and the median wall time, and the cost per passed run. Where the tasks do not fit as
@@ -825,7 +826,8 @@ def act_figure(data):
 
 # Each tool's name and series colour, the same in every figure.
 TOOLS = {"hyprmasq": ("hyprmasq", "s0"), "cua": ("Cua Driver", "s1"), "openai-cu": ("OpenAI computer use", "s2"),
-         "hypruse": ("hypruse", "s3"), "computer-use-linux": ("computer-use-linux", "s4")}
+         "hypruse": ("hypruse", "s3"), "computer-use-linux": ("computer-use-linux", "s4"),
+         "claude-cu": ("Claude computer use", "s6")}
 PLATFORMS = {"hyprland": "Hyprland", "hyprland-vm": "Hyprland VM", "macos": "macOS"}
 # The tasks whose page is in the user's browser, Firefox or Chromium, which the VM's runs name. Forgejo's is always
 # Chromium.
@@ -878,17 +880,18 @@ def tool_rows(runs, pooled=None):
 
 
 def setting(rs):
-    """Where a tool's runs ran: platform, toolkit of the task's app, and the ChatGPT app as the harness."""
+    """Where a tool's runs ran: platform, toolkit of the task's app, Finder for the Mac's file manager, and on a Mac
+    the app or CLI that ran the agent."""
     r = rs[0]
     parts = [PLATFORMS.get(r.get("platform"), r.get("platform") or "")]
     if r["task"].startswith("form"):
         parts.append({"gtk": "GTK", "gtk4": "GTK 4", "qt": "Qt"}.get(r.get("toolkit"), r.get("toolkit") or ""))
     if r.get("task_of", r["task"]) in BROWSER_TASKS and r.get("browser"):
         parts.append(r["browser"].capitalize())
-    if r["harness"] == "codex-desktop":
-        parts.append("ChatGPT app")
-    elif r["harness"] == "codex-exec":
-        parts.append("Codex CLI")
+    if r["task"] == "files" and r.get("platform") == "macos":
+        parts.append("Finder")
+    parts.append({"codex-desktop": "ChatGPT app", "codex-exec": "Codex CLI", "claude-desktop": "Claude app",
+                  "claude-exec": "Claude Code"}.get(r["harness"], ""))
     return " · ".join(p for p in parts if p)
 
 
@@ -936,9 +939,11 @@ def disturbance_label(seconds, rs):
         return "–"
     text = f"{len(hit)} of {len(ok)}"
     if hit:
-        kinds = {disturbance(r)[1] for r in hit}
-        words = {"focus taken": "focus", "windows over the user": "windows", "focus or windows": "focus/windows"}
-        text += f" · {seconds:.0f} s, " + "/".join(sorted(words[k] for k in kinds))
+        # Each way once, where some runs took the focus and others also drew windows: focus/windows.
+        words = {"focus taken": ["focus"], "windows over the user": ["windows"],
+                 "focus or windows": ["focus", "windows"]}
+        kinds = {w for r in hit for w in words[disturbance(r)[1]]}
+        text += f" · {seconds:.0f} s, " + "/".join(sorted(kinds))
     if any(r.get("hyprland_dialogs") for r in rs):
         text += ", ANR dialogs"
     return text
@@ -1104,6 +1109,18 @@ def comparison_time_figure(data, task=None):
     return svg, alt
 
 
+def beyond_first(r):
+    """The input a run's work added, in k tokens: its input less the first request, which every request carries again,
+    so the harness's system prompt and the tools' definitions are left out. None where its context is not known, or
+    unless its context records that it compacted its history no time: after a compaction a request no longer carries
+    all of the first, and a count that is not known, as where Codex announced more than it recorded, may hide one."""
+    context = r.get("context") or {}
+    first, requests, total = context.get("first_input_tokens"), context.get("request_count"), r["usage"]["input_tokens"]
+    if None in (first, requests, total) or context.get("compactions") != 0:
+        return None
+    return (total - requests * first) / 1000
+
+
 def comparison_table(data, task=None):
     runs = of_task(data, task)
     # Hyprland's ANR dialogs get a column only where a run had any.
@@ -1120,12 +1137,14 @@ def comparison_table(data, task=None):
                 fmt([per_k(r["usage"]["input_tokens"]) for r in rs]),
                 fmt([per_k(r["usage"]["uncached_input_tokens"]) for r in rs]),
                 fmt([per_k((r.get("context") or {}).get("peak_input_tokens")) for r in rs]),
+                fmt([(r.get("context") or {}).get("request_count") for r in rs]), fmt([beyond_first(r) for r in rs]),
                 fmt([r["usage"]["cost_usd"] for r in rs], 2),
                 fmt([(r.get("focus") or {}).get("seconds_away_from_user") for r in rs if passed(r)]),
                 fmt([(r.get("popups") or {}).get("seconds_visible") for r in rs if passed(r)]),
             ] + ([fmt(dialogs) if any(dialogs) else "0"] if any_dialogs else []))
     columns = ["Task", "Agent", "Tool", "Where", "Passed", "Time s", "In tools s", "Calls", "Failed calls",
-               "Input k", "Uncached k", "Peak context k", "Cost $", "Focus away s", "Windows over user s"] + (
+               "Input k", "Uncached k", "Peak context k", "Requests", "Beyond first request k", "Cost $", "Focus away s",
+               "Windows over user s"] + (
         ["ANR dialogs"] if any_dialogs else [])
     # A table of one task leaves out its name, which the page's heading gives.
     if len({r["task"] for r in runs}) == 1:
@@ -1250,7 +1269,8 @@ def markdown_table(columns, rows):
 
 
 # The columns of tokens and cost, which a wide table puts in a table of their own.
-USAGE_COLUMNS = ["Input k", "Uncached k", "Cached %", "Peak context k", "Output k", "Cost $"]
+USAGE_COLUMNS = ["Input k", "Uncached k", "Cached %", "Peak context k", "Requests", "Beyond first request k", "Output k",
+                 "Cost $"]
 
 
 def split_table(columns, rows, keys):
@@ -1407,8 +1427,14 @@ def render_block(markdown_path, dataset, view, arg, files):
     if view not in FIGURES:
         raise SystemExit(f"render.py: {markdown_path}: unknown view {view}")
     svg, alt = FIGURES[view](data, *args)
-    # A figure of several datasets is named after its view alone.
+    # A figure of several datasets is named after its view alone, unless an earlier block of the page took that name:
+    # then after its last dataset too, so that no block draws over another's figure.
     stem = "-".join(([dataset] if "," not in dataset else []) + [view] + ([arg] if arg else []))
+    paths = lambda stem: [os.path.join(doc_dir, base, stem + suffix + ".svg") for suffix in ("", "-dark")]
+    if "," in dataset and any(p in files for p in paths(stem)):
+        stem = f"{dataset.rsplit(',', 1)[1]}-{stem}"
+    if any(p in files for p in paths(stem)):
+        raise SystemExit(f"render.py: {markdown_path}: two blocks draw the figure {stem}")
     for theme, suffix in (("light", ""), ("dark", "-dark")):
         files[os.path.join(doc_dir, base, stem + suffix + ".svg")] = svg.render(theme, alt)
     # The datasets' notes, such as which build a model ran on, stand under the overview, not inside a figure.

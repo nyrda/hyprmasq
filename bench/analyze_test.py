@@ -64,6 +64,65 @@ class MacWindowVisibility(unittest.TestCase):
         self.assertEqual(focus["seconds_disturbed"], 5.0)
 
 
+class ClaudeDesktopRun(unittest.TestCase):
+    """A run of Claude's computer use, read from the Claude app's Code session transcript."""
+
+    def entry(self, kind, at, content, message_id=None, usage=None):
+        message = {"role": kind, "content": content}
+        if kind == "assistant":
+            message.update(id=message_id, model="claude-sonnet-5-5", usage=usage,
+                           stop_reason="end_turn" if message_id == "m3" else "tool_use")
+        return {"type": kind, "timestamp": f"2026-10-31T10:00:{at:02d}.000Z", "message": message}
+
+    def test_usage_once_a_message_and_the_approval_wait_left_out(self):
+        usage = {"input_tokens": 10, "cache_read_input_tokens": 1000, "cache_creation_input_tokens": 100,
+                 "output_tokens": 50}
+        transcript = [
+            self.entry("user", 0, "You are helping Mara Lindqvist"),
+            # A message's content blocks are entries of their own, with the same usage.
+            self.entry("assistant", 2, [{"type": "text", "text": "Asking for access."}], "m1", usage),
+            self.entry("assistant", 2, [{"type": "tool_use", "id": "t1", "name": "mcp__computer-use__request_access",
+                                         "input": {}}], "m1", usage),
+            self.entry("user", 12, [{"type": "tool_result", "tool_use_id": "t1", "content": "granted"}]),
+            self.entry("assistant", 13, [{"type": "tool_use", "id": "t2", "name": "mcp__computer-use__app_click",
+                                          "input": {}}], "m2", dict(usage, cache_read_input_tokens=2000)),
+            self.entry("user", 15, [{"type": "tool_result", "tool_use_id": "t2", "content": "ok"}]),
+            self.entry("assistant", 16, [{"type": "text", "text": "Done"}], "m3", usage),
+        ]
+        start = laptop_analyze.iso_time(transcript[0]["timestamp"])
+        summary = {"backend": "claude-cu", "rep": 1, "task": "files", "platform": "macos",
+                   "harness": "claude-desktop", "model": "claude-sonnet-5-5", "user_app": "Claude",
+                   "agent": {"start": start, "end": start + 16, "timed_out": False}, "wall_seconds": 16.0,
+                   "passed": True, "failures": [], "check": {"checks": {}}}
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "summary.json").write_text(json.dumps(summary))
+            Path(root, "transcript.jsonl").write_text("\n".join(map(json.dumps, transcript)) + "\n")
+            Path(root, "front.jsonl").write_text(json.dumps({"time": start, "front": "Claude"}) + "\n")
+            Path(root, "windows.jsonl").write_text(json.dumps({"time": start, "windows": []}) + "\n")
+            run = laptop_analyze.run_metrics(root)
+        self.assertEqual(run["usage"]["input_tokens"], 1110 + 2110 + 1110)
+        self.assertEqual(run["usage"]["uncached_input_tokens"], 110 * 3)
+        self.assertEqual(run["context"]["peak_input_tokens"], 2110)
+        # Three requests at Sonnet 5.5's list prices: 30 input, 300 5-minute cache writes, 4000 cache reads, 150 output.
+        self.assertAlmostEqual(run["usage"]["cost_usd"], (30 * 2 + 300 * 2.5 + 4000 * 0.1 + 150 * 10) / 1e6)
+        self.assertEqual(run["calls"], 2)
+        self.assertEqual(run["approval_seconds"], 10.0)
+        self.assertEqual(run["wall_seconds"], 6.0)
+        self.assertEqual(run["tool_seconds"], 2.0)
+        self.assertEqual(run["final"], '"Done"')
+        self.assertEqual(run["by_tool"]["app_click"], {"calls": 1, "errors": 0})
+        self.assertEqual(run["context"]["compactions"], 0)
+
+    def test_a_compacted_session_counts_its_compactions(self):
+        usage = {"input_tokens": 10, "cache_read_input_tokens": 1000, "cache_creation_input_tokens": 0,
+                 "output_tokens": 5}
+        transcript = [self.entry("user", 0, "You are helping Mara Lindqvist"),
+                      self.entry("assistant", 1, [{"type": "text", "text": "a"}], "m1", usage),
+                      {"type": "system", "subtype": "compact_boundary", "timestamp": "2026-10-31T10:00:02.000Z"},
+                      self.entry("assistant", 3, [{"type": "text", "text": "b"}], "m3", usage)]
+        self.assertEqual(laptop_analyze.claude_transcript_usage(transcript)[2]["compactions"], 1)
+
+
 def both(actions, text, structured):
     """The split of one act call from its structured content, and from its text alone."""
     lines = text.split("\n")
