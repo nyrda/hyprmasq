@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
+
 struct wl_client;
 
 // The agent's clipboard and primary selection: what the apps of driven windows copy and select through emulated input.
@@ -21,6 +25,18 @@ namespace hyprmasq::selection {
     // The user's own input reaches the client, or the real keyboard focus moves to it. Call before the input arrives: when
     // the client made the agent's clipboard, that copy ends, and its source gets a cancel.
     void userInput(wl_client* client);
+    // The agent's clipboard becomes the text, which the plugin holds, for the agent's paste. The agent's primary selection
+    // stays: GTK drops a text selection whose source gets a cancel.
+    // Returns the serial of the text, which rises with every text the agent's clipboard becomes.
+    uint64_t setAgentText(std::string text);
+    // The text that the agent's clipboard is, if it still is one: its serial, how many pastes asked for it, how many of
+    // them have ended, and how many of these got all of it.
+    struct SAgentText {
+        uint64_t serial = 0;
+        bool     held   = false;
+        size_t   asked = 0, ended = 0, complete = 0;
+    };
+    SAgentText agentText();
     // Emulated input gave the client's keyboard or pointer back to the user's window there: if the client has the agent's
     // selections, it gets the user's back.
     void restore(wl_client* client);

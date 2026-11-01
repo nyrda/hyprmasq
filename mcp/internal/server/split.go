@@ -62,7 +62,7 @@ func scrollSplitAt(r *actRequest, sh *shot, until time.Time) int {
 func changesInput(batch []action) bool {
 	for _, a := range batch {
 		switch {
-		case a.Kind == "click" || a.Kind == "key" || a.Kind == "type" || a.holdsButton():
+		case a.Kind == "click" || a.Kind == "key" || a.Kind == "type" || a.Kind == "paste" || a.holdsButton():
 			return true
 		}
 	}
@@ -193,7 +193,8 @@ func (s *Server) actSplit(ctx, sendCtx context.Context, c splitCall) *mcp.CallTo
 	} else {
 		scrolled, cur, err = s.send(ctx, sendCtx, &scroll, tail, c.sh, st, c.start, c.p, targetLocale{})
 	}
-	scrolled.composeNote = actions.composeNote
+	// The scrolls paste nothing: what the part before them did not paste goes on in the result.
+	scrolled.composeNote, scrolled.UnreadPastes = actions.composeNote, actions.UnreadPastes
 	if scrolled.Delivery == "none" {
 		if errors.Is(err, errCancelled) {
 			out.Wait, out.BeforeScroll = &waitOut{Ended: "cancelled"}, nil

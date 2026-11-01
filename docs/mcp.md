@@ -148,6 +148,7 @@ object when you need to skip an optional position.
 | path | `["path", points, curve?, button?, modifiers?]` |
 | scroll | `["scroll", x, y, dy, unit?, dx?]` |
 | type | `["type", text]` |
+| paste | `["paste", text]` |
 | key | `["key", keys, repeat?]` |
 | pause | `["pause", ms]` |
 
@@ -249,7 +250,8 @@ page.
 | `move` | `x`, `y`, for hover |
 | `path` | `points`, 2 to 500 points [[x, y], …], `curve` (`line` or `spline`, default `line`), `button` (also `none`), `modifiers` |
 | `scroll` | `x`, `y`, `dx`, `dy`, `unit` (`page`, a measured page, `notch`, a wheel click, or `px`, smooth scrolling). See [A scroll at the end of a batch](#a-scroll-at-the-end-of-a-batch). |
-| `type` | `text`, typed literally with the active keymap. A line break presses Enter. At most 65536 bytes per batch. |
+| `type` | `text`, typed literally with the active keymap. A line break presses Enter. At most 65536 bytes per batch, with the text of pastes. |
+| `paste` | `text`, inserted at once through the agent clipboard with Shift+Insert. Line breaks and tabs stay text. See [Pasting](#pasting). |
 | `key` | `keys`, such as `["ctrl", "l"]` or `["ctrl+l"]`, pressed together, and `repeat` (1 to 500). A single plain key presses as a typed key does; repeated plain keys have 1 ms gaps between distinct press/release frames, and chords with modifiers take 40 ms. |
 | `pause` | `ms` (0 to 5000) |
 
@@ -296,6 +298,27 @@ app pastes your clipboard again. X11 apps of one X server share its selections, 
 drives can paste your X11 clipboard, and what it copies is available to your
 other apps on that X server. See
 [Clipboard and selections](automation.md#clipboard-and-selections).
+
+### Pasting
+
+`["paste", text]` inserts a long text at once, where `type` would press a key
+for each character. It makes the text the agent clipboard, which the plugin
+holds, and presses Shift+Insert, which GTK, Qt, Chromium, Electron, Firefox and
+LibreOffice apps paste the clipboard on. Your clipboard and primary selection
+stay as they are, and so does the agent's primary selection, so a text selected
+in the window is replaced by the paste. Text over 16000 bytes pastes in parts,
+each once the app has read the part before. Input after a paste waits until the
+app has read its text, for at most 3 s.
+
+The line breaks and tabs of a paste are text, not Enter and Tab presses, so
+`type` is the action for moving between fields or spreadsheet cells. A
+multi-line paste into a LibreOffice Calc cell opens its Text Import dialog.
+Terminals such as foot paste the primary selection on Shift+Insert, not the
+clipboard: when no app reads all of a paste within 3 s, the result lists it in
+`actions.unread_pastes`, and its hint suggests `type`. When a later part of a
+long paste cannot be set, the error says that the parts before it were pasted,
+so that the agent pastes only what is missing. A paste into an X11 window
+is refused with `unsupported`, as X11 apps paste the X server's clipboard.
 
 ### A press outside an open popup
 

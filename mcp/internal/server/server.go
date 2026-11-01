@@ -218,12 +218,13 @@ Read each result's summary, and its hint when it has one, before the next call.`
 
 var actDescription = `Act, wait for redraw, and show changes. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
 Coordinates are pixels of the shot you pass, as they are: a full shot, or a zoom from screenshot region, whose own pixels act takes without conversion. The shot identifies the window; pass window only without a shot.
-Use compact action arrays: [x,y] clicks, ["move",x,y], ["path",points,curve], ["scroll",x,y,dy,unit], ["type",text], ["key",keys,repeat], ["pause",ms]. keys: "right" or ["ctrl","l"], repeat optional. Named objects also work.
+Use compact action arrays: [x,y] clicks, ["move",x,y], ["path",points,curve], ["scroll",x,y,dy,unit], ["type",text], ["paste",text], ["key",keys,repeat], ["pause",ms]. keys: "right" or ["ctrl","l"], repeat optional. Named objects also work.
 path presses once, moves through its points [[x,y],...] and releases, as one stroke: a drag is a path of two points. curve "line", the default, goes straight from point to point. "spline" passes through every point but curves between them, so for a precise trace give points close together, and use line where the target bends sharply or the points are sparse. button "none" moves without pressing.
 The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box. A full shot comes when it serves better, saying why; capture "window" asks for one.
 Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; known keys, like arrows and enter in a menu, may follow.
 path, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability, an app's drag-and-drop also dnd.
 type uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form use shift+enter.
+paste inserts long text at once; its line breaks and tabs stay text, not keys.
 Never repeat input whose delivery is partial or uncertain, or from a call that timed out, before seeing a fresh shot.
 Example: {"shot":"s4","actions":[[412,88],["type","hello"],["key","enter"]]}`
 
@@ -280,7 +281,7 @@ func objectSchema(properties map[string]json.RawMessage, required ...string) jso
 var namedActionSchema = json.RawMessage(fmt.Sprintf(`{
 	"type": "object",
 	"properties": {
-		"action": {"type": "string", "enum": ["click", "move", "path", "scroll", "type", "key", "pause"]},
+		"action": {"type": "string", "enum": ["click", "move", "path", "scroll", "type", "paste", "key", "pause"]},
 		"x": {"type": "number", "description": "Shot pixels. click, move, scroll."},
 		"y": {"type": "number", "description": "Shot pixels. click, move, scroll."},
 		"button": {"type": "string", "enum": ["left", "right", "middle", "none"], "default": "left", "description": "click, path. none, for path only, moves without pressing, as for a menu that needs a diagonal move, and needs no hold capability."},
@@ -291,7 +292,7 @@ var namedActionSchema = json.RawMessage(fmt.Sprintf(`{
 		"dx": {"type": "number", "description": "scroll: positive scrolls right."},
 		"dy": {"type": "number", "description": "scroll: positive scrolls down."},
 		"unit": {"type": "string", "enum": ["page", "notch", "px"], "default": "notch", "description": "scroll: page moves toward the next view with overlap, dy 1 or -1, last in batch; notch counts wheel clicks; px is app-scaled smooth scrolling."},
-		"text": {"type": "string", "description": "type: the text, typed as given, with no tags or escapes. A line break presses Enter and a tab presses Tab."},
+		"text": {"type": "string", "description": "type: the text, typed as given, with no tags or escapes. A line break presses Enter and a tab presses Tab. paste: the text, inserted at once with Shift+Insert through a clipboard of its own, never the user's. Line breaks and tabs stay text, so use type to move between fields or cells. Not in terminals."},
 		"keys": {"type": "array", "items": {"type": "string"}, "description": "key: pressed together in order and released in reverse, such as [\"ctrl\", \"shift\", \"t\"] or [\"ctrl+l\"], which is split at +. Names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus."},
 		"repeat": {"type": "integer", "minimum": 1, "maximum": 500, "default": 1, "description": "key: presses of the chord."},
 		"ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "pause: milliseconds. Actions after a click or path with a button already wait until the window has drawn its answer, and keys and text until 300 ms have passed since it, while the application moves the focus."}
@@ -300,7 +301,7 @@ var namedActionSchema = json.RawMessage(fmt.Sprintf(`{
 }`, maxPathPoints))
 
 // actSchema is the act tool's input schema for a server that watches for new windows for grace after a wait.
-var actionSchema = json.RawMessage(`{"anyOf":[` + string(namedActionSchema) + `,{"type":"array","description":"A point pair [x,y] is one left click. Other arrays start with an action name: [click,x,y,button?,count?,modifiers?], [move,x,y], [path,points,curve?,button?,modifiers?], [scroll,x,y,dy,unit?,dx?], [type,text], [key,keys,repeat?], [pause,ms]. Omit trailing defaults; do not use null placeholders. keys is a string or an array of strings.","minItems":1,"maxItems":6,"items":{}}]}`)
+var actionSchema = json.RawMessage(`{"anyOf":[` + string(namedActionSchema) + `,{"type":"array","description":"A point pair [x,y] is one left click. Other arrays start with an action name: [click,x,y,button?,count?,modifiers?], [move,x,y], [path,points,curve?,button?,modifiers?], [scroll,x,y,dy,unit?,dx?], [type,text], [paste,text], [key,keys,repeat?], [pause,ms]. Omit trailing defaults; do not use null placeholders. keys is a string or an array of strings.","minItems":1,"maxItems":6,"items":{}}]}`)
 
 func actSchema(grace time.Duration) json.RawMessage {
 	watch := ""

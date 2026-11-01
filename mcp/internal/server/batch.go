@@ -122,7 +122,7 @@ func translateBatch(batch []action, sh *shot) []inputStep {
 			}
 			steps = append(steps, step)
 		}
-		keyed = keyed || a.Kind == "key" || a.Kind == "type"
+		keyed = keyed || a.Kind == "key" || a.Kind == "type" || a.Kind == "paste"
 		if (a.Kind == "click" || a.holdsButton()) && i < len(batch)-1 {
 			steps = append(steps, inputStep{Batch: i + 1, Argv: []string{"sync", "0", strconv.Itoa(answerMaxMs)}})
 			sync, sinceClick, keyed = len(steps)-1, 0, false
@@ -203,7 +203,7 @@ func batchHasCoordinates(batch []action) bool {
 func opensWindows(batch []action) bool {
 	for _, a := range batch {
 		switch {
-		case a.Kind == "click" || a.Kind == "key" || a.holdsButton():
+		case a.Kind == "click" || a.Kind == "key" || a.Kind == "paste" || a.holdsButton():
 			return true
 		case a.Kind == "type":
 			if strings.ContainsAny(a.Text, "\r\n") {

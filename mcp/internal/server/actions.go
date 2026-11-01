@@ -71,6 +71,7 @@ var actionFields = map[string][]string{
 	"path":   {"points", "curve", "button", "modifiers"},
 	"scroll": {"x", "y", "dx", "dy", "unit"},
 	"type":   {"text"},
+	"paste":  {"text"},
 	"key":    {"keys", "repeat"},
 	"pause":  {"ms"},
 }
@@ -103,6 +104,7 @@ var actionRequired = map[string][]string{
 	"path":   {"points"},
 	"scroll": {"x", "y"},
 	"type":   {"text"},
+	"paste":  {"text"},
 	"key":    {"keys"},
 	"pause":  {"ms"},
 }
@@ -136,7 +138,7 @@ func parseActions(raw []json.RawMessage) ([]action, error) {
 			return nil, err
 		}
 		if text += len(a.Text); text > maxTextBytes {
-			return nil, invalidf("actions[%d].text: the batch types more than %d bytes of text", i, maxTextBytes)
+			return nil, invalidf("actions[%d].text: the batch types and pastes more than %d bytes of text", i, maxTextBytes)
 		}
 		actions = append(actions, a)
 	}
@@ -157,7 +159,7 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 	var a action
 	kindRaw, ok := fields["action"]
 	if !ok {
-		return a, invalidf("%s.action is missing; it is one of click, move, path, scroll, type, key, pause", path)
+		return a, invalidf("%s.action is missing; it is one of click, move, path, scroll, type, paste, key, pause", path)
 	}
 	var named string
 	err := json.Unmarshal(kindRaw, &named)
@@ -166,7 +168,7 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 		return a, dragRefused(path, named)
 	}
 	if err != nil || actionFields[named] == nil && !isAlias {
-		return a, invalidf("%s.action must be one of click, move, path, scroll, type, key, pause, not %s", path, kindRaw)
+		return a, invalidf("%s.action must be one of click, move, path, scroll, type, paste, key, pause, not %s", path, kindRaw)
 	}
 	a.Kind = named
 	allowed := actionFields[a.Kind]
@@ -270,7 +272,7 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 		if a.DX == 0 && a.DY == 0 {
 			return a, invalidf("%s: dx and dy are both 0; positive dy scrolls down", path)
 		}
-	case "type":
+	case "type", "paste":
 		if a.Text == "" {
 			return a, invalidf("%s.text is empty", path)
 		}
@@ -278,7 +280,7 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 			return a, invalidf("%s.text is not valid UTF-8", path)
 		}
 		if strings.ContainsRune(a.Text, 0) {
-			return a, invalidf("%s.text contains a NUL character, which cannot be typed", path)
+			return a, invalidf("%s.text contains a NUL character, which cannot be %s", path, map[string]string{"type": "typed", "paste": "pasted"}[a.Kind])
 		}
 	case "key":
 		var keys []string
@@ -333,6 +335,7 @@ func expandAction(raw json.RawMessage, path string) (json.RawMessage, error) {
 		"path":   {"points", "curve", "button", "modifiers"},
 		"scroll": {"x", "y", "dy", "unit", "dx"},
 		"type":   {"text"},
+		"paste":  {"text"},
 		"key":    {"keys", "repeat"},
 		"pause":  {"ms"},
 	}[kind]
@@ -455,6 +458,12 @@ func canonicalModifiers(elements []string, path string) ([]string, error) {
 type inputStep struct {
 	Batch int
 	Argv  []string
+	// For the sync before a paste's Shift+Insert, the text that act makes the agent clipboard there, and for the sync
+	// after it, true: act waits there until the app has read the text.
+	PasteText *string
+	PasteRead bool
+	// For the sync before a paste's Shift+Insert, which part of its text it pastes, from 0, and of how many.
+	PastePart, PasteParts int
 }
 
 func formatNumber(v float64) string {
@@ -503,6 +512,16 @@ func translate(index int, a action, toLogical func(x, y float64) (float64, float
 		return []inputStep{step("keys", strings.Join(a.Keys, "+"), strconv.Itoa(a.Repeat))}
 	case "type":
 		return []inputStep{step("text", a.Text)}
+	case "paste":
+		var steps []inputStep
+		chunks := pasteChunks(a.Text)
+		for part, chunk := range chunks {
+			steps = append(steps,
+				inputStep{Batch: index, Argv: []string{"sync", "0", strconv.Itoa(pasteSyncMaxMs)}, PasteText: &chunk, PastePart: part, PasteParts: len(chunks)},
+				step("keys", pasteKeys, "1"),
+				inputStep{Batch: index, Argv: []string{"sync", "0", strconv.Itoa(pasteSyncMaxMs)}, PasteRead: true})
+		}
+		return steps
 	case "pause":
 		return []inputStep{step("sleep", strconv.Itoa(a.Ms))}
 	}

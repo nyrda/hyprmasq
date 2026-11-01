@@ -195,3 +195,35 @@ with subtest("an X11 app's selection that the agent makes stays in its X server,
     focus_workspace(4)
     dispatch(f'hl.dsp.focus({{ window = "address:{visible}" }})')
     wait_for("user's terminal focused", lambda: snapshot() == (4, visible))
+
+with subtest("the agent's paste pastes its text through the agent clipboard, a long one in parts, and leaves every selection alone"):
+    # The probe selects a text of its own as the agent's primary selection, as a text field's selection is, and the
+    # agent pastes over it with act. The probe gets the text on Shift+Insert, its selection gets no cancel, which in GTK
+    # would drop the selection that the paste replaces, and the user's selections stay.
+    focus_workspace(4)
+    user_copies("userclipboard", "userprimary")
+    paste_probe, paste_path = clip_probe("hm-paste-probe", 87)
+    focus_workspace(4)
+    dispatch(f'hl.dsp.focus({{ window = "address:{visible}" }})')
+    wait_for("user's terminal focused", lambda: snapshot() == (4, visible))
+    start = len(probe_events("hm-paste-probe"))
+    send(paste_path, "keys", "s")
+    wait_clip("hm-paste-probe", start, "select hm-paste-probe-select1")
+    paste_agent = Mcp("paste")
+    paste_agent.initialize()
+    paste_result = paste_agent.call("act", {"window": paste_probe, "actions": [["paste", "agentpaste"]], "capture": "none"})
+    assert not paste_result.is_error and paste_result.data["actions"]["delivery"] == "complete", paste_result
+    assert "unread_pastes" not in paste_result.data["actions"], paste_result
+    wait_clip("hm-paste-probe", start, "paste clipboard agentpaste")
+    # A paste of 40000 bytes goes in parts of 16000, each once the probe has read the one before.
+    paste_result = paste_agent.call("act", {"window": paste_probe, "actions": [["paste", "a" * 16000 + "b" * 16000 + "c" * 8000]], "capture": "none"})
+    assert not paste_result.is_error and "unread_pastes" not in paste_result.data["actions"], paste_result
+    events = wait_clip("hm-paste-probe", start, "paste clipboard bytes 8000")
+    pasted = [e for e in events if e.startswith("paste clipboard ")]
+    assert pasted == ["paste clipboard agentpaste", "paste clipboard " + "a" * 255, "paste clipboard bytes 16000", "paste clipboard " + "b" * 255, "paste clipboard bytes 16000", "paste clipboard " + "c" * 255, "paste clipboard bytes 8000"], pasted
+    assert "source cancelled hm-paste-probe-select1" not in events, events
+    assert user_selections() == ("userclipboard", "userprimary") and snapshot() == (4, visible)
+    assert paste_agent.stop() == 0
+    hypr(f"hyprmasq eis close {paste_probe}")
+    machine.succeed("pkill -f '[h]yprmasq-clip-probe hm-paste-probe'")
+    wait_for("the paste probe closed", lambda: client("hm-paste-probe") is None)

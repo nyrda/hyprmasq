@@ -44,8 +44,8 @@ with subtest("input tool version"):
     assert alice("hyprmasq-input --version").strip() == f"hyprmasq-input {expected_version}"
 
 with subtest("plugin version and window state"):
-    assert json.loads(hypr("-j hyprmasq version")) == {"ok": True, "version": expected_version, "interface": 4}
-    assert hypr("hyprmasq version") == f"hyprmasq {expected_version} interface 4"
+    assert json.loads(hypr("-j hyprmasq version")) == {"ok": True, "version": expected_version, "interface": 5}
+    assert hypr("hyprmasq version") == f"hyprmasq {expected_version} interface 5"
     # The module installs the MCP server of the same version, which runs the package's own hyprmasq-input.
     package = plugin.removesuffix("/lib/hyprmasq.so")
     assert alice("hyprmasq-mcp --version").strip() == expected_version

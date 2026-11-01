@@ -6,15 +6,16 @@
 //   C            copies TITLE-copyN to the clipboard, as text/plain;charset=utf-8 and text/plain
 //   S, a left    selects TITLE-selectN as the primary selection
 //   button
-//   V            pastes the clipboard: reads the text/plain;charset=utf-8 of its last selection offer into a pipe
+//   V, Insert    pastes the clipboard: reads the text/plain;charset=utf-8 of its last selection offer into a pipe
 //   M            pastes the primary selection in the same way
 // N counts the copies and selections from 1.
 //
 // It logs every event after a CLOCK_MONOTONIC timestamp in milliseconds, as focus-probe's focus mode does: "copy TEXT",
 // "select TEXT", "clipboard offer" or "clipboard none" and "primary offer" or "primary none" for the selections it is
 // sent, "source send TEXT" and "source cancelled TEXT" for its sources, "paste clipboard TEXT", "paste primary TEXT", with
-// none instead of a TEXT when it has no offer and timeout when no data ended within 3 s, "keyboard enter", "keyboard
-// leave" and "ready" once it drew.
+// none instead of a TEXT when it has no offer and timeout when no data ended within 3 s, the first 255 bytes of a longer
+// TEXT followed by "paste clipboard bytes N" or "paste primary bytes N" with its whole length, "keyboard enter",
+// "keyboard leave" and "ready" once it drew.
 #define _GNU_SOURCE
 #include <wayland-client.h>
 #include "xdg-shell-client-protocol.h"
@@ -46,7 +47,8 @@ struct paste {
     int         fd;
     uint64_t    started;
     char        text[256];
-    size_t      length;
+    size_t      length; // of text, at most 255
+    size_t      total;  // of the whole paste
 };
 static struct paste pastes[2] = {{.kind = "clipboard", .fd = -1}, {.kind = "primary", .fd = -1}};
 
@@ -136,12 +138,17 @@ static void paste(struct paste* p, void* offer) {
     p->fd      = fds[0];
     p->started = now_ms();
     p->length  = 0;
+    p->total   = 0;
 }
 static void read_paste(struct paste* p) {
     for (;;) {
-        ssize_t n = read(p->fd, p->text + p->length, sizeof(p->text) - 1 - p->length);
+        char    buffer[4096];
+        ssize_t n = read(p->fd, buffer, sizeof(buffer));
         if (n > 0) {
-            p->length += n;
+            const size_t kept = n < (ssize_t)(sizeof(p->text) - 1 - p->length) ? (size_t)n : sizeof(p->text) - 1 - p->length;
+            memcpy(p->text + p->length, buffer, kept);
+            p->length += kept;
+            p->total += n;
             continue;
         }
         if (n < 0)
@@ -152,6 +159,8 @@ static void read_paste(struct paste* p) {
     p->fd              = -1;
     p->text[p->length] = 0;
     say("paste %s %s", p->kind, p->text);
+    if (p->total > p->length)
+        say("paste %s bytes %zu", p->kind, p->total);
 }
 
 // The offers it is sent. Each new selection replaces the one before.
@@ -212,7 +221,8 @@ static void keyboard_key(void* data, struct wl_keyboard* kb, uint32_t serial, ui
     switch (key) {
         case KEY_C: copy(serial); break;
         case KEY_S: select_text(serial); break;
-        case KEY_V: paste(&pastes[0], clipboard_offer); break;
+        case KEY_V:
+        case KEY_INSERT: paste(&pastes[0], clipboard_offer); break;
         case KEY_M: paste(&pastes[1], primary_offer); break;
         default: break;
     }
