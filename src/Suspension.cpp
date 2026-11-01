@@ -20,7 +20,9 @@ namespace hyprmasq::suspension {
         // The xdg_wm_base version that has XDG_TOPLEVEL_STATE_SUSPENDED. Hyprland tells older toplevels nothing.
         constexpr int SUSPENDED_SINCE = 6;
 
-        void*         originalSetSuspended = nullptr;
+        // The hooked function, see SPinned at the end of this file.
+        using SetSuspended                        = uint32_t (CXDGToplevelResource::*)(bool);
+        HookFn<SetSuspended> originalSetSuspended = nullptr;
         // Every held toplevel. An entry expires with its last hold.
         std::vector<std::weak_ptr<SHeld>> held;
 
@@ -45,8 +47,7 @@ namespace hyprmasq::suspension {
                 entry->suspended = suspend;
                 suspend          = false;
             }
-            using Fn = uint32_t (*)(CXDGToplevelResource*, bool);
-            return reinterpret_cast<Fn>(originalSetSuspended)(self, suspend);
+            return originalSetSuspended(self, suspend);
         }
     }
 
@@ -83,6 +84,8 @@ namespace hyprmasq::suspension {
     }
 
     void init(void* handle) {
-        originalSetSuspended = hook(handle, "CXDGToplevelResource::setSuspeneded", reinterpret_cast<void*>(&setSuspended));
+        originalSetSuspended = hook<SetSuspended>(handle, "_ZN20CXDGToplevelResource13setSuspenededEb", "CXDGToplevelResource::setSuspeneded(bool)", &setSuspended);
     }
 }
+
+template struct hyprmasq::SPinned<hyprmasq::suspension::SetSuspended, &CXDGToplevelResource::setSuspeneded>;

@@ -137,3 +137,12 @@ with subtest("the plugin can be unloaded from within a batch"):
         f"hyprmasq screenshot {green} /tmp/hm-reload-batch.png; activeworkspace"
     )
     assert parts[0] == "ok" and parts[1].startswith("workspace ID"), parts
+
+with subtest("a screenshot whose pixels the GPU still reads back when the plugin unloads is written"):
+    # Within one batch, the unload runs before the event loop looks whether the GPU has read the screenshot back.
+    machine.execute("rm -f /tmp/hm-unload-inflight.png")
+    parts = batch(f"hyprmasq screenshot {green} /tmp/hm-unload-inflight.png; plugin unload {plugin}")
+    assert parts[0] == "ok", parts
+    assert "hyprmasq" not in hypr("plugin list")
+    assert_png("/tmp/hm-unload-inflight.png", (0, 255, 0))
+    assert hypr(f"plugin load {plugin}") == "ok"

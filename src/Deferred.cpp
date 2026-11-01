@@ -4,6 +4,7 @@
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/debug/HyprCtl.hpp>
+#include <hyprland/src/plugins/PluginAPI.hpp>
 
 #include <dlfcn.h>
 #include <pthread.h>
@@ -49,9 +50,11 @@ namespace hyprmasq::deferred {
         std::vector<SRequest>                     requests;
         int                                       batchDepth = 0, pluginCalls = 0;
         std::vector<uint64_t>                     batchJobs;
-        void*                                     originalInvoke = nullptr;
-        std::thread::id                           mainThread;
-        thread_local bool                         collectedAtOnce = false; // the job on this thread is one that the main thread waits for, see waited()
+        // The hooked function, see SPinned at the end of this file.
+        using InvokeHyprctlCommand                  = std::string (*)(const std::string&, const std::string&, const std::string&);
+        HookFn<InvokeHyprctlCommand> originalInvoke = nullptr;
+        std::thread::id              mainThread;
+        thread_local bool            collectedAtOnce = false; // the job on this thread is one that the main thread waits for, see waited()
         // Frames of this library that Hyprland returns into, and the reference that keeps it mapped for them after
         // an unload.
         int   frames = 0;
@@ -95,33 +98,38 @@ namespace hyprmasq::deferred {
 
         bool deferrable();
 
-        uint64_t start(std::move_only_function<std::string()> work, Refuse refuse) {
-            const auto id  = nextId++;
-            auto*      job = (jobs[id] = std::make_unique<SJob>()).get();
-            job->work      = std::move(work);
-            job->refuse    = std::move(refuse);
-            // A request that cannot be deferred now cannot be at its end either, and collect() then waits for the job.
-            const bool atOnce  = !deferrable();
-            auto       execute = [job] {
+        // Runs the job's work on a thread of its own. atOnce: the request cannot be deferred, so collect() waits for the job.
+        void launch(SJob& job, bool atOnce) {
+            auto* const self    = &job;
+            auto        execute = [self] {
                 std::string reply;
                 try {
-                    reply = job->work();
+                    reply = self->work();
                 } catch (const std::exception& e) { reply = std::format("error: {}", e.what()); }
-                complete(job, std::move(reply));
+                complete(self, std::move(reply));
             };
             try {
-                job->thread = std::thread([execute, atOnce] {
+                job.thread = std::thread([execute, atOnce] {
                     pthread_setname_np(pthread_self(), "hyprmasq-job");
                     collectedAtOnce = atOnce;
                     execute();
                 });
             } catch (const std::system_error&) {
                 // No thread to spare. Work that waits for the main thread would wait for itself here.
-                if (job->refuse)
-                    complete(job, job->refuse(SError{eErrorCode::INTERNAL, "no thread to wait in"}));
+                if (job.refuse)
+                    complete(self, job.refuse(SError{eErrorCode::INTERNAL, "no thread to wait in"}));
                 else
                     execute();
             }
+        }
+
+        uint64_t start(std::move_only_function<std::string()> work, Refuse refuse) {
+            const auto id  = nextId++;
+            auto*      job = (jobs[id] = std::make_unique<SJob>()).get();
+            job->work      = std::move(work);
+            job->refuse    = std::move(refuse);
+            // A request that cannot be deferred now cannot be at its end either, and collect() then waits for the job.
+            launch(*job, !deferrable());
             return id;
         }
 
@@ -225,9 +233,8 @@ namespace hyprmasq::deferred {
         std::string invokeHyprctlCommand(const std::string& call, const std::string& args, const std::string& format) {
             SFrame frame;
             ++pluginCalls;
-            using Fn = std::string (*)(const std::string&, const std::string&, const std::string&);
             try {
-                auto reply = reinterpret_cast<Fn>(originalInvoke)(call, args, format);
+                auto reply = originalInvoke(call, args, format);
                 --pluginCalls;
                 return reply;
             } catch (...) {
@@ -257,8 +264,8 @@ namespace hyprmasq::deferred {
         auto batch = batchCommand();
         if (!batch)
             throw std::runtime_error("hyprmasq: hyprctl has no batch command");
-        // HyprlandAPI::invokeHyprctlCommand has C linkage.
-        originalInvoke = hook(handle, "invokeHyprctlCommand", reinterpret_cast<void*>(&invokeHyprctlCommand));
+        // HyprlandAPI::invokeHyprctlCommand has C linkage, so its symbol is its name.
+        originalInvoke = hook<InvokeHyprctlCommand>(handle, "invokeHyprctlCommand", "invokeHyprctlCommand", &invokeHyprctlCommand);
         eventFd        = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
         source         = eventFd < 0 ? nullptr : wl_event_loop_add_fd(g_pCompositor->m_wlEventLoop, eventFd, WL_EVENT_READABLE, onEvent, nullptr);
         // Wakes the jobs at the unload, as eventFd wakes the main thread when one is done.
@@ -326,9 +333,37 @@ namespace hyprmasq::deferred {
         return schedule(std::move(work), nullptr);
     }
 
+    SLater later(std::move_only_function<std::string(const SError&)> refuse) {
+        const auto id  = nextId++;
+        auto*      job = (jobs[id] = std::make_unique<SJob>()).get();
+        job->refuse    = std::move(refuse);
+        std::string response;
+        if (batchDepth > 0) {
+            batchJobs.push_back(id);
+            response = token(id);
+        } else
+            response = finish(token(id), {id});
+        return SLater{.response = std::move(response), .start = [id](std::move_only_function<std::string()> work) {
+                          const auto it = jobs.find(id);
+                          if (it == jobs.end())
+                              return;
+                          auto& job = *it->second;
+                          // The request was answered without it, or the plugin was unloaded.
+                          if (job.abandoned || !active) {
+                              if (!job.thread.joinable())
+                                  jobs.erase(it);
+                              return;
+                          }
+                          job.work = std::move(work);
+                          launch(job, false);
+                      }};
+    }
+
     std::string runWaiting(std::move_only_function<std::string()> work, std::move_only_function<std::string(const SError&)> refuse) {
         if (!active || (batchDepth == 0 && !deferrable()))
             return refuse(SError{eErrorCode::UNSUPPORTED, "wait only works in requests to hyprctl's socket"});
         return schedule(std::move(work), std::move(refuse));
     }
 }
+
+template struct hyprmasq::SPinned<hyprmasq::deferred::InvokeHyprctlCommand, &HyprlandAPI::invokeHyprctlCommand>;

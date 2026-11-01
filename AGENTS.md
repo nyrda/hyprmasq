@@ -30,8 +30,8 @@ with the code: a changed command, option, default or exit code updates the
 page that documents it. Agents use the MCP tools; there is no agent skill.
 
 The plugin runs inside the compositor: never block Hyprland's main thread, and
-check hooked function signatures against the pinned Hyprland source, since
-hooks are matched by name only.
+check that hooked functions still do what their hooks expect against the
+pinned Hyprland source. The build checks only their types.
 
 ## Checks before committing
 

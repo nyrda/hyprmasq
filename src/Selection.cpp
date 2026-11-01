@@ -68,8 +68,11 @@ namespace hyprmasq::selection {
         std::array<CHyprSignalListener, 4>                                                        seatListeners;
         wl_event_source*                                                                          refresher = nullptr;
 
-        void*                                                                                     originalSetClipboard   = nullptr;
-        void*                                                                                     originalSelectionOwner = nullptr;
+        // Private members of the window manager, see SPinned at the end of this file.
+        using SetClipboard                            = void (CXWM::*)(SXSelection&);
+        using SelectionOwner                          = bool (CXWM::*)(xcb_xfixes_selection_notify_event_t*);
+        HookFn<SetClipboard>   originalSetClipboard   = nullptr;
+        HookFn<SelectionOwner> originalSelectionOwner = nullptr;
         // The X window that owns an X selection that stayed the agent's, per kind, or 0.
         std::array<uint32_t, 2> keptOwners{};
 
@@ -260,11 +263,10 @@ namespace hyprmasq::selection {
         // loses its owner, as when its app exits, the window manager would clear the user's selection of that kind, which
         // was never the agent's.
         bool selectionOwner(CXWM* self, xcb_xfixes_selection_notify_event_t* e) {
-            using Fn         = bool (*)(CXWM*, xcb_xfixes_selection_notify_event_t*);
             auto*      found = selectionOf(*self, e->selection);
             const auto kind  = found == &clipboardOf(*self) ? std::optional{CLIPBOARD} : found == &primaryOf(*self) ? std::optional{PRIMARY} : std::nullopt;
             if (!kind)
-                return reinterpret_cast<Fn>(originalSelectionOwner)(self, e);
+                return originalSelectionOwner(self, e);
             auto& sel = *found;
             if (e->owner == XCB_WINDOW_NONE) {
                 if (keptOwners[*kind] && sel.owner == keptOwners[*kind]) {
@@ -273,12 +275,12 @@ namespace hyprmasq::selection {
                     return true;
                 }
                 keptOwners[*kind] = 0;
-                return reinterpret_cast<Fn>(originalSelectionOwner)(self, e);
+                return originalSelectionOwner(self, e);
             }
             auto*      server = x11::xwaylandClient();
             const bool agent  = e->owner != sel.window && server && agentSelects(server);
             keptOwners[*kind] = agent ? e->owner : 0;
-            const bool result = reinterpret_cast<Fn>(originalSelectionOwner)(self, e);
+            const bool result = originalSelectionOwner(self, e);
             if (agent) {
                 sel.notifyOnFocus   = true;
                 const auto& current = *kind == CLIPBOARD ? g_pSeatManager->m_selection.currentSelection : g_pSeatManager->m_selection.currentPrimarySelection;
@@ -296,14 +298,14 @@ namespace hyprmasq::selection {
             const auto kind = &sel == &clipboardOf(*self) ? std::optional{CLIPBOARD} : &sel == &primaryOf(*self) ? std::optional{PRIMARY} : std::nullopt;
             if (kind && keptOwners[*kind] && sel.owner == keptOwners[*kind])
                 return;
-            using Fn = void (*)(CXWM*, SXSelection&);
-            reinterpret_cast<Fn>(originalSetClipboard)(self, sel);
+            originalSetClipboard(self, sel);
         }
     }
 
     void init(void* handle) {
-        originalSetClipboard   = hook(handle, "CXWM::setClipboardToWayland", reinterpret_cast<void*>(&setClipboardToWayland));
-        originalSelectionOwner = hook(handle, "CXWM::handleSelectionXFixesNotify", reinterpret_cast<void*>(&selectionOwner));
+        originalSetClipboard   = hook<SetClipboard>(handle, "_ZN4CXWM21setClipboardToWaylandER11SXSelection", "CXWM::setClipboardToWayland(SXSelection&)", &setClipboardToWayland);
+        originalSelectionOwner = hook<SelectionOwner>(handle, "_ZN4CXWM27handleSelectionXFixesNotifyEP35xcb_xfixes_selection_notify_event_t",
+                                                      "CXWM::handleSelectionXFixesNotify(xcb_xfixes_selection_notify_event_t*)", &selectionOwner);
         auto& events           = g_pSeatManager->m_events;
         seatListeners = {events.keyboardFocusChange.listen([] { changed(); }), events.pointerFocusChange.listen([] { changed(); }), events.setSelection.listen([] { changed(); }),
                          events.setPrimarySelection.listen([] { changed(); })};
@@ -363,3 +365,6 @@ namespace hyprmasq::selection {
         wrappedPrimary.restore();
     }
 }
+
+template struct hyprmasq::SPinned<hyprmasq::selection::SetClipboard, &CXWM::setClipboardToWayland>;
+template struct hyprmasq::SPinned<hyprmasq::selection::SelectionOwner, &CXWM::handleSelectionXFixesNotify>;

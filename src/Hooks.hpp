@@ -3,15 +3,46 @@
 
 #include <algorithm>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 struct wl_client;
 
 namespace hyprmasq {
-    // Hooks the Hyprland function with this qualified name, for example "CXWM::activateSurface", or this C linkage
-    // name, and returns a pointer to its original. Throws if the name matches no function or several.
-    void* hook(void* handle, std::string_view qualifiedName, void* replacement);
+    // The type of a hook of the function that F points to, and of its original: the function's parameters, with the
+    // object first for a member function.
+    template <typename F>
+    struct SHookOf;
+    template <typename R, typename C, typename... A>
+    struct SHookOf<R (C::*)(A...)> {
+        using type = R (*)(C*, A...);
+    };
+    template <typename R, typename... A>
+    struct SHookOf<R (*)(A...)> {
+        using type = R (*)(A...);
+    };
+    template <typename F>
+    using HookFn = typename SHookOf<F>::type;
+
+    // Compiles only while Hyprland declares Function with type F. A hook and its original are called through a function
+    // type of the plugin's own, which nothing else checks against Hyprland's, so every hooked function has an explicit
+    // instantiation, `template struct hyprmasq::SPinned<F, &C::f>;`, beside its hook(): the hook's parameters follow F,
+    // and F those of the pinned Hyprland's headers. An explicit instantiation may name private members, see
+    // PrivateAccess.cpp.
+    template <typename F, F Function>
+    struct SPinned {};
+
+    // Hooks the Hyprland function with this symbol, for example "_ZN4CXWM13handleFocusInEP20xcb_focus_in_event_t", and
+    // returns a pointer to its original. Signature is what the symbol demangles to, here
+    // "CXWM::handleFocusIn(xcb_focus_in_event_t*)", which a function with C linkage has as its symbol too, so that a
+    // symbol cannot name another function than its signature says. Throws if Hyprland has no function of that symbol.
+    void* hook(void* handle, const char* symbol, std::string_view signature, void* replacement);
+    // The same for a function whose pointer has type F, with a replacement of the matching type, see SPinned.
+    template <typename F>
+    HookFn<F> hook(void* handle, const char* symbol, std::string_view signature, std::type_identity_t<HookFn<F>> replacement) {
+        return reinterpret_cast<HookFn<F>>(hook(handle, symbol, signature, reinterpret_cast<void*>(replacement)));
+    }
     // Removes every hook, in reverse order of installation.
     void unhookAll();
 

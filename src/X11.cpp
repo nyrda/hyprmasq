@@ -2,6 +2,7 @@
 #include "Eis.hpp"
 #include "Hooks.hpp"
 #include "PrivateAccess.hpp"
+#include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
@@ -25,6 +26,7 @@
 #include <xcb/xcbext.h>
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <charconv>
 #include <cstdlib>
 #include <filesystem>
@@ -61,15 +63,20 @@ namespace hyprmasq::x11 {
         std::optional<SFocus> held;
         Time::steady_tp       ignoreFocusInUntil = Time::steadyNow();
         CHyprSignalListener   keyboardFocus;
-        void*                 originalActivateSurface = nullptr;
-        void*                 originalHandleFocusIn   = nullptr;
+
+        // Private members of the window manager, see SPinned at the end of this file.
+        using ActivateSurface                           = void (CXWM::*)(SP<CXWaylandSurface>, bool);
+        using HandleFocusIn                             = void (CXWM::*)(xcb_focus_in_event_t*);
+        HookFn<ActivateSurface> originalActivateSurface = nullptr;
+        HookFn<HandleFocusIn>   originalHandleFocusIn   = nullptr;
 
         // What the main thread waits for the X server, or for XWayland to read, within a CWaitBudget: WAIT_BUDGET in
         // all, so that an X server that does not answer holds the compositor up that long at most, however many round
         // trips an input frame makes. Once WAIT_BUDGET has run out, SHORT_BUDGET for SHORT_FOR, or until a round trip
-        // answers in time, so that a stuck X server costs little more, and a slow one gets WAIT_BUDGET again.
-        constexpr auto WAIT_BUDGET  = std::chrono::milliseconds(100);
-        constexpr auto SHORT_BUDGET = std::chrono::milliseconds(10);
+        // answers in time, so that a stuck X server costs little more, and a slow one gets WAIT_BUDGET again. An X
+        // server that answers waits about 1 ms per input frame, and at most about 6 ms in the VM test on a busy host.
+        constexpr auto WAIT_BUDGET  = std::chrono::milliseconds(25);
+        constexpr auto SHORT_BUDGET = std::chrono::milliseconds(5);
         constexpr auto SHORT_FOR    = std::chrono::seconds(1);
         // How often a wait within the budget looks again whether XWayland has read everything, see drain(), and whether
         // the X server shows a restack, see restack().
@@ -77,7 +84,20 @@ namespace hyprmasq::x11 {
         constexpr auto RESTACK_POLL = std::chrono::microseconds(200);
         // How long after release() the window manager ignores focus-in events, which the restored X focus causes, see
         // handleFocusIn().
-        constexpr auto                 FOCUS_IN_GRACE = std::chrono::milliseconds(500);
+        constexpr auto FOCUS_IN_GRACE = std::chrono::milliseconds(500);
+        // How often lower() tries again to put windows back while the window manager's connection takes no write.
+        constexpr int RESTORE_RETRY_MS = 10;
+        // The most windows that one restack moves: their requests, 20 bytes each, then fit libxcb's buffer of 16 KiB,
+        // see submit().
+        constexpr size_t MAX_RESTACKED = 512;
+
+        // The windows of a raise() that lower() could not put back yet, on the window manager's connection of then.
+        struct SUnrestored {
+            SStack            stack;
+            xcb_connection_t* wm = nullptr;
+        };
+        std::optional<SUnrestored>     unrestored;
+        wl_event_source*               restoreTimer = nullptr;
 
         int                            budgetDepth = 0;
         Time::steady_tp                budgetEnd;
@@ -88,6 +108,30 @@ namespace hyprmasq::x11 {
         void late() {
             if (!shortBudget)
                 shortUntil = Time::steadyNow() + SHORT_FOR;
+        }
+
+        // Whether c takes a write without waiting. libxcb writes only once poll() reports its socket writable, and waits
+        // for that without a limit, so an X server that does not read, as a stopped XWayland, would hold the main thread
+        // in a flush until it reads again. A unix socket is writable while at most a quarter of its buffer is unread,
+        // and a write waits only once the buffer is full, so a flush right after this said yes goes out at once, also
+        // one of libxcb's whole buffer.
+        bool writable(xcb_connection_t* c) {
+            pollfd fd{.fd = xcb_get_file_descriptor(c), .events = POLLOUT, .revents = 0};
+            int    ready = 0;
+            do {
+                ready = ::poll(&fd, 1, 0);
+            } while (ready < 0 && errno == EINTR);
+            return ready > 0 && (fd.revents & POLLOUT);
+        }
+
+        // Whether a request that changes something may be queued on c now. It goes out with the flush or round trip
+        // right after it, before anything else writes, so it never waits in libxcb's buffer to go out later than meant,
+        // when what it changes may have changed again.
+        bool takes(xcb_connection_t* c) {
+            if (writable(c))
+                return true;
+            late();
+            return false;
         }
 
         // A connection that is being set up. xcb_connect waits for the X server's answer without a limit, so the
@@ -166,8 +210,10 @@ namespace hyprmasq::x11 {
             }
         }
 
-        // A connection of our own, so round trips never consume the window manager's events.
-        xcb_connection_t* x() {
+        // A connection of our own, so round trips never consume the window manager's events. Null while there is none,
+        // and, for writing, while it takes no write, see writable(). Without writing it serves only for its setup, such
+        // as the range of window ids of a client.
+        xcb_connection_t* x(bool writing = true) {
             CWaitBudget budget;
             if (connection && xcb_connection_has_error(connection)) {
                 xcb_disconnect(connection);
@@ -188,11 +234,9 @@ namespace hyprmasq::x11 {
                     break;
                 free(event);
             }
-            // A write waits for room in the socket, which an X server that does not read leaves full. No request goes
-            // out while what it has not read fills half the socket's buffer, more than the requests of many inputs.
-            int queued = 0, buffer = 0;
-            if (socklen_t size = sizeof(buffer); connection && ioctl(xcb_get_file_descriptor(connection), SIOCOUTQ, &queued) == 0 &&
-                getsockopt(xcb_get_file_descriptor(connection), SOL_SOCKET, SO_SNDBUF, &buffer, &size) == 0 && queued > buffer / 2) {
+            // With the default buffer, an X server that does not read lets about 70 round trips through, a quarter of the
+            // socket's buffer, before a flush would wait for it.
+            if (connection && writing && !writable(connection)) {
                 late();
                 return nullptr;
             }
@@ -200,10 +244,16 @@ namespace hyprmasq::x11 {
         }
 
         // Like xcb_wait_for_reply, but gives up once the budget has run out, so a stuck X server cannot freeze the
-        // compositor.
+        // compositor, and at once while the connection takes no write, see writable(). The request then goes out with a
+        // later flush, and its reply is dropped.
         template <typename T>
         Reply<T> reply(xcb_connection_t* c, unsigned int sequence) {
             CWaitBudget budget;
+            if (!writable(c)) {
+                late();
+                xcb_discard_reply(c, sequence);
+                return nullptr;
+            }
             xcb_flush(c);
             while (true) {
                 void*                result = nullptr;
@@ -242,7 +292,7 @@ namespace hyprmasq::x11 {
             }
             const auto root  = xcb_setup_roots_iterator(xcb_get_setup(c)).data->root;
             auto       value = reply<xcb_get_property_reply_t>(c, xcb_get_property(c, false, root, activeWindow, XCB_GET_PROPERTY_TYPE_ANY, 0, 1).sequence);
-            if (!value || value->format != 32 || value->bytes_after != 0 || xcb_get_property_value_length(value.get()) != 4)
+            if (!value || value->format != 32 || value->bytes_after != 0 || xcb_get_property_value_length(value.get()) != 4 || !takes(c))
                 return;
             xcb_change_property(c, XCB_PROP_MODE_REPLACE, root, activeWindow, value->type, 32, 1, xcb_get_property_value(value.get()));
             xcb_flush(c);
@@ -304,6 +354,26 @@ namespace hyprmasq::x11 {
             return g_pXWayland && g_pXWayland->m_wm ? connectionOf(*g_pXWayland->m_wm) : nullptr;
         }
 
+        // Sends the window manager's connection the requests that queue() adds, or nothing while it takes no write, see
+        // writable(). Hyprland queues requests there too, which go out first, so that the batch, at most MAX_RESTACKED
+        // windows, then fits libxcb's buffer, and libxcb never writes by itself. Once the first write leaves the
+        // connection taking no more, the batch goes out with Hyprland's next flush, in order.
+        bool submit(xcb_connection_t* wm, const std::function<void()>& queue) {
+            if (!takes(wm))
+                return false;
+            xcb_flush(wm);
+            queue();
+            if (writable(wm))
+                xcb_flush(wm);
+            return true;
+        }
+
+        // Tries again to put back the windows that lower() could not, unless the window manager has changed since.
+        void restore() {
+            if (auto pending = std::exchange(unrestored, std::nullopt); pending && pending->wm == windowManager())
+                lower(pending->stack);
+        }
+
         // Waits until the X server shows a stacking order that done accepts, as long as the budget lasts.
         bool waitForStack(xcb_connection_t* c, const std::function<bool(const std::vector<xcb_window_t>&)>& done) {
             CWaitBudget budget;
@@ -331,16 +401,14 @@ namespace hyprmasq::x11 {
                 drain();
                 release();
             }
-            using Fn = void (*)(CXWM*, SP<CXWaylandSurface>, bool);
-            reinterpret_cast<Fn>(originalActivateSurface)(self, surface, activate);
+            originalActivateSurface(self, surface, activate);
         }
 
         void handleFocusIn(CXWM* self, xcb_focus_in_event_t* event) {
             // The window manager adopts focus changes it did not make when they stay within one app. Ours are temporary.
             if (held || Time::steadyNow() < ignoreFocusInUntil)
                 return;
-            using Fn = void (*)(CXWM*, xcb_focus_in_event_t*);
-            reinterpret_cast<Fn>(originalHandleFocusIn)(self, event);
+            originalHandleFocusIn(self, event);
         }
     }
 
@@ -357,8 +425,16 @@ namespace hyprmasq::x11 {
     }
 
     void init(void* handle) {
-        originalActivateSurface = hook(handle, "CXWM::activateSurface", reinterpret_cast<void*>(&activateSurface));
-        originalHandleFocusIn   = hook(handle, "CXWM::handleFocusIn", reinterpret_cast<void*>(&handleFocusIn));
+        restoreTimer = wl_event_loop_add_timer(
+            g_pCompositor->m_wlEventLoop,
+            [](void*) {
+                restore();
+                return 0;
+            },
+            nullptr);
+        originalActivateSurface = hook<ActivateSurface>(handle, "_ZN4CXWM15activateSurfaceEN9Hyprutils6Memory14CSharedPointerI16CXWaylandSurfaceEEb",
+                                                        "CXWM::activateSurface(Hyprutils::Memory::CSharedPointer<CXWaylandSurface>, bool)", &activateSurface);
+        originalHandleFocusIn   = hook<HandleFocusIn>(handle, "_ZN4CXWM13handleFocusInEP20xcb_focus_in_event_t", "CXWM::handleFocusIn(xcb_focus_in_event_t*)", &handleFocusIn);
         // Keyboard focus can reach an XWayland surface without the window manager, for example on an unmanaged window.
         // Elsewhere, X focus routes none of the user's keys, and an X11 app closes its menus once it loses it.
         keyboardFocus = g_pSeatManager->m_events.keyboardFocusChange.listen([] {
@@ -370,6 +446,13 @@ namespace hyprmasq::x11 {
 
     void shutdown() {
         release();
+        // Windows that wait to go back go back now if the window manager's connection takes the requests, and otherwise
+        // stay below until Hyprland stacks them again.
+        restore();
+        unrestored.reset();
+        if (restoreTimer)
+            wl_event_source_remove(restoreTimer);
+        restoreTimer = nullptr;
         keyboardFocus.reset();
         if (connecting) {
             // Ends a handshake that waits for the X server.
@@ -425,7 +508,7 @@ namespace hyprmasq::x11 {
         CWaitBudget budget;
         // A menu of the app whose window holds it gets its keys through that window: X focus never goes to a menu, and
         // Chromium closes its menus once its window loses the X focus.
-        if (auto* c = x(); c && held && menuOf(c, held->window, *surface))
+        if (held && x(false) && menuOf(x(false), held->window, *surface))
             return true;
         release();
         auto* c = x();
@@ -436,6 +519,8 @@ namespace hyprmasq::x11 {
             return false;
         if (current->focus == surface->m_xID)
             return true;
+        if (!takes(c))
+            return false;
         held = SFocus{.window = surface->m_xID, .previous = current->focus, .revertTo = current->revert_to};
         xcb_set_input_focus(c, XCB_INPUT_FOCUS_POINTER_ROOT, surface->m_xID, XCB_CURRENT_TIME);
         // The round trip makes the focus change land before the keys, which travel over Wayland.
@@ -465,10 +550,10 @@ namespace hyprmasq::x11 {
         drain();
         // Nothing else may move focus between the check and the restore.
         xcb_grab_server(c);
-        if (auto current = inputFocus(c); current && current->focus == focus.window) {
+        if (auto current = inputFocus(c); current && current->focus == focus.window && takes(c)) {
             xcb_set_input_focus(c, focus.revertTo, focus.previous, XCB_CURRENT_TIME);
             // Focus stays put if the previous window is gone or no longer viewable.
-            if (auto after = inputFocus(c); after && after->focus == focus.window)
+            if (auto after = inputFocus(c); after && after->focus == focus.window && takes(c))
                 xcb_set_input_focus(c, XCB_INPUT_FOCUS_POINTER_ROOT, XCB_NONE, XCB_CURRENT_TIME);
         }
         xcb_ungrab_server(c);
@@ -489,10 +574,18 @@ namespace hyprmasq::x11 {
 
     std::optional<SStack> raise(const PHLWINDOW& window) {
         CWaitBudget budget;
-        auto        surface = window->m_xwaylandSurface.lock();
-        auto        c       = surface ? x() : nullptr;
-        auto        before  = c ? stackingOrder(c) : std::nullopt;
-        const auto  at      = before ? indexOf(*before, surface->m_xID) : std::nullopt;
+        // The windows of an earlier raise go back first, so that the order below has them in their places.
+        if (unrestored) {
+            restore();
+            if (unrestored) {
+                late();
+                return std::nullopt;
+            }
+        }
+        auto       surface = window->m_xwaylandSurface.lock();
+        auto       c       = surface ? x() : nullptr;
+        auto       before  = c ? stackingOrder(c) : std::nullopt;
+        const auto at      = before ? indexOf(*before, surface->m_xID) : std::nullopt;
         if (!at)
             return std::nullopt;
         const xcb_window_t target = surface->m_xID;
@@ -509,14 +602,17 @@ namespace hyprmasq::x11 {
             return stack;
 
         auto* wm = windowManager();
-        if (!wm || !drain())
+        if (!wm || stack.lowered.size() > MAX_RESTACKED || !drain())
             return std::nullopt;
         // Bottom to top, each right below the target, so that they keep their order.
-        for (auto id : stack.lowered) {
-            const uint32_t values[] = {target, XCB_STACK_MODE_BELOW};
-            xcb_configure_window(wm, id, XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE, values);
-        }
-        xcb_flush(wm);
+        const bool sent = submit(wm, [&] {
+            for (auto id : stack.lowered) {
+                const uint32_t values[] = {target, XCB_STACK_MODE_BELOW};
+                xcb_configure_window(wm, id, XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE, values);
+            }
+        });
+        if (!sent)
+            return std::nullopt;
         const bool lowered = waitForStack(c, [&](const std::vector<xcb_window_t>& order) {
             const auto above = indexOf(order, target);
             return above && std::ranges::none_of(stack.lowered, [&](xcb_window_t id) {
@@ -532,15 +628,25 @@ namespace hyprmasq::x11 {
     }
 
     void lower(const SStack& stack) {
-        CWaitBudget budget;
-        auto*       c  = stack.lowered.empty() ? nullptr : x();
-        auto*       wm = c ? windowManager() : nullptr;
+        auto* wm = stack.lowered.empty() ? nullptr : windowManager();
         if (!wm)
             return;
+        // While the window manager's connection takes no write, a timer tries again, also before anything waits.
+        const auto later = [&, wm] {
+            unrestored = SUnrestored{.stack = stack, .wm = wm};
+            if (restoreTimer)
+                wl_event_source_timer_update(restoreTimer, RESTORE_RETRY_MS);
+        };
+        if (!writable(wm)) {
+            later();
+            return;
+        }
+        CWaitBudget budget;
+        auto*       c = x();
         drain();
-        // Once the budget has run out, as after a raise() that the X server did not answer in time, the windows go back
-        // without the current order, as if all of them still existed.
-        const auto current = stackingOrder(c);
+        // Once the budget has run out, as after a raise() that the X server did not answer in time, or without a
+        // connection of our own, the windows go back without the current order, as if all of them still existed.
+        const auto current = c ? stackingOrder(c) : std::nullopt;
         const auto exists  = [&](xcb_window_t id) { return !current || indexOf(*current, id).has_value(); };
         // Each window goes back right above the one that it was above, or the next one below that, which still exist,
         // bottom to top. Windows that opened meanwhile, such as the menu that a click opened, stay on top.
@@ -553,13 +659,19 @@ namespace hyprmasq::x11 {
             for (auto i = *at; !below && i-- > 0;)
                 if (exists(stack.before[i]))
                     below = stack.before[i];
-            if (!below)
-                continue;
-            const uint32_t values[] = {*below, XCB_STACK_MODE_ABOVE};
-            xcb_configure_window(wm, id, XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE, values);
-            placed.emplace_back(id, *below);
+            if (below)
+                placed.emplace_back(id, *below);
         }
-        xcb_flush(wm);
+        const bool sent = submit(wm, [&] {
+            for (const auto& [id, below] : placed) {
+                const uint32_t values[] = {below, XCB_STACK_MODE_ABOVE};
+                xcb_configure_window(wm, id, XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE, values);
+            }
+        });
+        if (!sent) {
+            later();
+            return;
+        }
         if (!current)
             return;
         waitForStack(c, [&](const std::vector<xcb_window_t>& order) {
@@ -575,7 +687,7 @@ namespace hyprmasq::x11 {
         if (!surface || !held || held->window != surface->m_xID)
             return false;
         CWaitBudget budget;
-        auto*       c = x();
+        auto*       c = x(false);
         if (!c || !held)
             return false;
         static const std::array<std::string, 4> MENUS      = {"_NET_WM_WINDOW_TYPE_COMBO", "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", "_NET_WM_WINDOW_TYPE_MENU",
@@ -594,3 +706,6 @@ namespace hyprmasq::x11 {
         return SWindowKind{.overrideRedirect = surface->m_overrideRedirect, .deleteWindow = std::ranges::contains(surface->m_protocols, HYPRATOMS["WM_DELETE_WINDOW"])};
     }
 }
+
+template struct hyprmasq::SPinned<hyprmasq::x11::ActivateSurface, &CXWM::activateSurface>;
+template struct hyprmasq::SPinned<hyprmasq::x11::HandleFocusIn, &CXWM::handleFocusIn>;
