@@ -148,7 +148,7 @@ with subtest("X11 apps learn they are not active after input"):
     assert hypr(f"hyprmasq eis close {x_shell}") == "ok"
     machine.execute("pkill -f 'xprop -spy'")
 
-with subtest("an X server that does not answer holds Hyprland up for 100 ms per input frame at most"):
+with subtest("an X server that does not answer holds Hyprland up for 25 ms per input frame at most"):
     focus_workspace(15)
     stuck_windows = [xterm(f"hm-x-stuck-{n}", "sh -c " + shlex.quote(f"stty -echo; cat > /tmp/hm-x-stuck-{n}")) for n in (1, 2)]
     focus_workspace(4)
@@ -180,7 +180,8 @@ with subtest("an X server that does not answer holds Hyprland up for 100 ms per 
     finally:
         machine.succeed(f"kill -CONT {xwayland}")
     machine.log(f"input with a stuck X server took {held_ms} and {again_ms} ms, hyprctl {latency} ms")
-    assert held_ms < 400 and again_ms < 300 and latency < 300, (held_ms, again_ms, latency)
+    # Starting hyprmasq-input and its pause take about 15 ms more, and a budget of 100 ms took 113 to 118 ms here.
+    assert held_ms < 100 and again_ms < 100 and latency < 300, (held_ms, again_ms, latency)
     assert snapshot() == before_focus
 
     # Once the X server answers again, so does input.
@@ -194,6 +195,46 @@ with subtest("an X server that does not answer holds Hyprland up for 100 ms per 
         assert hypr(f"hyprmasq eis close {w}") == "ok"
         dispatch(f'hl.dsp.window.close({{ window = "address:{w}" }})')
     wait_for("the stuck xterms closed", lambda: client("hm-x-stuck-1") is None and client("hm-x-stuck-2") is None)
+
+with subtest("a stopped XWayland never holds Hyprland up, however many requests it leaves unread"):
+    # Each pointer frame to an X11 window asks the X server for its stacking order. A stopped XWayland reads none of
+    # these requests, and once they fill a quarter of the socket's buffer, about 70 of them, a flush would wait until it
+    # reads again. Four windows, each paused for half a second after its frame, take 96 frames in turn.
+    focus_workspace(15)
+    unread_windows = [xterm(f"hm-x-unread-{n}", "sh -c " + shlex.quote(f"stty -echo; cat > /tmp/hm-x-unread-{n}")) for n in range(1, 5)]
+    focus_workspace(4)
+    before_focus = snapshot()
+    unread_paths = [open_socket(w) for w in unread_windows]
+    # Hyprland's own XWayland, the only one so far.
+    xwayland = machine.succeed("pgrep -o -x Xwayland").strip()
+    frames = (
+        f"set -- {' '.join(shlex.quote(p) for p in unread_paths)}; worst=0; "
+        "for i in $(seq 0 95); do "
+        'eval "socket=\\${$((i % 4 + 1))}"; '
+        'timeout 5 hyprmasq-input --socket "$socket" move $((20 + i % 40)) 30 > /dev/null 2>&1; '
+        f"s=$(date +%s%N); timeout 5 env {ipc} hyprctl version > /dev/null || {{ echo blocked $i; exit 0; }}; "
+        "ms=$((($(date +%s%N) - s) / 1000000)); [ $ms -gt $worst ] && worst=$ms; "
+        "sleep 0.15; done; echo answered $worst"
+    )
+    machine.succeed(f"kill -STOP {xwayland}")
+    try:
+        outcome = alice(frames).split()
+    finally:
+        machine.succeed(f"kill -CONT {xwayland}")
+    machine.log(f"96 pointer frames with XWayland stopped: {' '.join(outcome)} ms")
+    assert outcome[0] == "answered" and int(outcome[1]) < 500, outcome
+    assert snapshot() == before_focus
+
+    def unread_input_arrives():
+        status, _ = machine.execute(f"su - alice -c {shlex.quote(f'hyprmasq-input --socket {shlex.quote(unread_paths[0])} type e key 28')}")
+        return status == 0 and "e" in machine.succeed("cat /tmp/hm-x-unread-1")
+
+    wait_for("X11 input after XWayland reads again", unread_input_arrives, timeout=30)
+    assert snapshot() == before_focus
+    for w in unread_windows:
+        assert hypr(f"hyprmasq eis close {w}") == "ok"
+        dispatch(f'hl.dsp.window.close({{ window = "address:{w}" }})')
+    wait_for("the unread xterms closed", lambda: all(client(f"hm-x-unread-{n}") is None for n in range(1, 5)))
 
 with subtest("xwayland-satellite windows"):
     spawn("xwayland-satellite :5", "satellite")

@@ -19,132 +19,166 @@
 namespace hyprmasq {
     namespace {
         // Gives Member through exposed(Tag). An explicit instantiation may name private and protected members, so the
-        // instantiations below reach them without redefining access specifiers around the includes.
-        template <typename Tag, auto Member>
+        // instantiations below reach them without redefining access specifiers around the includes. Tag::type is the
+        // member's type at the pin, and an instantiation stops compiling once Hyprland gives the member another type.
+        template <typename Tag, typename Tag::type Member>
         struct SExpose {
+            friend constexpr typename Tag::type exposed(Tag) {
+                return Member;
+            }
+        };
+        // The same for a member of an unnamed struct type, which no tag can name. The accessor below that reads its
+        // fields binds each to a reference of the field's type, which checks those.
+        template <typename Tag, auto Member>
+        struct SExposeUnnamed {
             friend constexpr auto exposed(Tag) {
                 return Member;
             }
         };
 
         struct SKeyboardSurface {
-            friend constexpr auto exposed(SKeyboardSurface);
+            using type = WP<CWLSurfaceResource> CWLKeyboardResource::*;
+            friend constexpr type               exposed(SKeyboardSurface);
         };
         template struct SExpose<SKeyboardSurface, &CWLKeyboardResource::m_currentSurface>;
         struct SPointerSurface {
-            friend constexpr auto exposed(SPointerSurface);
+            using type = WP<CWLSurfaceResource> CWLPointerResource::*;
+            friend constexpr type               exposed(SPointerSurface);
         };
         template struct SExpose<SPointerSurface, &CWLPointerResource::m_currentSurface>;
         struct SPointerPressed {
-            friend constexpr auto exposed(SPointerPressed);
+            using type = std::vector<uint32_t> CWLPointerResource::*;
+            friend constexpr type              exposed(SPointerPressed);
         };
         template struct SExpose<SPointerPressed, &CWLPointerResource::m_pressedButtons>;
 
         struct SKeyboardKeys {
-            friend constexpr auto exposed(SKeyboardKeys);
+            using type = std::vector<uint32_t> IKeyboard::*;
+            friend constexpr type              exposed(SKeyboardKeys);
         };
         template struct SExpose<SKeyboardKeys, &IKeyboard::m_pressed>;
 
         struct SDataDeviceWire {
-            friend constexpr auto exposed(SDataDeviceWire);
+            using type = SP<CWlDataDevice> CWLDataDeviceResource::*;
+            friend constexpr type          exposed(SDataDeviceWire);
         };
         template struct SExpose<SDataDeviceWire, &CWLDataDeviceResource::m_resource>;
         struct SDataDevices {
-            friend constexpr auto exposed(SDataDevices);
+            using type = std::vector<SP<CWLDataDeviceResource>> CWLDataDeviceProtocol::*;
+            friend constexpr type                               exposed(SDataDevices);
         };
         template struct SExpose<SDataDevices, &CWLDataDeviceProtocol::m_devices>;
         struct SDataSend {
-            friend constexpr auto exposed(SDataSend);
+            using type = void (CWLDataDeviceProtocol::*)(SP<IDataDevice>, SP<IDataSource>);
+            friend constexpr type exposed(SDataSend);
         };
         template struct SExpose<SDataSend, &CWLDataDeviceProtocol::sendSelectionToDevice>;
         struct SDataRequests {
             friend constexpr auto exposed(SDataRequests);
         };
-        template struct SExpose<SDataRequests, &CWlDataDevice::requests>;
+        template struct SExposeUnnamed<SDataRequests, &CWlDataDevice::requests>;
 
         struct SPrimaryWire {
-            friend constexpr auto exposed(SPrimaryWire);
+            using type = SP<CZwpPrimarySelectionDeviceV1> CPrimarySelectionDevice::*;
+            friend constexpr type                         exposed(SPrimaryWire);
         };
         template struct SExpose<SPrimaryWire, &CPrimarySelectionDevice::m_resource>;
         struct SPrimaryDevices {
-            friend constexpr auto exposed(SPrimaryDevices);
+            using type = std::vector<SP<CPrimarySelectionDevice>> CPrimarySelectionProtocol::*;
+            friend constexpr type                                 exposed(SPrimaryDevices);
         };
         template struct SExpose<SPrimaryDevices, &CPrimarySelectionProtocol::m_devices>;
         struct SPrimarySend {
-            friend constexpr auto exposed(SPrimarySend);
+            using type = void (CPrimarySelectionProtocol::*)(SP<CPrimarySelectionDevice>, SP<IDataSource>);
+            friend constexpr type exposed(SPrimarySend);
         };
         template struct SExpose<SPrimarySend, &CPrimarySelectionProtocol::sendSelectionToDevice>;
         struct SPrimaryRequests {
             friend constexpr auto exposed(SPrimaryRequests);
         };
-        template struct SExpose<SPrimaryRequests, &CZwpPrimarySelectionDeviceV1::requests>;
+        template struct SExposeUnnamed<SPrimaryRequests, &CZwpPrimarySelectionDeviceV1::requests>;
 
         struct SToplevelWire {
-            friend constexpr auto exposed(SToplevelWire);
+            using type = SP<CXdgToplevel> CXDGToplevelResource::*;
+            friend constexpr type         exposed(SToplevelWire);
         };
         template struct SExpose<SToplevelWire, &CXDGToplevelResource::m_resource>;
 
         struct SXwmClipboard {
-            friend constexpr auto exposed(SXwmClipboard);
+            using type = SXSelection CXWM::*;
+            friend constexpr type    exposed(SXwmClipboard);
         };
         template struct SExpose<SXwmClipboard, &CXWM::m_clipboard>;
         struct SXwmPrimary {
-            friend constexpr auto exposed(SXwmPrimary);
+            using type = SXSelection CXWM::*;
+            friend constexpr type    exposed(SXwmPrimary);
         };
         template struct SExpose<SXwmPrimary, &CXWM::m_primarySelection>;
         struct SXwmGetSelection {
-            friend constexpr auto exposed(SXwmGetSelection);
+            using type = SXSelection* (CXWM::*)(xcb_atom_t);
+            friend constexpr type exposed(SXwmGetSelection);
         };
         template struct SExpose<SXwmGetSelection, &CXWM::getSelection>;
         struct SXwmConnection {
-            friend constexpr auto exposed(SXwmConnection);
+            using type = xcb_connection_t* (CXWM::*)();
+            friend constexpr type exposed(SXwmConnection);
         };
         template struct SExpose<SXwmConnection, &CXWM::getConnection>;
 
         using CursorManager = Pointer::Cursor::CCursorManager;
         struct SCursorXCursor {
-            friend constexpr auto exposed(SCursorXCursor);
+            using type = UP<CXCursorManager> CursorManager::*;
+            friend constexpr type            exposed(SCursorXCursor);
         };
         template struct SExpose<SCursorXCursor, &CursorManager::m_xcursor>;
         struct SCursorSize {
-            friend constexpr auto exposed(SCursorSize);
+            using type = int      CursorManager::*;
+            friend constexpr type exposed(SCursorSize);
         };
         template struct SExpose<SCursorSize, &CursorManager::m_size>;
         struct SCursorScale {
-            friend constexpr auto exposed(SCursorScale);
+            using type = float    CursorManager::*;
+            friend constexpr type exposed(SCursorScale);
         };
         template struct SExpose<SCursorScale, &CursorManager::m_cursorScale>;
 
         struct SApplicatorWindow {
-            friend constexpr auto exposed(SApplicatorWindow);
+            using type = PHLWINDOWREF Desktop::Rule::CWindowRuleApplicator::*;
+            friend constexpr type     exposed(SApplicatorWindow);
         };
         template struct SExpose<SApplicatorWindow, &Desktop::Rule::CWindowRuleApplicator::m_window>;
 
         struct SWindowSuppression {
             friend constexpr auto exposed(SWindowSuppression);
         };
-        template struct SExpose<SWindowSuppression, &Desktop::View::CWindow::m_requestSuppression>;
+        template struct SExposeUnnamed<SWindowSuppression, &Desktop::View::CWindow::m_requestSuppression>;
         struct SX11PendingSize {
-            friend constexpr auto exposed(SX11PendingSize);
+            using type = std::optional<Vector2D> Desktop::View::CX11Backend::*;
+            friend constexpr type                exposed(SX11PendingSize);
         };
         template struct SExpose<SX11PendingSize, &Desktop::View::CX11Backend::m_pendingReportedSize>;
         struct SX11Surface {
-            friend constexpr auto exposed(SX11Surface);
+            using type = WP<CXWaylandSurface> Desktop::View::CX11Backend::*;
+            friend constexpr type             exposed(SX11Surface);
         };
         template struct SExpose<SX11Surface, &Desktop::View::CX11Backend::m_xwaylandSurface>;
 
         struct SIdleInhibited {
-            friend constexpr auto exposed(SIdleInhibited);
+            using type = bool     CIdleNotifyProtocol::*;
+            friend constexpr type exposed(SIdleInhibited);
         };
         template struct SExpose<SIdleInhibited, &CIdleNotifyProtocol::isInhibited>;
 
         struct SGLPendingBuffers {
-            friend constexpr auto exposed(SGLPendingBuffers);
+            using type = std::vector<Render::SSurfaceBufferUse> Render::GL::CHyprGLRenderer::*;
+            friend constexpr type                               exposed(SGLPendingBuffers);
         };
         template struct SExpose<SGLPendingBuffers, &Render::GL::CHyprGLRenderer::m_pendingBufferUses>;
 
         struct SRenderWindow {
-            friend constexpr auto exposed(SRenderWindow);
+            using type = void (Render::IHyprRenderer::*)(Render::CRenderContext&, PHLWINDOW, PHLMONITOR, const Render::SWindowRenderPresentation&, const Time::steady_tp&, bool,
+                                                         Render::eRenderPassMode, bool, bool);
+            friend constexpr type exposed(SRenderWindow);
         };
         template struct SExpose<SRenderWindow, &Render::IHyprRenderer::renderWindow>;
     }

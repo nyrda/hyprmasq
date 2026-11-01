@@ -127,9 +127,13 @@ and `outdated` when one had drawn a change on its own since the plugin last
 sent it frame callbacks and was waiting for another. In each case the image
 may show an older frame: wait with `wait … since` and take it again.
 
-Only the rendering runs on Hyprland's main thread. The PNG is encoded and
-written on a background thread, and the reply comes once the file is
-complete.
+Hyprland's main thread renders the window and has the GPU copy its pixels
+out, without waiting for the GPU. Once the GPU is done, the PNG is encoded
+and written on a background thread, and the reply comes once the file is
+complete. A request that another plugin passes on through
+`HyprlandAPI::invokeHyprctlCommand` needs its reply at once, so Hyprland
+waits for the GPU and the file, and the screenshot writes only regular
+files.
 
 ## Waiting
 
@@ -605,7 +609,8 @@ To keep this from misrouting your typing, input to an X11 window is delivered
 only while the active window is a Wayland window, the target itself, or an
 X11 window of another X server. Otherwise the plugin drops the input and
 pauses the socket, and `hyprmasq-input` stops with `input_paused`. It also
-pauses for half a second when XWayland does not answer within 100 ms.
+pauses for half a second when XWayland does not answer within 25 ms, or has
+not read what the plugin sent it before.
 `eis open <addr> force` skips the check and switches X focus within each
 input frame. Use it only when you are not typing into another X11 window of
 the same server yourself. X11 windows cannot hold a lease.

@@ -53,9 +53,10 @@ namespace Render::GL {
 }
 
 // The private and protected members of Hyprland's classes that the plugin reaches, for want of an API. Each binds the
-// plugin to the pinned Hyprland's layout of its class, or to a function's signature, so check every one against the
-// Hyprland source named with it when the pin moves. PrivateAccess.cpp reaches them through explicit instantiations,
-// which may name private members, without redefining access specifiers around the includes. Main thread only.
+// plugin to the pinned Hyprland's layout of its class, or to a function's signature. PrivateAccess.cpp reaches them
+// through explicit instantiations, which may name private members, without redefining access specifiers around the
+// includes, and names the type of each, so that the build fails once one changes. When the pin moves, check that each
+// still means what the Hyprland source named with it says. Main thread only.
 namespace hyprmasq {
     // Seat, src/protocols/core/Seat.hpp.
     // CWLKeyboardResource::m_currentSurface and CWLPointerResource::m_currentSurface: the surface that a keyboard or

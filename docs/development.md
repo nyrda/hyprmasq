@@ -372,7 +372,8 @@ and the code drift apart.
 | XWayland input is refused while another X11 window is active | Input is refused while another X11 window is active and the active window stays untouched. The active window itself can be driven. `force` drives the hidden one. |
 | a driven X11 app cannot activate itself | A driven X11 app cannot activate itself. Once its socket is closed, it can. |
 | X11 apps learn they are not active after input | While a Wayland window stays active, `_NET_ACTIVE_WINDOW` is written again after typing into a hidden `xterm`, after clicking it, and after it asks to be activated. |
-| an X server that does not answer holds Hyprland up for 100 ms per input frame at most | With X focus held for one hidden `xterm` and XWayland stopped by SIGSTOP, a sender to a second hidden `xterm` stops with `input_paused` within 400 ms, a second one within 300 ms, and `hyprctl` answers within 300 ms. The user's focus stays. Once XWayland runs again, input to the second `xterm` arrives. |
+| an X server that does not answer holds Hyprland up for 25 ms per input frame at most | With X focus held for one hidden `xterm` and XWayland stopped by SIGSTOP, a sender to a second hidden `xterm` stops with `input_paused` within 100 ms, and so does a second one, and `hyprctl` answers within 300 ms. The user's focus stays. Once XWayland runs again, input to the second `xterm` arrives. |
+| a stopped XWayland never holds Hyprland up, however many requests it leaves unread | With XWayland stopped by SIGSTOP, 96 pointer frames go in turn to four hidden `xterm`s, each frame with a request for the stacking order that XWayland leaves unread, more than fill a quarter of the socket's buffer, from where a flush would wait for XWayland. `hyprctl` answers within 500 ms after each frame, and the user's focus stays. Once XWayland runs again, input to an `xterm` arrives. |
 | xwayland-satellite windows | Screenshots and input for a hidden satellite `xterm`. Input is refused while another satellite window is active, allowed for Hyprland's XWayland windows, and forced with `force`. No satellite app can activate itself while a satellite window is driven, but new satellite windows still get focus. |
 
 #### `x11-menus`
@@ -571,6 +572,7 @@ positions. These tests check page movement at two window heights.
 | unload removes all sockets and hooks, reload succeeds | Unloading removes all sockets and answers pending waits, and the hidden Qt window that a `wait … since` kept from being told that it is suspended is told again. It cancels the agent's copy and selection in the clipboard probe, and leaves the user's selections, also once a hidden `xterm` with the agent's X primary selection exits after it. Afterwards, the user's copy and selection in the probe reach Hyprland's own handlers. The plugin loads again. |
 | unloading ends screenshot writes that wait for a pipe at once, and Hyprland keeps answering | Unloading while a screenshot waits for a FIFO without a reader, and a raw one for room in the pipe of a reader that never reads, returns within 2 s and answers both with code `unloaded`. `hyprctl version`, run every 100 ms throughout, answers within a second each time. No `hyprmasq-job` thread is left, the library is unmapped, and the batch command works without the plugin. Loaded again, screenshots reach a file, a FIFO whose reader opens it after the screenshot started, and a pipe whose reader reads the raw pixels, more than fit in the pipe, as they come. |
 | the plugin can be unloaded from within a batch | The plugin can be unloaded from within a batch. Once the batch has returned, the library is released and the batch command still works, and the plugin loads again. |
+| a screenshot whose pixels the GPU still reads back when the plugin unloads is written | In one batch, a screenshot of the green window, and the unload, which runs before the event loop looks whether the GPU has read the pixels back. The screenshot answers `ok`, the plugin is unloaded, and the PNG is green. The plugin loads again. |
 
 #### `idle`
 
@@ -624,9 +626,9 @@ nix-build bench/tasks/calc/check-test.nix
 | `src/main.cpp` | Plugin entry points: registers the hyprctl command, installs and removes hooks. |
 | `src/Commands.cpp` | Parses `hyprctl hyprmasq ...` and formats plain and JSON replies, including `version`, `state`, `lease`, `launch`, `launched` and `cancel`. |
 | `src/Error.hpp` | The stable error codes of JSON replies. |
-| `src/Screenshot.cpp` | Offscreen window rendering as the window is once its animations have ended, with popups outside the window, region readback, shrinking to a maximum size on the GPU, a detail image from the same render, and PNG or raw output. |
+| `src/Screenshot.cpp` | Offscreen window rendering as the window is once its animations have ended, with popups outside the window, region readback, shrinking to a maximum size on the GPU, a detail image from the same render, the framebuffers kept for the next captures, the readback that the event loop collects once the GPU is done, and PNG or raw output. |
 | `src/Wait.cpp` | The commit counter, which watches a window's surfaces as they come and go, and both forms of `wait`, with `cancel`. |
-| `src/Deferred.cpp` | Background work for hyprctl replies, which it answers through promises. |
+| `src/Deferred.cpp` | Background work for hyprctl replies, which it answers through promises, also work that starts later, once the GPU has read a screenshot back. |
 | `src/Eis.cpp` | Opening and closing a window's EIS socket and the private directories it lies in, and the API of `src/Eis.hpp`: socket state, the focus lease, capabilities, and whether a window waits for frame callbacks. |
 | `src/Session.cpp` | A window's EIS session: its sender and devices, input delivery, pointer regions and device replacement, the focus lease, frame callbacks, the X11 focus rule, and the admission of private drags. |
 | `src/Idle.cpp` | The hook on `CIdleNotifyProtocol::setInhibit` that keeps windows that map, unmap or take the focus from restarting idle timers when no idle inhibitor comes or goes. |
@@ -638,7 +640,7 @@ nix-build bench/tasks/calc/check-test.nix
 | `src/Cursor.cpp` | Virtual cursors and click ripples: recolors the cursor theme's arrow, draws and damages them, and their options. |
 | `src/Placement.cpp` | Windows that emulated input opens: the windows the agent works in, the user's real input, the hook on `CWindowRuleApplicator::readStaticRules` that finds where a new window came from, by its parent or its app, and places it through `src/Launch.cpp`, its option, and `source`. |
 | `src/X11.cpp` | X input focus and stacking around input to XWayland windows, the X focus that an app's open menu keeps, the window manager hooks, xwayland-satellite detection. |
-| `src/Hooks.cpp` | Installing and removing Hyprland function hooks, and in `src/Hooks.hpp`, wrapping the request handlers of protocol devices and putting them back. |
+| `src/Hooks.cpp` | Installing Hyprland function hooks by their symbol and full signature, without `nm`, and removing them, and in `src/Hooks.hpp`, the types of hooks, `SPinned`, which checks a hooked function's type against Hyprland's headers, and wrapping the request handlers of protocol devices and putting them back. |
 | `src/Launch.cpp` | Launches and their windows: starting the command, the launched process among the parents of a new window's process, and the tagged window rules that place the windows of a launch and those that input opened. |
 | `src/Process.cpp` | Reads of `/proc/<pid>/stat`: a process's parent and start time, which never wait for the process. |
 | `src/Windows.cpp` | Window address formatting and lookup, the walk over a window's surfaces, and whether a window has caught up with a resize. |
@@ -669,28 +671,25 @@ The C and C++ code follows Hyprland's `.clang-format`. Go code is `gofmt`ed.
 
 ## Moving to a new Hyprland release
 
-hyprmasq reaches into Hyprland internals, which the compiler does not check
-against a new release in every case:
+hyprmasq reaches into Hyprland internals. The compiler checks their types
+against a new release, but not what they do:
 
-- Function hooks are matched by name only. Check the signature of every
-  function passed to `hook(handle, "…")` in `src/` against the new Hyprland
-  source: `invokeHyprctlCommand`,
-  `Desktop::Rule::CWindowRuleApplicator::readStaticRules`,
-  `CXDGShellProtocol::addOrStartGrab`, `CWLDataDeviceProtocol::initiateDrag`,
-  `Desktop::View::CWindow::activateX11`, `Desktop::CFocusState::rawWindowFocus`,
-  `Desktop::View::CWindow::activate`, `Desktop::View::CWindow::updateWindowDecos`,
-  `CSeatManager::setKeyboardFocus`, `CSeatManager::setPointerFocus`,
-  `CSeatManager::sendKeyboardKey`, `CSeatManager::sendKeyboardMods`,
-  `CSeatManager::sendPointerButton`, `CSeatManager::sendTouchDown`,
-  `CXWM::activateSurface`, `CXWM::handleFocusIn`,
-  `CXWM::setClipboardToWayland`, `CXWM::handleSelectionXFixesNotify` and
-  `CXDGToplevelResource::setSuspeneded`, whose name has Hyprland's typo. It
-  must stay the only way that Hyprland tells a toplevel that it is suspended.
+- Each function hook names the type of the hooked function, its symbol and
+  the full signature that the symbol demangles to, and has a
+  `template struct hyprmasq::SPinned<…>` beside it in `src/`. The build fails
+  when the headers give a hooked function another type, and the plugin
+  refuses to load when the running Hyprland has no function of that symbol.
+  A hooked function that changed needs its new type, symbol and signature
+  together: `nm -D` and `nm -D --demangle` on the new Hyprland list its
+  symbol and signature in the same order. Check that each hooked function
+  still does what its hook expects. `CXDGToplevelResource::setSuspeneded`,
+  whose name has Hyprland's typo, must stay the only way that Hyprland tells
+  a toplevel that it is suspended.
 - Private and protected members are all reached in one place,
   `src/PrivateAccess.cpp`, through explicit template instantiations
   (`template struct SExpose<…>`), each with a comment naming the Hyprland
-  source it mirrors. Check that every member listed there still exists and
-  means the same.
+  source it mirrors and with the member's type, which the build checks.
+  Check that every member listed there still means the same.
 - Update the pin in `flake.nix`, run the whole VM test, and add a
   `commit_pins` entry in `hyprpm.toml` mapping the previous Hyprland release
   commit to the last plugin commit that supports it.

@@ -6,17 +6,20 @@
 
 namespace hyprmasq::idle {
     namespace {
-        void* originalSetInhibit = nullptr;
+        // The hooked function, see SPinned at the end of this file.
+        using SetInhibit                      = void (CIdleNotifyProtocol::*)(bool);
+        HookFn<SetInhibit> originalSetInhibit = nullptr;
 
         void setInhibit(CIdleNotifyProtocol* self, bool inhibited) {
             if (inhibitedOf(*self) == inhibited)
                 return;
-            using Fn = void (*)(CIdleNotifyProtocol*, bool);
-            reinterpret_cast<Fn>(originalSetInhibit)(self, inhibited);
+            originalSetInhibit(self, inhibited);
         }
     }
 
     void init(void* handle) {
-        originalSetInhibit = hook(handle, "CIdleNotifyProtocol::setInhibit", reinterpret_cast<void*>(&setInhibit));
+        originalSetInhibit = hook<SetInhibit>(handle, "_ZN19CIdleNotifyProtocol10setInhibitEb", "CIdleNotifyProtocol::setInhibit(bool)", &setInhibit);
     }
 }
+
+template struct hyprmasq::SPinned<hyprmasq::idle::SetInhibit, &CIdleNotifyProtocol::setInhibit>;

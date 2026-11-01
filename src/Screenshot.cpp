@@ -2,6 +2,7 @@
 #include "PrivateAccess.hpp"
 #include "Windows.hpp"
 
+#include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
 #include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/desktop/view/window/WindowEffectsController.hpp>
@@ -27,10 +28,12 @@
 #include <poll.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <algorithm>
 #include <array>
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <format>
 #include <span>
 #include <utility>
@@ -40,6 +43,227 @@ using namespace Hyprutils::Math;
 
 namespace hyprmasq {
     namespace {
+        // Framebuffers of earlier captures, kept for the next ones: allocating one of a window's size takes about as long
+        // as drawing the window. Each serves one capture at a time, and once no capture has taken one for POOL_IDLE_MS,
+        // all go, so that the pool holds the GPU's memory only while captures come, as during a video recording.
+        constexpr size_t POOL_SIZE    = 8;
+        constexpr int    POOL_IDLE_MS = 10000;
+        struct SPooled {
+            SP<Render::IFramebuffer> fb;
+            bool                     lent = false;
+            Time::steady_tp          returned;
+        };
+        std::vector<SPooled> pool;
+        // Pixel buffer objects that reads went into, by size, kept the same way: allocating one for a large window's pixels
+        // takes the driver about as long as the copy into it. Only free ones.
+        struct SPooledBuffer {
+            GLuint id   = 0;
+            size_t size = 0;
+        };
+        std::vector<SPooledBuffer> buffers;
+        // Runs out POOL_IDLE_MS after the pools were last used: something taken from them, or a buffer that a reply's
+        // work gave back, which can be long after its capture, as for a FIFO whose reader comes late. Null after the
+        // unload, when nothing goes back into them, until the next capture.
+        wl_event_source* poolTimer = nullptr;
+
+        void emptyPool() {
+            Render::GL::g_pHyprOpenGL->makeEGLCurrent();
+            std::erase_if(pool, [](const SPooled& p) { return !p.lent; });
+            for (const auto& buffer : std::exchange(buffers, {}))
+                glDeleteBuffers(1, &buffer.id);
+        }
+
+        void keepPool() {
+            if (!poolTimer)
+                poolTimer = wl_event_loop_add_timer(
+                    g_pCompositor->m_wlEventLoop,
+                    [](void*) {
+                        emptyPool();
+                        return 0;
+                    },
+                    nullptr);
+            if (poolTimer)
+                wl_event_source_timer_update(poolTimer, POOL_IDLE_MS);
+        }
+
+        // A pixel buffer object of size bytes for a read. Main thread only, with Hyprland's context current.
+        GLuint borrowBuffer(size_t size) {
+            keepPool();
+            if (const auto it = std::ranges::find(buffers, size, &SPooledBuffer::size); it != buffers.end()) {
+                const auto id = it->id;
+                buffers.erase(it);
+                return id;
+            }
+            GLuint id = 0;
+            glGenBuffers(1, &id);
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, id);
+            glBufferData(GL_PIXEL_PACK_BUFFER, sc<GLsizeiptr>(size), nullptr, GL_STREAM_READ);
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+            return id;
+        }
+
+        // Puts an unmapped buffer of borrowBuffer() back, or deletes it. Main thread only, with Hyprland's context current.
+        void returnBuffer(GLuint id, size_t size) {
+            if (poolTimer && buffers.size() < POOL_SIZE) {
+                buffers.push_back({.id = id, .size = size});
+                wl_event_source_timer_update(poolTimer, POOL_IDLE_MS);
+            } else
+                glDeleteBuffers(1, &id);
+        }
+
+        // The framebuffers that one capture took from the pool, which go back once it has queued every read from them.
+        // A later capture that draws into one draws after those reads, since the GPU runs the commands of one context
+        // in order.
+        class CLoans {
+          public:
+            CLoans() = default;
+            ~CLoans() {
+                for (const auto& fb : m_fbs) {
+                    const auto it = std::ranges::find(pool, fb, &SPooled::fb);
+                    if (it == pool.end())
+                        continue;
+                    if (pool.size() > POOL_SIZE)
+                        pool.erase(it);
+                    else {
+                        it->lent     = false;
+                        it->returned = Time::steadyNow();
+                    }
+                }
+            }
+            CLoans(const CLoans&)            = delete;
+            CLoans& operator=(const CLoans&) = delete;
+
+            // A framebuffer of this size in the pixel format of every capture. Every framebuffer holds the colors of the
+            // monitor's work buffer, as a screenshot always has, so drawing one into another converts nothing.
+            SP<Render::IFramebuffer> take(const PHLMONITOR& monitor, int width, int height) {
+                auto it = std::ranges::find_if(pool, [&](const SPooled& p) { return !p.lent && p.fb->m_size == Vector2D{width, height}; });
+                if (it == pool.end()) {
+                    auto fb = g_pHyprRenderer->createFB("hyprmasq screenshot");
+                    if (!fb || !fb->alloc(width, height, DRM_FORMAT_ABGR8888))
+                        return nullptr;
+                    // The one returned longest ago makes room.
+                    if (pool.size() >= POOL_SIZE) {
+                        const auto oldest = std::ranges::min_element(pool, {}, [](const SPooled& p) { return p.lent ? Time::steady_tp::max() : p.returned; });
+                        if (!oldest->lent)
+                            pool.erase(oldest);
+                    }
+                    pool.push_back({.fb = std::move(fb), .lent = false, .returned = {}});
+                    it = std::prev(pool.end());
+                }
+                it->lent = true;
+                it->fb->setImageDescription(monitor->workBufferImageDescription());
+                m_fbs.push_back(it->fb);
+                keepPool();
+                return m_fbs.back();
+            }
+
+          private:
+            std::vector<SP<Render::IFramebuffer>> m_fbs;
+        };
+    }
+
+    // The images of a capture without their pixels, which the GPU reads back into pixel buffer objects after the render,
+    // and the window's buffers that the render drew, which the app may not reuse until the GPU is done with them. Once
+    // the GPU is, the buffers are mapped, and any thread may copy the pixels out. The capture must go on the main thread,
+    // which unmaps them.
+    struct SPendingCapture {
+        using Then = std::move_only_function<void(std::expected<std::shared_ptr<SPendingCapture>, SError>)>;
+        struct SRead {
+            SImage         image;
+            GLuint         pixels = 0; // of borrowBuffer()
+            size_t         size   = 0;
+            const uint8_t* mapped = nullptr;
+        };
+        std::vector<SRead>                     reads;          // the image, then the detail image
+        GLsync                                 done = nullptr; // signals once the GPU has run the reads
+        std::vector<Render::SSurfaceBufferUse> drawn;
+        Time::steady_tp                        started = Time::steadyNow();
+        Then                                   then;
+
+        SPendingCapture()                                  = default;
+        SPendingCapture(const SPendingCapture&)            = delete;
+        SPendingCapture& operator=(const SPendingCapture&) = delete;
+        ~SPendingCapture() {
+            free();
+        }
+
+        // Lets go of the buffers, those of the GPU's reads, unmapped, and the window's.
+        void free() {
+            if (done || std::ranges::any_of(reads, [](const SRead& r) { return r.pixels != 0; })) {
+                Render::GL::g_pHyprOpenGL->makeEGLCurrent();
+                for (auto& r : reads) {
+                    if (r.mapped) {
+                        glBindBuffer(GL_PIXEL_PACK_BUFFER, r.pixels);
+                        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+                        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+                    }
+                    if (r.pixels)
+                        returnBuffer(r.pixels, r.size);
+                    r.pixels = 0;
+                    r.mapped = nullptr;
+                }
+                if (done)
+                    glDeleteSync(done);
+                done = nullptr;
+            }
+            drawn.clear();
+        }
+    };
+
+    namespace {
+        // How often the event loop looks whether the GPU has read a capture back, and how long it waits for that at most.
+        constexpr int                                 POLL_MS          = 1;
+        constexpr auto                                READBACK_TIMEOUT = std::chrono::seconds(10);
+        std::vector<std::shared_ptr<SPendingCapture>> inFlight;
+        wl_event_source*                              pollTimer = nullptr;
+
+        // Maps the capture's buffers, which waits for the GPU while it has not run the reads yet, and lets go of the
+        // window's buffers, which the GPU is then done with.
+        std::expected<void, SError> map(SPendingCapture& capture) {
+            Render::GL::g_pHyprOpenGL->makeEGLCurrent();
+            std::expected<void, SError> result;
+            for (auto& read : capture.reads) {
+                glBindBuffer(GL_PIXEL_PACK_BUFFER, read.pixels);
+                read.mapped = sc<const uint8_t*>(glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, sc<GLsizeiptr>(read.size), GL_MAP_READ_BIT));
+                glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+                if (!read.mapped) {
+                    result = std::unexpected(SError{eErrorCode::INTERNAL, "cannot read the screenshot back from the GPU"});
+                    break;
+                }
+            }
+            capture.drawn.clear();
+            return result;
+        }
+
+        // Hands the captures whose reads the GPU has run to their callbacks, mapped, without waiting for the others.
+        int pollCaptures(void*) {
+            Render::GL::g_pHyprOpenGL->makeEGLCurrent();
+            std::vector<std::pair<std::shared_ptr<SPendingCapture>, bool>> ready; // and whether the GPU failed it
+            std::erase_if(inFlight, [&](const std::shared_ptr<SPendingCapture>& capture) {
+                const GLenum status = capture->done ? glClientWaitSync(capture->done, 0, 0) : GL_ALREADY_SIGNALED;
+                const bool   late   = Time::steadyNow() - capture->started > READBACK_TIMEOUT;
+                if (status == GL_TIMEOUT_EXPIRED && !late)
+                    return false;
+                ready.emplace_back(capture, status != GL_ALREADY_SIGNALED && status != GL_CONDITION_SATISFIED);
+                return true;
+            });
+            for (auto& [capture, failed] : ready) {
+                auto then = std::move(capture->then);
+                // Nothing may throw into libwayland's event loop. A reply that is lost here times out in hyprctl.
+                try {
+                    if (failed)
+                        then(std::unexpected(SError{eErrorCode::INTERNAL, "the GPU did not finish reading the screenshot back"}));
+                    else if (auto mapped = map(*capture); !mapped)
+                        then(std::unexpected(mapped.error()));
+                    else
+                        then(std::move(capture));
+                } catch (const std::exception&) {}
+            }
+            if (!inFlight.empty() && pollTimer)
+                wl_event_source_timer_update(pollTimer, POLL_MS);
+            return 0;
+        }
+
         SError stopped(const std::filesystem::path& path) {
             return SError{eErrorCode::UNLOADED, std::format("hyprmasq was unloaded before {} was written", path.string())};
         }
@@ -154,7 +378,7 @@ namespace hyprmasq {
         }
 
         // Encodes into memory, so that only the write to the file waits, and stop can end it.
-        std::expected<std::vector<uint8_t>, SError> encode(const std::filesystem::path& path, int width, int height, std::vector<uint8_t>& rgba) {
+        std::expected<std::vector<uint8_t>, SError> encode(const std::filesystem::path& path, int width, int height, Pixels& rgba) {
             // png_error returns to the setjmp below by longjmp, which must not skip a destructor, so every object that has
             // one is made before it.
             std::vector<uint8_t> out;
@@ -188,16 +412,6 @@ namespace hyprmasq {
             return out;
         }
 
-        // Every framebuffer holds the colors of the monitor's work buffer, as a screenshot always has, so drawing one
-        // into another converts nothing.
-        SP<Render::IFramebuffer> framebuffer(const PHLMONITOR& monitor, int width, int height) {
-            auto fb = g_pHyprRenderer->createFB("hyprmasq screenshot");
-            if (!fb || !fb->alloc(width, height, DRM_FORMAT_ABGR8888))
-                return nullptr;
-            fb->setImageDescription(monitor->workBufferImageDescription());
-            return fb;
-        }
-
         // Starts an offscreen render into fb, in its own pixels. Mirrors Screenshare::CScreenshareFrame::renderWindow.
         bool beginRender(const PHLMONITOR& monitor, const SP<Render::IFramebuffer>& fb, int width, int height) {
             CRegion damage = {0.0, 0.0, sc<double>(width), sc<double>(height)};
@@ -228,9 +442,9 @@ namespace hyprmasq {
             g_pHyprRenderer->endRender();
         }
 
-        // Draws the source's texture into a new framebuffer of the given size, at box in its pixels.
-        SP<Render::IFramebuffer> resample(const PHLMONITOR& monitor, const SP<Render::IFramebuffer>& source, int width, int height, const CBox& box) {
-            auto fb = framebuffer(monitor, width, height);
+        // Draws the source's texture into another framebuffer of the given size, at box in its pixels.
+        SP<Render::IFramebuffer> resample(CLoans& loans, const PHLMONITOR& monitor, const SP<Render::IFramebuffer>& source, int width, int height, const CBox& box) {
+            auto fb = loans.take(monitor, width, height);
             if (!fb || !beginRender(monitor, fb, width, height))
                 return nullptr;
             const auto                   guard = abortUnfinished();
@@ -292,21 +506,31 @@ namespace hyprmasq {
         // as a capture is, only with the next frame of any monitor. An idle monitor can go seconds without one, and an
         // app whose buffers a capture of its hidden window holds stops at its next frame until then: GTK 4 waits there
         // for a free swapchain image and answers none of Hyprland's pings, which brings up the "not responding" dialog on
-        // the user's workspace. The capture lets go of the buffers that it added once it has read its pixels back, which
-        // waits for the GPU, or when it fails before, and then nothing reads what the GPU draws. Main thread only, and
-        // nothing else renders in between.
+        // the user's workspace. The capture takes the buffers that it added from the renderer, and lets go of them once
+        // the GPU has read its pixels back, or when it fails before, and then nothing reads what the GPU draws. Main
+        // thread only, and nothing else renders in between.
         class CDrawnBuffers {
           public:
             CDrawnBuffers() : m_renderer(dynamic_cast<Render::GL::CHyprGLRenderer*>(g_pHyprRenderer.get())), m_before(m_renderer ? pendingBufferUsesOf(*m_renderer).size() : 0) {}
             ~CDrawnBuffers() {
-                if (!m_renderer)
-                    return;
-                auto& used = pendingBufferUsesOf(*m_renderer);
-                if (used.size() > m_before)
-                    used.erase(used.begin() + sc<std::ptrdiff_t>(m_before), used.end());
+                take();
             }
             CDrawnBuffers(const CDrawnBuffers&)            = delete;
             CDrawnBuffers& operator=(const CDrawnBuffers&) = delete;
+
+            // The buffers that the renderer took since, which it no longer holds.
+            std::vector<Render::SSurfaceBufferUse> take() {
+                std::vector<Render::SSurfaceBufferUse> taken;
+                if (!m_renderer)
+                    return taken;
+                auto& used = pendingBufferUsesOf(*m_renderer);
+                if (used.size() > m_before) {
+                    const auto from = used.begin() + sc<std::ptrdiff_t>(m_before);
+                    taken.assign(std::make_move_iterator(from), std::make_move_iterator(used.end()));
+                    used.erase(from, used.end());
+                }
+                return taken;
+            }
 
           private:
             Render::GL::CHyprGLRenderer* m_renderer;
@@ -314,7 +538,7 @@ namespace hyprmasq {
         };
 
         // The renderer produces premultiplied alpha, PNG stores straight alpha.
-        void unpremultiply(std::vector<uint8_t>& rgba) {
+        void unpremultiply(Pixels& rgba) {
             for (size_t i = 0; i < rgba.size(); i += 4) {
                 const uint8_t a = rgba[i + 3];
                 if (a == 0 || a == 255)
@@ -325,7 +549,7 @@ namespace hyprmasq {
         }
     }
 
-    std::expected<SCapture, SError> captureWindow(const PHLWINDOW& window, const SCaptureOptions& options) {
+    std::expected<std::shared_ptr<SPendingCapture>, SError> startCapture(const PHLWINDOW& window, const SCaptureOptions& options) {
         if (!window || !window->mapped())
             return std::unexpected(SError{eErrorCode::WINDOW_GONE, "window is not mapped"});
 
@@ -395,15 +619,17 @@ namespace hyprmasq {
         if (width > maxSize || height > maxSize)
             return std::unexpected(SError{eErrorCode::INTERNAL, std::format("{}x{} pixels exceed the GPU's limit of {}", width, height, maxSize)});
 
-        auto fb = framebuffer(monitor, width, height);
+        CLoans loans;
+        auto   fb = loans.take(monitor, width, height);
         if (!fb)
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot allocate framebuffer"});
         if (!dynamic_cast<Render::GL::CGLFramebuffer*>(fb.get()))
             return std::unexpected(SError{eErrorCode::INTERNAL, "only the GL renderer is supported"});
         // The render context holds the monitor: a begin that fails aborts it, and the end of the render, or abortUnfinished()
         // after an exception, resets it.
-        // Lets go of the window's buffers after the reads below, at every return.
-        const CDrawnBuffers drawn;
+        // Takes the window's buffers from the renderer after the reads below, at every return.
+        CDrawnBuffers drawn;
+        auto          pending = std::make_shared<SPendingCapture>();
         if (!beginRender(monitor, fb, width, height))
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot begin offscreen render"});
         const auto guard = abortUnfinished();
@@ -436,7 +662,7 @@ namespace hyprmasq {
         // Reads the area from the render, fitted within maxPixels: a smaller image is drawn from the full one on the GPU.
         // Its pixels start at the region's origin, so the region is exact in whole logical pixels and only its size is
         // widened, to whole image pixels.
-        const auto read = [&](std::optional<int> maxPixels) -> std::expected<SImage, SError> {
+        const auto read = [&](std::optional<int> maxPixels) -> std::expected<void, SError> {
             SImage image;
             image.scale  = scale;
             image.region = {boxX + readX / scale, boxY + readY / scale, readW / scale, readH / scale};
@@ -451,7 +677,7 @@ namespace hyprmasq {
                 // Halving first takes every pixel into the average: one bilinear pass to below half the size skips some.
                 while (target / fbScale < 0.5) {
                     const int halfW = (fbW + 1) / 2, halfH = (fbH + 1) / 2;
-                    source = resample(monitor, source, halfW, halfH, CBox{0, 0, fbW / 2.0, fbH / 2.0});
+                    source = resample(loans, monitor, source, halfW, halfH, CBox{0, 0, fbW / 2.0, fbH / 2.0});
                     if (!source)
                         return std::unexpected(SError{eErrorCode::INTERNAL, "cannot scale the screenshot"});
                     fbW = halfW;
@@ -459,7 +685,7 @@ namespace hyprmasq {
                     fbScale /= 2;
                 }
                 const double factor = target / fbScale;
-                source              = resample(monitor, source, outW, outH, CBox{(boxX - area.x) * target, (boxY - area.y) * target, fbW * factor, fbH * factor});
+                source              = resample(loans, monitor, source, outW, outH, CBox{(boxX - area.x) * target, (boxY - area.y) * target, fbW * factor, fbH * factor});
                 if (!source)
                     return std::unexpected(SError{eErrorCode::INTERNAL, "cannot scale the screenshot"});
                 x = y           = 0;
@@ -472,32 +698,95 @@ namespace hyprmasq {
 
             image.width  = w;
             image.height = h;
-            image.rgba.resize(sc<size_t>(w) * h * 4);
+            // The capture returns the buffer, also when it fails.
+            const size_t size = sc<size_t>(w) * h * 4;
             Render::GL::g_pHyprOpenGL->makeEGLCurrent();
+            const GLuint pixels = borrowBuffer(size);
+            pending->reads.push_back({.image = std::move(image), .pixels = pixels, .size = size, .mapped = nullptr});
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, pixels);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, dynamic_cast<Render::GL::CGLFramebuffer*>(source.get())->getFBID());
             glPixelStorei(GL_PACK_ALIGNMENT, 1);
-            // RPT_EXPORT renders top-down, so framebuffer rows count from the top of the window too.
-            glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, image.rgba.data());
+            // RPT_EXPORT renders top-down, so framebuffer rows count from the top of the window too. The read goes into the
+            // buffer: the GPU runs it after the render, and nothing waits for either.
+            glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
             glPixelStorei(GL_PACK_ALIGNMENT, 4);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-            return image;
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+            return {};
         };
 
-        SCapture capture;
-        auto     image = read(options.maxPixels);
-        if (!image)
+        if (auto image = read(options.maxPixels); !image)
             return std::unexpected(image.error());
-        capture.image = std::move(*image);
         // The detail has a pixel per logical pixel, or the monitor's pixels where they are fewer. At a scale above 1,
         // the long side of the area in logical pixels is the max that gives scale 1.
-        if (options.detail && capture.image.scale < std::min(scale, 1.0) - epsilon) {
-            auto detail = read(scale > 1 ? std::optional{std::max(area.width, area.height)} : std::nullopt);
-            if (!detail)
+        if (options.detail && pending->reads.front().image.scale < std::min(scale, 1.0) - epsilon) {
+            if (auto detail = read(scale > 1 ? std::optional{std::max(area.width, area.height)} : std::nullopt); !detail)
                 return std::unexpected(detail.error());
-            capture.detail = std::move(*detail);
         }
 
-        return capture;
+        // Signals once the GPU has run every command so far, the reads among them. Without one, collecting the capture
+        // waits for the GPU.
+        pending->done = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        glFlush();
+        pending->drawn = drawn.take();
+        return pending;
+    }
+
+    void onCaptured(std::shared_ptr<SPendingCapture> capture, std::move_only_function<void(std::expected<std::shared_ptr<SPendingCapture>, SError>)> then) {
+        if (!pollTimer)
+            pollTimer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, pollCaptures, nullptr);
+        if (!pollTimer) {
+            // Without a timer to look again, map() waits for the GPU.
+            if (auto mapped = map(*capture); !mapped)
+                then(std::unexpected(mapped.error()));
+            else
+                then(std::move(capture));
+            return;
+        }
+        capture->then = std::move(then);
+        inFlight.push_back(std::move(capture));
+        wl_event_source_timer_update(pollTimer, POLL_MS);
+    }
+
+    std::expected<SCapture, SError> takePixels(SPendingCapture& capture) {
+        SCapture images;
+        for (size_t i = 0; i < capture.reads.size(); ++i) {
+            auto& read = capture.reads[i];
+            if (!read.mapped)
+                return std::unexpected(SError{eErrorCode::INTERNAL, "the screenshot was not read back from the GPU"});
+            read.image.rgba.resize(sc<size_t>(read.image.width) * read.image.height * 4);
+            std::memcpy(read.image.rgba.data(), read.mapped, read.image.rgba.size());
+            (i == 0 ? images.image : images.detail.emplace()) = std::move(read.image);
+        }
+        return images;
+    }
+
+    std::expected<SCapture, SError> finishCapture(SPendingCapture& capture) {
+        auto mapped = map(capture);
+        auto result = mapped ? takePixels(capture) : std::unexpected(mapped.error());
+        capture.free();
+        return result;
+    }
+
+    void shutdownCaptures() {
+        // Nothing would collect these after the unload, so it waits for the GPU's reads, and their replies come as usual.
+        for (auto& capture : std::exchange(inFlight, {})) {
+            auto then = std::move(capture->then);
+            try {
+                if (auto mapped = map(*capture); !mapped)
+                    then(std::unexpected(mapped.error()));
+                else
+                    then(std::move(capture));
+            } catch (const std::exception&) {}
+        }
+        if (pollTimer)
+            wl_event_source_remove(pollTimer);
+        pollTimer = nullptr;
+        if (poolTimer)
+            wl_event_source_remove(poolTimer);
+        poolTimer = nullptr;
+        emptyPool();
+        pool.clear();
     }
 
     std::expected<void, SError> writePNG(SImage& image, const std::filesystem::path& output, int stop, bool waited) {

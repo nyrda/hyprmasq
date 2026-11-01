@@ -103,9 +103,11 @@ namespace hyprmasq::placement {
         std::vector<std::pair<SApp, Time::steady_tp>> userInput;
         std::vector<SOpened>                          opened;
         std::vector<SCreated>                         created;
-        void*                                         originalReadStaticRules = nullptr;
-        CHyprSignalListener                           key, button, touch, tip;
-        wl_event_source*                              afterRefocus = nullptr;
+        // The hooked function, see SPinned at the end of this file.
+        using ReadStaticRules                           = bool (Desktop::Rule::CWindowRuleApplicator::*)(bool);
+        HookFn<ReadStaticRules> originalReadStaticRules = nullptr;
+        CHyprSignalListener     key, button, touch, tip;
+        wl_event_source*        afterRefocus = nullptr;
 
         void prune() {
             const auto now = Time::steadyNow();
@@ -401,8 +403,7 @@ namespace hyprmasq::placement {
         bool readStaticRules(Desktop::Rule::CWindowRuleApplicator* self, bool preRead) {
             if (const auto w = windowOf(*self).lock())
                 decide(w, preRead);
-            using Fn = bool (*)(Desktop::Rule::CWindowRuleApplicator*, bool);
-            return reinterpret_cast<Fn>(originalReadStaticRules)(self, preRead);
+            return originalReadStaticRules(self, preRead);
         }
     }
 
@@ -417,7 +418,8 @@ namespace hyprmasq::placement {
         button = input.mouse.button.listen([](const IPointer::SButtonEvent&, Event::SCallbackInfo&) { realInput(g_pSeatManager->m_state.pointerFocus.lock(), true); });
         touch  = input.touch.down.listen([](const ITouch::SDownEvent&, Event::SCallbackInfo&) { realInputAfterRefocus(); });
         tip    = input.tablet.tip.listen([](const CTablet::STipEvent&, Event::SCallbackInfo&) { realInputAfterRefocus(); });
-        originalReadStaticRules = hook(handle, "Desktop::Rule::CWindowRuleApplicator::readStaticRules", reinterpret_cast<void*>(&readStaticRules));
+        originalReadStaticRules = hook<ReadStaticRules>(handle, "_ZN7Desktop4Rule21CWindowRuleApplicator15readStaticRulesEb",
+                                                        "Desktop::Rule::CWindowRuleApplicator::readStaticRules(bool)", &readStaticRules);
     }
 
     void shutdown() {
@@ -461,3 +463,5 @@ namespace hyprmasq::placement {
         return it == opened.end() ? std::nullopt : std::optional{it->source};
     }
 }
+
+template struct hyprmasq::SPinned<hyprmasq::placement::ReadStaticRules, &Desktop::Rule::CWindowRuleApplicator::readStaticRules>;

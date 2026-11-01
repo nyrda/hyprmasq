@@ -2,6 +2,7 @@
 #include "Hooks.hpp"
 
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/plugins/PluginAPI.hpp>
 
 #include <dlfcn.h>
 #include <pthread.h>
@@ -36,9 +37,17 @@ namespace hyprmasq::deferred {
         wl_event_source*                          source = nullptr;
         uint64_t                                  nextId = 1;
         std::map<uint64_t, std::unique_ptr<SJob>> jobs;
-        int                                       pluginCalls    = 0;
-        void*                                     originalInvoke = nullptr;
-        std::thread::id                           mainThread;
+        // The replies of later() that wait for their work.
+        struct SLaterReply {
+            Resolver resolver;
+            Refuse   refuse;
+        };
+        std::map<uint64_t, SLaterReply> laterReplies;
+        int                             pluginCalls = 0;
+        // The hooked function, see SPinned at the end of this file.
+        using InvokeHyprctlCommand                  = std::string (*)(const std::string&, const std::string&, const std::string&);
+        HookFn<InvokeHyprctlCommand> originalInvoke = nullptr;
+        std::thread::id              mainThread;
         // Frames of this library that Hyprland returns into, and the reference that keeps it mapped for them after
         // an unload.
         int   frames = 0;
@@ -130,9 +139,8 @@ namespace hyprmasq::deferred {
         std::string invokeHyprctlCommand(const std::string& call, const std::string& args, const std::string& format) {
             SFrame frame;
             ++pluginCalls;
-            using Fn = std::string (*)(const std::string&, const std::string&, const std::string&);
             try {
-                auto reply = reinterpret_cast<Fn>(originalInvoke)(call, args, format);
+                auto reply = originalInvoke(call, args, format);
                 --pluginCalls;
                 return reply;
             } catch (...) {
@@ -143,8 +151,8 @@ namespace hyprmasq::deferred {
     }
 
     void init(void* handle) {
-        // HyprlandAPI::invokeHyprctlCommand has C linkage.
-        originalInvoke = hook(handle, "invokeHyprctlCommand", reinterpret_cast<void*>(&invokeHyprctlCommand));
+        // HyprlandAPI::invokeHyprctlCommand has C linkage, so its symbol is its name.
+        originalInvoke = hook<InvokeHyprctlCommand>(handle, "invokeHyprctlCommand", "invokeHyprctlCommand", &invokeHyprctlCommand);
         eventFd        = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
         source         = eventFd < 0 ? nullptr : wl_event_loop_add_fd(g_pCompositor->m_wlEventLoop, eventFd, WL_EVENT_READABLE, onEvent, nullptr);
         // Wakes the jobs at the unload, as eventFd wakes the main thread when one is done.
@@ -164,6 +172,9 @@ namespace hyprmasq::deferred {
                 pinned = dlopen(info.dli_fname, RTLD_NOW | RTLD_NOLOAD);
         }
         active = false;
+
+        for (auto& [_, reply] : std::exchange(laterReplies, {}))
+            reply.resolver->resolve(reply.refuse(SError{eErrorCode::UNLOADED, "hyprmasq was unloaded before the reply was ready"}));
 
         // wait::shutdown() has answered every wait, and the stop event ends every write that waits for a pipe, so every
         // job ends soon.
@@ -207,9 +218,26 @@ namespace hyprmasq::deferred {
         return schedule(std::move(work), nullptr);
     }
 
+    SLater later(std::move_only_function<std::string(const SError&)> refuse) {
+        Resolver   resolver;
+        auto       promise = CPromise<std::string>::make([&](Resolver r) { resolver = r; });
+        const auto id      = nextId++;
+        laterReplies.emplace(id, SLaterReply{.resolver = std::move(resolver), .refuse = std::move(refuse)});
+        return SLater{.response = promise, .start = [id](std::move_only_function<std::string()> work) {
+                          const auto it = laterReplies.find(id);
+                          if (it == laterReplies.end())
+                              return;
+                          auto reply = std::move(it->second);
+                          laterReplies.erase(it);
+                          start(std::move(work), nullptr, std::move(reply.resolver));
+                      }};
+    }
+
     IPC::Socket1::SResponse runWaiting(std::move_only_function<std::string()> work, std::move_only_function<std::string(const SError&)> refuse) {
         if (!deferrable())
             return refuse(SError{eErrorCode::UNSUPPORTED, "wait only works in requests to hyprctl's socket"});
         return schedule(std::move(work), std::move(refuse));
     }
 }
+
+template struct hyprmasq::SPinned<hyprmasq::deferred::InvokeHyprctlCommand, &HyprlandAPI::invokeHyprctlCommand>;

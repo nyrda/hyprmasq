@@ -163,9 +163,9 @@ namespace hyprmasq {
             // Rendering answers the frame callbacks that a hidden window waits for, so this is read before.
             const bool hungry  = starved(window);
             const bool late    = outdated(window);
-            auto       capture = captureWindow(window, options);
-            if (!capture)
-                return error(format, capture.error());
+            auto       pending = startCapture(window, options);
+            if (!pending)
+                return error(format, pending.error());
             // Read as the window was rendered, so that a wait from this value counts every commit the image lacks.
             const auto socket   = socketState(window);
             const auto commits  = socket ? std::optional{socket->content->commits} : std::nullopt;
@@ -174,8 +174,8 @@ namespace hyprmasq {
             const bool behind = resizing(window);
 
             // Rendering needs the compositor, encoding does not. An unload ends a write that waits for a pipe.
-            const int stop = deferred::stopFd();
-            return defer(format, [format, path, raw, detailPath, stop, commits, socketId, behind, hungry, late, capture = std::move(*capture)] mutable -> std::string {
+            const int stop   = deferred::stopFd();
+            auto      answer = [format, path, raw, detailPath, stop, commits, socketId, behind, hungry, late](SCapture capture) -> std::string {
                 // A write that the main thread waits for must not wait for a reader.
                 const bool waited = deferred::waited();
                 if (auto written = raw ? writeRaw(capture.image, path, stop, waited) : writePNG(capture.image, path, stop, waited); !written)
@@ -191,7 +191,7 @@ namespace hyprmasq {
                         const auto& d  = *capture.detail;
                         const auto& dr = d.region;
                         detail         = std::format(R"({{"path":{},"width":{},"height":{},"scale":{},"region":{{"x":{},"y":{},"width":{},"height":{}}},"max":{}}})",
-                                                     jsonString(detailPath.string()), d.width, d.height, d.scale, dr.x, dr.y, dr.width, dr.height, jsonOrNull(d.maxPixels));
+                                                          jsonString(detailPath.string()), d.width, d.height, d.scale, dr.x, dr.y, dr.width, dr.height, jsonOrNull(d.maxPixels));
                     }
                     return std::format(
                         R"({{"ok":true,"path":{},"width":{},"height":{},"scale":{},"region":{{"x":{},"y":{},"width":{},"height":{}}},"commits":{},"socketId":{},"resizing":{},"starved":{},"outdated":{},"detail":{}}})",
@@ -199,7 +199,27 @@ namespace hyprmasq {
                         behind, hungry, late, detail);
                 }
                 return "ok";
-            });
+            };
+            // Hyprland goes on while the GPU reads the pixels back, unless the caller needs the reply at once.
+            if (!deferred::canDefer()) {
+                auto capture = finishCapture(**pending);
+                if (!capture)
+                    return error(format, capture.error());
+                return defer(format, [answer = std::move(answer), capture = std::move(*capture)] mutable { return answer(std::move(capture)); });
+            }
+            auto later = deferred::later([format](const SError& e) { return error(format, e); });
+            // The pixels are copied out on the reply's own thread. Its work goes on the main thread, and the capture with it.
+            onCaptured(std::move(*pending),
+                       [format, answer = std::move(answer), start = std::move(later.start)](std::expected<std::shared_ptr<SPendingCapture>, SError> read) mutable {
+                           if (!read)
+                               start([format, e = read.error()] { return error(format, e); });
+                           else
+                               start(answering(format, [format, answer = std::move(answer), read = std::move(*read)] mutable {
+                                   auto capture = takePixels(*read);
+                                   return capture ? answer(std::move(*capture)) : error(format, capture.error());
+                               }));
+                       });
+            return std::move(later.response);
         }
 
         // The members of the lease object, also the reply to `lease`.

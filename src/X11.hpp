@@ -13,9 +13,11 @@ namespace hyprmasq::x11 {
     void init(void* handle);
     void shutdown();
 
-    // While one lives, the functions here wait for the X server for at most 100 ms in all, or 10 ms for a second after
+    // While one lives, the functions here wait for the X server for at most 25 ms in all, or 5 ms for a second after
     // that ran out, until the X server answers in time again. Each of them opens one, so a caller only needs one around
-    // several calls, such as those of one input frame.
+    // several calls, such as those of one input frame. They never wait to write: while a connection to the X server
+    // takes no write at once, as when XWayland has stopped reading, they send it nothing that changes anything, and give
+    // up as when the X server does not answer in time.
     class CWaitBudget {
       public:
         CWaitBudget();

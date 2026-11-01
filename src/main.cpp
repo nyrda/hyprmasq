@@ -6,6 +6,7 @@
 #include "Idle.hpp"
 #include "Launch.hpp"
 #include "Placement.hpp"
+#include "Screenshot.hpp"
 #include "Selection.hpp"
 #include "Suspension.hpp"
 #include "Wait.hpp"
@@ -26,6 +27,7 @@ static void shutdownAll() {
     hyprmasq::launch::shutdown();
     // Pending waits hold threads that deferred::shutdown() joins.
     hyprmasq::wait::shutdown();
+    hyprmasq::shutdownCaptures();
     hyprmasq::deferred::shutdown();
     hyprmasq::shutdownEis();
     hyprmasq::selection::shutdown();

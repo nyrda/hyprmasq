@@ -22,19 +22,32 @@
 
 namespace hyprmasq::input {
     namespace {
-        void*               originalPopupGrab     = nullptr;
-        void*               originalStartDrag     = nullptr;
-        void*               originalActivateX11   = nullptr;
-        void*               originalWindowFocus   = nullptr;
-        void*               originalActivate      = nullptr;
-        void*               originalUpdateDecos   = nullptr;
-        void*               originalKeyboardFocus = nullptr;
-        void*               originalPointerFocus  = nullptr;
-        void*               originalKeyboardKey   = nullptr;
-        void*               originalKeyboardMods  = nullptr;
-        void*               originalPointerButton = nullptr;
-        void*               originalTouchDown     = nullptr;
-        CHyprSignalListener realKey;
+        // The hooked functions, see SPinned at the end of this file.
+        using PopupGrab                                 = void (CXDGShellProtocol::*)(SP<CXDGPopupResource>);
+        using StartDrag                                 = void (CWLDataDeviceProtocol::*)(WP<CWLDataSourceResource>, SP<CWLSurfaceResource>, SP<CWLSurfaceResource>);
+        using ActivationRequest                         = void (Desktop::View::CWindow::*)();
+        using WindowFocus                               = void (Desktop::CFocusState::*)(PHLWINDOW, Desktop::eFocusReason, SP<CWLSurfaceResource>);
+        using Activate                                  = void (Desktop::View::CWindow::*)(bool);
+        using UpdateDecorations                         = void (Desktop::View::CWindowPresentation::*)();
+        using KeyboardFocus                             = void (CSeatManager::*)(SP<CWLSurfaceResource>);
+        using PointerFocus                              = void (CSeatManager::*)(SP<CWLSurfaceResource>, const Vector2D&);
+        using KeyboardKey                               = void (CSeatManager::*)(uint32_t, uint32_t, wl_keyboard_key_state);
+        using KeyboardMods                              = void (CSeatManager::*)(uint32_t, uint32_t, uint32_t, uint32_t);
+        using PointerButton                             = void (CSeatManager::*)(uint32_t, uint32_t, wl_pointer_button_state);
+        using TouchDown                                 = void (CSeatManager::*)(SP<CWLSurfaceResource>, uint32_t, int32_t, const Vector2D&);
+        HookFn<PopupGrab>         originalPopupGrab     = nullptr;
+        HookFn<StartDrag>         originalStartDrag     = nullptr;
+        HookFn<ActivationRequest> originalActivateX11   = nullptr;
+        HookFn<WindowFocus>       originalWindowFocus   = nullptr;
+        HookFn<Activate>          originalActivate      = nullptr;
+        HookFn<UpdateDecorations> originalUpdateDecos   = nullptr;
+        HookFn<KeyboardFocus>     originalKeyboardFocus = nullptr;
+        HookFn<PointerFocus>      originalPointerFocus  = nullptr;
+        HookFn<KeyboardKey>       originalKeyboardKey   = nullptr;
+        HookFn<KeyboardMods>      originalKeyboardMods  = nullptr;
+        HookFn<PointerButton>     originalPointerButton = nullptr;
+        HookFn<TouchDown>         originalTouchDown     = nullptr;
+        CHyprSignalListener       realKey;
         // The popups that asked for a grab, while they live.
         std::vector<WP<CXDGPopupResource>> grabs;
 
@@ -65,8 +78,7 @@ namespace hyprmasq::input {
                     return;
                 parent = parent->m_popup ? parent->m_popup->m_parent.lock() : nullptr;
             }
-            using Fn = void (*)(CXDGShellProtocol*, SP<CXDGPopupResource>);
-            reinterpret_cast<Fn>(originalPopupGrab)(self, popup);
+            originalPopupGrab(self, popup);
         }
         // Hyprland runs a drag-and-drop as a grab of the seat, which takes the user's pointer, so a drag from a driven
         // window that is not active runs as a private drag of its app, see Drag.hpp, when emulated input started it, or
@@ -90,8 +102,7 @@ namespace hyprmasq::input {
             // drag of the client ends first.
             if (origin)
                 drag::cancelClient(origin->client(), "user_input");
-            using Fn = void (*)(CWLDataDeviceProtocol*, WP<CWLDataSourceResource>, SP<CWLSurfaceResource>, SP<CWLSurfaceResource>);
-            reinterpret_cast<Fn>(originalStartDrag)(self, source, icon, origin);
+            originalStartDrag(self, source, icon, origin);
         }
 
         // A drag without a source stays within its client, as a private drag does. Hyprland's handler cannot take one, so
@@ -135,8 +146,7 @@ namespace hyprmasq::input {
                 x11::refuseActivation(self->m_self.lock());
                 return;
             }
-            using Fn = void (*)(Desktop::View::CWindow*);
-            reinterpret_cast<Fn>(originalActivateX11)(self);
+            originalActivateX11(self);
         }
         // As for X11 apps, a Wayland app with a driven window cannot take the focus by asking for activation, which apps do
         // in answer to input, as a terminal does for its bell or a page through window.focus(): the driven window itself
@@ -159,25 +169,22 @@ namespace hyprmasq::input {
         void activate(Desktop::View::CWindow* self, bool force) {
             if (!force && drivenX11App(self->m_self.lock(), false))
                 return;
-            using Fn               = void (*)(Desktop::View::CWindow*, bool);
             auto&      suppression = activateFocusOnlyOf(*self);
             const bool suppressed  = suppression;
             if (!force && (launch::placed(self->m_self.lock()) || drivenWaylandApp(self->m_self.lock())))
                 suppression = true;
-            reinterpret_cast<Fn>(originalActivate)(self, force);
+            originalActivate(self, force);
             suppression = suppressed;
         }
         void windowFocus(Desktop::CFocusState* self, PHLWINDOW w, Desktop::eFocusReason reason, SP<CWLSurfaceResource> surface) {
             if (w && reason == Desktop::FOCUS_REASON_NEW_WINDOW && drivenX11App(w, true))
                 return;
-            using Fn = void (*)(Desktop::CFocusState*, PHLWINDOW, Desktop::eFocusReason, SP<CWLSurfaceResource>);
-            reinterpret_cast<Fn>(originalWindowFocus)(self, w, reason, surface);
+            originalWindowFocus(self, w, reason, surface);
         }
 
         // Every change to a window's position or size updates its decorations, the one place where moves show.
         void updateDecos(Desktop::View::CWindowPresentation* self) {
-            using Fn = void (*)(Desktop::View::CWindowPresentation*);
-            reinterpret_cast<Fn>(originalUpdateDecos)(self);
+            originalUpdateDecos(self);
             for (auto& [_, session] : sessions) {
                 if (auto w = session->window.lock(); w && &w->presentation() == self)
                     session->checkRegionsLater();
@@ -234,15 +241,13 @@ namespace hyprmasq::input {
                 selection::userInput(surface->client());
             }
             CKeptFocus<CWLKeyboardResource> kept(surface, &SSession::enteredKeyboard, &CWLSeatResource::m_keyboards, &SSession::keepingKeyboard);
-            using Fn = void (*)(CSeatManager*, SP<CWLSurfaceResource>);
-            reinterpret_cast<Fn>(originalKeyboardFocus)(self, surface);
+            originalKeyboardFocus(self, surface);
         }
         void setPointerFocus(CSeatManager* self, SP<CWLSurfaceResource> surface, const Vector2D& local) {
             if (surface)
                 drag::cancelClient(surface->client(), "user_input");
             CKeptFocus<CWLPointerResource> kept(surface, &SSession::enteredPointer, &CWLSeatResource::m_pointers, &SSession::keepingPointer);
-            using Fn = void (*)(CSeatManager*, SP<CWLSurfaceResource>, const Vector2D&);
-            reinterpret_cast<Fn>(originalPointerFocus)(self, surface, local);
+            originalPointerFocus(self, surface, local);
         }
 
         // The user's own keys, modifiers and buttons take the keyboard focus of their connection back from a window that
@@ -262,26 +267,22 @@ namespace hyprmasq::input {
         }
         void sendKeyboardKey(CSeatManager* self, uint32_t timeMs, uint32_t key, wl_keyboard_key_state state) {
             returnKeyboards(self->m_state.keyboardFocusResource);
-            using Fn = void (*)(CSeatManager*, uint32_t, uint32_t, wl_keyboard_key_state);
-            reinterpret_cast<Fn>(originalKeyboardKey)(self, timeMs, key, state);
+            originalKeyboardKey(self, timeMs, key, state);
         }
         void sendKeyboardMods(CSeatManager* self, uint32_t depressed, uint32_t latched, uint32_t locked, uint32_t group) {
             returnKeyboards(self->m_state.keyboardFocusResource);
-            using Fn = void (*)(CSeatManager*, uint32_t, uint32_t, uint32_t, uint32_t);
-            reinterpret_cast<Fn>(originalKeyboardMods)(self, depressed, latched, locked, group);
+            originalKeyboardMods(self, depressed, latched, locked, group);
         }
         void sendTouchDown(CSeatManager* self, SP<CWLSurfaceResource> surface, uint32_t timeMs, int32_t id, const Vector2D& local) {
             if (surface) {
                 drag::cancelClient(surface->client(), "user_input");
                 selection::userInput(surface->client());
             }
-            using Fn = void (*)(CSeatManager*, SP<CWLSurfaceResource>, uint32_t, int32_t, const Vector2D&);
-            reinterpret_cast<Fn>(originalTouchDown)(self, surface, timeMs, id, local);
+            originalTouchDown(self, surface, timeMs, id, local);
         }
         void sendPointerButton(CSeatManager* self, uint32_t timeMs, uint32_t button, wl_pointer_button_state state) {
             returnKeyboards(self->m_state.pointerFocusResource);
-            using Fn = void (*)(CSeatManager*, uint32_t, uint32_t, wl_pointer_button_state);
-            reinterpret_cast<Fn>(originalPointerButton)(self, timeMs, button, state);
+            originalPointerButton(self, timeMs, button, state);
         }
     }
 
@@ -295,18 +296,36 @@ namespace hyprmasq::input {
     }
 
     void initFocusPolicy(void* handle) {
-        originalPopupGrab     = hook(handle, "CXDGShellProtocol::addOrStartGrab", reinterpret_cast<void*>(&popupGrab));
-        originalStartDrag     = hook(handle, "CWLDataDeviceProtocol::initiateDrag", reinterpret_cast<void*>(&startDrag));
-        originalActivateX11   = hook(handle, "Desktop::View::CWindow::onActivationRequest", reinterpret_cast<void*>(&activateX11));
-        originalWindowFocus   = hook(handle, "Desktop::CFocusState::rawWindowFocus", reinterpret_cast<void*>(&windowFocus));
-        originalActivate      = hook(handle, "Desktop::View::CWindow::activate", reinterpret_cast<void*>(&activate));
-        originalUpdateDecos   = hook(handle, "Desktop::View::CWindowPresentation::updateDecorations", reinterpret_cast<void*>(&updateDecos));
-        originalKeyboardFocus = hook(handle, "CSeatManager::setKeyboardFocus", reinterpret_cast<void*>(&setKeyboardFocus));
-        originalPointerFocus  = hook(handle, "CSeatManager::setPointerFocus", reinterpret_cast<void*>(&setPointerFocus));
-        originalKeyboardKey   = hook(handle, "CSeatManager::sendKeyboardKey", reinterpret_cast<void*>(&sendKeyboardKey));
-        originalKeyboardMods  = hook(handle, "CSeatManager::sendKeyboardMods", reinterpret_cast<void*>(&sendKeyboardMods));
-        originalPointerButton = hook(handle, "CSeatManager::sendPointerButton", reinterpret_cast<void*>(&sendPointerButton));
-        originalTouchDown     = hook(handle, "CSeatManager::sendTouchDown", reinterpret_cast<void*>(&sendTouchDown));
+        originalPopupGrab = hook<PopupGrab>(handle, "_ZN17CXDGShellProtocol14addOrStartGrabEN9Hyprutils6Memory14CSharedPointerI17CXDGPopupResourceEE",
+                                            "CXDGShellProtocol::addOrStartGrab(Hyprutils::Memory::CSharedPointer<CXDGPopupResource>)", &popupGrab);
+        originalStartDrag = hook<StartDrag>(
+            handle, "_ZN21CWLDataDeviceProtocol12initiateDragEN9Hyprutils6Memory12CWeakPointerI21CWLDataSourceResourceEENS1_14CSharedPointerI18CWLSurfaceResourceEES7_",
+            "CWLDataDeviceProtocol::initiateDrag(Hyprutils::Memory::CWeakPointer<CWLDataSourceResource>, "
+            "Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>, Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>)",
+            &startDrag);
+        originalActivateX11 = hook<ActivationRequest>(handle, "_ZN7Desktop4View7CWindow19onActivationRequestEv", "Desktop::View::CWindow::onActivationRequest()", &activateX11);
+        originalWindowFocus = hook<WindowFocus>(
+            handle, "_ZN7Desktop11CFocusState14rawWindowFocusEN9Hyprutils6Memory14CSharedPointerINS_4View7CWindowEEENS_12eFocusReasonENS3_I18CWLSurfaceResourceEE",
+            "Desktop::CFocusState::rawWindowFocus(Hyprutils::Memory::CSharedPointer<Desktop::View::CWindow>, Desktop::eFocusReason, "
+            "Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>)",
+            &windowFocus);
+        originalActivate = hook<Activate>(handle, "_ZN7Desktop4View7CWindow8activateEb", "Desktop::View::CWindow::activate(bool)", &activate);
+        originalUpdateDecos =
+            hook<UpdateDecorations>(handle, "_ZN7Desktop4View19CWindowPresentation17updateDecorationsEv", "Desktop::View::CWindowPresentation::updateDecorations()", &updateDecos);
+        originalKeyboardFocus = hook<KeyboardFocus>(handle, "_ZN12CSeatManager16setKeyboardFocusEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEE",
+                                                    "CSeatManager::setKeyboardFocus(Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>)", &setKeyboardFocus);
+        originalPointerFocus =
+            hook<PointerFocus>(handle, "_ZN12CSeatManager15setPointerFocusEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEERKNS0_4Math8Vector2DE",
+                               "CSeatManager::setPointerFocus(Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>, Hyprutils::Math::Vector2D const&)", &setPointerFocus);
+        originalKeyboardKey   = hook<KeyboardKey>(handle, "_ZN12CSeatManager15sendKeyboardKeyEjj21wl_keyboard_key_state",
+                                                  "CSeatManager::sendKeyboardKey(unsigned int, unsigned int, wl_keyboard_key_state)", &sendKeyboardKey);
+        originalKeyboardMods  = hook<KeyboardMods>(handle, "_ZN12CSeatManager16sendKeyboardModsEjjjj",
+                                                   "CSeatManager::sendKeyboardMods(unsigned int, unsigned int, unsigned int, unsigned int)", &sendKeyboardMods);
+        originalPointerButton = hook<PointerButton>(handle, "_ZN12CSeatManager17sendPointerButtonEjj23wl_pointer_button_state",
+                                                    "CSeatManager::sendPointerButton(unsigned int, unsigned int, wl_pointer_button_state)", &sendPointerButton);
+        originalTouchDown     = hook<TouchDown>(
+            handle, "_ZN12CSeatManager13sendTouchDownEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEEjiRKNS0_4Math8Vector2DE",
+            "CSeatManager::sendTouchDown(Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>, unsigned int, int, Hyprutils::Math::Vector2D const&)", &sendTouchDown);
         drag::onSourceless(&sourcelessDrag);
         realKey = Event::bus()->m_events.input.keyboard.key.listen(
             [](const IKeyboard::SKeyEvent&, Event::SCallbackInfo&) { returnKeyboards(g_pSeatManager->m_state.keyboardFocusResource); });
@@ -317,3 +336,16 @@ namespace hyprmasq::input {
         grabs.clear();
     }
 }
+
+template struct hyprmasq::SPinned<hyprmasq::input::PopupGrab, &CXDGShellProtocol::addOrStartGrab>;
+template struct hyprmasq::SPinned<hyprmasq::input::StartDrag, &CWLDataDeviceProtocol::initiateDrag>;
+template struct hyprmasq::SPinned<hyprmasq::input::ActivationRequest, &Desktop::View::CWindow::onActivationRequest>;
+template struct hyprmasq::SPinned<hyprmasq::input::WindowFocus, &Desktop::CFocusState::rawWindowFocus>;
+template struct hyprmasq::SPinned<hyprmasq::input::Activate, &Desktop::View::CWindow::activate>;
+template struct hyprmasq::SPinned<hyprmasq::input::UpdateDecorations, &Desktop::View::CWindowPresentation::updateDecorations>;
+template struct hyprmasq::SPinned<hyprmasq::input::KeyboardFocus, &CSeatManager::setKeyboardFocus>;
+template struct hyprmasq::SPinned<hyprmasq::input::PointerFocus, &CSeatManager::setPointerFocus>;
+template struct hyprmasq::SPinned<hyprmasq::input::KeyboardKey, &CSeatManager::sendKeyboardKey>;
+template struct hyprmasq::SPinned<hyprmasq::input::KeyboardMods, &CSeatManager::sendKeyboardMods>;
+template struct hyprmasq::SPinned<hyprmasq::input::PointerButton, &CSeatManager::sendPointerButton>;
+template struct hyprmasq::SPinned<hyprmasq::input::TouchDown, &CSeatManager::sendTouchDown>;
