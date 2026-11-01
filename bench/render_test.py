@@ -404,6 +404,25 @@ class Comparison(unittest.TestCase):
 
     """A page named comparison.md takes its runs from comparison/data, joined from several datasets."""
 
+    def test_input_beyond_the_first_request(self):
+        """A run's input less the first request, which each of its requests carries again: the work's own input."""
+        r = tool_run("files", "gpt-6.1-sol", "hyprmasq", 1, True, 40)
+        r["context"] = {"first_input_tokens": 9000, "request_count": 8, "peak_input_tokens": 21000, "compactions": 0}
+        self.assertEqual(render.beyond_first(r), (200000 - 8 * 9000) / 1000)
+        self.assertIsNone(render.beyond_first(tool_run("files", "gpt-6.1-sol", "hyprmasq", 1, True, 40)))
+        r["context"]["compactions"] = 1
+        self.assertIsNone(render.beyond_first(r))
+        # Codex announced more compactions than it recorded: their number is not known.
+        r["context"]["compactions"] = None
+        self.assertIsNone(render.beyond_first(r))
+
+    def test_disturbance_names_each_way_once(self):
+        focus = {"focus": {"seconds_away_from_user": 30, "seconds_disturbed": 30}, "popups": {"seconds_visible": 0},
+                 "passed": True}
+        both = {"focus": {"seconds_away_from_user": 30, "seconds_disturbed": 40}, "popups": {"seconds_visible": 20},
+                "passed": True}
+        self.assertEqual(render.disturbance_label(35, [focus, both]), "2 of 2 · 35 s, focus/windows")
+
     def test_comparison_views(self):
         with tempfile.TemporaryDirectory() as d:
             os.makedirs(os.path.join(d, "comparison", "data"))
@@ -477,6 +496,43 @@ class Comparison(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 main(page)
 
+    def test_joined_datasets_of_one_view_and_task_keep_their_own_figures(self):
+        """Two blocks of the same view and task over several datasets each: the later one's figure is named after
+        its last dataset too, and draws over no figure of the earlier."""
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "comparison", "data"))
+            for name, tool in (("a", "hyprmasq"), ("b", "cua"), ("c", "openai-cu")):
+                with open(os.path.join(d, "comparison", "data", name + ".json"), "w") as f:
+                    json.dump([tool_run("files", "gpt-6.1-sol", tool, 1, True, 40)], f)
+            page = os.path.join(d, "comparison.md")
+            with open(page, "w") as f:
+                f.write("# C\n\n<!-- render a,b comparison files -->\n<!-- /render -->\n\n"
+                        "<!-- render a,c comparison files -->\n<!-- /render -->\n")
+            main(page)
+            with open(page) as f:
+                text = f.read()
+            self.assertIn('src="comparison/comparison-files.svg"', text)
+            self.assertIn('src="comparison/c-comparison-files.svg"', text)
+            with open(os.path.join(d, "comparison", "comparison-files.svg")) as f:
+                self.assertIn("Cua Driver", f.read())
+            with open(os.path.join(d, "comparison", "c-comparison-files.svg")) as f:
+                self.assertIn("OpenAI computer use", f.read())
+            main("--check", page)
+
+    def test_a_figure_named_as_another_figure_dark_theme_fails(self):
+        """A block whose dark figure would be an earlier block's light one draws over no figure."""
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "comparison", "data"))
+            with open(os.path.join(d, "comparison", "data", "a.json"), "w") as f:
+                json.dump([tool_run("files", "gpt-6.1-sol", "hyprmasq", 1, True, 40),
+                           tool_run("files-dark", "gpt-6.1-sol", "hyprmasq", 1, True, 40)], f)
+            page = os.path.join(d, "comparison.md")
+            with open(page, "w") as f:
+                f.write("# C\n\n<!-- render a comparison files-dark -->\n<!-- /render -->\n\n"
+                        "<!-- render a comparison files -->\n<!-- /render -->\n")
+            with self.assertRaises(SystemExit) as cm:
+                main(page)
+            self.assertIn("two blocks draw", str(cm.exception))
 
 if __name__ == "__main__":
     unittest.main()

@@ -167,9 +167,8 @@ def mac_disturbance(run_dir, user_app, start, end):
             {"shown": shown, "seconds_visible": round(visible, 1)})
 
 
-def mac_run_metrics(run_dir, summary):
-    transcript = load_jsonl(os.path.join(run_dir, "transcript.jsonl"))
-    agent = summary["agent"]
+def mac_codex_usage(transcript):
+    """Model, usage and context of a Codex session on the Mac, from its rollout."""
     # A run whose session the runner never found has no transcript, and its model is unknown.
     model = next((e["payload"].get("model") for e in transcript if e.get("type") == "turn_context"), "unknown")
     counts = [e["payload"]["info"] for e in transcript
@@ -178,32 +177,128 @@ def mac_run_metrics(run_dir, summary):
     usage = {"input_tokens": total.get("input_tokens"), "cache_read_tokens": total.get("cached_input_tokens"),
              "cache_write_tokens": total.get("cache_write_input_tokens", 0),
              "output_tokens": total.get("output_tokens"), "thinking_tokens": total.get("reasoning_output_tokens")}
-    # A session that ended before its first token count has no usage.
-    usage["uncached_input_tokens"] = (usage["input_tokens"] - (usage["cache_read_tokens"] or 0)
-                                      if usage["input_tokens"] is not None else None)
     requests = report.codex_requests(transcript, {"input_tokens": usage["input_tokens"],
                                                   "cached_input_tokens": usage["cache_read_tokens"],
                                                   "cache_write_input_tokens": usage["cache_write_tokens"],
                                                   "output_tokens": usage["output_tokens"]})
     usage["cost_usd"] = report.api_cost(model, requests)
     usage["cost_basis"] = f"API list prices for {model}"
-    context = report.codex_context(usage, transcript)
-    calls = desktop_calls(transcript, agent["start"])
-    focus, popups = mac_disturbance(run_dir, summary.get("user_app", "ChatGPT"), agent["start"], agent["end"])
     final = next((p.get("content") for p in (e.get("payload") or {} for e in reversed(transcript))
                   if p.get("type") == "message" and p.get("role") == "assistant"), None)
+    return model, usage, report.codex_context(usage, transcript), json.dumps(final)[:300] if final else None
+
+
+# Anthropic's API list prices in USD per million tokens, from https://platform.claude.com/docs/en/about-claude/pricing
+# on 2026-10-31: base input, 5-minute and 1-hour cache writes, cache reads and output. Claude Code's own cost of its
+# Cua runs on the Mac matches them to the cent.
+ANTHROPIC_PRICES = {"claude-sonnet-5-5": (2.00, 2.50, 4.00, 0.10, 10.00)}
+
+
+def claude_cost(model, usage):
+    """One request's cost at ANTHROPIC_PRICES, its cache writes split by duration where the usage gives it, else at
+    the 5-minute price. None for a model without prices."""
+    prices = ANTHROPIC_PRICES.get(model)
+    if prices is None:
+        return None
+    base, write_5m, write_1h, read, output = prices
+    split = usage.get("cache_creation") or {}
+    written_1h = split.get("ephemeral_1h_input_tokens") or 0
+    written_5m = split.get("ephemeral_5m_input_tokens")
+    if written_5m is None:
+        written_5m = (usage.get("cache_creation_input_tokens") or 0) - written_1h
+    return ((usage.get("input_tokens") or 0) * base + written_5m * write_5m + written_1h * write_1h
+            + (usage.get("cache_read_input_tokens") or 0) * read + (usage.get("output_tokens") or 0) * output) / 1e6
+
+
+def claude_transcript_usage(transcript):
+    """Model, usage and context of a Claude Code session from its transcript, as the Claude app's Code sessions
+    leave no stream: each assistant message's usage, once a message, as each of its content blocks is an entry of
+    its own. The transcript gives no cost: claude_cost prices each request."""
+    seen, sizes, totals, model, final, cost = set(), [], {}, "unknown", None, 0.0
+    for e in transcript:
+        message = e.get("message") or {}
+        if e.get("type") != "assistant":
+            continue
+        model = message.get("model") or model
+        text = " ".join(b.get("text", "") for b in message.get("content") or []
+                        if isinstance(b, dict) and b.get("type") == "text")
+        final = text or final
+        if message.get("id") in seen or not message.get("usage"):
+            continue
+        seen.add(message.get("id"))
+        u = message["usage"]
+        priced = claude_cost(message.get("model") or model, u)
+        cost = None if priced is None or cost is None else cost + priced
+        for key in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens"):
+            totals[key] = totals.get(key, 0) + (u.get(key) or 0)
+        sizes.append((u.get("input_tokens") or 0) + (u.get("cache_read_input_tokens") or 0)
+                     + (u.get("cache_creation_input_tokens") or 0))
+    usage = {"input_tokens": (totals.get("input_tokens", 0) + totals.get("cache_read_input_tokens", 0)
+                              + totals.get("cache_creation_input_tokens", 0)) if totals else None,
+             "cache_read_tokens": totals.get("cache_read_input_tokens"),
+             "cache_write_tokens": totals.get("cache_creation_input_tokens"),
+             "output_tokens": totals.get("output_tokens"), "thinking_tokens": None,
+             "cost_usd": round(cost, 6) if cost is not None and totals else None,
+             "cost_basis": f"API list prices for {model}"}
+    # A compaction of the history, which Claude Code marks with a compact_boundary entry, as in its stream.
+    compactions = sum(e.get("type") == "system" and e.get("subtype") == "compact_boundary" for e in transcript)
+    context = report.request_context("Claude Code transcript assistant usage", sizes, compactions)
+    return model, usage, context, json.dumps(final)[:300] if final else None
+
+
+def approval_seconds(calls):
+    """The time Claude's computer use waited for the person in the Claude app: to grant the task's app, in
+    request_access, and full control of the screen, in request_full_control. The measured time leaves it out."""
+    return round(sum((c["end"] or c["start"]) - c["start"] for c in calls
+                     if c["tool"] in ("request_access", "request_full_control")), 1)
+
+
+def mac_run_metrics(run_dir, summary):
+    transcript = load_jsonl(os.path.join(run_dir, "transcript.jsonl"))
+    agent = summary["agent"]
+    harness = summary["harness"]
+    approval = 0.0
+    if harness == "claude-exec":
+        stream = load_jsonl(os.path.join(run_dir, "agent.jsonl"))
+        lines = [{"line": e["event"]} for e in stream]
+        usage = report.agent_usage("claude-api", lines, transcript)
+        for key in ("input_tokens", "cache_read_tokens", "output_tokens", "cost_usd"):
+            usage.setdefault(key, None)
+        model, context, final = summary.get("model"), report.claude_context(lines), usage.pop("final", None)
+        calls = claude_tool_calls(stream)
+    elif harness == "claude-desktop":
+        model, usage, context, final = claude_transcript_usage(transcript)
+        calls = claude_tool_calls([{"event": e, "time": iso_time(e["timestamp"])} for e in transcript
+                                   if e.get("timestamp")])
+        approval = approval_seconds(calls)
+    else:
+        model, usage, context, final = mac_codex_usage(transcript)
+        calls = desktop_calls(transcript, agent["start"])
+    # A session that ended before its first usage has none.
+    usage["uncached_input_tokens"] = (usage["input_tokens"] - (usage["cache_read_tokens"] or 0)
+                                      if usage.get("input_tokens") is not None else None)
+    focus, popups = mac_disturbance(run_dir, summary.get("user_app", "ChatGPT"), agent["start"], agent["end"])
+    by_tool = {}
+    for c in calls:
+        b = by_tool.setdefault(c["tool"] if harness.startswith("claude") else "js", {"calls": 0, "errors": 0})
+        b["calls"] += 1
+        b["errors"] += bool(c.get("error"))
     return {
-        "harness": summary["harness"], "model": model, "task": summary["task"], "toolkit": summary.get("toolkit"),
-        "platform": "macos", "backend": summary["backend"], "rep": summary["rep"], "passed": summary["passed"],
+        "harness": harness, "model": model, "task": summary["task"], "toolkit": summary.get("toolkit"),
+        "effort": summary.get("effort"), "service_tier": summary.get("service_tier"), "platform": "macos",
+        # The questionnaire's variant as the VM's runs name it: its toolkit and number of questions, such as qt-25.
+        "variant": (f'{summary["toolkit"]}-{summary["variant"]}' if summary.get("toolkit") else str(summary["variant"]))
+        if summary.get("variant") is not None else None, "backend": summary["backend"], "rep": summary["rep"], "passed": summary["passed"],
         "passed_without_hyprland_dialogs": summary["passed"], "hyprland_dialogs": [],
         "correct": (summary["check"].get("checks") or {}).get("correct"),
-        "failures": summary["failures"], "timed_out": agent["timed_out"], "wall_seconds": summary["wall_seconds"],
-        "tool_seconds": round(report.union_seconds([(c["start"], c["end"] or agent["end"]) for c in calls]), 1),
+        "failures": summary["failures"], "timed_out": agent["timed_out"],
+        "wall_seconds": round(summary["wall_seconds"] - approval, 1), "approval_seconds": approval,
+        "tool_seconds": round(report.union_seconds([(c["start"], c["end"] or agent["end"]) for c in calls])
+                              - approval, 1),
         "calls": len(calls), "errors": sum(bool(c.get("error")) for c in calls),
-        "images": sum(c.get("images", 0) for c in calls),
-        "by_tool": {"js": {"calls": len(calls), "errors": sum(bool(c.get("error")) for c in calls)}},
+        "images": sum(c.get("images", 0) for c in calls), "by_tool": by_tool,
         "first_prompt_tokens": context["first_input_tokens"] if context else None,
-        "usage": usage, "final": json.dumps(final)[:300] if final else None, "context": context,
+        "usage": usage, "final": final, "context": context,
         "focus": focus, "popups": popups,
         "error_texts": [c.get("text", "")[:200] for c in calls if c.get("error")],
     }
@@ -211,7 +306,7 @@ def mac_run_metrics(run_dir, summary):
 
 def run_metrics(run_dir):
     summary = json.load(open(os.path.join(run_dir, "summary.json")))
-    if summary.get("harness") in ("codex-desktop", "codex-exec"):
+    if summary.get("platform") == "macos" or summary.get("harness") in ("codex-desktop", "codex-exec"):
         return mac_run_metrics(run_dir, summary)
     before = json.load(open(os.path.join(run_dir, "before.json")))
     stream = load_jsonl(os.path.join(run_dir, "agent.jsonl"))

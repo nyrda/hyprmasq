@@ -609,7 +609,7 @@ python3 bench/analyze_test.py
 python3 bench/dispatch_test.py
 python3 bench/harness_test.py
 python3 bench/laptop/run_form_test.py
-python3 bench/laptop/run_mac_form_test.py
+python3 bench/laptop/run_mac_test.py
 python3 bench/render_test.py
 python3 bench/tasks/board/check_test.py
 python3 bench/tasks/files/check_test.py

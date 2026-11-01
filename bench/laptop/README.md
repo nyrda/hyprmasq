@@ -66,26 +66,81 @@ shims do not work with another `HOME`.
 
 ## On a Mac
 
-OpenAI's computer use comes with the ChatGPT app on macOS. `mac_setup.sh` prepares `~/hyprmasq-bench` with the Qt
-questionnaire, PySide6 and `Questionnaire.app`, and `run_mac_form.py --tool openai-cu|cua --rep N --out DIR`
-runs the questionnaire, with `--no-dropdowns` as on the laptop. It opens the questionnaire behind the user's
-window, logs the frontmost app and, with `mac_windows.py`, the questionnaire's windows on screen, and grades the
-app's state with `check.py`. macOS keeps no log of the windows that open, so in place of the rule against other
-windows, a run fails when an app other than the user's and the questionnaire comes to the front while the agent
-works.
+The Mac runs Cua Driver, OpenAI's computer use, which comes with the ChatGPT app, and Claude's computer use, which
+comes with the Claude app, on the user's own Mac. `mac_setup.sh` prepares `~/hyprmasq-bench`: the Qt questionnaire,
+PySide6 and `Questionnaire.app`, the runner, and an agent home for each tool. `run_mac.py --task TASK --tool
+openai-cu|cua|claude-cu --rep N --out DIR` runs one task:
 
-- `--via exec` runs the agent itself: the Codex CLI that the ChatGPT app bundles, in code mode as the app runs it,
-  with the user's `~/.codex` for OpenAI's computer use, and a TextEdit note in front as the user's window. Codex
-  asks before a plugin acts on an app, which `--dangerously-bypass-approvals-and-sandbox` answers, as no one is
-  there to: the agent's shell and other tools stay off.
-- For Cua, `--tool cua` runs Codex from `~/hyprmasq-bench/homes/cua`, whose `.codex/config.toml` registers
-  `cua-driver mcp` with `default_tools_approval_mode = "approve"`, beside a copy of `~/.codex/auth.json`, and
-  whose `.agents/skills/cua-driver` links to Cua's skill. Cua Driver needs its own Accessibility and Screen
-  Recording grants, which `cua-driver permissions grant` asks for.
-- `--via app`, the default, measures a session started by hand in the ChatGPT app, with the app as the user's
-  window: start each session as a new one without a project, with the prompt the runner prints, and leave the Mac
-  alone until it is done.
+- `form` and `form-no-dropdowns`, the Qt questionnaire as the app Questionnaire, graded with `check.py`.
+- `files`, the file manager task in Finder: a fresh folder Project in a Finder window, graded as on the laptop by
+  `files_task.py`, which leaves out the `.DS_Store` files that Finder writes.
+- `inkscape`, the drawing in Inkscape 1.4.4 from `brew install --cask inkscape`, the laptop's version, graded by
+  `inkscape --query-all` on the saved file. The prompt says Cmd+S where the laptop's says Ctrl+S.
+
+The runner opens the task's window behind the user's, logs the frontmost app and, with `mac_windows.py`, the task
+app's windows on screen. macOS keeps no log of the windows that open, so in place of the rule against other
+windows, a run fails when an app other than the user's and the task's comes to the front while the agent works.
+
+- **OpenAI's computer use**, `--tool openai-cu --via exec`: the Codex CLI that the ChatGPT app bundles, in code mode
+  as the app runs it, from `homes/openai-cu`. That home holds a copy of `~/.codex/auth.json`, a link to the
+  Computer Use app, copies of the plugins and their marketplace, and only the computer-use tables of the user's
+  `config.toml`, so that the user's `AGENTS.md`, memories and settings stay out of the runs.
+  Codex loads the bundled plugins only from its default home, so the runner sets `HOME` to `homes/openai-cu` with
+  no `CODEX_HOME`, and the home links the group container where Computer Use's helper finds the app's socket. The user's window is a
+  TextEdit note. Codex asks before a plugin acts on an app, which `--dangerously-bypass-approvals-and-sandbox`
+  answers, as no one is there to: the agent's shell and other tools stay off. `--via app` measures a session
+  started by hand in the ChatGPT app instead, which runs with the user's own `~/.codex`.
+- **Cua Driver**, `--tool cua`: Codex from `homes/cua`, whose `.codex/config.toml` registers `cua-driver mcp` with
+  `default_tools_approval_mode = "approve"`, beside a copy of `~/.codex/auth.json`, and whose
+  `.agents/skills/cua-driver` links to Cua's skill. With `--harness claude`, Claude Code from `homes/claude-cua`,
+  with Cua's MCP server and skill, billed to `ANTHROPIC_API_KEY` or, without one, to the user's Claude
+  subscription, whose login Claude Code finds through the home's link to `~/Library/Keychains`. Cua Driver needs its own Accessibility and Screen
+  Recording grants and macOS's consent to direct capture, which `cua-driver permissions grant` asks for. Both homes
+  link `Library/Caches/cua-driver` to the user's, so that `cua-driver` reaches the user's daemon, which holds those
+  grants: from a home of its own it would start a daemon there whose screenshots fail. Codex runs Sol and Terra in
+  code mode only, so the agent calls Cua's tools from JavaScript and sees a screenshot when its script passes it on.
+- **Claude's computer use**, `--tool claude-cu`, runs only in the Claude app, signed in, with Computer use turned on
+  in its settings, and Sonnet 5.5 at medium effort chosen for new Code sessions. The app is the user's window. With
+  `--via drive`, the default, the runner drives the app itself through macOS's accessibility API (`ax_app.py`,
+  with the Accessibility grant of the terminal it runs in), by the app's accessibility tree and without an agent: it opens a new Code session in `~/hyprmasq-bench/claude-cu`
+  from the sidebar, or with `claude --desktop` the first time, checks that the session runs the model and effort
+  asked for, pastes the prompt and sends it, and presses "Allow for this session" when Claude asks for the task's
+  app or for full control of the screen. Every prompt it answers is logged to `claude-app.log`, and the time that
+  `request_access` and `request_full_control` waited is left out of the run's time. With `--via app`, a person
+  starts the session and answers the prompts by hand. The folder's `.claude/settings.json` denies Claude Code's own
+  tools, and a run that calls a tool other than computer use, the ToolSearch that loads it and the app's
+  computer-use skill fails. The session runs with the user's own `~/.claude`, so their `CLAUDE.md` and connectors
+  are in its context. The app's transcript gives no cost: `analyze.py` prices its requests at the API's list prices.
+  Cua Driver's daemons must not run during these runs: each keeps a window over the whole screen, for its agent
+  cursor, which Claude's full control of the screen cannot hide, and Claude stops at it. Stop them with
+  `pkill -f 'CuaDriver.app/Contents/MacOS/cua-driver serve'` before Claude's runs, and start Cua's again with
+  `cua-driver permissions grant` afterwards, which launches it as the app that holds its grants.
 - Run it in a terminal of the desktop session, such as tmux started from Terminal: a process started over SSH is
   outside the desktop, where neither the agent nor the computer-use tools can see the apps.
 
-The first session that uses a tool on Questionnaire asks to allow it, which the measured runs must not include.
+`mac_series.sh OUT REPS SET...` runs a series unattended, each SET a `"TASK TOOL MODEL"` such as
+`"files cua gpt-6.1-terra"`, all at medium effort: rep 1 of every set, then rep 2, into `OUT/TASK-TOOL-MODEL`. It
+keeps the display awake, resumes where it stopped, and stops after three runner errors in a row. Claude's computer
+use runs in a series of its own, with Cua Driver's daemons stopped: the script refuses a series that mixes
+`claude-cu` and `cua`, and `run_mac.py` a Claude run while a Cua Driver window is on screen. Before every Codex
+run the runner copies the user's current `~/.codex/auth.json` into the agent's home, and afterwards writes a login
+that the run renewed back, unless the user's changed meanwhile, as a refresh token works once. It records each
+Codex session's service tier from Codex's log and fails a run whose tier is not the standard one.
+
+The first session that uses a tool on an app asks to allow it, which the measured runs must not include: a
+warm-up run of each tool on each app, before the series, is discarded.
+
+### Privacy
+
+The runs work on the user's own Mac. Their transcripts and screenshots stay there, but `analyze.py`'s
+`comparison.json`, which [docs/comparison/data](../../docs/comparison/data) publishes, keeps text from them: the
+agent's final message, the text of failed tool calls, the failures, and the apps that took the focus. Nobody may use
+the Mac during a series, as another app in front fails a run and names that app in its data.
+
+`analyze.py` writes a `comparison.json` in each set's directory of a series, and `mac_dataset.py RESULTS-DIR OUT`
+joins them into one dataset of [docs/comparison/data](../../docs/comparison/data), keeping the `about` and `sources`
+that OUT holds, which describe the series for a reader of the data alone.
+
+Before a dataset is committed, `mac_privacy.py comparison.json [--watch FILE]` lists what in it may be personal:
+paths in a home folder, e-mail, web and IP addresses, apps other than the runs' own in the focus changes and
+failures, and the words of the watch file, such as names or hosts. It exits with 1 when it lists anything.
