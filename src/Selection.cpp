@@ -52,6 +52,7 @@ namespace hyprmasq::selection {
         // The agent's selections.
         struct SSlot {
             WP<IDataSource>     source;
+            wl_client*          owner = nullptr; // the app whose source it is
             CHyprSignalListener destroy;
         };
         std::array<SSlot, 2> slots;
@@ -174,18 +175,20 @@ namespace hyprmasq::selection {
         void clear(eKind kind) {
             slots[kind].source.reset();
             slots[kind].destroy.reset();
+            slots[kind].owner = nullptr;
             changed();
         }
 
-        // The agent's selection of the kind becomes the source, or none. The one it replaces gets a cancel, as Hyprland's
-        // does, unless it has become the user's since.
-        void setAgent(eKind kind, const SP<IDataSource>& source) {
+        // The agent's selection of the kind becomes the source of owner, or none. The one it replaces gets a cancel, as
+        // Hyprland's does, unless it has become the user's since.
+        void setAgent(eKind kind, const SP<IDataSource>& source, wl_client* owner) {
             auto&      slot = slots[kind];
             const auto old  = slot.source.lock();
             if (old == source)
                 return;
             slot.destroy.reset();
             slot.source = source;
+            slot.owner  = source ? owner : nullptr;
             if (source) {
                 source->markUsed();
                 slot.destroy = source->m_events.destroy.listen([kind] { clear(kind); });
@@ -199,11 +202,8 @@ namespace hyprmasq::selection {
         // A source that the user's input sets is not the agent's any more.
         void forget(const SP<IDataSource>& source) {
             for (auto kind : {CLIPBOARD, PRIMARY}) {
-                if (source && slots[kind].source.lock() == source) {
-                    slots[kind].destroy.reset();
-                    slots[kind].source.reset();
-                    changed();
-                }
+                if (source && slots[kind].source.lock() == source)
+                    clear(kind);
             }
         }
 
@@ -217,7 +217,7 @@ namespace hyprmasq::selection {
                             original(r, sourceR, serial);
                             return;
                         }
-                        setAgent(CLIPBOARD, source);
+                        setAgent(CLIPBOARD, source, r->client());
                     };
                 });
             }
@@ -233,7 +233,7 @@ namespace hyprmasq::selection {
                                             }
                                             // As Hyprland, which takes none while middle-click paste is off.
                                             CConfigValue<Config::INTEGER> middleClickPaste("misc:middle_click_paste");
-                                            setAgent(PRIMARY, *middleClickPaste ? source : nullptr);
+                                            setAgent(PRIMARY, *middleClickPaste ? source : nullptr, r->client());
                                         };
                                     });
             }
@@ -323,9 +323,25 @@ namespace hyprmasq::selection {
     }
 
     void userInput(wl_client* client) {
-        if (auto* c = client ? find(client) : nullptr) {
+        if (!client)
+            return;
+        // An app takes itself for the owner of a copy it made until its source gets a cancel, and Chromium, Electron, GTK
+        // and other toolkits then paste their own copy, not the offer they are sent: the app of the agent's copy would
+        // paste it for the user, for as long as it runs. The user's input to that app ends the agent's clipboard there,
+        // before the input arrives. Not the primary selection: GTK drops a text selection whose source gets a cancel.
+        auto&      slot   = slots[CLIPBOARD];
+        const auto source = slot.source.lock();
+        const bool ended  = source && slot.owner == client && !userSelection(source);
+        if (ended) {
+            Log::logger->log(Log::DEBUG, "hyprmasq", "the user's input ends the agent's clipboard {:x} in its app", rc<uintptr_t>(source.get()));
+            clear(CLIPBOARD);
+            source->cancelled();
+        }
+        if (auto* c = find(client)) {
             c->userInput = true;
             c->userAt    = Time::steadyNow();
+            if (ended)
+                offer(*c, false);
         }
     }
 
@@ -350,6 +366,7 @@ namespace hyprmasq::selection {
             if (const auto source = slot.source.lock(); source && !userSelection(source))
                 source->cancelled();
             slot.source.reset();
+            slot.owner = nullptr;
         }
         // An X selection that stayed the agent's goes back to the window manager, with the user's Wayland selection of
         // that kind if there is one: once the hooks are gone, its owner's exit would clear the user's selection.

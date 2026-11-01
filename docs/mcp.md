@@ -291,7 +291,8 @@ drag-and-drop, which runs privately inside the window when the window has the
 
 In Wayland windows, what an agent copies or selects goes to an agent
 clipboard of its own, which pastes in the other windows it drives, never in
-yours. X11 apps of one X server share its selections, so an X11 app the agent
+yours. Your input to an app that made the agent's copy ends that copy, so the
+app pastes your clipboard again. X11 apps of one X server share its selections, so an X11 app the agent
 drives can paste your X11 clipboard, and what it copies is available to your
 other apps on that X server. See
 [Clipboard and selections](automation.md#clipboard-and-selections).

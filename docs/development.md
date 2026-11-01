@@ -156,8 +156,9 @@ not take.
 `qt-probe.py`, a Qt 6 app in PySide6, logs the same way. `combo-probe.py` is a
 GTK 3 app on X11 with a combo box, or a scrolled column, which logs alike, and
 so does `slider-probe.py`, a slider in Qt 6, GTK 3 or Tk. Chromium opens
-`guest/select.html`, a page with a `<select>`, and `guest/scroll.html`, a long
-page, which log to its console.
+`guest/select.html`, a page with a `<select>`, `guest/scroll.html`, a long
+page, and `guest/clip.html`, a textarea that logs its pastes, which log to its
+console.
 
 The VM also has `hyprland-dialog`, from `hyprland-qtutils`, without which
 Hyprland does not watch for apps that stop answering its pings, and the form
@@ -358,8 +359,9 @@ and the code drift apart.
 | a hidden app sees none of the user's selections | A clipboard probe, `nix/clip-probe.c`, on a hidden workspace pastes nothing on emulated V and M while the user's clipboard and primary selection, set through data-control, hold text: it gets no selection, not the user's. |
 | the agent's selection and copy in a hidden app leave the user's selections alone, and paste in that app | A double-click on a word and Ctrl+Shift+C in a hidden foot leave the user's clipboard and primary selection, as `wl-paste` reads them, and the user's focus unchanged. Ctrl+Shift+V and Shift+Insert there paste the word. |
 | the agent's copy pastes into another hidden app, which the source sends its data | The probe pastes foot's word from the agent's clipboard and primary selection. Its own copy and selection paste into foot, and the probe as the source writes the data into the destination's pipe. The user's selections stay. |
-| the user's own copy and paste work, also in an app with a socket | The user's Ctrl+Shift+V and Shift+Insert through QEMU's keyboard paste their own selections into their foot. Their key and their click of a virtual pointer in the probe, which has a socket, set their clipboard and primary selection. The agent's paste in the probe while the user's focus is there gets the agent's clipboard, and the user's paste right after it theirs. |
+| the user's own copy and paste work, also in an app with a socket | The user's Ctrl+Shift+V and Shift+Insert through QEMU's keyboard paste their own selections into their foot. Their focus on the probe, which their switch to its workspace gives it and which made the agent's clipboard, ends that copy with a cancel and leaves the agent's primary selection. Their key and their click of a virtual pointer in the probe, which has a socket, set their clipboard and primary selection. The agent's copy and paste in the probe while the user's focus is there get the agent's clipboard, and the user's paste right after it cancels the agent's copy before the key and gets theirs. |
 | the agent's selections go with the app that made them | Once the probe that holds the agent's selections exits, foot pastes nothing, and the user's selections stay. |
+| an app that pastes its own copy pastes the user's clipboard once the user's input reaches it | The agent copies with Ctrl+A and Ctrl+C in a hidden window of a Wayland Chromium, `guest/clip.html`, and pastes it there. Chromium, which pastes its own copy while it takes itself for the owner, pastes the user's clipboard on the user's Ctrl+V in their window of the same Chromium, and the agent's paste then gets nothing, not the user's clipboard. After a second copy, the user focuses the agent's window and pastes their clipboard there too. The user's selections stay. |
 | an X11 app's selection that the agent makes stays in its X server, also when the app exits | The agent's double-click in a hidden `xterm`, through a socket with `force` while the user works in another `xterm`, makes the X primary selection, which `xclip` reads, and leaves the user's Wayland selections alone, also once the hidden `xterm` exits. |
 
 #### `xwayland`

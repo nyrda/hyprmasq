@@ -65,9 +65,14 @@ with subtest("the user's own copy and paste work, also in an app with a socket")
     wait_for("the user's pastes", lambda: cat_output("user") == "userclipboard\nuserprimary\n", timeout=15)
     # The user focuses the probe, whose window has a socket, and copies there with a key, and selects with a click of
     # a virtual pointer: both are the user's.
+    # The probe made the agent's clipboard, so the user's focus, which the workspace gives it, ends that copy there with
+    # a cancel, and leaves the agent's primary selection, which the probe also made, alone.
+    start = len(probe_events("hm-clip-probe"))
     focus_workspace(85)
     dispatch(f'hl.dsp.focus({{ window = "address:{clip_probe_address}" }})')
     wait_for("the probe focused", lambda: snapshot() == (85, clip_probe_address))
+    events = wait_clip("hm-clip-probe", start, "source cancelled hm-clip-probe-copy1")
+    assert "source cancelled hm-clip-probe-select1" not in events, events
     start = len(probe_events("hm-clip-probe"))
     machine.send_chars("c")
     probe_at = client("hm-clip-probe")
@@ -75,13 +80,17 @@ with subtest("the user's own copy and paste work, also in an app with a socket")
     alice(f"{client_env} wlrctl pointer click left")
     wait_clip("hm-clip-probe", start, "copy hm-clip-probe-copy2", "select hm-clip-probe-select2")
     wait_for("the user's copy", lambda: user_selections() == ("hm-clip-probe-copy2", "hm-clip-probe-select2"), timeout=10)
-    # The agent's paste in the probe, which has the user's focus, gets the agent's clipboard, and the user's paste
-    # right after it the user's.
+    # The agent copies in the probe, which has the user's focus, and its paste there gets that copy. The user's paste
+    # right after it ends the agent's copy, before the key arrives, and gets the user's.
     start = len(probe_events("hm-clip-probe"))
+    send(clip_probe_path, "keys", "c")
+    wait_clip("hm-clip-probe", start, "copy hm-clip-probe-copy3")
     send(clip_probe_path, "keys", "v")
-    wait_clip("hm-clip-probe", start, "paste clipboard hm-clip-probe-copy1")
+    wait_clip("hm-clip-probe", start, "paste clipboard hm-clip-probe-copy3")
+    assert user_selections() == ("hm-clip-probe-copy2", "hm-clip-probe-select2")
     machine.send_chars("v")
-    wait_clip("hm-clip-probe", start, "paste clipboard hm-clip-probe-copy2")
+    events = wait_clip("hm-clip-probe", start, "source cancelled hm-clip-probe-copy3", "paste clipboard hm-clip-probe-copy2")
+    assert events.index("source cancelled hm-clip-probe-copy3") < events.index("paste clipboard hm-clip-probe-copy2"), events
     assert user_selections() == ("hm-clip-probe-copy2", "hm-clip-probe-select2") and snapshot() == (85, clip_probe_address)
     focus_clip_user()
     user_copies("userclipboard", "userprimary")
@@ -96,6 +105,61 @@ with subtest("the agent's selections go with the app that made them"):
     time.sleep(1)
     assert cat_output("a") == expected
     assert user_selections() == ("userclipboard", "userprimary") and snapshot() == (4, clip_user)
+
+with subtest("an app that pastes its own copy pastes the user's clipboard once the user's input reaches it"):
+    # Chromium, as Brave, Electron and GTK, pastes its own copy while it takes itself for the clipboard's owner, not the
+    # offer it is sent. The agent copies in a hidden window of a Chromium whose other window the user works in: the
+    # user's paste there, and in the agent's window once they focus it, must paste the user's clipboard.
+    def cc_pastes(name):
+        return re.findall(rf'"probe {name} paste ([^"]*)"', machine.succeed("cat /tmp/hyprmasq-clip-chromium.log"))
+
+    cc_command = ("chromium --ozone-platform=wayland --user-data-dir=/tmp/hm-clip-chromium --no-first-run --no-default-browser-check --disable-gpu --enable-logging=stderr --app=file:///etc/hyprmasq-test/clip.html#")
+    focus_workspace(4)
+    user_copies("userclipboard", "userprimary")
+    focus_workspace(89)
+    spawn(f"env {client_env} {cc_command}agent", "clip-chromium")
+    wait_for("the agent's Chromium window", lambda: client("hm-cc-agent") is not None, timeout=120)
+    cc_agent = client("hm-cc-agent")["address"]
+    machine.wait_until_succeeds("grep -q '\"probe agent ready\"' /tmp/hyprmasq-clip-chromium.log", timeout=60)
+    wait_drawn(cc_agent, 500)
+    # The user's window of the same Chromium, on the visible workspace with the user's focus.
+    focus_workspace(4)
+    spawn(f"env {client_env} {cc_command}user", "clip-chromium-user")
+    wait_for("the user's Chromium window", lambda: client("hm-cc-user") is not None, timeout=60)
+    cc_user = client("hm-cc-user")["address"]
+    # Its page logs in the log of the first Chromium, which opened the window.
+    machine.wait_until_succeeds("grep -q '\"probe user ready\"' /tmp/hyprmasq-clip-chromium.log", timeout=60)
+    dispatch(f'hl.dsp.focus({{ window = "address:{cc_user}" }})')
+    wait_for("the user's Chromium window focused", lambda: snapshot() == (4, cc_user))
+    # The agent copies its textarea's text, and pastes it in the same window.
+    cc_path = open_socket(cc_agent)
+    send(cc_path, "keys", "ctrl+a", "keys", "ctrl+c", "sleep", 500, "keys", "ctrl+v")
+    wait_for("the agent's paste", lambda: cc_pastes("agent") == ["agentcopy"], timeout=15)
+    assert user_selections() == ("userclipboard", "userprimary") and snapshot() == (4, cc_user)
+    # The user pastes in their window of the same Chromium: their clipboard, not the agent's copy.
+    machine.send_key("ctrl-v")
+    wait_for("the user's paste", lambda: cc_pastes("user") != [], timeout=15)
+    assert cc_pastes("user") == ["userclipboard"], cc_pastes("user")
+    # The agent's copy has ended there: the agent's paste gets nothing, and never the user's clipboard.
+    send(cc_path, "keys", "ctrl+v")
+    time.sleep(2)
+    assert cc_pastes("agent") in (["agentcopy"], ["agentcopy", ""]), cc_pastes("agent")
+    # The agent copies again, and the user focuses the agent's window and pastes there: their clipboard again.
+    send(cc_path, "keys", "ctrl+a", "keys", "ctrl+c", "sleep", 500, "keys", "ctrl+v")
+    wait_for("the agent's second paste", lambda: cc_pastes("agent")[-1:] == ["agentcopy"] and len(cc_pastes("agent")) >= 2, timeout=15)
+    cc_agent_pastes = len(cc_pastes("agent"))
+    assert user_selections() == ("userclipboard", "userprimary")
+    focus_workspace(89)
+    dispatch(f'hl.dsp.focus({{ window = "address:{cc_agent}" }})')
+    wait_for("the agent's Chromium window focused", lambda: snapshot() == (89, cc_agent))
+    machine.send_key("ctrl-v")
+    wait_for("the user's paste in the agent's window", lambda: len(cc_pastes("agent")) > cc_agent_pastes, timeout=15)
+    assert cc_pastes("agent")[cc_agent_pastes:] == ["userclipboard"], cc_pastes("agent")
+    assert user_selections() == ("userclipboard", "userprimary")
+    hypr(f"hyprmasq eis close {cc_agent}")
+    machine.succeed("pkill -f '[u]ser-data-dir=/tmp/hm-clip-chromium'")
+    wait_for("Chromium closed", lambda: client("hm-cc-agent") is None and client("hm-cc-user") is None)
+    focus_workspace(4)
 
 with subtest("an X11 app's selection that the agent makes stays in its X server, also when the app exits"):
     # The user works in an xterm of theirs, so Hyprland takes X selections to Wayland. The agent double-clicks a word
