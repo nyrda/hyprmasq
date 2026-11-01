@@ -55,7 +55,9 @@ hyprctl hyprmasq eis close "$addr"
 | `eis list` | `address path [force]` lines | List the open sockets, or `no open sockets`. |
 | `launch <workspace-hex> <token> <command-line-hex>` | `launched pid N` | Start a shell command line whose windows open silently on a workspace: a name, or the number of a numbered workspace. Both are written in hex. Use [`hyprmasq-launch`](#hyprmasq-launch) instead. |
 | `launched` | `address token` lines | The mapped windows of launches, or `no launched windows`. |
-| `version` | `hyprmasq 0.1.0 interface 4` | Plugin version and command interface version. |
+| `clipboard set <text-hex>` | `text N` | Make the text, written in hex, the agent's clipboard, which the plugin holds and pastes. `N` is its serial. See [Clipboard and selections](#clipboard-and-selections). |
+| `clipboard` | `text N: A pastes asked for it, E have ended, C with all of it` | How far the pastes of the last text that `clipboard set` made have read it, while it is still the agent's clipboard. |
+| `version` | `hyprmasq 0.1.0 interface 5` | Plugin version and command interface version. |
 | `help` | usage | The command summary. |
 
 All commands are `hyprctl hyprmasq …`. Keywords such as `since`, `max` and
@@ -84,7 +86,9 @@ JSON too, with `hyprctl` exiting 0, so check `ok`:
 | `eis list` | `{"ok":true,"sockets":[{"address":"0x…","path":"…","socketId":"9f3a61c2-3","force":false}]}` |
 | `launch` | `{"ok":true,"pid":4242}` |
 | `launched` | `{"ok":true,"windows":[{"address":"0x…","stableId":"1a","token":"9c1f0e4ab27d3365"}]}` |
-| `version` | `{"ok":true,"version":"0.1.0","interface":4}` |
+| `clipboard set` | `{"ok":true,"serial":3}` |
+| `clipboard` | `{"ok":true,"serial":3,"held":true,"asked":1,"ended":1,"complete":1}` |
+| `version` | `{"ok":true,"version":"0.1.0","interface":5}` |
 | an error | `{"ok":false,"error":"no mapped window 0x1234","code":"window_gone"}` |
 
 | Error code | Meaning |
@@ -549,6 +553,15 @@ focus, ends the agent's clipboard before the input arrives: the app's copy gets
 a cancel, and the agent's next paste pastes nothing until it copies again. The
 agent's primary selection stays, as GTK drops a text selection whose source
 gets a cancel.
+
+`hyprctl hyprmasq clipboard set <text-hex>` makes a text the agent's clipboard.
+The plugin holds that text and writes it into the pipe of each paste, without
+blocking the compositor. It sets neither your clipboard nor the agent's
+primary selection. Anyone who can run `hyprctl` can set the agent's clipboard.
+`hyprctl hyprmasq clipboard` reports how many pastes asked for that text, how
+many of them have ended, and how many of these got all of it rather than being
+cut off by an app that closed its pipe, an error or a 30 s timeout. A script
+can wait for a paste to arrive before its next input. `hyprmasq-mcp`'s `paste` action uses both.
 
 X11 apps of one X server share that server's selections: a driven X11 app of
 Hyprland's XWayland can paste your clipboard, and what it copies stays in

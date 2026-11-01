@@ -6,6 +6,7 @@
 #include "Launch.hpp"
 #include "Placement.hpp"
 #include "Screenshot.hpp"
+#include "Selection.hpp"
 #include "Wait.hpp"
 #include "Windows.hpp"
 #include "X11.hpp"
@@ -41,6 +42,8 @@ namespace hyprmasq {
             "  hyprctl hyprmasq eis open <window-address> [force]\n"
             "  hyprctl hyprmasq eis close <window-address>\n"
             "  hyprctl hyprmasq eis list\n"
+            "  hyprctl hyprmasq clipboard\n"
+            "  hyprctl hyprmasq clipboard set <text-hex>\n"
             "  hyprctl hyprmasq version\n";
 
         std::string jsonString(std::string_view in) {
@@ -479,6 +482,26 @@ namespace hyprmasq {
             });
         }
 
+        // clipboard set <text> makes the text the agent's clipboard, for the agent's paste, and clipboard reports how far
+        // the pastes of that text have read it.
+        SResponse clipboardCommand(eOutputFormat format, const std::vector<std::string>& args) {
+            if (args.empty()) {
+                const auto text = selection::agentText();
+                if (format == FORMAT_JSON)
+                    return std::format(R"({{"ok":true,"serial":{},"held":{},"asked":{},"ended":{},"complete":{}}})", text.serial, text.held, text.asked, text.ended, text.complete);
+                if (!text.held)
+                    return "the agent's clipboard is not a text that clipboard set made";
+                return std::format("text {}: {} pastes asked for it, {} have ended, {} with all of it", text.serial, text.asked, text.ended, text.complete);
+            }
+            if (args.size() != 2 || args[0] != "set")
+                return usage(format);
+            auto text = fromHex(args[1]);
+            if (!text)
+                return error(format, eErrorCode::INVALID_ARGUMENTS, "the text must be hex, two digits a byte");
+            const auto serial = selection::setAgentText(std::move(*text));
+            return format == FORMAT_JSON ? std::format(R"({{"ok":true,"serial":{}}})", serial) : std::format("text {}", serial);
+        }
+
         SResponse waitCommand(eOutputFormat format, const std::vector<std::string>& args) {
             const bool change = args.size() > 1 && args[1] == "since";
             if (args.empty() || (!change && args.size() > 3))
@@ -535,6 +558,8 @@ namespace hyprmasq {
             return launchCommand(format, args);
         if (words[1] == "lease")
             return leaseCommand(format, args);
+        if (words[1] == "clipboard")
+            return clipboardCommand(format, args);
 
         if (words[1] == "cancel") {
             if (args.size() != 1)

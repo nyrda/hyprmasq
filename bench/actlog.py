@@ -34,6 +34,7 @@ ARRAY_FIELDS = {
     "path": ("points", "curve", "button", "modifiers"),
     "scroll": ("x", "y", "dy", "unit", "dx"),
     "type": ("text",),
+    "paste": ("text",),
     "key": ("keys", "repeat"),
     "pause": ("ms",),
 }

@@ -78,7 +78,7 @@ func waitHint(w *waitOut, batch []action, shotID string, actions *actionsOut, sh
 			return fmt.Sprintf("Nothing was drawn %s. If the window is still loading, wait again: act with no actions, a larger wait.expect_ms, and a deadline_ms at least 1000 above it.", since)
 		case "click":
 			return "The click may have missed or had no visible effect" + laterWindow(batch) + ". " + look + " before repeating it."
-		case "key", "type":
+		case "key", "type", "paste":
 			return "The keys may have gone to another widget or had no visible effect" + laterWindow(batch) + ". " + look + " before repeating them."
 		case "move":
 			if !opensWindows(batch) {

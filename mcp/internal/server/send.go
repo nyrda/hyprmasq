@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -98,7 +99,10 @@ func (s *Server) sendable(clientCtx, sendCtx context.Context, r *actRequest, sh 
 		return cur, &toolError{Code: "stale_shot", Message: fmt.Sprintf("the window was resized from %s to %s since shot %s", formatSize(sh.Size), formatSize(cur.Size), sh.ID),
 			Hint: hintScreenshot, ShotHint: hintScreenshotShot}
 	}
-	return cur, checkCapabilities(r.batch[r.from:], cur.Capabilities, r.window)
+	if err := checkCapabilities(r.batch[r.from:], cur.Capabilities, r.window); err != nil {
+		return cur, err
+	}
+	return cur, checkPaste(r.batch[r.from:], cur.XWayland)
 }
 
 // runBatch runs the batch in one hyprmasq-input, and stops it when the window is resized or replaced meanwhile.
@@ -115,9 +119,28 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 	inputBy, _ := sendCtx.Deadline()
 	left := time.Until(inputBy)
 	base := currentBaseline(st)
-	held := -1 // the sync where the batch stopped for a popup that its press would only close
+	held := -1        // the sync where the batch stopped for a popup that its press would only close
+	var pasted uint64 // the serial of the text of the last paste
+	var unread []int
 	answer := func(step int) bool {
 		if step < 0 || step >= len(steps) || steps[step].Argv[0] != "sync" {
+			return true
+		}
+		if steps[step].PasteText != nil {
+			// Without the text on the agent clipboard, Shift+Insert would paste what was there before: the sync gets no
+			// answer, and the sender stops there.
+			serial, err := s.setPaste(runCtx, r, steps[step].Batch, steps[step])
+			if err != nil {
+				stop(err)
+				return false
+			}
+			pasted = serial
+			return true
+		}
+		if steps[step].PasteRead {
+			if !s.pasteRead(runCtx, pasted) && !slices.Contains(unread, steps[step].Batch) {
+				unread = append(unread, steps[step].Batch)
+			}
 			return true
 		}
 		x, y, press := pressAfter(steps, step)
@@ -139,6 +162,7 @@ func (s *Server) runBatch(clientCtx, sendCtx context.Context, r *actRequest, ste
 	reply, err := s.runSender(runCtx, *st.Socket, steps, paceBudget(left), locale.name, answer)
 	stop(nil)
 	<-watched
+	out.UnreadPastes = unread
 	if reply.Delivery != "none" {
 		out.composeNote = composeNote(reply, locale)
 	}

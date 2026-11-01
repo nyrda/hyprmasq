@@ -95,6 +95,8 @@ type actionsOut struct {
 	HeldBack string `json:"held_back,omitempty"`
 	// The press at failed_index was held back, not the scrolls at the end.
 	heldPress bool
+	// Present only when no paste of the app read the text of these paste actions within 3 s of their Shift+Insert.
+	UnreadPastes []int `json:"unread_pastes,omitempty"`
 	// Why characters typed through Compose may have arrived as others, for the hint.
 	composeNote string
 }

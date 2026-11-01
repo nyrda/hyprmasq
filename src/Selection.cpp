@@ -1,5 +1,6 @@
 #include "Selection.hpp"
 #include "Eis.hpp"
+#include "HeldText.hpp"
 #include "Hooks.hpp"
 #include "PrivateAccess.hpp"
 #include "X11.hpp"
@@ -53,9 +54,13 @@ namespace hyprmasq::selection {
         struct SSlot {
             WP<IDataSource>     source;
             wl_client*          owner = nullptr; // the app whose source it is
+            SP<IDataSource>     held;            // the plugin's own source, when it is that
             CHyprSignalListener destroy;
         };
         std::array<SSlot, 2> slots;
+        // The last text that the agent's clipboard became, and its serial.
+        WP<heldtext::CHeldText> heldText;
+        uint64_t                heldSerial = 0;
 
         // Rises whenever Hyprland may have marked the offers it sent dead, or sent another selection: after a change of
         // the real focus or of a selection, and of the agent's.
@@ -174,6 +179,7 @@ namespace hyprmasq::selection {
 
         void clear(eKind kind) {
             slots[kind].source.reset();
+            slots[kind].held.reset();
             slots[kind].destroy.reset();
             slots[kind].owner = nullptr;
             changed();
@@ -189,6 +195,7 @@ namespace hyprmasq::selection {
             slot.destroy.reset();
             slot.source = source;
             slot.owner  = source ? owner : nullptr;
+            slot.held.reset();
             if (source) {
                 source->markUsed();
                 slot.destroy = source->m_events.destroy.listen([kind] { clear(kind); });
@@ -345,6 +352,27 @@ namespace hyprmasq::selection {
         }
     }
 
+    uint64_t setAgentText(std::string text) {
+        const auto held = makeShared<heldtext::CHeldText>(std::move(text));
+        // No app owns it, so no app pastes it as its own copy, and the user's input has nothing to end.
+        setAgent(CLIPBOARD, held, nullptr);
+        slots[CLIPBOARD].held = held;
+        heldText              = held;
+        return ++heldSerial;
+    }
+
+    SAgentText agentText() {
+        SAgentText out{.serial = heldSerial};
+        if (const auto held = heldText.lock(); held && slots[CLIPBOARD].held == held) {
+            const auto reads = held->reads();
+            out.held         = true;
+            out.asked        = reads.asked;
+            out.ended        = reads.ended;
+            out.complete     = reads.complete;
+        }
+        return out;
+    }
+
     void restore(wl_client* client) {
         if (auto* c = client ? find(client) : nullptr)
             offer(*c, false);
@@ -367,7 +395,9 @@ namespace hyprmasq::selection {
                 source->cancelled();
             slot.source.reset();
             slot.owner = nullptr;
+            slot.held.reset();
         }
+        heldtext::shutdown();
         // An X selection that stayed the agent's goes back to the window manager, with the user's Wayland selection of
         // that kind if there is one: once the hooks are gone, its owner's exit would clear the user's selection.
         if (g_pXWayland && g_pXWayland->m_wm) {

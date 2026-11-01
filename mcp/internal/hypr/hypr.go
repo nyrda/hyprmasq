@@ -20,7 +20,7 @@ import (
 )
 
 // Interface is the plugin interface version this package is written against.
-const Interface = 4
+const Interface = 5
 
 // Client sends one request per connection, as hyprctl does. Hyprland keeps the connection open until a deferred
 // plugin reply is ready, so a request can take as long as its context allows.
@@ -510,6 +510,35 @@ func decodePluginReply(reply []byte, command string, out any) error {
 		return fmt.Errorf("unexpected reply to hyprmasq %s: %v", command, err)
 	}
 	return nil
+}
+
+// AgentText is how far the pastes of the text that SetClipboard made the agent's clipboard have read it.
+type AgentText struct {
+	// Rises with every text that SetClipboard sets.
+	Serial uint64 `json:"serial"`
+	// Whether the agent's clipboard is still the text of Serial.
+	Held bool `json:"held"`
+	// The pastes that asked for the text, those of them that have ended, and those of these that got all of it.
+	Asked    int `json:"asked"`
+	Ended    int `json:"ended"`
+	Complete int `json:"complete"`
+}
+
+// SetClipboard makes the text the agent's clipboard, which the plugin holds and pastes, and returns its serial. It sets
+// neither the user's clipboard nor the agent's primary selection.
+func (c *Client) SetClipboard(ctx context.Context, text string) (uint64, error) {
+	var out struct {
+		Serial uint64 `json:"serial"`
+	}
+	err := c.Plugin(ctx, "clipboard set "+hex.EncodeToString([]byte(text)), &out)
+	return out.Serial, err
+}
+
+// Clipboard reports how far the pastes of the agent's text have read it.
+func (c *Client) Clipboard(ctx context.Context) (AgentText, error) {
+	var out AgentText
+	err := c.Plugin(ctx, "clipboard", &out)
+	return out, err
 }
 
 // LeaseRelease ends the lease if owner holds it, or whoever holds it if owner is "", and reports whether one ended.

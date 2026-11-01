@@ -609,7 +609,7 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	out.Hint = joinHints(heldBackHint(out.Actions, r.batch), focus, drag, wait, unchanged, partScrolledHint(out, sent), splitHint(out), lateShortcutHint(out, sent, st),
 		out.captureNote, frameHints(out.Shot), frameHints(sourceShot(out.Source)), newWindowsHint(out.NewWindows), lateHint(out.LateWindows), newWindowsHint(out.LateWindows))
 	if out.Actions != nil {
-		out.Hint = joinHints(out.Hint, out.Actions.composeNote)
+		out.Hint = joinHints(out.Hint, out.Actions.composeNote, unreadPasteHint(out.Actions.UnreadPastes))
 	}
 	if out.CaptureError != nil {
 		out.Hint = joinHints(out.Hint, hintCaptureFailed)
@@ -624,7 +624,7 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 // after a shortcut for that quarter of a second, which the wait and the capture have taken by now. Whether the shortcut
 // ran before the focus returned is not known.
 func (s *Server) focusReturned(ctx context.Context, r *actRequest, st hypr.State) bool {
-	if st.Capabilities.Hold || st.Interrupted == nil || !slices.ContainsFunc(r.batch, func(a action) bool { return a.Kind == "key" }) {
+	if st.Capabilities.Hold || st.Interrupted == nil || !slices.ContainsFunc(r.batch, func(a action) bool { return a.Kind == "key" || a.Kind == "paste" }) {
 		return false
 	}
 	cur, err := s.hypr.State(ctx, r.window)
