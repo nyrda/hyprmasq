@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- A textarea that fills the page, focused, holding the text after the # of the URL. Its title is hm-cc-NAME for
+     #NAME. The page logs to the console, which Chromium's --enable-logging=stderr prints: "probe NAME ready" once
+     loaded, "probe NAME paste TEXT" for each paste, whose text it keeps out of the textarea, "probe NAME key KEY" for each
+     key press, and "probe NAME window-focus" and "probe NAME window-blur" as its window gains and loses the focus. -->
+<html>
+  <head>
+    <style>
+      body { margin: 0; }
+      textarea { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; font: 16px monospace; }
+    </style>
+  </head>
+  <body>
+    <textarea id="text" autofocus></textarea>
+    <script>
+      const name = location.hash.slice(1);
+      const text = document.getElementById("text");
+      const say = (...parts) => console.log("probe", name, ...parts);
+      document.title = "hm-cc-" + name;
+      text.value = name + "copy";
+      text.addEventListener("paste", (event) => {
+        event.preventDefault();
+        say("paste", event.clipboardData.getData("text/plain"));
+      });
+      text.addEventListener("keydown", (event) => say("key", event.key));
+      window.addEventListener("focus", () => say("window-focus"));
+      window.addEventListener("blur", () => say("window-blur"));
+      text.focus();
+      say("ready");
+    </script>
+  </body>
+</html>

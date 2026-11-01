@@ -18,7 +18,8 @@ namespace hyprmasq::selection {
     // keys and presses, which can paste, do, the client also gets the agent's selections, none before the agent has
     // made any, unless it has them already: call it before the input and its enters.
     void emulatedInput(wl_client* client, bool keyboard, bool pointer);
-    // The user's own input reaches the client, or the real keyboard focus moves to it.
+    // The user's own input reaches the client, or the real keyboard focus moves to it. Call before the input arrives: when
+    // the client made the agent's clipboard, that copy ends, and its source gets a cancel.
     void userInput(wl_client* client);
     // Emulated input gave the client's keyboard or pointer back to the user's window there: if the client has the agent's
     // selections, it gets the user's back.

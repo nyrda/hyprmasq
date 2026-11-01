@@ -537,6 +537,15 @@ the agent has copied something, a paste through emulated input pastes
 nothing, not your clipboard. The data passes from app to app, and the compositor
 never reads it.
 
+An app that made the agent's copy takes itself for the clipboard's owner, and
+Chromium, Electron, GTK and other toolkits then paste their own copy rather
+than the clipboard the compositor offers. So that such an app never pastes
+the agent's copy for you, your input to it, a key, a button or the keyboard
+focus, ends the agent's clipboard before the input arrives: the app's copy gets
+a cancel, and the agent's next paste pastes nothing until it copies again. The
+agent's primary selection stays, as GTK drops a text selection whose source
+gets a cancel.
+
 X11 apps of one X server share that server's selections: a driven X11 app of
 Hyprland's XWayland can paste your clipboard, and what it copies stays in
 that X server, where your X11 apps of the same server can paste it.
