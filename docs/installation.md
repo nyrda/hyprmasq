@@ -10,9 +10,9 @@ For Hyprland 0.56.2, use the `hyprland-0.56` branch, see
 
 | Method | Use it when |
 | --- | --- |
+| [Arch and Omarchy](#arch-and-omarchy) | You run Arch Linux or Omarchy. `makepkg` builds a pacman package from a clone, against the installed Hyprland. |
 | [NixOS module](#nixos-module) | You run NixOS. The flake pins Hyprland and the plugin together. This is the main, tested path. |
 | [Nix packages](#nix-packages-without-the-module) | You manage the Hyprland package yourself on Nix. |
-| [Arch and Omarchy](#arch-and-omarchy) | You run Arch Linux or Omarchy. `makepkg` builds a pacman package from a clone, against the installed Hyprland. |
 | [Manual build](#manual-build) | You want a local build, for development or another distribution. |
 | [hyprpm](#hyprpm) | Your distribution provides that Hyprland and its headers. |
 
@@ -30,101 +30,6 @@ Go (see [Manual build](#manual-build)). hyprpm installs only the plugin.
 
 After installing, [load the plugin](#loading-the-plugin) and
 [register the MCP server](#mcp-server) with your agents.
-
-## NixOS module
-
-```nix
-# flake.nix
-inputs.hyprmasq.url = "github:nyrda/hyprmasq";
-```
-
-Do not make this input's `hyprland` input follow another one: the plugin
-would then be built against another Hyprland than the tested one.
-
-The pinned Hyprland comes from Hyprland's own flake, prebuilt on
-hyprland.cachix.org. Without that cache, Nix compiles Hyprland and its
-libraries. Add it to your system:
-
-```nix
-nix.settings = {
-  extra-substituters = [ "https://hyprland.cachix.org" ];
-  extra-trusted-public-keys = [ "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc=" ];
-};
-```
-
-Pass `inputs` through `specialArgs` of `nixosSystem`, then enable the module:
-
-```nix
-{ inputs, ... }: {
-  imports = [ inputs.hyprmasq.nixosModules.default ];
-  programs.hyprmasq.enable = true;
-}
-```
-
-The module:
-
-- enables `programs.hyprland` and sets its `package` and `portalPackage` to
-  the flake's pinned builds, with `mkDefault`
-- adds the plugin package to `environment.systemPackages`, which puts
-  `hyprmasq-input`, `hyprmasq-launch` and `hyprmasq-mcp` on your `PATH`
-- writes `/etc/xdg/hypr/hyprmasq_plugin.lua`, which loads the plugin
-- writes `/etc/xdg/hyprmasq/mcp.toml` from `programs.hyprmasq.mcpSettings`,
-  when it is set
-- asserts that `programs.hyprland.package` is the exact Hyprland build that
-  `programs.hyprmasq.package` was built against, and fails evaluation
-  otherwise.
-
-| Option | Default | Description |
-| --- | --- | --- |
-| `programs.hyprmasq.enable` | `false` | Install the plugin, its tools, the loader, and the matching Hyprland. |
-| `programs.hyprmasq.package` | the flake's plugin | The plugin package. It must be built against `programs.hyprland.package`. |
-| `programs.hyprmasq.mcpSettings` | `{ }` | The [settings of `hyprmasq-mcp`](mcp.md#configuration), such as `{ record.gif = true; }`. A user's own `~/.config/hyprmasq/mcp.toml` is read instead. |
-
-Updating the hyprmasq input updates the compositor and the plugin together.
-
-### Your own Hyprland package
-
-If your configuration sets `programs.hyprland.package` itself, for example
-because other plugins need a particular build, build hyprmasq against that
-package so that the module's assertion passes:
-
-```nix
-{ inputs, pkgs, config, ... }: {
-  imports = [ inputs.hyprmasq.nixosModules.default ];
-  programs.hyprmasq = {
-    enable = true;
-    package = pkgs.callPackage "${inputs.hyprmasq}/nix/package.nix" {
-      hyprland = config.programs.hyprland.package;
-    };
-  };
-}
-```
-
-Your Hyprland must then be the pinned commit: the plugin uses Hyprland
-internals that other commits change. Every loaded plugin must be built against the same
-Hyprland, so build each one against the package you set.
-
-## Nix packages without the module
-
-```nix
-let
-  hm = inputs.hyprmasq.packages.${pkgs.stdenv.hostPlatform.system};
-in {
-  programs.hyprland = {
-    enable = true;
-    package = hm.hyprland;
-    portalPackage = hm.xdg-desktop-portal-hyprland;
-  };
-  environment.systemPackages = [ hm.hyprmasq ];
-  # The plugin is at "${hm.hyprmasq}/lib/hyprmasq.so".
-}
-```
-
-The flake's `overlays.default` adds `pkgs.hyprmasq`, built against
-`pkgs.hyprland` of your package set. `hm.hyprmasq` contains
-`bin/hyprmasq-mcp`, a wrapper that runs the MCP server with the package's own
-`hyprmasq-input` and an ffmpeg for its recordings. The flake's `hyprmasq-mcp`
-package is the server alone.
 
 ## Arch and Omarchy
 
@@ -242,6 +147,101 @@ hooks fail until a hyprmasq update supports it.
 Remove the `dofile` or `plugin` line first: `dofile` of a missing file is an
 error in `hyprland.lua`. Then run `sudo pacman -R hyprmasq`, with
 `hyprmasq-debug` if it is installed.
+
+## NixOS module
+
+```nix
+# flake.nix
+inputs.hyprmasq.url = "github:nyrda/hyprmasq";
+```
+
+Do not make this input's `hyprland` input follow another one: the plugin
+would then be built against another Hyprland than the tested one.
+
+The pinned Hyprland comes from Hyprland's own flake, prebuilt on
+hyprland.cachix.org. Without that cache, Nix compiles Hyprland and its
+libraries. Add it to your system:
+
+```nix
+nix.settings = {
+  extra-substituters = [ "https://hyprland.cachix.org" ];
+  extra-trusted-public-keys = [ "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc=" ];
+};
+```
+
+Pass `inputs` through `specialArgs` of `nixosSystem`, then enable the module:
+
+```nix
+{ inputs, ... }: {
+  imports = [ inputs.hyprmasq.nixosModules.default ];
+  programs.hyprmasq.enable = true;
+}
+```
+
+The module:
+
+- enables `programs.hyprland` and sets its `package` and `portalPackage` to
+  the flake's pinned builds, with `mkDefault`
+- adds the plugin package to `environment.systemPackages`, which puts
+  `hyprmasq-input`, `hyprmasq-launch` and `hyprmasq-mcp` on your `PATH`
+- writes `/etc/xdg/hypr/hyprmasq_plugin.lua`, which loads the plugin
+- writes `/etc/xdg/hyprmasq/mcp.toml` from `programs.hyprmasq.mcpSettings`,
+  when it is set
+- asserts that `programs.hyprland.package` is the exact Hyprland build that
+  `programs.hyprmasq.package` was built against, and fails evaluation
+  otherwise.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `programs.hyprmasq.enable` | `false` | Install the plugin, its tools, the loader, and the matching Hyprland. |
+| `programs.hyprmasq.package` | the flake's plugin | The plugin package. It must be built against `programs.hyprland.package`. |
+| `programs.hyprmasq.mcpSettings` | `{ }` | The [settings of `hyprmasq-mcp`](mcp.md#configuration), such as `{ record.gif = true; }`. A user's own `~/.config/hyprmasq/mcp.toml` is read instead. |
+
+Updating the hyprmasq input updates the compositor and the plugin together.
+
+### Your own Hyprland package
+
+If your configuration sets `programs.hyprland.package` itself, for example
+because other plugins need a particular build, build hyprmasq against that
+package so that the module's assertion passes:
+
+```nix
+{ inputs, pkgs, config, ... }: {
+  imports = [ inputs.hyprmasq.nixosModules.default ];
+  programs.hyprmasq = {
+    enable = true;
+    package = pkgs.callPackage "${inputs.hyprmasq}/nix/package.nix" {
+      hyprland = config.programs.hyprland.package;
+    };
+  };
+}
+```
+
+Your Hyprland must then be the pinned commit: the plugin uses Hyprland
+internals that other commits change. Every loaded plugin must be built against the same
+Hyprland, so build each one against the package you set.
+
+## Nix packages without the module
+
+```nix
+let
+  hm = inputs.hyprmasq.packages.${pkgs.stdenv.hostPlatform.system};
+in {
+  programs.hyprland = {
+    enable = true;
+    package = hm.hyprland;
+    portalPackage = hm.xdg-desktop-portal-hyprland;
+  };
+  environment.systemPackages = [ hm.hyprmasq ];
+  # The plugin is at "${hm.hyprmasq}/lib/hyprmasq.so".
+}
+```
+
+The flake's `overlays.default` adds `pkgs.hyprmasq`, built against
+`pkgs.hyprland` of your package set. `hm.hyprmasq` contains
+`bin/hyprmasq-mcp`, a wrapper that runs the MCP server with the package's own
+`hyprmasq-input` and an ffmpeg for its recordings. The flake's `hyprmasq-mcp`
+package is the server alone.
 
 ## Manual build
 

@@ -15,7 +15,8 @@ Docs: `README.md` is the landing page; `docs/installation.md` covers install,
 loading and MCP registration; `docs/automation.md` is the reference for
 `hyprctl hyprmasq`, `hyprmasq-input`, `hyprmasq-launch`, the plugin options
 and the security model; `docs/mcp.md` covers `hyprmasq-mcp`;
-`docs/development.md` covers builds, tests and contributing;
+`docs/development.md` covers builds, tests and contributing, and
+`docs/vm-test.md` the VM test, its areas and every subtest;
 `docs/benchmarks.md` holds the release benchmark results, whose figures and
 tables `bench/render.py` generates from `docs/benchmarks/data`;
 `docs/comparison.md` compares hyprmasq with Cua Driver, computer-use-linux and hypruse, and in an addendum with
@@ -46,7 +47,7 @@ pinned Hyprland source. The build checks only their types.
 - Test: `nix build .#checks.x86_64-linux.vm-test -L`, the NixOS VM test in
   `nix/vm-test/`, split into areas. It must pass. Screenshots and logs from the
   run land in `result/`. Add a subtest for new behaviour, and update the
-  subtest table in `docs/development.md`, which
+  subtest table in `docs/vm-test.md`, which
   `nix build .#checks.x86_64-linux.vm-test-docs` checks against the code.
 
 Nix only sees files known to Git, so `git add` new files before building.
@@ -62,5 +63,7 @@ their data with `bench/render.py --check`. The VM test is a local gate; CI does 
 in the VM test section of
 `.github/pull_request_template.md` with that commit. Before merging, compare
 the PR's head commit with the one it passed on: after new commits, an amend, a
-rebase or a force-push, run it again on the new head. A PR that changes only
-Markdown files skips the VM test and says so in that section.
+rebase or a force-push, run it again on the new head. A PR that changes none
+of the plugin, its tools, the MCP server, the NixOS module and the VM test,
+such as one of docs or `bench/` alone, skips the VM test and says so in that
+section.

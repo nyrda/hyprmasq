@@ -514,7 +514,7 @@ class ApiKeys(unittest.TestCase):
         host = dispatch.Host(spec)
         host.base = self.base
         build = dispatch.Build(self.out, {"path": self.dir.name, "commit": "b" * 40, "task": "forgejo", "variant": None})
-        args = argparse.Namespace(display="1920x1080@1", timeout=60, no_debrief=True, backend=backend, prompt=prompt,
+        args = argparse.Namespace(display="1920x1080@1", timeout=60, max_calls=0, no_debrief=True, backend=backend, prompt=prompt,
                                   browser=browser)
         keys = {"ANTHROPIC_API_KEY": KEY, "ANTHROPIC_CUSTOM_HEADERS": HEADERS}
         remote = dispatch.Remote(self.harness, [build], [(harness, "m", None)], args, self.dir.name, dispatch.Queue([]), keys)

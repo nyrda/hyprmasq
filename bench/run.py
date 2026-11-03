@@ -238,8 +238,10 @@ def slot_cpus(cores, slots, per_slot):
             for k in range(slots)]
 
 
-def tap_command(cid, log):
-    return [sys.executable, os.path.join(BENCH, "mcp_tap.py"), str(cid), "5000", log]
+def tap_command(cid, log, max_calls=0):
+    """The MCP tap between the agent and the VM's server, with a budget of tool calls when max_calls is above 0."""
+    return [sys.executable, os.path.join(BENCH, "mcp_tap.py"), str(cid), "5000", log] + (
+        [str(max_calls)] if max_calls > 0 else [])
 
 
 def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprmasq"):
@@ -317,11 +319,12 @@ def pi_command(model, prompt, tap, resume=None, sessions=None, effort=None):
 
 
 def pi_agent_dir(tap, sessions):
-    """A pi agent directory for one run: the user's credentials and models, linked and not copied, and the tap as
-    the only MCP server, its tools declared to the model directly."""
+    """A pi agent directory for one run: the user's credentials, models and model catalog, linked and not copied,
+    and the tap as the only MCP server, its tools declared to the model directly. Without the catalog that
+    `pi update` keeps, pi has only the one it was released with, which may lack the model asked for."""
     agent_dir = tempfile.mkdtemp(prefix="hyprmasq-bench-pi-")
     user = os.environ.get("PI_CODING_AGENT_DIR") or os.path.expanduser("~/.pi/agent")
-    for name in ("auth.json", "models.json"):
+    for name in ("auth.json", "models.json", "models-store.json"):
         if os.path.exists(os.path.join(user, name)):
             os.symlink(os.path.join(user, name), os.path.join(agent_dir, name))
     config = {
@@ -334,6 +337,16 @@ def pi_agent_dir(tap, sessions):
         json.dump({"defaultProjectTrust": "never"}, f)
     os.makedirs(sessions)
     return agent_dir
+
+
+def check_pi_model(agent_dir, model):
+    """Refuses a model that pi does not list under exactly this PROVIDER/ID. pi matches --model loosely, and would
+    run another model of the provider, such as one ID with a suffix, in place of one it does not have."""
+    provider, _, ident = model.partition("/")
+    listed = subprocess.run(["pi", "--list-models", ident], capture_output=True, text=True, timeout=60,
+                            env={**os.environ, "PI_CODING_AGENT_DIR": agent_dir}, stdin=subprocess.DEVNULL)
+    if not any(line.split()[:2] == [provider, ident] for line in listed.stdout.splitlines()):
+        raise RuntimeError(f"pi lists no model {model}: run `pi update` for its catalog, or name another model")
 
 
 def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effort=None, backend="hyprmasq"):
@@ -455,9 +468,10 @@ def without_api_keys(environ):
     return {k: v for k, v in environ.items() if not k.startswith(("ANTHROPIC_", "HYPRMASQ_BENCH_ANTHROPIC_"))}
 
 
-def run_agent(command, cwd, stream_path, stderr_path, timeout, env=None, api_key=False):
+def run_agent(command, cwd, stream_path, stderr_path, timeout, env=None, api_key=False, budget=None):
     """Runs the agent, logging each line of its stdout with the host time it arrived. With api_key, it stops the
-    agent at Claude Code's init event unless that names the API key as its credentials."""
+    agent at Claude Code's init event unless that names the API key as its credentials. With budget, the path of the
+    tap's marker, it stops the agent once the tap has refused a call past the budget."""
     start = time.time()
     with open(stream_path, "a") as stream, open(stderr_path, "a") as stderr:
         proc = subprocess.Popen(
@@ -466,6 +480,19 @@ def run_agent(command, cwd, stream_path, stderr_path, timeout, env=None, api_key
         )
         timer = threading.Timer(timeout, lambda: os.killpg(proc.pid, signal.SIGTERM))
         timer.start()
+        spent = threading.Event()
+
+        def watch_budget():
+            while proc.poll() is None:
+                if os.path.exists(budget):
+                    spent.set()
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(proc.pid, signal.SIGTERM)
+                    return
+                time.sleep(0.5)
+
+        if budget:
+            threading.Thread(target=watch_budget, daemon=True).start()
         session, source, refused = None, None, False
         try:
             for raw in proc.stdout:
@@ -492,7 +519,9 @@ def run_agent(command, cwd, stream_path, stderr_path, timeout, env=None, api_key
         timed_out = not timer.is_alive() and proc.returncode != 0
         timer.cancel()
     return {"start": start, "end": time.time(), "exit": proc.returncode, "timed_out": timed_out, "session": session,
-            "api_key_source": source, "refused": refused}
+            "api_key_source": source, "refused": refused,
+            # An agent that ends right after the tap spent the budget can exit before the watcher looks.
+            "budget_exhausted": spent.is_set() or bool(budget) and os.path.exists(budget)}
 
 
 def final_text(harness, stream_path):
@@ -625,7 +654,7 @@ def booted_vm(driver, run_dir, cid, timeout, cpus=None, env=None):
 
 
 def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief, cpus=None,
-            dispatched=None, backend="hyprmasq", prompt_kind="task", browser="firefox"):
+            dispatched=None, backend="hyprmasq", prompt_kind="task", browser="firefox", max_calls=0):
     task_dir = os.path.join(BENCH, "tasks", task)
     run_dir = os.path.join(out, run_name(harness, model, rep, effort))
     label = f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}]"
@@ -638,11 +667,12 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
     # A fresh directory outside any project: harnesses load instructions such as AGENTS.md from the directory
     # they run in and its parents, and a run directory inside this checkout would give the agent hyprmasq's.
     cwd = tempfile.mkdtemp(prefix="hyprmasq-bench-agent-")
-    tap = tap_command(cid, os.path.join(run_dir, "mcp.jsonl"))
+    tap = tap_command(cid, os.path.join(run_dir, "mcp.jsonl"), max_calls)
     agent_dir = sessions = home = None
     if harness == "pi":
         sessions = os.path.join(tempfile.mkdtemp(prefix="hyprmasq-bench-pi-sessions-"), "sessions")
         agent_dir = pi_agent_dir(tap, sessions)
+        check_pi_model(agent_dir, model)
         api_env = {"PI_CODING_AGENT_DIR": agent_dir}
     # The variables of the agent's process: claude-api's key or pi's directory, and with a backend's skill the agent
     # home with it.
@@ -661,7 +691,8 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             print(f"{label} agent running", flush=True)
             agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
                               os.path.join(run_dir, "agent.stderr"), timeout, agent_vars,
-                              api_key=harness == "claude-api")
+                              api_key=harness == "claude-api",
+                              budget=os.path.join(run_dir, "mcp.jsonl.budget") if max_calls > 0 else None)
 
         run = {
             "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
@@ -671,6 +702,8 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             "accessibility": True,
             # How long the agent may take, and one tool call, in seconds: the same for both backends.
             "timeouts": {"agent_seconds": timeout, "tool_seconds": TOOL_TIMEOUT},
+            # The budget of tool calls, 0 for none, and whether the agent was stopped at it.
+            "max_calls": max_calls, "budget_exhausted": agent["budget_exhausted"],
             "agent_start": agent["start"], "agent_end": agent["end"], "agent_exit": agent["exit"],
             "timed_out": agent["timed_out"], "session": agent["session"],
             "harness_version": version([executable(harness), "--version"]), "machine": machine(),
@@ -843,6 +876,8 @@ def add_run_options(parser, tasks=False):
     reps.add_argument("--reps", type=int, default=3)
     reps.add_argument("--rep", type=int, action="append", help="run only this repetition, repeatable; instead of --reps")
     parser.add_argument("--timeout", type=int, default=1800, help="seconds an agent may take")
+    parser.add_argument("--max-calls", type=int, default=0,
+                        help="tool calls an agent may make: the run stops and fails at the next one. 0 for no limit")
     parser.add_argument("--no-debrief", action="store_true")
     parser.add_argument("--backend", choices=BACKENDS, default="hyprmasq",
                         help="the desktop tool the agent gets: hyprmasq, from --source, or Cua Driver (bench/cua), "
@@ -952,7 +987,8 @@ def main():
         try:
             with vm_lock(args.lock):
                 run_one(driver, args.task, args.variant, harness, model, effort, rep, out, args.cid, args.timeout,
-                        not args.no_debrief, cpus, args.dispatch, args.backend, args.prompt, args.browser)
+                        not args.no_debrief, cpus, args.dispatch, args.backend, args.prompt, args.browser,
+                        args.max_calls)
         except Exception as e:  # one broken run does not end the benchmark
             print(f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}] error: {e}", flush=True)
     print(report.report(out))

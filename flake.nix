@@ -43,9 +43,9 @@
       checks.${system} = {
         vm-test = vmTest;
         module-compatibility = import ./nix/module-test.nix { inherit self pkgs; };
-        # The subtest tables of docs/development.md against the VM test's areas, without a VM.
+        # The subtest tables of docs/vm-test.md against the VM test's areas, without a VM.
         vm-test-docs = pkgs.runCommand "hyprmasq-vm-test-docs" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-          python3 ${./nix/vm-test}/check.py --docs ${./docs/development.md}
+          python3 ${./nix/vm-test}/check.py --docs ${./docs/vm-test.md}
           touch $out
         '';
       };

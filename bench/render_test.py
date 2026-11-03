@@ -324,8 +324,10 @@ class Scoreboard(unittest.TestCase):
                               "runs passed and cost are of the tasks it ran.</text>", svg)
         self.assertIn("Opus 5.5 ran 3 of the 9 tasks.", render.costs_table(task_set(NINE)))
         self.assertNotIn("tasks it ran", render.costs_table(task_set(NINE, partial=NINE)))
+        # The time figure's panels list only the agents that ran their task.
         time = render.time_figure(task_set(NINE))[0].render("light", "")
-        self.assertEqual(time.count(">not run</text>"), 6)
+        self.assertNotIn(">not run</text>", time)
+        self.assertEqual(time.count(">Opus 5.5</text>"), len(SOME))
 
     def test_a_bar_gives_each_cell_the_share_of_its_runs_that_passed(self):
         # Eighteen runs of one agent beside six of another: a share and its count, not a dot per run.

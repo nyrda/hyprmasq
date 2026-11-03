@@ -1,6 +1,6 @@
-"""Checks the VM test's areas, and with --docs the subtest tables of docs/development.md against them.
+"""Checks the VM test's areas, and with --docs the subtest tables of docs/vm-test.md against them.
 
-    python3 nix/vm-test/check.py [--docs docs/development.md]
+    python3 nix/vm-test/check.py [--docs docs/vm-test.md]
 
 The test runs each area's code inside the try block of the test script, so the Nix build indents it. That is exact as
 long as no string in an area spans lines, apart from docstrings. An area may use what common.py defines and what the
@@ -208,7 +208,7 @@ def check_docs(path, order, names, requires):
             needed = [n.strip().strip("`") for n in row[1].split(",") if n.strip()]
             if name in requires and needed != requires[name]:
                 errors.append(f"{path}: area {name} needs {requires[name]} in areas.json, not {needed}")
-    headings = [(i, line.removeprefix("#### ")) for i, line in enumerate(lines) if line.startswith("#### ")]
+    headings = [(i, line.removeprefix("### ")) for i, line in enumerate(lines) if line.startswith("### ")]
     if [heading for _, heading in headings] != [f"`{name}`" for name in order]:
         errors.append(f"{path}: the subtest tables are headed {[h for _, h in headings]}, not by the areas in order {order}")
     for i, heading in headings:

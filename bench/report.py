@@ -565,10 +565,13 @@ def metrics(run_dir):
         "browser": run.get("browser", "firefox"),
         "effort": run_effort(run, run_dir, tap),
         "rep": run["rep"],
-        "passed": bool(check.get("passed")),
-        "failures": check.get("failures", ["no grading: the VM gave no result"] if not vm else []),
+        # A run stopped at its budget of tool calls fails, whatever the VM's grading says.
+        "passed": bool(check.get("passed")) and not run.get("budget_exhausted"),
+        "failures": ([f"stopped at the budget of {run['max_calls']} tool calls"] if run.get("budget_exhausted") else [])
+        + check.get("failures", ["no grading: the VM gave no result"] if not vm else []),
         "agent_exit": run.get("agent_exit"),
         "timed_out": run.get("timed_out", False),
+        "budget_exhausted": run.get("budget_exhausted", False),
         "wall_seconds": round(wall, 1),
         "tool_seconds": round(tool_seconds, 1),
         "outside_tool_seconds": round(wall - tool_seconds, 1),

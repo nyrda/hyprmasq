@@ -1,0 +1,1391 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="2254" viewBox="0 0 880 2254" role="img" aria-label="Runs passed and wall time per run of each agent, a panel per task. Each bar is the median wall time with the median time in hyprmasq&#x27;s tools inside it, and each dot one run. Each row also gives its runs passed.">
+<title>Runs passed and wall time per run of each agent, a panel per task. Each bar is the median wall time with the median time in hyprmasq&#x27;s tools inside it, and each dot one run. Each row also gives its runs passed.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#1f2328}.t2{fill:#59636e}.m{fill:#818b98}.bg{fill:#ffffff;stroke:#d1d9e0}.grid{stroke:#eff2f5;stroke-width:1}.axis{stroke:#d1d9e0;stroke-width:1}.tools{fill:#2a78d6}.out{fill:#c8d1da}.dot{fill:#424a53;stroke:#ffffff;stroke-width:1.5}.miss{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.pass{fill:#1a7f37}.fail{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.cut{stroke:#ffffff;stroke-width:2}.s0{fill:#2a78d6}.s1{fill:#eb6834}.s2{fill:#1baf7a}.s3{fill:#eda100}.s4{fill:#e87ba4}.s5{fill:#008300}.s6{fill:#6250d6}.s7{fill:#e34948}</style>
+<rect x="0.5" y="0.5" width="879" height="2253" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Runs passed and wall time</text>
+<text x="24" y="53" class="t2" font-size="12.5">Each row gives the runs passed and the median wall time. In its bar, the blue part is the median time</text>
+<text x="24" y="72" class="t2" font-size="12.5">in hyprmasq&#x27;s MCP tools, and the grey part fills it up to the median wall time. Each dot is one run.</text>
+<text x="24" y="91" class="t2" font-size="12.5">Each panel&#x27;s scale fits most models: a slower model&#x27;s bar is cut at its edge, and its runs stand past it.</text>
+<text x="24" y="110" class="t2" font-size="12.5">Kimi K3.1 Pro asked for high effort and ran at max.</text>
+<rect x="24" y="127" width="12" height="10" class="tools" rx="2"/>
+<text x="42" y="136" class="t2" font-size="12">median in hyprmasq&#x27;s tools</text>
+<rect x="209" y="127" width="12" height="10" class="out" rx="2"/>
+<text x="227" y="136" class="t2" font-size="12">rest of the median wall time</text>
+<circle cx="400.1" cy="132" r="4.5" class="dot"/>
+<text x="410.1" y="136" class="t2" font-size="12">one run</text>
+<circle cx="477.8" cy="132" r="4.5" class="miss"/>
+<text x="487.8" y="136" class="t2" font-size="12">failed run</text>
+<text x="229.3" y="170" class="t" font-size="13" font-weight="600">Board-dnd</text>
+<text x="524.7" y="170" class="m" font-size="12" text-anchor="end">40/69 passed</text>
+<line x1="229.3" y1="182" x2="229.3" y2="470" class="axis"/>
+<text x="229.3" y="485" class="m" font-size="11">0</text>
+<line x1="273.7" y1="182" x2="273.7" y2="470" class="grid"/>
+<text x="273.7" y="485" class="m" font-size="11" text-anchor="middle">20</text>
+<line x1="318" y1="182" x2="318" y2="470" class="grid"/>
+<text x="318" y="485" class="m" font-size="11" text-anchor="middle">40</text>
+<line x1="362.3" y1="182" x2="362.3" y2="470" class="grid"/>
+<text x="362.3" y="485" class="m" font-size="11" text-anchor="middle">60</text>
+<line x1="406.7" y1="182" x2="406.7" y2="470" class="grid"/>
+<text x="406.7" y="485" class="m" font-size="11" text-anchor="middle">80 s</text>
+<rect x="229.3" y="188" width="27.6" height="12" class="tools"/>
+<path d="M258.9 188H349Q352 188 352 191V197Q352 200 349 200H258.9Z" class="out"/>
+<circle cx="327.8" cy="194" r="3" class="miss"/>
+<circle cx="332.9" cy="194" r="3.5" class="dot"/>
+<circle cx="337.3" cy="194" r="3" class="miss"/>
+<circle cx="339.5" cy="194" r="3" class="miss"/>
+<circle cx="341.1" cy="194" r="3" class="miss"/>
+<circle cx="341.7" cy="194" r="3" class="miss"/>
+<circle cx="343.3" cy="194" r="3" class="miss"/>
+<circle cx="344.4" cy="194" r="3" class="miss"/>
+<circle cx="349.5" cy="194" r="3.5" class="dot"/>
+<circle cx="354.6" cy="194" r="3" class="miss"/>
+<circle cx="356.4" cy="194" r="3" class="miss"/>
+<circle cx="357.9" cy="194" r="3.5" class="dot"/>
+<circle cx="358.1" cy="194" r="3.5" class="dot"/>
+<circle cx="360.3" cy="194" r="3" class="miss"/>
+<circle cx="363" cy="194" r="3" class="miss"/>
+<circle cx="366.8" cy="194" r="3.5" class="dot"/>
+<circle cx="379.4" cy="194" r="3.5" class="dot"/>
+<circle cx="379.6" cy="194" r="3.5" class="dot"/>
+<text x="524.7" y="198.5" class="t2" font-size="12" text-anchor="end">55 s</text>
+<text x="480.7" y="198.5" class="t2" font-size="12" text-anchor="end" font-weight="600">7/18</text>
+<rect x="229.3" y="212" width="27.7" height="12" class="tools"/>
+<path d="M259 212H345.7Q348.7 212 348.7 215V221Q348.7 224 345.7 224H259Z" class="out"/>
+<circle cx="339.3" cy="218" r="3" class="miss"/>
+<circle cx="345.3" cy="218" r="3" class="miss"/>
+<circle cx="352.1" cy="218" r="3.5" class="dot"/>
+<circle cx="356.8" cy="218" r="3.5" class="dot"/>
+<text x="524.7" y="222.5" class="t2" font-size="12" text-anchor="end">54 s</text>
+<text x="480.7" y="222.5" class="t2" font-size="12" text-anchor="end" font-weight="600">2/4</text>
+<rect x="229.3" y="236" width="26.2" height="12" class="tools"/>
+<path d="M257.5 236H291.5Q294.5 236 294.5 239V245Q294.5 248 291.5 248H257.5Z" class="out"/>
+<circle cx="284.5" cy="242" r="3.5" class="dot"/>
+<circle cx="285" cy="242" r="3.5" class="dot"/>
+<circle cx="286.1" cy="242" r="3" class="miss"/>
+<circle cx="287.6" cy="242" r="3" class="miss"/>
+<circle cx="288.1" cy="242" r="3" class="miss"/>
+<circle cx="289" cy="242" r="3.5" class="dot"/>
+<circle cx="289.4" cy="242" r="3" class="miss"/>
+<circle cx="291.4" cy="242" r="3.5" class="dot"/>
+<circle cx="294.3" cy="242" r="3" class="miss"/>
+<circle cx="294.7" cy="242" r="3" class="miss"/>
+<circle cx="295.4" cy="242" r="3.5" class="dot"/>
+<circle cx="296.5" cy="242" r="3.5" class="dot"/>
+<circle cx="296.7" cy="242" r="3" class="miss"/>
+<circle cx="302.3" cy="242" r="3.5" class="dot"/>
+<circle cx="305.4" cy="242" r="3.5" class="dot"/>
+<circle cx="305.8" cy="242" r="3.5" class="dot"/>
+<circle cx="318" cy="242" r="3" class="miss"/>
+<circle cx="326.7" cy="242" r="3.5" class="dot"/>
+<text x="524.7" y="246.5" class="t2" font-size="12" text-anchor="end">29 s</text>
+<text x="480.7" y="246.5" class="t2" font-size="12" text-anchor="end" font-weight="600">10/18</text>
+<rect x="229.3" y="260" width="26.5" height="12" class="tools"/>
+<path d="M257.8 260H296.1Q299.1 260 299.1 263V269Q299.1 272 296.1 272H257.8Z" class="out"/>
+<circle cx="287.6" cy="266" r="3" class="miss"/>
+<circle cx="294.3" cy="266" r="3.5" class="dot"/>
+<circle cx="303.8" cy="266" r="3.5" class="dot"/>
+<circle cx="317.1" cy="266" r="3" class="miss"/>
+<text x="524.7" y="270.5" class="t2" font-size="12" text-anchor="end">31 s</text>
+<text x="480.7" y="270.5" class="t2" font-size="12" text-anchor="end" font-weight="600">2/4</text>
+<rect x="229.3" y="284" width="28.2" height="12" class="tools"/>
+<path d="M259.5 284H352Q355 284 355 287V293Q355 296 352 296H259.5Z" class="out"/>
+<circle cx="320.2" cy="290" r="3.5" class="dot"/>
+<circle cx="345.7" cy="290" r="3.5" class="dot"/>
+<circle cx="364.3" cy="290" r="3" class="miss"/>
+<circle cx="394.5" cy="290" r="3.5" class="dot"/>
+<text x="524.7" y="294.5" class="t2" font-size="12" text-anchor="end">57 s</text>
+<text x="480.7" y="294.5" class="t2" font-size="12" text-anchor="end" font-weight="600">3/4</text>
+<rect x="229.3" y="308" width="33.4" height="12" class="tools"/>
+<path d="M264.7 308H342.2Q345.2 308 345.2 311V317Q345.2 320 342.2 320H264.7Z" class="out"/>
+<circle cx="328.6" cy="314" r="3.5" class="dot"/>
+<circle cx="335.1" cy="314" r="3.5" class="dot"/>
+<circle cx="355.2" cy="314" r="3.5" class="dot"/>
+<circle cx="369.7" cy="314" r="3.5" class="dot"/>
+<text x="524.7" y="318.5" class="t2" font-size="12" text-anchor="end">52 s</text>
+<text x="480.7" y="318.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="332" width="28.3" height="12" class="tools"/>
+<path d="M259.6 332H297.6Q300.6 332 300.6 335V341Q300.6 344 297.6 344H259.6Z" class="out"/>
+<circle cx="294.5" cy="338" r="3.5" class="dot"/>
+<circle cx="296.1" cy="338" r="3.5" class="dot"/>
+<circle cx="296.5" cy="338" r="3.5" class="dot"/>
+<circle cx="304.7" cy="338" r="3.5" class="dot"/>
+<circle cx="310.5" cy="338" r="3.5" class="dot"/>
+<circle cx="327.3" cy="338" r="3.5" class="dot"/>
+<text x="524.7" y="342.5" class="t2" font-size="12" text-anchor="end">32 s</text>
+<text x="480.7" y="342.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="356" width="31" height="12" class="tools"/>
+<path d="M262.4 356H332.2Q335.2 356 335.2 359V365Q335.2 368 332.2 368H262.4Z" class="out"/>
+<circle cx="323.3" cy="362" r="3.5" class="dot"/>
+<circle cx="328.2" cy="362" r="3.5" class="dot"/>
+<circle cx="342.2" cy="362" r="3.5" class="dot"/>
+<circle cx="352.1" cy="362" r="3.5" class="dot"/>
+<text x="524.7" y="366.5" class="t2" font-size="12" text-anchor="end">48 s</text>
+<text x="480.7" y="366.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="380" width="29.1" height="12" class="tools"/>
+<path d="M260.5 380H354.5Q357.5 380 357.5 383V389Q357.5 392 354.5 392H260.5Z" class="out"/>
+<circle cx="326.2" cy="386" r="3" class="miss"/>
+<circle cx="334.9" cy="386" r="3" class="miss"/>
+<circle cx="380.1" cy="386" r="3" class="miss"/>
+<circle cx="392.5" cy="386" r="3" class="miss"/>
+<text x="524.7" y="390.5" class="t2" font-size="12" text-anchor="end">58 s</text>
+<text x="480.7" y="390.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/4</text>
+<rect x="229.3" y="404" width="34.4" height="12" class="tools"/>
+<rect x="265.7" y="404" width="141" height="12" class="out"/>
+<line x1="394.7" y1="418" x2="398.7" y2="402" class="cut"/>
+<line x1="399.7" y1="418" x2="403.7" y2="402" class="cut"/>
+<circle cx="412.7" cy="410" r="3.5" class="dot"/>
+<text x="524.7" y="414.5" class="t2" font-size="12" text-anchor="end">270 s</text>
+<text x="480.7" y="414.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="229.3" y="428" width="33.5" height="12" class="tools"/>
+<rect x="264.8" y="428" width="141.9" height="12" class="out"/>
+<line x1="394.7" y1="442" x2="398.7" y2="426" class="cut"/>
+<line x1="399.7" y1="442" x2="403.7" y2="426" class="cut"/>
+<circle cx="412.7" cy="434" r="3.5" class="dot"/>
+<text x="524.7" y="438.5" class="t2" font-size="12" text-anchor="end">154 s</text>
+<text x="480.7" y="438.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="229.3" y="452" width="11.7" height="12" class="tools"/>
+<rect x="243.1" y="452" width="163.6" height="12" class="out"/>
+<line x1="394.7" y1="466" x2="398.7" y2="450" class="cut"/>
+<line x1="399.7" y1="466" x2="403.7" y2="450" class="cut"/>
+<circle cx="412.7" cy="458" r="3" class="miss"/>
+<text x="524.7" y="462.5" class="t2" font-size="12" text-anchor="end">427 s</text>
+<text x="480.7" y="462.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/1</text>
+<text x="24" y="198.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="213.3" y="198.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="222.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="246.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="213.3" y="246.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="270.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="294.5" class="t" font-size="12.5" font-weight="600">gpt-6-astra</text>
+<text x="213.3" y="294.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="318.5" class="t" font-size="12.5" font-weight="600">Opus 5.5</text>
+<text x="213.3" y="318.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="342.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="213.3" y="342.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="366.5" class="t" font-size="12.5" font-weight="600">Haiku 5.5</text>
+<text x="213.3" y="366.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="390.5" class="t" font-size="12.5" font-weight="600">gpt-6-luna</text>
+<text x="213.3" y="390.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="414.5" class="t" font-size="12.5" font-weight="600">Kimi K3.1 Pro</text>
+<text x="213.3" y="414.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="438.5" class="t" font-size="12.5" font-weight="600">Gemini 4 Argon</text>
+<text x="213.3" y="438.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="462.5" class="t" font-size="12.5" font-weight="600">DeepSeek v4.1 Flash</text>
+<text x="213.3" y="462.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="560.7" y="170" class="t" font-size="13" font-weight="600">Board-pointer</text>
+<text x="856" y="170" class="m" font-size="12" text-anchor="end">50/71 passed</text>
+<line x1="560.7" y1="182" x2="560.7" y2="470" class="axis"/>
+<text x="560.7" y="485" class="m" font-size="11">0</text>
+<line x1="613.7" y1="182" x2="613.7" y2="470" class="grid"/>
+<text x="613.7" y="485" class="m" font-size="11" text-anchor="middle">25</text>
+<line x1="666.7" y1="182" x2="666.7" y2="470" class="grid"/>
+<text x="666.7" y="485" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="719.7" y1="182" x2="719.7" y2="470" class="grid"/>
+<text x="719.7" y="485" class="m" font-size="11" text-anchor="middle">75 s</text>
+<rect x="560.7" y="188" width="26.8" height="12" class="tools"/>
+<path d="M589.5 188H667.6Q670.6 188 670.6 191V197Q670.6 200 667.6 200H589.5Z" class="out"/>
+<circle cx="642.3" cy="194" r="3.5" class="dot"/>
+<circle cx="651.7" cy="194" r="3" class="miss"/>
+<circle cx="654.4" cy="194" r="3.5" class="dot"/>
+<circle cx="654.4" cy="194" r="3.5" class="dot"/>
+<circle cx="663.5" cy="194" r="3.5" class="dot"/>
+<circle cx="666.5" cy="194" r="3" class="miss"/>
+<circle cx="667.8" cy="194" r="3.5" class="dot"/>
+<circle cx="668.6" cy="194" r="3" class="miss"/>
+<circle cx="669.9" cy="194" r="3" class="miss"/>
+<circle cx="671.4" cy="194" r="3.5" class="dot"/>
+<circle cx="674.1" cy="194" r="3.5" class="dot"/>
+<circle cx="676.3" cy="194" r="3.5" class="dot"/>
+<circle cx="680.7" cy="194" r="3.5" class="dot"/>
+<circle cx="685.8" cy="194" r="3.5" class="dot"/>
+<circle cx="688.6" cy="194" r="3" class="miss"/>
+<circle cx="698.9" cy="194" r="3.5" class="dot"/>
+<circle cx="703" cy="194" r="3.5" class="dot"/>
+<circle cx="728.2" cy="194" r="3.5" class="dot"/>
+<text x="856" y="198.5" class="t2" font-size="12" text-anchor="end">52 s</text>
+<text x="812" y="198.5" class="t2" font-size="12" text-anchor="end" font-weight="600">13/18</text>
+<rect x="560.7" y="212" width="28.4" height="12" class="tools"/>
+<path d="M591.1 212H713.3Q716.3 212 716.3 215V221Q716.3 224 713.3 224H591.1Z" class="out"/>
+<circle cx="701.3" cy="218" r="3.5" class="dot"/>
+<circle cx="714.2" cy="218" r="3" class="miss"/>
+<circle cx="718.5" cy="218" r="3.5" class="dot"/>
+<circle cx="722.7" cy="218" r="3.5" class="dot"/>
+<text x="856" y="222.5" class="t2" font-size="12" text-anchor="end">73 s</text>
+<text x="812" y="222.5" class="t2" font-size="12" text-anchor="end" font-weight="600">3/4</text>
+<rect x="560.7" y="236" width="25.9" height="12" class="tools"/>
+<path d="M588.5 236H629.2Q632.2 236 632.2 239V245Q632.2 248 629.2 248H588.5Z" class="out"/>
+<circle cx="620.7" cy="242" r="3.5" class="dot"/>
+<circle cx="622.4" cy="242" r="3.5" class="dot"/>
+<circle cx="622.6" cy="242" r="3.5" class="dot"/>
+<circle cx="623.4" cy="242" r="3.5" class="dot"/>
+<circle cx="625.8" cy="242" r="3.5" class="dot"/>
+<circle cx="629.4" cy="242" r="3.5" class="dot"/>
+<circle cx="630.2" cy="242" r="3.5" class="dot"/>
+<circle cx="630.4" cy="242" r="3.5" class="dot"/>
+<circle cx="632.1" cy="242" r="3" class="miss"/>
+<circle cx="632.4" cy="242" r="3" class="miss"/>
+<circle cx="634.3" cy="242" r="3.5" class="dot"/>
+<circle cx="634.5" cy="242" r="3" class="miss"/>
+<circle cx="635.1" cy="242" r="3" class="miss"/>
+<circle cx="636" cy="242" r="3.5" class="dot"/>
+<circle cx="640.2" cy="242" r="3" class="miss"/>
+<circle cx="642.7" cy="242" r="3.5" class="dot"/>
+<circle cx="652.7" cy="242" r="3.5" class="dot"/>
+<circle cx="655.3" cy="242" r="3.5" class="dot"/>
+<text x="856" y="246.5" class="t2" font-size="12" text-anchor="end">34 s</text>
+<text x="812" y="246.5" class="t2" font-size="12" text-anchor="end" font-weight="600">13/18</text>
+<rect x="560.7" y="260" width="27.3" height="12" class="tools"/>
+<path d="M589.9 260H663.6Q666.6 260 666.6 263V269Q666.6 272 663.6 272H589.9Z" class="out"/>
+<circle cx="633.4" cy="266" r="3.5" class="dot"/>
+<circle cx="637.2" cy="266" r="3.5" class="dot"/>
+<circle cx="696" cy="266" r="3" class="miss"/>
+<circle cx="714.2" cy="266" r="3.5" class="dot"/>
+<text x="856" y="270.5" class="t2" font-size="12" text-anchor="end">50 s</text>
+<text x="812" y="270.5" class="t2" font-size="12" text-anchor="end" font-weight="600">3/4</text>
+<rect x="560.7" y="284" width="26.9" height="12" class="tools"/>
+<path d="M589.6 284H681.5Q684.5 284 684.5 287V293Q684.5 296 681.5 296H589.6Z" class="out"/>
+<circle cx="671.6" cy="290" r="3.5" class="dot"/>
+<circle cx="674.3" cy="290" r="3.5" class="dot"/>
+<circle cx="694.7" cy="290" r="3.5" class="dot"/>
+<circle cx="715.3" cy="290" r="3" class="miss"/>
+<text x="856" y="294.5" class="t2" font-size="12" text-anchor="end">58 s</text>
+<text x="812" y="294.5" class="t2" font-size="12" text-anchor="end" font-weight="600">3/4</text>
+<rect x="560.7" y="308" width="31.4" height="12" class="tools"/>
+<path d="M594.1 308H661.7Q664.7 308 664.7 311V317Q664.7 320 661.7 320H594.1Z" class="out"/>
+<circle cx="639.1" cy="314" r="3.5" class="dot"/>
+<circle cx="656.1" cy="314" r="3.5" class="dot"/>
+<circle cx="673.3" cy="314" r="3.5" class="dot"/>
+<circle cx="703.8" cy="314" r="3.5" class="dot"/>
+<text x="856" y="318.5" class="t2" font-size="12" text-anchor="end">49 s</text>
+<text x="812" y="318.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="332" width="27" height="12" class="tools"/>
+<path d="M589.7 332H623.5Q626.5 332 626.5 335V341Q626.5 344 623.5 344H589.7Z" class="out"/>
+<circle cx="615.6" cy="338" r="3.5" class="dot"/>
+<circle cx="616.7" cy="338" r="3.5" class="dot"/>
+<circle cx="624.7" cy="338" r="3.5" class="dot"/>
+<circle cx="628.3" cy="338" r="3.5" class="dot"/>
+<circle cx="633.4" cy="338" r="3.5" class="dot"/>
+<circle cx="655.3" cy="338" r="3.5" class="dot"/>
+<text x="856" y="342.5" class="t2" font-size="12" text-anchor="end">31 s</text>
+<text x="812" y="342.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="356" width="32.4" height="12" class="tools"/>
+<path d="M595.1 356H702.6Q705.6 356 705.6 359V365Q705.6 368 702.6 368H595.1Z" class="out"/>
+<circle cx="676.7" cy="362" r="3" class="miss"/>
+<circle cx="702.1" cy="362" r="3" class="miss"/>
+<circle cx="709.1" cy="362" r="3.5" class="dot"/>
+<circle cx="731.2" cy="362" r="3.5" class="dot"/>
+<text x="856" y="366.5" class="t2" font-size="12" text-anchor="end">68 s</text>
+<text x="812" y="366.5" class="t2" font-size="12" text-anchor="end" font-weight="600">2/4</text>
+<rect x="560.7" y="380" width="27.1" height="12" class="tools"/>
+<path d="M589.8 380H663Q666 380 666 383V389Q666 392 663 392H589.8Z" class="out"/>
+<circle cx="656.7" cy="386" r="3" class="miss"/>
+<circle cx="663.1" cy="386" r="3.5" class="dot"/>
+<circle cx="668.8" cy="386" r="3" class="miss"/>
+<circle cx="688.6" cy="386" r="3" class="miss"/>
+<text x="856" y="390.5" class="t2" font-size="12" text-anchor="end">50 s</text>
+<text x="812" y="390.5" class="t2" font-size="12" text-anchor="end" font-weight="600">1/4</text>
+<rect x="560.7" y="404" width="33.3" height="12" class="tools"/>
+<rect x="596" y="404" width="142" height="12" class="out"/>
+<line x1="726" y1="418" x2="730" y2="402" class="cut"/>
+<line x1="731" y1="418" x2="735" y2="402" class="cut"/>
+<circle cx="744" cy="410" r="3.5" class="dot"/>
+<text x="856" y="414.5" class="t2" font-size="12" text-anchor="end">308 s</text>
+<text x="812" y="414.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="560.7" y="428" width="66.4" height="12" class="tools"/>
+<rect x="629.1" y="428" width="108.9" height="12" class="out"/>
+<line x1="726" y1="442" x2="730" y2="426" class="cut"/>
+<line x1="731" y1="442" x2="735" y2="426" class="cut"/>
+<circle cx="744" cy="434" r="3.5" class="dot"/>
+<text x="856" y="438.5" class="t2" font-size="12" text-anchor="end">368 s</text>
+<text x="812" y="438.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="560.7" y="452" width="28.4" height="12" class="tools"/>
+<rect x="591.1" y="452" width="146.9" height="12" class="out"/>
+<line x1="726" y1="466" x2="730" y2="450" class="cut"/>
+<line x1="731" y1="466" x2="735" y2="450" class="cut"/>
+<circle cx="744" cy="458" r="3" class="miss"/>
+<circle cx="751" cy="458" r="3" class="miss"/>
+<circle cx="758" cy="458" r="3" class="miss"/>
+<text x="856" y="462.5" class="t2" font-size="12" text-anchor="end">213 s</text>
+<text x="812" y="462.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/3</text>
+<text x="229.3" y="519" class="t" font-size="13" font-weight="600">Calc</text>
+<text x="524.7" y="519" class="m" font-size="12" text-anchor="end">43/47 passed</text>
+<line x1="229.3" y1="531" x2="229.3" y2="819" class="axis"/>
+<text x="229.3" y="834" class="m" font-size="11">0</text>
+<line x1="288.5" y1="531" x2="288.5" y2="819" class="grid"/>
+<text x="288.5" y="834" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="347.6" y1="531" x2="347.6" y2="819" class="grid"/>
+<text x="347.6" y="834" class="m" font-size="11" text-anchor="middle">200</text>
+<line x1="406.7" y1="531" x2="406.7" y2="819" class="grid"/>
+<text x="406.7" y="834" class="m" font-size="11" text-anchor="middle">300 s</text>
+<rect x="229.3" y="537" width="11.9" height="12" class="tools"/>
+<path d="M243.2 537H275.1Q278.1 537 278.1 540V546Q278.1 549 275.1 549H243.2Z" class="out"/>
+<circle cx="274.3" cy="543" r="3.5" class="dot"/>
+<circle cx="276.4" cy="543" r="3.5" class="dot"/>
+<circle cx="277.5" cy="543" r="3.5" class="dot"/>
+<circle cx="278.6" cy="543" r="3.5" class="dot"/>
+<circle cx="279.1" cy="543" r="3.5" class="dot"/>
+<circle cx="284.8" cy="543" r="3.5" class="dot"/>
+<text x="524.7" y="547.5" class="t2" font-size="12" text-anchor="end">82 s</text>
+<text x="480.7" y="547.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="561" width="10.6" height="12" class="tools"/>
+<path d="M242 561H281.3Q284.3 561 284.3 564V570Q284.3 573 281.3 573H242Z" class="out"/>
+<circle cx="278.8" cy="567" r="3.5" class="dot"/>
+<circle cx="283.2" cy="567" r="3.5" class="dot"/>
+<circle cx="285.5" cy="567" r="3.5" class="dot"/>
+<circle cx="289.3" cy="567" r="3.5" class="dot"/>
+<text x="524.7" y="571.5" class="t2" font-size="12" text-anchor="end">93 s</text>
+<text x="480.7" y="571.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="585" width="9.6" height="12" class="tools"/>
+<path d="M240.9 585H256.3Q259.3 585 259.3 588V594Q259.3 597 256.3 597H240.9Z" class="out"/>
+<circle cx="254.7" cy="591" r="3.5" class="dot"/>
+<circle cx="257.4" cy="591" r="3.5" class="dot"/>
+<circle cx="259" cy="591" r="3.5" class="dot"/>
+<circle cx="259.5" cy="591" r="3.5" class="dot"/>
+<circle cx="264.1" cy="591" r="3.5" class="dot"/>
+<circle cx="266.1" cy="591" r="3.5" class="dot"/>
+<text x="524.7" y="595.5" class="t2" font-size="12" text-anchor="end">51 s</text>
+<text x="480.7" y="595.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="609" width="8.6" height="12" class="tools"/>
+<path d="M239.9 609H264.4Q267.4 609 267.4 612V618Q267.4 621 264.4 621H239.9Z" class="out"/>
+<circle cx="262.4" cy="615" r="3.5" class="dot"/>
+<circle cx="263.5" cy="615" r="3.5" class="dot"/>
+<circle cx="271.4" cy="615" r="3.5" class="dot"/>
+<circle cx="272" cy="615" r="3.5" class="dot"/>
+<text x="524.7" y="619.5" class="t2" font-size="12" text-anchor="end">64 s</text>
+<text x="480.7" y="619.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="633" width="10.6" height="12" class="tools"/>
+<path d="M242 633H278.9Q281.9 633 281.9 636V642Q281.9 645 278.9 645H242Z" class="out"/>
+<circle cx="278.2" cy="639" r="3.5" class="dot"/>
+<circle cx="280.4" cy="639" r="3.5" class="dot"/>
+<circle cx="283.5" cy="639" r="3.5" class="dot"/>
+<circle cx="286.9" cy="639" r="3.5" class="dot"/>
+<text x="524.7" y="643.5" class="t2" font-size="12" text-anchor="end">89 s</text>
+<text x="480.7" y="643.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="657" width="11.4" height="12" class="tools"/>
+<path d="M242.7 657H264.9Q267.9 657 267.9 660V666Q267.9 669 264.9 669H242.7Z" class="out"/>
+<circle cx="265.2" cy="663" r="3.5" class="dot"/>
+<circle cx="267.1" cy="663" r="3.5" class="dot"/>
+<circle cx="268.7" cy="663" r="3.5" class="dot"/>
+<circle cx="268.9" cy="663" r="3.5" class="dot"/>
+<text x="524.7" y="667.5" class="t2" font-size="12" text-anchor="end">65 s</text>
+<text x="480.7" y="667.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="681" width="9.5" height="12" class="tools"/>
+<path d="M240.8 681H255.8Q258.8 681 258.8 684V690Q258.8 693 255.8 693H240.8Z" class="out"/>
+<circle cx="256.8" cy="687" r="3.5" class="dot"/>
+<circle cx="257.4" cy="687" r="3.5" class="dot"/>
+<circle cx="258.5" cy="687" r="3.5" class="dot"/>
+<circle cx="259.1" cy="687" r="3.5" class="dot"/>
+<circle cx="264.7" cy="687" r="3.5" class="dot"/>
+<circle cx="281.2" cy="687" r="3.5" class="dot"/>
+<text x="524.7" y="691.5" class="t2" font-size="12" text-anchor="end">50 s</text>
+<text x="480.7" y="691.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="705" width="13.1" height="12" class="tools"/>
+<path d="M244.4 705H278.3Q281.3 705 281.3 708V714Q281.3 717 278.3 717H244.4Z" class="out"/>
+<circle cx="264.5" cy="711" r="3.5" class="dot"/>
+<circle cx="275.7" cy="711" r="3.5" class="dot"/>
+<circle cx="286.8" cy="711" r="3.5" class="dot"/>
+<circle cx="294.8" cy="711" r="3" class="miss"/>
+<text x="524.7" y="715.5" class="t2" font-size="12" text-anchor="end">88 s</text>
+<text x="480.7" y="715.5" class="t2" font-size="12" text-anchor="end" font-weight="600">3/4</text>
+<rect x="229.3" y="729" width="16.4" height="12" class="tools"/>
+<path d="M247.7 729H291.2Q294.2 729 294.2 732V738Q294.2 741 291.2 741H247.7Z" class="out"/>
+<circle cx="291.9" cy="735" r="3.5" class="dot"/>
+<circle cx="292" cy="735" r="3.5" class="dot"/>
+<circle cx="296.5" cy="735" r="3.5" class="dot"/>
+<circle cx="304.1" cy="735" r="3.5" class="dot"/>
+<text x="524.7" y="739.5" class="t2" font-size="12" text-anchor="end">110 s</text>
+<text x="480.7" y="739.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="753" width="17.1" height="12" class="tools"/>
+<rect x="248.5" y="753" width="158.2" height="12" class="out"/>
+<line x1="394.7" y1="767" x2="398.7" y2="751" class="cut"/>
+<line x1="399.7" y1="767" x2="403.7" y2="751" class="cut"/>
+<circle cx="412.7" cy="759" r="3" class="miss"/>
+<text x="524.7" y="763.5" class="t2" font-size="12" text-anchor="end">356 s</text>
+<text x="480.7" y="763.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/1</text>
+<rect x="229.3" y="777" width="8.5" height="12" class="tools"/>
+<path d="M239.8 777H300.9Q303.9 777 303.9 780V786Q303.9 789 300.9 789H239.8Z" class="out"/>
+<circle cx="303.9" cy="783" r="3" class="miss"/>
+<text x="524.7" y="787.5" class="t2" font-size="12" text-anchor="end">126 s</text>
+<text x="480.7" y="787.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/1</text>
+<rect x="229.3" y="801" width="18.3" height="12" class="tools"/>
+<path d="M249.7 801H316Q319 801 319 804V810Q319 813 316 813H249.7Z" class="out"/>
+<circle cx="315.9" cy="807" r="3.5" class="dot"/>
+<circle cx="319" cy="807" r="3.5" class="dot"/>
+<circle cx="401.4" cy="807" r="3" class="miss"/>
+<text x="524.7" y="811.5" class="t2" font-size="12" text-anchor="end">152 s</text>
+<text x="480.7" y="811.5" class="t2" font-size="12" text-anchor="end" font-weight="600">2/3</text>
+<text x="24" y="547.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="213.3" y="547.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="571.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="595.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="213.3" y="595.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="619.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="643.5" class="t" font-size="12.5" font-weight="600">gpt-6-astra</text>
+<text x="213.3" y="643.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="667.5" class="t" font-size="12.5" font-weight="600">Opus 5.5</text>
+<text x="213.3" y="667.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="691.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="213.3" y="691.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="715.5" class="t" font-size="12.5" font-weight="600">Haiku 5.5</text>
+<text x="213.3" y="715.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="739.5" class="t" font-size="12.5" font-weight="600">gpt-6-luna</text>
+<text x="213.3" y="739.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="763.5" class="t" font-size="12.5" font-weight="600">Kimi K3.1 Pro</text>
+<text x="213.3" y="763.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="787.5" class="t" font-size="12.5" font-weight="600">Gemini 4 Argon</text>
+<text x="213.3" y="787.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="811.5" class="t" font-size="12.5" font-weight="600">DeepSeek v4.1 Flash</text>
+<text x="213.3" y="811.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="560.7" y="519" class="t" font-size="13" font-weight="600">File manager</text>
+<text x="856" y="519" class="m" font-size="12" text-anchor="end">46/47 passed</text>
+<line x1="560.7" y1="531" x2="560.7" y2="819" class="axis"/>
+<text x="560.7" y="834" class="m" font-size="11">0</text>
+<line x1="614.3" y1="531" x2="614.3" y2="819" class="grid"/>
+<text x="614.3" y="834" class="m" font-size="11" text-anchor="middle">20</text>
+<line x1="667.9" y1="531" x2="667.9" y2="819" class="grid"/>
+<text x="667.9" y="834" class="m" font-size="11" text-anchor="middle">40</text>
+<line x1="721.5" y1="531" x2="721.5" y2="819" class="grid"/>
+<text x="721.5" y="834" class="m" font-size="11" text-anchor="middle">60 s</text>
+<rect x="560.7" y="537" width="15.7" height="12" class="tools"/>
+<path d="M578.4 537H643.5Q646.5 537 646.5 540V546Q646.5 549 643.5 549H578.4Z" class="out"/>
+<circle cx="626.9" cy="543" r="3.5" class="dot"/>
+<circle cx="644.6" cy="543" r="3.5" class="dot"/>
+<circle cx="645.9" cy="543" r="3.5" class="dot"/>
+<circle cx="647" cy="543" r="3.5" class="dot"/>
+<circle cx="667.4" cy="543" r="3.5" class="dot"/>
+<circle cx="731.2" cy="543" r="3.5" class="dot"/>
+<text x="856" y="547.5" class="t2" font-size="12" text-anchor="end">32 s</text>
+<text x="812" y="547.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="561" width="16" height="12" class="tools"/>
+<path d="M578.6 561H633.1Q636.1 561 636.1 564V570Q636.1 573 633.1 573H578.6Z" class="out"/>
+<circle cx="619.9" cy="567" r="3.5" class="dot"/>
+<circle cx="630.6" cy="567" r="3.5" class="dot"/>
+<circle cx="641.6" cy="567" r="3.5" class="dot"/>
+<circle cx="642.4" cy="567" r="3.5" class="dot"/>
+<text x="856" y="571.5" class="t2" font-size="12" text-anchor="end">28 s</text>
+<text x="812" y="571.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="585" width="15.5" height="12" class="tools"/>
+<path d="M578.2 585H618.3Q621.3 585 621.3 588V594Q621.3 597 618.3 597H578.2Z" class="out"/>
+<circle cx="614.6" cy="591" r="3.5" class="dot"/>
+<circle cx="619.1" cy="591" r="3.5" class="dot"/>
+<circle cx="619.1" cy="591" r="3.5" class="dot"/>
+<circle cx="623.4" cy="591" r="3.5" class="dot"/>
+<circle cx="643" cy="591" r="3.5" class="dot"/>
+<circle cx="652.9" cy="591" r="3.5" class="dot"/>
+<text x="856" y="595.5" class="t2" font-size="12" text-anchor="end">23 s</text>
+<text x="812" y="595.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="609" width="16.6" height="12" class="tools"/>
+<path d="M579.3 609H625.9Q628.9 609 628.9 612V618Q628.9 621 625.9 621H579.3Z" class="out"/>
+<circle cx="621.8" cy="615" r="3.5" class="dot"/>
+<circle cx="623.7" cy="615" r="3.5" class="dot"/>
+<circle cx="634.1" cy="615" r="3.5" class="dot"/>
+<circle cx="636.5" cy="615" r="3.5" class="dot"/>
+<text x="856" y="619.5" class="t2" font-size="12" text-anchor="end">25 s</text>
+<text x="812" y="619.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="633" width="16.9" height="12" class="tools"/>
+<path d="M579.6 633H659.4Q662.4 633 662.4 636V642Q662.4 645 659.4 645H579.6Z" class="out"/>
+<circle cx="656.4" cy="639" r="3.5" class="dot"/>
+<circle cx="658.8" cy="639" r="3.5" class="dot"/>
+<circle cx="666" cy="639" r="3.5" class="dot"/>
+<circle cx="669" cy="639" r="3.5" class="dot"/>
+<text x="856" y="643.5" class="t2" font-size="12" text-anchor="end">38 s</text>
+<text x="812" y="643.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="657" width="21.2" height="12" class="tools"/>
+<path d="M583.9 657H646.9Q649.9 657 649.9 660V666Q649.9 669 646.9 669H583.9Z" class="out"/>
+<circle cx="626.1" cy="663" r="3.5" class="dot"/>
+<circle cx="634.4" cy="663" r="3.5" class="dot"/>
+<circle cx="665.5" cy="663" r="3.5" class="dot"/>
+<circle cx="667.1" cy="663" r="3.5" class="dot"/>
+<text x="856" y="667.5" class="t2" font-size="12" text-anchor="end">33 s</text>
+<text x="812" y="667.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="681" width="14.1" height="12" class="tools"/>
+<path d="M576.7 681H606.7Q609.7 681 609.7 684V690Q609.7 693 606.7 693H576.7Z" class="out"/>
+<circle cx="600.3" cy="687" r="3.5" class="dot"/>
+<circle cx="601.4" cy="687" r="3.5" class="dot"/>
+<circle cx="609.5" cy="687" r="3.5" class="dot"/>
+<circle cx="610" cy="687" r="3.5" class="dot"/>
+<circle cx="610.5" cy="687" r="3.5" class="dot"/>
+<circle cx="611.9" cy="687" r="3.5" class="dot"/>
+<text x="856" y="691.5" class="t2" font-size="12" text-anchor="end">18 s</text>
+<text x="812" y="691.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="705" width="33.4" height="12" class="tools"/>
+<path d="M596 705H626.6Q629.6 705 629.6 708V714Q629.6 717 626.6 717H596Z" class="out"/>
+<circle cx="611.1" cy="711" r="3.5" class="dot"/>
+<circle cx="629.3" cy="711" r="3.5" class="dot"/>
+<circle cx="629.8" cy="711" r="3.5" class="dot"/>
+<circle cx="653.2" cy="711" r="3.5" class="dot"/>
+<text x="856" y="715.5" class="t2" font-size="12" text-anchor="end">26 s</text>
+<text x="812" y="715.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="729" width="17" height="12" class="tools"/>
+<path d="M579.7 729H629.9Q632.9 729 632.9 732V738Q632.9 741 629.9 741H579.7Z" class="out"/>
+<circle cx="625" cy="735" r="3.5" class="dot"/>
+<circle cx="627.7" cy="735" r="3.5" class="dot"/>
+<circle cx="638.2" cy="735" r="3.5" class="dot"/>
+<circle cx="657.5" cy="735" r="3.5" class="dot"/>
+<text x="856" y="739.5" class="t2" font-size="12" text-anchor="end">27 s</text>
+<text x="812" y="739.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="753" width="17.4" height="12" class="tools"/>
+<rect x="580.1" y="753" width="157.9" height="12" class="out"/>
+<line x1="726" y1="767" x2="730" y2="751" class="cut"/>
+<line x1="731" y1="767" x2="735" y2="751" class="cut"/>
+<circle cx="744" cy="759" r="3.5" class="dot"/>
+<text x="856" y="763.5" class="t2" font-size="12" text-anchor="end">111 s</text>
+<text x="812" y="763.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="560.7" y="777" width="66.2" height="12" class="tools"/>
+<rect x="628.9" y="777" width="109.1" height="12" class="out"/>
+<line x1="726" y1="791" x2="730" y2="775" class="cut"/>
+<line x1="731" y1="791" x2="735" y2="775" class="cut"/>
+<circle cx="744" cy="783" r="3" class="miss"/>
+<text x="856" y="787.5" class="t2" font-size="12" text-anchor="end">410 s</text>
+<text x="812" y="787.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/1</text>
+<rect x="560.7" y="801" width="26.5" height="12" class="tools"/>
+<rect x="589.2" y="801" width="148.8" height="12" class="out"/>
+<line x1="726" y1="815" x2="730" y2="799" class="cut"/>
+<line x1="731" y1="815" x2="735" y2="799" class="cut"/>
+<circle cx="677.8" cy="807" r="3.5" class="dot"/>
+<circle cx="744" cy="807" r="3.5" class="dot"/>
+<circle cx="751" cy="807" r="3.5" class="dot"/>
+<text x="856" y="811.5" class="t2" font-size="12" text-anchor="end">90 s</text>
+<text x="812" y="811.5" class="t" font-size="12" text-anchor="end">3/3</text>
+<text x="229.3" y="868" class="t" font-size="13" font-weight="600">Forgejo</text>
+<text x="524.7" y="868" class="m" font-size="12" text-anchor="end">45/47 passed</text>
+<line x1="229.3" y1="880" x2="229.3" y2="1168" class="axis"/>
+<text x="229.3" y="1183" class="m" font-size="11">0</text>
+<line x1="291" y1="880" x2="291" y2="1168" class="grid"/>
+<text x="291" y="1183" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="352.7" y1="880" x2="352.7" y2="1168" class="grid"/>
+<text x="352.7" y="1183" class="m" font-size="11" text-anchor="middle">100 s</text>
+<rect x="229.3" y="886" width="24.6" height="12" class="tools"/>
+<path d="M256 886H318Q321 886 321 889V895Q321 898 318 898H256Z" class="out"/>
+<circle cx="314" cy="892" r="3.5" class="dot"/>
+<circle cx="317.1" cy="892" r="3.5" class="dot"/>
+<circle cx="318.1" cy="892" r="3.5" class="dot"/>
+<circle cx="324" cy="892" r="3.5" class="dot"/>
+<circle cx="324.2" cy="892" r="3.5" class="dot"/>
+<circle cx="326.7" cy="892" r="3.5" class="dot"/>
+<text x="524.7" y="896.5" class="t2" font-size="12" text-anchor="end">74 s</text>
+<text x="480.7" y="896.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="910" width="24.2" height="12" class="tools"/>
+<path d="M255.6 910H310.5Q313.5 910 313.5 913V919Q313.5 922 310.5 922H255.6Z" class="out"/>
+<circle cx="306.2" cy="916" r="3.5" class="dot"/>
+<circle cx="309.4" cy="916" r="3.5" class="dot"/>
+<circle cx="317.7" cy="916" r="3.5" class="dot"/>
+<circle cx="326.1" cy="916" r="3.5" class="dot"/>
+<text x="524.7" y="920.5" class="t2" font-size="12" text-anchor="end">68 s</text>
+<text x="480.7" y="920.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="934" width="24.4" height="12" class="tools"/>
+<path d="M255.7 934H293.4Q296.4 934 296.4 937V943Q296.4 946 293.4 946H255.7Z" class="out"/>
+<circle cx="292.8" cy="940" r="3.5" class="dot"/>
+<circle cx="294.9" cy="940" r="3.5" class="dot"/>
+<circle cx="295.3" cy="940" r="3.5" class="dot"/>
+<circle cx="297.4" cy="940" r="3.5" class="dot"/>
+<circle cx="303.2" cy="940" r="3.5" class="dot"/>
+<circle cx="303.7" cy="940" r="3.5" class="dot"/>
+<text x="524.7" y="944.5" class="t2" font-size="12" text-anchor="end">54 s</text>
+<text x="480.7" y="944.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="958" width="26.8" height="12" class="tools"/>
+<path d="M258.1 958H313.8Q316.8 958 316.8 961V967Q316.8 970 313.8 970H258.1Z" class="out"/>
+<circle cx="294.2" cy="964" r="3.5" class="dot"/>
+<circle cx="304.5" cy="964" r="3.5" class="dot"/>
+<circle cx="329.2" cy="964" r="3.5" class="dot"/>
+<circle cx="336.3" cy="964" r="3.5" class="dot"/>
+<text x="524.7" y="968.5" class="t2" font-size="12" text-anchor="end">71 s</text>
+<text x="480.7" y="968.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="982" width="25.3" height="12" class="tools"/>
+<path d="M256.6 982H333.1Q336.1 982 336.1 985V991Q336.1 994 333.1 994H256.6Z" class="out"/>
+<circle cx="324.7" cy="988" r="3.5" class="dot"/>
+<circle cx="329.5" cy="988" r="3.5" class="dot"/>
+<circle cx="342.6" cy="988" r="3.5" class="dot"/>
+<circle cx="355.8" cy="988" r="3.5" class="dot"/>
+<text x="524.7" y="992.5" class="t2" font-size="12" text-anchor="end">86 s</text>
+<text x="480.7" y="992.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1006" width="27.8" height="12" class="tools"/>
+<path d="M259.1 1006H302Q305 1006 305 1009V1015Q305 1018 302 1018H259.1Z" class="out"/>
+<circle cx="285.2" cy="1012" r="3.5" class="dot"/>
+<circle cx="298.2" cy="1012" r="3.5" class="dot"/>
+<circle cx="311.8" cy="1012" r="3.5" class="dot"/>
+<circle cx="319.5" cy="1012" r="3.5" class="dot"/>
+<text x="524.7" y="1016.5" class="t2" font-size="12" text-anchor="end">61 s</text>
+<text x="480.7" y="1016.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1030" width="33.1" height="12" class="tools"/>
+<path d="M264.4 1030H296.2Q299.2 1030 299.2 1033V1039Q299.2 1042 296.2 1042H264.4Z" class="out"/>
+<circle cx="291.2" cy="1036" r="3.5" class="dot"/>
+<circle cx="294.2" cy="1036" r="3.5" class="dot"/>
+<circle cx="297.9" cy="1036" r="3.5" class="dot"/>
+<circle cx="300.4" cy="1036" r="3.5" class="dot"/>
+<circle cx="304.8" cy="1036" r="3.5" class="dot"/>
+<circle cx="308.1" cy="1036" r="3.5" class="dot"/>
+<text x="524.7" y="1040.5" class="t2" font-size="12" text-anchor="end">57 s</text>
+<text x="480.7" y="1040.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="1054" width="34.4" height="12" class="tools"/>
+<path d="M265.8 1054H292.7Q295.7 1054 295.7 1057V1063Q295.7 1066 292.7 1066H265.8Z" class="out"/>
+<circle cx="282.9" cy="1060" r="3.5" class="dot"/>
+<circle cx="289.3" cy="1060" r="3.5" class="dot"/>
+<circle cx="302.1" cy="1060" r="3.5" class="dot"/>
+<circle cx="313.6" cy="1060" r="3.5" class="dot"/>
+<text x="524.7" y="1064.5" class="t2" font-size="12" text-anchor="end">54 s</text>
+<text x="480.7" y="1064.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1078" width="26.9" height="12" class="tools"/>
+<path d="M258.2 1078H325.7Q328.7 1078 328.7 1081V1087Q328.7 1090 325.7 1090H258.2Z" class="out"/>
+<circle cx="311.3" cy="1084" r="3.5" class="dot"/>
+<circle cx="318.5" cy="1084" r="3.5" class="dot"/>
+<circle cx="338.9" cy="1084" r="3.5" class="dot"/>
+<circle cx="399.9" cy="1084" r="3" class="miss"/>
+<text x="524.7" y="1088.5" class="t2" font-size="12" text-anchor="end">81 s</text>
+<text x="480.7" y="1088.5" class="t2" font-size="12" text-anchor="end" font-weight="600">3/4</text>
+<rect x="229.3" y="1102" width="39.7" height="12" class="tools"/>
+<rect x="271.1" y="1102" width="135.6" height="12" class="out"/>
+<line x1="394.7" y1="1116" x2="398.7" y2="1100" class="cut"/>
+<line x1="399.7" y1="1116" x2="403.7" y2="1100" class="cut"/>
+<circle cx="412.7" cy="1108" r="3.5" class="dot"/>
+<text x="524.7" y="1112.5" class="t2" font-size="12" text-anchor="end">312 s</text>
+<text x="480.7" y="1112.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="229.3" y="1126" width="89.3" height="12" class="tools"/>
+<rect x="320.7" y="1126" width="86" height="12" class="out"/>
+<line x1="394.7" y1="1140" x2="398.7" y2="1124" class="cut"/>
+<line x1="399.7" y1="1140" x2="403.7" y2="1124" class="cut"/>
+<circle cx="412.7" cy="1132" r="3" class="miss"/>
+<text x="524.7" y="1136.5" class="t2" font-size="12" text-anchor="end">440 s</text>
+<text x="480.7" y="1136.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/1</text>
+<rect x="229.3" y="1150" width="26.8" height="12" class="tools"/>
+<path d="M258.1 1150H329.5Q332.5 1150 332.5 1153V1159Q332.5 1162 329.5 1162H258.1Z" class="out"/>
+<circle cx="322.1" cy="1156" r="3.5" class="dot"/>
+<circle cx="332.5" cy="1156" r="3.5" class="dot"/>
+<circle cx="360.6" cy="1156" r="3.5" class="dot"/>
+<text x="524.7" y="1160.5" class="t2" font-size="12" text-anchor="end">84 s</text>
+<text x="480.7" y="1160.5" class="t" font-size="12" text-anchor="end">3/3</text>
+<text x="24" y="896.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="213.3" y="896.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="920.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="944.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="213.3" y="944.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="968.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="992.5" class="t" font-size="12.5" font-weight="600">gpt-6-astra</text>
+<text x="213.3" y="992.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1016.5" class="t" font-size="12.5" font-weight="600">Opus 5.5</text>
+<text x="213.3" y="1016.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1040.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="213.3" y="1040.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1064.5" class="t" font-size="12.5" font-weight="600">Haiku 5.5</text>
+<text x="213.3" y="1064.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1088.5" class="t" font-size="12.5" font-weight="600">gpt-6-luna</text>
+<text x="213.3" y="1088.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1112.5" class="t" font-size="12.5" font-weight="600">Kimi K3.1 Pro</text>
+<text x="213.3" y="1112.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1136.5" class="t" font-size="12.5" font-weight="600">Gemini 4 Argon</text>
+<text x="213.3" y="1136.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1160.5" class="t" font-size="12.5" font-weight="600">DeepSeek v4.1 Flash</text>
+<text x="213.3" y="1160.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="560.7" y="868" class="t" font-size="13" font-weight="600">Form with dropdowns</text>
+<text x="856" y="868" class="m" font-size="12" text-anchor="end">45/47 passed</text>
+<line x1="560.7" y1="880" x2="560.7" y2="1168" class="axis"/>
+<text x="560.7" y="1183" class="m" font-size="11">0</text>
+<line x1="628.4" y1="880" x2="628.4" y2="1168" class="grid"/>
+<text x="628.4" y="1183" class="m" font-size="11" text-anchor="middle">200</text>
+<line x1="696.1" y1="880" x2="696.1" y2="1168" class="grid"/>
+<text x="696.1" y="1183" class="m" font-size="11" text-anchor="middle">400 s</text>
+<rect x="560.7" y="886" width="11.4" height="12" class="tools"/>
+<path d="M574.1 886H589.6Q592.6 886 592.6 889V895Q592.6 898 589.6 898H574.1Z" class="out"/>
+<circle cx="588.8" cy="892" r="3.5" class="dot"/>
+<circle cx="591.6" cy="892" r="3.5" class="dot"/>
+<circle cx="592" cy="892" r="3.5" class="dot"/>
+<circle cx="593.2" cy="892" r="3.5" class="dot"/>
+<circle cx="595.2" cy="892" r="3.5" class="dot"/>
+<circle cx="601" cy="892" r="3.5" class="dot"/>
+<text x="856" y="896.5" class="t2" font-size="12" text-anchor="end">94 s</text>
+<text x="812" y="896.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="910" width="13" height="12" class="tools"/>
+<path d="M575.7 910H591.1Q594.1 910 594.1 913V919Q594.1 922 591.1 922H575.7Z" class="out"/>
+<circle cx="587.8" cy="916" r="3.5" class="dot"/>
+<circle cx="591.9" cy="916" r="3.5" class="dot"/>
+<circle cx="596.4" cy="916" r="3.5" class="dot"/>
+<circle cx="603.7" cy="916" r="3.5" class="dot"/>
+<text x="856" y="920.5" class="t2" font-size="12" text-anchor="end">99 s</text>
+<text x="812" y="920.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="934" width="11.4" height="12" class="tools"/>
+<path d="M574 934H584.3Q587.3 934 587.3 937V943Q587.3 946 584.3 946H574Z" class="out"/>
+<circle cx="583.5" cy="940" r="3.5" class="dot"/>
+<circle cx="584.4" cy="940" r="3.5" class="dot"/>
+<circle cx="587.3" cy="940" r="3.5" class="dot"/>
+<circle cx="587.4" cy="940" r="3.5" class="dot"/>
+<circle cx="590.9" cy="940" r="3.5" class="dot"/>
+<circle cx="591.2" cy="940" r="3.5" class="dot"/>
+<text x="856" y="944.5" class="t2" font-size="12" text-anchor="end">79 s</text>
+<text x="812" y="944.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="958" width="12.3" height="12" class="tools"/>
+<path d="M575 958H584.6Q587.6 958 587.6 961V967Q587.6 970 584.6 970H575Z" class="out"/>
+<circle cx="585.7" cy="964" r="3.5" class="dot"/>
+<circle cx="587.3" cy="964" r="3.5" class="dot"/>
+<circle cx="587.8" cy="964" r="3.5" class="dot"/>
+<circle cx="599.3" cy="964" r="3.5" class="dot"/>
+<text x="856" y="968.5" class="t2" font-size="12" text-anchor="end">79 s</text>
+<text x="812" y="968.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="982" width="12.1" height="12" class="tools"/>
+<path d="M574.8 982H595.3Q598.3 982 598.3 985V991Q598.3 994 595.3 994H574.8Z" class="out"/>
+<circle cx="595.4" cy="988" r="3.5" class="dot"/>
+<circle cx="596.5" cy="988" r="3.5" class="dot"/>
+<circle cx="600.1" cy="988" r="3.5" class="dot"/>
+<circle cx="600.6" cy="988" r="3.5" class="dot"/>
+<text x="856" y="992.5" class="t2" font-size="12" text-anchor="end">111 s</text>
+<text x="812" y="992.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1006" width="13.6" height="12" class="tools"/>
+<path d="M576.3 1006H584.7Q587.7 1006 587.7 1009V1015Q587.7 1018 584.7 1018H576.3Z" class="out"/>
+<circle cx="587.1" cy="1012" r="3.5" class="dot"/>
+<circle cx="587.3" cy="1012" r="3.5" class="dot"/>
+<circle cx="588" cy="1012" r="3.5" class="dot"/>
+<circle cx="590.5" cy="1012" r="3.5" class="dot"/>
+<text x="856" y="1016.5" class="t2" font-size="12" text-anchor="end">80 s</text>
+<text x="812" y="1016.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1030" width="11.9" height="12" class="tools"/>
+<path d="M574.6 1030H583.3Q586.3 1030 586.3 1033V1039Q586.3 1042 583.3 1042H574.6Z" class="out"/>
+<circle cx="584.7" cy="1036" r="3" class="miss"/>
+<circle cx="585.7" cy="1036" r="3.5" class="dot"/>
+<circle cx="586.1" cy="1036" r="3.5" class="dot"/>
+<circle cx="586.5" cy="1036" r="3.5" class="dot"/>
+<circle cx="587.9" cy="1036" r="3.5" class="dot"/>
+<circle cx="608.6" cy="1036" r="3.5" class="dot"/>
+<text x="856" y="1040.5" class="t2" font-size="12" text-anchor="end">76 s</text>
+<text x="812" y="1040.5" class="t2" font-size="12" text-anchor="end" font-weight="600">5/6</text>
+<rect x="560.7" y="1054" width="13.8" height="12" class="tools"/>
+<path d="M576.5 1054H583.3Q586.3 1054 586.3 1057V1063Q586.3 1066 583.3 1066H576.5Z" class="out"/>
+<circle cx="584.3" cy="1060" r="3.5" class="dot"/>
+<circle cx="585.7" cy="1060" r="3.5" class="dot"/>
+<circle cx="586.9" cy="1060" r="3.5" class="dot"/>
+<circle cx="591.3" cy="1060" r="3.5" class="dot"/>
+<text x="856" y="1064.5" class="t2" font-size="12" text-anchor="end">76 s</text>
+<text x="812" y="1064.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1078" width="13.7" height="12" class="tools"/>
+<path d="M576.3 1078H601.8Q604.8 1078 604.8 1081V1087Q604.8 1090 601.8 1090H576.3Z" class="out"/>
+<circle cx="596.4" cy="1084" r="3.5" class="dot"/>
+<circle cx="603.4" cy="1084" r="3.5" class="dot"/>
+<circle cx="606.2" cy="1084" r="3.5" class="dot"/>
+<circle cx="606.4" cy="1084" r="3.5" class="dot"/>
+<text x="856" y="1088.5" class="t2" font-size="12" text-anchor="end">130 s</text>
+<text x="812" y="1088.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1102" width="14.8" height="12" class="tools"/>
+<path d="M577.5 1102H654.7Q657.7 1102 657.7 1105V1111Q657.7 1114 654.7 1114H577.5Z" class="out"/>
+<circle cx="657.7" cy="1108" r="3.5" class="dot"/>
+<text x="856" y="1112.5" class="t2" font-size="12" text-anchor="end">287 s</text>
+<text x="812" y="1112.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="560.7" y="1126" width="17.3" height="12" class="tools"/>
+<path d="M580 1126H662.9Q665.9 1126 665.9 1129V1135Q665.9 1138 662.9 1138H580Z" class="out"/>
+<circle cx="665.9" cy="1132" r="3.5" class="dot"/>
+<text x="856" y="1136.5" class="t2" font-size="12" text-anchor="end">311 s</text>
+<text x="812" y="1136.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="560.7" y="1150" width="18" height="12" class="tools"/>
+<path d="M580.7 1150H628.9Q631.9 1150 631.9 1153V1159Q631.9 1162 628.9 1162H580.7Z" class="out"/>
+<circle cx="614.1" cy="1156" r="3.5" class="dot"/>
+<circle cx="631.9" cy="1156" r="3" class="miss"/>
+<circle cx="731.2" cy="1156" r="3.5" class="dot"/>
+<text x="856" y="1160.5" class="t2" font-size="12" text-anchor="end">210 s</text>
+<text x="812" y="1160.5" class="t2" font-size="12" text-anchor="end" font-weight="600">2/3</text>
+<text x="229.3" y="1217" class="t" font-size="13" font-weight="600">Form without dropdowns</text>
+<text x="524.7" y="1217" class="m" font-size="12" text-anchor="end">43/47 passed</text>
+<line x1="229.3" y1="1229" x2="229.3" y2="1517" class="axis"/>
+<text x="229.3" y="1532" class="m" font-size="11">0</text>
+<line x1="282.1" y1="1229" x2="282.1" y2="1517" class="grid"/>
+<text x="282.1" y="1532" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="334.8" y1="1229" x2="334.8" y2="1517" class="grid"/>
+<text x="334.8" y="1532" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="387.5" y1="1229" x2="387.5" y2="1517" class="grid"/>
+<text x="387.5" y="1532" class="m" font-size="11" text-anchor="middle">150 s</text>
+<rect x="229.3" y="1235" width="33.5" height="12" class="tools"/>
+<path d="M264.9 1235H297.8Q300.8 1235 300.8 1238V1244Q300.8 1247 297.8 1247H264.9Z" class="out"/>
+<circle cx="296.2" cy="1241" r="3.5" class="dot"/>
+<circle cx="297.4" cy="1241" r="3.5" class="dot"/>
+<circle cx="300" cy="1241" r="3.5" class="dot"/>
+<circle cx="301.6" cy="1241" r="3.5" class="dot"/>
+<circle cx="301.8" cy="1241" r="3.5" class="dot"/>
+<circle cx="309.1" cy="1241" r="3.5" class="dot"/>
+<text x="524.7" y="1245.5" class="t2" font-size="12" text-anchor="end">68 s</text>
+<text x="480.7" y="1245.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="1259" width="37" height="12" class="tools"/>
+<path d="M268.4 1259H295.9Q298.9 1259 298.9 1262V1268Q298.9 1271 295.9 1271H268.4Z" class="out"/>
+<circle cx="294.7" cy="1265" r="3.5" class="dot"/>
+<circle cx="298.5" cy="1265" r="3.5" class="dot"/>
+<circle cx="299.4" cy="1265" r="3.5" class="dot"/>
+<circle cx="300.3" cy="1265" r="3.5" class="dot"/>
+<text x="524.7" y="1269.5" class="t2" font-size="12" text-anchor="end">66 s</text>
+<text x="480.7" y="1269.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1283" width="33.9" height="12" class="tools"/>
+<path d="M265.2 1283H285.5Q288.5 1283 288.5 1286V1292Q288.5 1295 285.5 1295H265.2Z" class="out"/>
+<circle cx="285.1" cy="1289" r="3.5" class="dot"/>
+<circle cx="287.2" cy="1289" r="3.5" class="dot"/>
+<circle cx="288.1" cy="1289" r="3.5" class="dot"/>
+<circle cx="288.9" cy="1289" r="3.5" class="dot"/>
+<circle cx="289.3" cy="1289" r="3.5" class="dot"/>
+<circle cx="291.6" cy="1289" r="3.5" class="dot"/>
+<text x="524.7" y="1293.5" class="t2" font-size="12" text-anchor="end">56 s</text>
+<text x="480.7" y="1293.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="1307" width="41.4" height="12" class="tools"/>
+<path d="M272.7 1307H305.7Q308.7 1307 308.7 1310V1316Q308.7 1319 305.7 1319H272.7Z" class="out"/>
+<circle cx="296.6" cy="1313" r="3.5" class="dot"/>
+<circle cx="300.1" cy="1313" r="3.5" class="dot"/>
+<circle cx="317.4" cy="1313" r="3.5" class="dot"/>
+<circle cx="324.5" cy="1313" r="3.5" class="dot"/>
+<text x="524.7" y="1317.5" class="t2" font-size="12" text-anchor="end">75 s</text>
+<text x="480.7" y="1317.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1331" width="34.6" height="12" class="tools"/>
+<path d="M266 1331H316Q319 1331 319 1334V1340Q319 1343 316 1343H266Z" class="out"/>
+<circle cx="308" cy="1337" r="3.5" class="dot"/>
+<circle cx="314.1" cy="1337" r="3.5" class="dot"/>
+<circle cx="323.8" cy="1337" r="3.5" class="dot"/>
+<circle cx="346" cy="1337" r="3.5" class="dot"/>
+<text x="524.7" y="1341.5" class="t2" font-size="12" text-anchor="end">85 s</text>
+<text x="480.7" y="1341.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1355" width="32.5" height="12" class="tools"/>
+<path d="M263.9 1355H294.6Q297.6 1355 297.6 1358V1364Q297.6 1367 294.6 1367H263.9Z" class="out"/>
+<circle cx="290.2" cy="1361" r="3.5" class="dot"/>
+<circle cx="291.8" cy="1361" r="3.5" class="dot"/>
+<circle cx="303.4" cy="1361" r="3.5" class="dot"/>
+<circle cx="303.7" cy="1361" r="3.5" class="dot"/>
+<text x="524.7" y="1365.5" class="t2" font-size="12" text-anchor="end">65 s</text>
+<text x="480.7" y="1365.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1379" width="30.4" height="12" class="tools"/>
+<path d="M261.8 1379H289.6Q292.6 1379 292.6 1382V1388Q292.6 1391 289.6 1391H261.8Z" class="out"/>
+<circle cx="288.9" cy="1385" r="3.5" class="dot"/>
+<circle cx="290.6" cy="1385" r="3.5" class="dot"/>
+<circle cx="292.2" cy="1385" r="3.5" class="dot"/>
+<circle cx="292.9" cy="1385" r="3.5" class="dot"/>
+<circle cx="297.6" cy="1385" r="3.5" class="dot"/>
+<circle cx="304.2" cy="1385" r="3.5" class="dot"/>
+<text x="524.7" y="1389.5" class="t2" font-size="12" text-anchor="end">60 s</text>
+<text x="480.7" y="1389.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="1403" width="38.1" height="12" class="tools"/>
+<path d="M269.5 1403H296Q299 1403 299 1406V1412Q299 1415 296 1415H269.5Z" class="out"/>
+<circle cx="293.6" cy="1409" r="3.5" class="dot"/>
+<circle cx="298.8" cy="1409" r="3.5" class="dot"/>
+<circle cx="299.1" cy="1409" r="3.5" class="dot"/>
+<circle cx="357.7" cy="1409" r="3.5" class="dot"/>
+<text x="524.7" y="1413.5" class="t2" font-size="12" text-anchor="end">66 s</text>
+<text x="480.7" y="1413.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1427" width="40.8" height="12" class="tools"/>
+<path d="M272.1 1427H316.3Q319.3 1427 319.3 1430V1436Q319.3 1439 316.3 1439H272.1Z" class="out"/>
+<circle cx="295.9" cy="1433" r="3" class="miss"/>
+<circle cx="317.7" cy="1433" r="3" class="miss"/>
+<circle cx="321" cy="1433" r="3" class="miss"/>
+<circle cx="370.6" cy="1433" r="3.5" class="dot"/>
+<text x="524.7" y="1437.5" class="t2" font-size="12" text-anchor="end">85 s</text>
+<text x="480.7" y="1437.5" class="t2" font-size="12" text-anchor="end" font-weight="600">1/4</text>
+<rect x="229.3" y="1451" width="40.5" height="12" class="tools"/>
+<rect x="271.8" y="1451" width="134.8" height="12" class="out"/>
+<line x1="394.7" y1="1465" x2="398.7" y2="1449" class="cut"/>
+<line x1="399.7" y1="1465" x2="403.7" y2="1449" class="cut"/>
+<circle cx="412.7" cy="1457" r="3.5" class="dot"/>
+<text x="524.7" y="1461.5" class="t2" font-size="12" text-anchor="end">221 s</text>
+<text x="480.7" y="1461.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="229.3" y="1475" width="32" height="12" class="tools"/>
+<path d="M263.3 1475H396.9Q399.9 1475 399.9 1478V1484Q399.9 1487 396.9 1487H263.3Z" class="out"/>
+<circle cx="399.9" cy="1481" r="3.5" class="dot"/>
+<text x="524.7" y="1485.5" class="t2" font-size="12" text-anchor="end">162 s</text>
+<text x="480.7" y="1485.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="229.3" y="1499" width="40.4" height="12" class="tools"/>
+<rect x="271.7" y="1499" width="134.9" height="12" class="out"/>
+<line x1="394.7" y1="1513" x2="398.7" y2="1497" class="cut"/>
+<line x1="399.7" y1="1513" x2="403.7" y2="1497" class="cut"/>
+<circle cx="405.3" cy="1505" r="3.5" class="dot"/>
+<circle cx="412.7" cy="1505" r="3.5" class="dot"/>
+<circle cx="419.7" cy="1505" r="3" class="miss"/>
+<text x="524.7" y="1509.5" class="t2" font-size="12" text-anchor="end">202 s</text>
+<text x="480.7" y="1509.5" class="t2" font-size="12" text-anchor="end" font-weight="600">2/3</text>
+<text x="24" y="1245.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="213.3" y="1245.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="1269.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1293.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="213.3" y="1293.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="1317.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1341.5" class="t" font-size="12.5" font-weight="600">gpt-6-astra</text>
+<text x="213.3" y="1341.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1365.5" class="t" font-size="12.5" font-weight="600">Opus 5.5</text>
+<text x="213.3" y="1365.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1389.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="213.3" y="1389.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1413.5" class="t" font-size="12.5" font-weight="600">Haiku 5.5</text>
+<text x="213.3" y="1413.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1437.5" class="t" font-size="12.5" font-weight="600">gpt-6-luna</text>
+<text x="213.3" y="1437.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1461.5" class="t" font-size="12.5" font-weight="600">Kimi K3.1 Pro</text>
+<text x="213.3" y="1461.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1485.5" class="t" font-size="12.5" font-weight="600">Gemini 4 Argon</text>
+<text x="213.3" y="1485.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1509.5" class="t" font-size="12.5" font-weight="600">DeepSeek v4.1 Flash</text>
+<text x="213.3" y="1509.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="560.7" y="1217" class="t" font-size="13" font-weight="600">Inkscape</text>
+<text x="856" y="1217" class="m" font-size="12" text-anchor="end">46/47 passed</text>
+<line x1="560.7" y1="1229" x2="560.7" y2="1517" class="axis"/>
+<text x="560.7" y="1532" class="m" font-size="11">0</text>
+<line x1="638.5" y1="1229" x2="638.5" y2="1517" class="grid"/>
+<text x="638.5" y="1532" class="m" font-size="11" text-anchor="middle">20</text>
+<line x1="716.4" y1="1229" x2="716.4" y2="1517" class="grid"/>
+<text x="716.4" y="1532" class="m" font-size="11" text-anchor="middle">40 s</text>
+<rect x="560.7" y="1235" width="12.7" height="12" class="tools"/>
+<path d="M575.3 1235H643.1Q646.1 1235 646.1 1238V1244Q646.1 1247 643.1 1247H575.3Z" class="out"/>
+<circle cx="637" cy="1241" r="3.5" class="dot"/>
+<circle cx="641.3" cy="1241" r="3.5" class="dot"/>
+<circle cx="644.4" cy="1241" r="3.5" class="dot"/>
+<circle cx="647.9" cy="1241" r="3.5" class="dot"/>
+<circle cx="649.8" cy="1241" r="3.5" class="dot"/>
+<circle cx="654.1" cy="1241" r="3.5" class="dot"/>
+<text x="856" y="1245.5" class="t2" font-size="12" text-anchor="end">22 s</text>
+<text x="812" y="1245.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="1259" width="12.3" height="12" class="tools"/>
+<path d="M574.9 1259H646.6Q649.6 1259 649.6 1262V1268Q649.6 1271 646.6 1271H574.9Z" class="out"/>
+<circle cx="638.1" cy="1265" r="3.5" class="dot"/>
+<circle cx="644" cy="1265" r="3.5" class="dot"/>
+<circle cx="655.3" cy="1265" r="3.5" class="dot"/>
+<circle cx="731.2" cy="1265" r="3.5" class="dot"/>
+<text x="856" y="1269.5" class="t2" font-size="12" text-anchor="end">23 s</text>
+<text x="812" y="1269.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1283" width="12.5" height="12" class="tools"/>
+<path d="M575.1 1283H620.9Q623.9 1283 623.9 1286V1292Q623.9 1295 620.9 1295H575.1Z" class="out"/>
+<circle cx="620.2" cy="1289" r="3.5" class="dot"/>
+<circle cx="622.2" cy="1289" r="3.5" class="dot"/>
+<circle cx="623.3" cy="1289" r="3.5" class="dot"/>
+<circle cx="624.5" cy="1289" r="3.5" class="dot"/>
+<circle cx="624.9" cy="1289" r="3.5" class="dot"/>
+<circle cx="625.3" cy="1289" r="3.5" class="dot"/>
+<text x="856" y="1293.5" class="t2" font-size="12" text-anchor="end">16 s</text>
+<text x="812" y="1293.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="1307" width="13" height="12" class="tools"/>
+<path d="M575.7 1307H646.8Q649.8 1307 649.8 1310V1316Q649.8 1319 646.8 1319H575.7Z" class="out"/>
+<circle cx="621" cy="1313" r="3.5" class="dot"/>
+<circle cx="649.4" cy="1313" r="3.5" class="dot"/>
+<circle cx="650.2" cy="1313" r="3.5" class="dot"/>
+<circle cx="715.2" cy="1313" r="3.5" class="dot"/>
+<text x="856" y="1317.5" class="t2" font-size="12" text-anchor="end">23 s</text>
+<text x="812" y="1317.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1331" width="11.9" height="12" class="tools"/>
+<path d="M574.5 1331H659.5Q662.5 1331 662.5 1334V1340Q662.5 1343 659.5 1343H574.5Z" class="out"/>
+<circle cx="653.7" cy="1337" r="3.5" class="dot"/>
+<circle cx="658.8" cy="1337" r="3.5" class="dot"/>
+<circle cx="666.2" cy="1337" r="3.5" class="dot"/>
+<circle cx="677.1" cy="1337" r="3.5" class="dot"/>
+<text x="856" y="1341.5" class="t2" font-size="12" text-anchor="end">26 s</text>
+<text x="812" y="1341.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1355" width="24.9" height="12" class="tools"/>
+<path d="M587.6 1355H657.5Q660.5 1355 660.5 1358V1364Q660.5 1367 657.5 1367H587.6Z" class="out"/>
+<circle cx="634.2" cy="1361" r="3.5" class="dot"/>
+<circle cx="656.8" cy="1361" r="3.5" class="dot"/>
+<circle cx="664.2" cy="1361" r="3.5" class="dot"/>
+<circle cx="673.6" cy="1361" r="3.5" class="dot"/>
+<text x="856" y="1365.5" class="t2" font-size="12" text-anchor="end">26 s</text>
+<text x="812" y="1365.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1379" width="12.7" height="12" class="tools"/>
+<path d="M575.3 1379H610Q613 1379 613 1382V1388Q613 1391 610 1391H575.3Z" class="out"/>
+<circle cx="602.7" cy="1385" r="3.5" class="dot"/>
+<circle cx="604.7" cy="1385" r="3.5" class="dot"/>
+<circle cx="608.9" cy="1385" r="3.5" class="dot"/>
+<circle cx="617.1" cy="1385" r="3.5" class="dot"/>
+<circle cx="620.6" cy="1385" r="3.5" class="dot"/>
+<circle cx="631.9" cy="1385" r="3.5" class="dot"/>
+<text x="856" y="1389.5" class="t2" font-size="12" text-anchor="end">13 s</text>
+<text x="812" y="1389.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="1403" width="27.6" height="12" class="tools"/>
+<path d="M590.3 1403H655.4Q658.4 1403 658.4 1406V1412Q658.4 1415 655.4 1415H590.3Z" class="out"/>
+<circle cx="640.9" cy="1409" r="3.5" class="dot"/>
+<circle cx="656" cy="1409" r="3.5" class="dot"/>
+<circle cx="660.7" cy="1409" r="3.5" class="dot"/>
+<circle cx="678.6" cy="1409" r="3.5" class="dot"/>
+<text x="856" y="1413.5" class="t2" font-size="12" text-anchor="end">25 s</text>
+<text x="812" y="1413.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1427" width="22.2" height="12" class="tools"/>
+<path d="M584.9 1427H655.8Q658.8 1427 658.8 1430V1436Q658.8 1439 655.8 1439H584.9Z" class="out"/>
+<circle cx="645.9" cy="1433" r="3.5" class="dot"/>
+<circle cx="652.5" cy="1433" r="3.5" class="dot"/>
+<circle cx="665" cy="1433" r="3.5" class="dot"/>
+<circle cx="693.4" cy="1433" r="3.5" class="dot"/>
+<text x="856" y="1437.5" class="t2" font-size="12" text-anchor="end">25 s</text>
+<text x="812" y="1437.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1451" width="17.9" height="12" class="tools"/>
+<rect x="580.6" y="1451" width="157.4" height="12" class="out"/>
+<line x1="726" y1="1465" x2="730" y2="1449" class="cut"/>
+<line x1="731" y1="1465" x2="735" y2="1449" class="cut"/>
+<circle cx="744" cy="1457" r="3.5" class="dot"/>
+<text x="856" y="1461.5" class="t2" font-size="12" text-anchor="end">71 s</text>
+<text x="812" y="1461.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="560.7" y="1475" width="38.9" height="12" class="tools"/>
+<rect x="601.6" y="1475" width="136.4" height="12" class="out"/>
+<line x1="726" y1="1489" x2="730" y2="1473" class="cut"/>
+<line x1="731" y1="1489" x2="735" y2="1473" class="cut"/>
+<circle cx="744" cy="1481" r="3.5" class="dot"/>
+<text x="856" y="1485.5" class="t2" font-size="12" text-anchor="end">348 s</text>
+<text x="812" y="1485.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="560.7" y="1499" width="28.4" height="12" class="tools"/>
+<rect x="591.1" y="1499" width="146.9" height="12" class="out"/>
+<line x1="726" y1="1513" x2="730" y2="1497" class="cut"/>
+<line x1="731" y1="1513" x2="735" y2="1497" class="cut"/>
+<circle cx="714.8" cy="1505" r="3.5" class="dot"/>
+<circle cx="744" cy="1505" r="3" class="miss"/>
+<circle cx="751" cy="1505" r="3.5" class="dot"/>
+<text x="856" y="1509.5" class="t2" font-size="12" text-anchor="end">89 s</text>
+<text x="812" y="1509.5" class="t2" font-size="12" text-anchor="end" font-weight="600">2/3</text>
+<text x="229.3" y="1566" class="t" font-size="13" font-weight="600">Thunderbird</text>
+<text x="524.7" y="1566" class="m" font-size="12" text-anchor="end">46/47 passed</text>
+<line x1="229.3" y1="1578" x2="229.3" y2="1866" class="axis"/>
+<text x="229.3" y="1881" class="m" font-size="11">0</text>
+<line x1="294.9" y1="1578" x2="294.9" y2="1866" class="grid"/>
+<text x="294.9" y="1881" class="m" font-size="11" text-anchor="middle">100</text>
+<line x1="360.4" y1="1578" x2="360.4" y2="1866" class="grid"/>
+<text x="360.4" y="1881" class="m" font-size="11" text-anchor="middle">200 s</text>
+<rect x="229.3" y="1584" width="22.8" height="12" class="tools"/>
+<path d="M254.1 1584H311Q314 1584 314 1587V1593Q314 1596 311 1596H254.1Z" class="out"/>
+<circle cx="290.2" cy="1590" r="3.5" class="dot"/>
+<circle cx="290.5" cy="1590" r="3.5" class="dot"/>
+<circle cx="314" cy="1590" r="3.5" class="dot"/>
+<circle cx="314" cy="1590" r="3.5" class="dot"/>
+<circle cx="328.2" cy="1590" r="3.5" class="dot"/>
+<circle cx="342.6" cy="1590" r="3.5" class="dot"/>
+<text x="524.7" y="1594.5" class="t2" font-size="12" text-anchor="end">129 s</text>
+<text x="480.7" y="1594.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="1608" width="22.2" height="12" class="tools"/>
+<path d="M253.6 1608H300.2Q303.2 1608 303.2 1611V1617Q303.2 1620 300.2 1620H253.6Z" class="out"/>
+<circle cx="295" cy="1614" r="3.5" class="dot"/>
+<circle cx="295.3" cy="1614" r="3.5" class="dot"/>
+<circle cx="311.1" cy="1614" r="3.5" class="dot"/>
+<circle cx="329.1" cy="1614" r="3.5" class="dot"/>
+<text x="524.7" y="1618.5" class="t2" font-size="12" text-anchor="end">113 s</text>
+<text x="480.7" y="1618.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1632" width="22.2" height="12" class="tools"/>
+<path d="M253.6 1632H277.1Q280.1 1632 280.1 1635V1641Q280.1 1644 277.1 1644H253.6Z" class="out"/>
+<circle cx="272.1" cy="1638" r="3.5" class="dot"/>
+<circle cx="274.2" cy="1638" r="3.5" class="dot"/>
+<circle cx="278.2" cy="1638" r="3.5" class="dot"/>
+<circle cx="281.9" cy="1638" r="3.5" class="dot"/>
+<circle cx="284" cy="1638" r="3.5" class="dot"/>
+<circle cx="285.6" cy="1638" r="3.5" class="dot"/>
+<text x="524.7" y="1642.5" class="t2" font-size="12" text-anchor="end">77 s</text>
+<text x="480.7" y="1642.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="1656" width="25.1" height="12" class="tools"/>
+<path d="M256.5 1656H290.7Q293.7 1656 293.7 1659V1665Q293.7 1668 290.7 1668H256.5Z" class="out"/>
+<circle cx="279.1" cy="1662" r="3.5" class="dot"/>
+<circle cx="283.9" cy="1662" r="3.5" class="dot"/>
+<circle cx="303.5" cy="1662" r="3.5" class="dot"/>
+<circle cx="313.7" cy="1662" r="3.5" class="dot"/>
+<text x="524.7" y="1666.5" class="t2" font-size="12" text-anchor="end">98 s</text>
+<text x="480.7" y="1666.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1680" width="17.2" height="12" class="tools"/>
+<path d="M248.5 1680H292.8Q295.8 1680 295.8 1683V1689Q295.8 1692 292.8 1692H248.5Z" class="out"/>
+<circle cx="294.6" cy="1686" r="3.5" class="dot"/>
+<circle cx="295.1" cy="1686" r="3.5" class="dot"/>
+<circle cx="296.4" cy="1686" r="3.5" class="dot"/>
+<circle cx="301.8" cy="1686" r="3.5" class="dot"/>
+<text x="524.7" y="1690.5" class="t2" font-size="12" text-anchor="end">101 s</text>
+<text x="480.7" y="1690.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1704" width="32.7" height="12" class="tools"/>
+<path d="M264 1704H292.4Q295.4 1704 295.4 1707V1713Q295.4 1716 292.4 1716H264Z" class="out"/>
+<circle cx="291.1" cy="1710" r="3.5" class="dot"/>
+<circle cx="295" cy="1710" r="3.5" class="dot"/>
+<circle cx="295.8" cy="1710" r="3.5" class="dot"/>
+<circle cx="301.2" cy="1710" r="3.5" class="dot"/>
+<text x="524.7" y="1714.5" class="t2" font-size="12" text-anchor="end">101 s</text>
+<text x="480.7" y="1714.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1728" width="21.6" height="12" class="tools"/>
+<path d="M252.9 1728H285.9Q288.9 1728 288.9 1731V1737Q288.9 1740 285.9 1740H252.9Z" class="out"/>
+<circle cx="278.3" cy="1734" r="3.5" class="dot"/>
+<circle cx="287.5" cy="1734" r="3.5" class="dot"/>
+<circle cx="288.1" cy="1734" r="3.5" class="dot"/>
+<circle cx="289.7" cy="1734" r="3.5" class="dot"/>
+<circle cx="293.3" cy="1734" r="3.5" class="dot"/>
+<circle cx="304.2" cy="1734" r="3.5" class="dot"/>
+<text x="524.7" y="1738.5" class="t2" font-size="12" text-anchor="end">91 s</text>
+<text x="480.7" y="1738.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="1752" width="30.4" height="12" class="tools"/>
+<path d="M261.7 1752H281.6Q284.6 1752 284.6 1755V1761Q284.6 1764 281.6 1764H261.7Z" class="out"/>
+<circle cx="275" cy="1758" r="3.5" class="dot"/>
+<circle cx="282.4" cy="1758" r="3.5" class="dot"/>
+<circle cx="286.7" cy="1758" r="3.5" class="dot"/>
+<circle cx="290" cy="1758" r="3.5" class="dot"/>
+<text x="524.7" y="1762.5" class="t2" font-size="12" text-anchor="end">84 s</text>
+<text x="480.7" y="1762.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1776" width="19.9" height="12" class="tools"/>
+<path d="M251.3 1776H295.6Q298.6 1776 298.6 1779V1785Q298.6 1788 295.6 1788H251.3Z" class="out"/>
+<circle cx="279.7" cy="1782" r="3.5" class="dot"/>
+<circle cx="298.1" cy="1782" r="3.5" class="dot"/>
+<circle cx="299.1" cy="1782" r="3.5" class="dot"/>
+<circle cx="324.2" cy="1782" r="3.5" class="dot"/>
+<text x="524.7" y="1786.5" class="t2" font-size="12" text-anchor="end">106 s</text>
+<text x="480.7" y="1786.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="1800" width="30.4" height="12" class="tools"/>
+<path d="M261.7 1800H397.7Q400.7 1800 400.7 1803V1809Q400.7 1812 397.7 1812H261.7Z" class="out"/>
+<circle cx="400.7" cy="1806" r="3.5" class="dot"/>
+<text x="524.7" y="1810.5" class="t2" font-size="12" text-anchor="end">262 s</text>
+<text x="480.7" y="1810.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="229.3" y="1824" width="109.5" height="12" class="tools"/>
+<rect x="340.8" y="1824" width="65.8" height="12" class="out"/>
+<line x1="394.7" y1="1838" x2="398.7" y2="1822" class="cut"/>
+<line x1="399.7" y1="1838" x2="403.7" y2="1822" class="cut"/>
+<circle cx="412.7" cy="1830" r="3" class="miss"/>
+<text x="524.7" y="1834.5" class="t2" font-size="12" text-anchor="end">1168 s</text>
+<text x="480.7" y="1834.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/1</text>
+<rect x="229.3" y="1848" width="19.7" height="12" class="tools"/>
+<path d="M251 1848H342.1Q345.1 1848 345.1 1851V1857Q345.1 1860 342.1 1860H251Z" class="out"/>
+<circle cx="305.5" cy="1854" r="3.5" class="dot"/>
+<circle cx="345.1" cy="1854" r="3.5" class="dot"/>
+<circle cx="399.9" cy="1854" r="3.5" class="dot"/>
+<text x="524.7" y="1858.5" class="t2" font-size="12" text-anchor="end">177 s</text>
+<text x="480.7" y="1858.5" class="t" font-size="12" text-anchor="end">3/3</text>
+<text x="24" y="1594.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="213.3" y="1594.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="1618.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1642.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="213.3" y="1642.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="1666.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1690.5" class="t" font-size="12.5" font-weight="600">gpt-6-astra</text>
+<text x="213.3" y="1690.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1714.5" class="t" font-size="12.5" font-weight="600">Opus 5.5</text>
+<text x="213.3" y="1714.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1738.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="213.3" y="1738.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1762.5" class="t" font-size="12.5" font-weight="600">Haiku 5.5</text>
+<text x="213.3" y="1762.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1786.5" class="t" font-size="12.5" font-weight="600">gpt-6-luna</text>
+<text x="213.3" y="1786.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1810.5" class="t" font-size="12.5" font-weight="600">Kimi K3.1 Pro</text>
+<text x="213.3" y="1810.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1834.5" class="t" font-size="12.5" font-weight="600">Gemini 4 Argon</text>
+<text x="213.3" y="1834.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="1858.5" class="t" font-size="12.5" font-weight="600">DeepSeek v4.1 Flash</text>
+<text x="213.3" y="1858.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="560.7" y="1566" class="t" font-size="13" font-weight="600">Trace-rack</text>
+<text x="856" y="1566" class="m" font-size="12" text-anchor="end">37/47 passed</text>
+<line x1="560.7" y1="1578" x2="560.7" y2="1866" class="axis"/>
+<text x="560.7" y="1881" class="m" font-size="11">0</text>
+<line x1="609.4" y1="1578" x2="609.4" y2="1866" class="grid"/>
+<text x="609.4" y="1881" class="m" font-size="11" text-anchor="middle">20</text>
+<line x1="658.1" y1="1578" x2="658.1" y2="1866" class="grid"/>
+<text x="658.1" y="1881" class="m" font-size="11" text-anchor="middle">40</text>
+<line x1="706.8" y1="1578" x2="706.8" y2="1866" class="grid"/>
+<text x="706.8" y="1881" class="m" font-size="11" text-anchor="middle">60 s</text>
+<rect x="560.7" y="1584" width="6.5" height="12" class="tools"/>
+<path d="M569.1 1584H651.1Q654.1 1584 654.1 1587V1593Q654.1 1596 651.1 1596H569.1Z" class="out"/>
+<circle cx="630.6" cy="1590" r="3.5" class="dot"/>
+<circle cx="640.8" cy="1590" r="3.5" class="dot"/>
+<circle cx="651.3" cy="1590" r="3.5" class="dot"/>
+<circle cx="656.9" cy="1590" r="3.5" class="dot"/>
+<circle cx="664" cy="1590" r="3.5" class="dot"/>
+<circle cx="691" cy="1590" r="3.5" class="dot"/>
+<text x="856" y="1594.5" class="t2" font-size="12" text-anchor="end">38 s</text>
+<text x="812" y="1594.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="1608" width="7.1" height="12" class="tools"/>
+<path d="M569.7 1608H668Q671 1608 671 1611V1617Q671 1620 668 1620H569.7Z" class="out"/>
+<circle cx="659.8" cy="1614" r="3.5" class="dot"/>
+<circle cx="666.1" cy="1614" r="3.5" class="dot"/>
+<circle cx="675.9" cy="1614" r="3.5" class="dot"/>
+<circle cx="692.2" cy="1614" r="3.5" class="dot"/>
+<text x="856" y="1618.5" class="t2" font-size="12" text-anchor="end">45 s</text>
+<text x="812" y="1618.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1632" width="6.3" height="12" class="tools"/>
+<path d="M569 1632H608.9Q611.9 1632 611.9 1635V1641Q611.9 1644 608.9 1644H569Z" class="out"/>
+<circle cx="609.1" cy="1638" r="3.5" class="dot"/>
+<circle cx="610.6" cy="1638" r="3.5" class="dot"/>
+<circle cx="611.1" cy="1638" r="3.5" class="dot"/>
+<circle cx="612.8" cy="1638" r="3.5" class="dot"/>
+<circle cx="624.7" cy="1638" r="3.5" class="dot"/>
+<circle cx="635.9" cy="1638" r="3.5" class="dot"/>
+<text x="856" y="1642.5" class="t2" font-size="12" text-anchor="end">21 s</text>
+<text x="812" y="1642.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="560.7" y="1656" width="6.3" height="12" class="tools"/>
+<path d="M569 1656H604Q607 1656 607 1659V1665Q607 1668 604 1668H569Z" class="out"/>
+<circle cx="603.1" cy="1662" r="3.5" class="dot"/>
+<circle cx="604.5" cy="1662" r="3.5" class="dot"/>
+<circle cx="609.4" cy="1662" r="3.5" class="dot"/>
+<circle cx="610.6" cy="1662" r="3.5" class="dot"/>
+<text x="856" y="1666.5" class="t2" font-size="12" text-anchor="end">19 s</text>
+<text x="812" y="1666.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1680" width="9.4" height="12" class="tools"/>
+<path d="M572 1680H647.3Q650.3 1680 650.3 1683V1689Q650.3 1692 647.3 1692H572Z" class="out"/>
+<circle cx="636.9" cy="1686" r="3.5" class="dot"/>
+<circle cx="642.8" cy="1686" r="3.5" class="dot"/>
+<circle cx="657.9" cy="1686" r="3.5" class="dot"/>
+<circle cx="731.2" cy="1686" r="3.5" class="dot"/>
+<text x="856" y="1690.5" class="t2" font-size="12" text-anchor="end">37 s</text>
+<text x="812" y="1690.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1704" width="7.4" height="12" class="tools"/>
+<path d="M570.1 1704H625Q628 1704 628 1707V1713Q628 1716 625 1716H570.1Z" class="out"/>
+<circle cx="616" cy="1710" r="3.5" class="dot"/>
+<circle cx="622.1" cy="1710" r="3.5" class="dot"/>
+<circle cx="634" cy="1710" r="3.5" class="dot"/>
+<circle cx="646.2" cy="1710" r="3.5" class="dot"/>
+<text x="856" y="1714.5" class="t2" font-size="12" text-anchor="end">28 s</text>
+<text x="812" y="1714.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1728" width="6" height="12" class="tools"/>
+<path d="M568.6 1728H598.3Q601.3 1728 601.3 1731V1737Q601.3 1740 598.3 1740H568.6Z" class="out"/>
+<circle cx="597" cy="1734" r="3.5" class="dot"/>
+<circle cx="597.2" cy="1734" r="3" class="miss"/>
+<circle cx="598.7" cy="1734" r="3" class="miss"/>
+<circle cx="604" cy="1734" r="3" class="miss"/>
+<circle cx="605.5" cy="1734" r="3.5" class="dot"/>
+<circle cx="607" cy="1734" r="3.5" class="dot"/>
+<text x="856" y="1738.5" class="t2" font-size="12" text-anchor="end">17 s</text>
+<text x="812" y="1738.5" class="t2" font-size="12" text-anchor="end" font-weight="600">3/6</text>
+<rect x="560.7" y="1752" width="7.7" height="12" class="tools"/>
+<path d="M570.3 1752H640.4Q643.4 1752 643.4 1755V1761Q643.4 1764 640.4 1764H570.3Z" class="out"/>
+<circle cx="617.4" cy="1758" r="3.5" class="dot"/>
+<circle cx="631.8" cy="1758" r="3.5" class="dot"/>
+<circle cx="654.9" cy="1758" r="3.5" class="dot"/>
+<circle cx="658.1" cy="1758" r="3.5" class="dot"/>
+<text x="856" y="1762.5" class="t2" font-size="12" text-anchor="end">34 s</text>
+<text x="812" y="1762.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="560.7" y="1776" width="6.5" height="12" class="tools"/>
+<path d="M569.1 1776H642Q645 1776 645 1779V1785Q645 1788 642 1788H569.1Z" class="out"/>
+<circle cx="635.2" cy="1782" r="3" class="miss"/>
+<circle cx="638.9" cy="1782" r="3" class="miss"/>
+<circle cx="651" cy="1782" r="3" class="miss"/>
+<circle cx="659.1" cy="1782" r="3.5" class="dot"/>
+<text x="856" y="1786.5" class="t2" font-size="12" text-anchor="end">35 s</text>
+<text x="812" y="1786.5" class="t2" font-size="12" text-anchor="end" font-weight="600">1/4</text>
+<rect x="560.7" y="1800" width="15.8" height="12" class="tools"/>
+<rect x="578.5" y="1800" width="159.5" height="12" class="out"/>
+<line x1="726" y1="1814" x2="730" y2="1798" class="cut"/>
+<line x1="731" y1="1814" x2="735" y2="1798" class="cut"/>
+<circle cx="744" cy="1806" r="3" class="miss"/>
+<text x="856" y="1810.5" class="t2" font-size="12" text-anchor="end">397 s</text>
+<text x="812" y="1810.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/1</text>
+<rect x="560.7" y="1824" width="15.1" height="12" class="tools"/>
+<rect x="577.8" y="1824" width="160.2" height="12" class="out"/>
+<line x1="726" y1="1838" x2="730" y2="1822" class="cut"/>
+<line x1="731" y1="1838" x2="735" y2="1822" class="cut"/>
+<circle cx="744" cy="1830" r="3.5" class="dot"/>
+<text x="856" y="1834.5" class="t2" font-size="12" text-anchor="end">274 s</text>
+<text x="812" y="1834.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="560.7" y="1848" width="8.3" height="12" class="tools"/>
+<rect x="571" y="1848" width="167" height="12" class="out"/>
+<line x1="726" y1="1862" x2="730" y2="1846" class="cut"/>
+<line x1="731" y1="1862" x2="735" y2="1846" class="cut"/>
+<circle cx="744" cy="1854" r="3" class="miss"/>
+<circle cx="751" cy="1854" r="3" class="miss"/>
+<circle cx="758" cy="1854" r="3" class="miss"/>
+<text x="856" y="1858.5" class="t2" font-size="12" text-anchor="end">302 s</text>
+<text x="812" y="1858.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/3</text>
+<text x="229.3" y="1915" class="t" font-size="13" font-weight="600">Trace-river</text>
+<text x="524.7" y="1915" class="m" font-size="12" text-anchor="end">37/47 passed</text>
+<line x1="229.3" y1="1927" x2="229.3" y2="2215" class="axis"/>
+<text x="229.3" y="2230" class="m" font-size="11">0</text>
+<line x1="305.6" y1="1927" x2="305.6" y2="2215" class="grid"/>
+<text x="305.6" y="2230" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="381.9" y1="1927" x2="381.9" y2="2215" class="grid"/>
+<text x="381.9" y="2230" class="m" font-size="11" text-anchor="middle">100 s</text>
+<rect x="229.3" y="1933" width="6.8" height="12" class="tools"/>
+<path d="M238.1 1933H339.4Q342.4 1933 342.4 1936V1942Q342.4 1945 339.4 1945H238.1Z" class="out"/>
+<circle cx="294" cy="1939" r="3.5" class="dot"/>
+<circle cx="295.4" cy="1939" r="3.5" class="dot"/>
+<circle cx="315.8" cy="1939" r="3.5" class="dot"/>
+<circle cx="368.9" cy="1939" r="3.5" class="dot"/>
+<circle cx="370.7" cy="1939" r="3.5" class="dot"/>
+<circle cx="375.9" cy="1939" r="3.5" class="dot"/>
+<text x="524.7" y="1943.5" class="t2" font-size="12" text-anchor="end">74 s</text>
+<text x="480.7" y="1943.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="1957" width="5.2" height="12" class="tools"/>
+<path d="M236.5 1957H331.1Q334.1 1957 334.1 1960V1966Q334.1 1969 331.1 1969H236.5Z" class="out"/>
+<circle cx="307.6" cy="1963" r="3.5" class="dot"/>
+<circle cx="327.3" cy="1963" r="3" class="miss"/>
+<circle cx="341" cy="1963" r="3.5" class="dot"/>
+<circle cx="343.7" cy="1963" r="3.5" class="dot"/>
+<text x="524.7" y="1967.5" class="t2" font-size="12" text-anchor="end">69 s</text>
+<text x="480.7" y="1967.5" class="t2" font-size="12" text-anchor="end" font-weight="600">3/4</text>
+<rect x="229.3" y="1981" width="3.8" height="12" class="tools"/>
+<path d="M235.2 1981H258.8Q261.8 1981 261.8 1984V1990Q261.8 1993 258.8 1993H235.2Z" class="out"/>
+<circle cx="259.5" cy="1987" r="3.5" class="dot"/>
+<circle cx="260.8" cy="1987" r="3.5" class="dot"/>
+<circle cx="261.4" cy="1987" r="3.5" class="dot"/>
+<circle cx="262.3" cy="1987" r="3.5" class="dot"/>
+<circle cx="262.6" cy="1987" r="3.5" class="dot"/>
+<circle cx="276.2" cy="1987" r="3.5" class="dot"/>
+<text x="524.7" y="1991.5" class="t2" font-size="12" text-anchor="end">21 s</text>
+<text x="480.7" y="1991.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="2005" width="6.6" height="12" class="tools"/>
+<path d="M237.9 2005H272.9Q275.9 2005 275.9 2008V2014Q275.9 2017 272.9 2017H237.9Z" class="out"/>
+<circle cx="261.1" cy="2011" r="3.5" class="dot"/>
+<circle cx="265" cy="2011" r="3.5" class="dot"/>
+<circle cx="286.8" cy="2011" r="3.5" class="dot"/>
+<circle cx="287.3" cy="2011" r="3.5" class="dot"/>
+<text x="524.7" y="2015.5" class="t2" font-size="12" text-anchor="end">31 s</text>
+<text x="480.7" y="2015.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="2029" width="4.2" height="12" class="tools"/>
+<path d="M235.5 2029H275Q278 2029 278 2032V2038Q278 2041 275 2041H235.5Z" class="out"/>
+<circle cx="274" cy="2035" r="3.5" class="dot"/>
+<circle cx="274.9" cy="2035" r="3.5" class="dot"/>
+<circle cx="281" cy="2035" r="3.5" class="dot"/>
+<circle cx="283.3" cy="2035" r="3.5" class="dot"/>
+<text x="524.7" y="2039.5" class="t2" font-size="12" text-anchor="end">32 s</text>
+<text x="480.7" y="2039.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="2053" width="4.7" height="12" class="tools"/>
+<path d="M236.1 2053H283.2Q286.2 2053 286.2 2056V2062Q286.2 2065 283.2 2065H236.1Z" class="out"/>
+<circle cx="277.4" cy="2059" r="3.5" class="dot"/>
+<circle cx="283.9" cy="2059" r="3.5" class="dot"/>
+<circle cx="288.4" cy="2059" r="3.5" class="dot"/>
+<circle cx="293.2" cy="2059" r="3.5" class="dot"/>
+<text x="524.7" y="2063.5" class="t2" font-size="12" text-anchor="end">37 s</text>
+<text x="480.7" y="2063.5" class="t" font-size="12" text-anchor="end">4/4</text>
+<rect x="229.3" y="2077" width="3.7" height="12" class="tools"/>
+<path d="M235.1 2077H251.1Q254.1 2077 254.1 2080V2086Q254.1 2089 251.1 2089H235.1Z" class="out"/>
+<circle cx="251.2" cy="2083" r="3.5" class="dot"/>
+<circle cx="253.1" cy="2083" r="3.5" class="dot"/>
+<circle cx="253.6" cy="2083" r="3.5" class="dot"/>
+<circle cx="254.7" cy="2083" r="3.5" class="dot"/>
+<circle cx="256.8" cy="2083" r="3.5" class="dot"/>
+<circle cx="259.1" cy="2083" r="3.5" class="dot"/>
+<text x="524.7" y="2087.5" class="t2" font-size="12" text-anchor="end">16 s</text>
+<text x="480.7" y="2087.5" class="t" font-size="12" text-anchor="end">6/6</text>
+<rect x="229.3" y="2101" width="6.6" height="12" class="tools"/>
+<path d="M238 2101H353.4Q356.4 2101 356.4 2104V2110Q356.4 2113 353.4 2113H238Z" class="out"/>
+<circle cx="320.4" cy="2107" r="3.5" class="dot"/>
+<circle cx="336.4" cy="2107" r="3.5" class="dot"/>
+<circle cx="376.4" cy="2107" r="3" class="miss"/>
+<circle cx="399.9" cy="2107" r="3.5" class="dot"/>
+<text x="524.7" y="2111.5" class="t2" font-size="12" text-anchor="end">83 s</text>
+<text x="480.7" y="2111.5" class="t2" font-size="12" text-anchor="end" font-weight="600">3/4</text>
+<rect x="229.3" y="2125" width="4.3" height="12" class="tools"/>
+<path d="M235.7 2125H294Q297 2125 297 2128V2134Q297 2137 294 2137H235.7Z" class="out"/>
+<circle cx="265" cy="2131" r="3" class="miss"/>
+<circle cx="280.7" cy="2131" r="3" class="miss"/>
+<circle cx="313.2" cy="2131" r="3" class="miss"/>
+<circle cx="315.5" cy="2131" r="3" class="miss"/>
+<text x="524.7" y="2135.5" class="t2" font-size="12" text-anchor="end">44 s</text>
+<text x="480.7" y="2135.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/4</text>
+<rect x="229.3" y="2149" width="8.2" height="12" class="tools"/>
+<rect x="239.6" y="2149" width="167.1" height="12" class="out"/>
+<line x1="394.7" y1="2163" x2="398.7" y2="2147" class="cut"/>
+<line x1="399.7" y1="2163" x2="403.7" y2="2147" class="cut"/>
+<circle cx="412.7" cy="2155" r="3" class="miss"/>
+<text x="524.7" y="2159.5" class="t2" font-size="12" text-anchor="end">699 s</text>
+<text x="480.7" y="2159.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/1</text>
+<rect x="229.3" y="2173" width="20.3" height="12" class="tools"/>
+<rect x="251.6" y="2173" width="155" height="12" class="out"/>
+<line x1="394.7" y1="2187" x2="398.7" y2="2171" class="cut"/>
+<line x1="399.7" y1="2187" x2="403.7" y2="2171" class="cut"/>
+<circle cx="412.7" cy="2179" r="3.5" class="dot"/>
+<text x="524.7" y="2183.5" class="t2" font-size="12" text-anchor="end">307 s</text>
+<text x="480.7" y="2183.5" class="t" font-size="12" text-anchor="end">1/1</text>
+<rect x="229.3" y="2197" width="6.3" height="12" class="tools"/>
+<rect x="237.6" y="2197" width="169.1" height="12" class="out"/>
+<line x1="394.7" y1="2211" x2="398.7" y2="2195" class="cut"/>
+<line x1="399.7" y1="2211" x2="403.7" y2="2195" class="cut"/>
+<circle cx="412.7" cy="2203" r="3" class="miss"/>
+<circle cx="419.7" cy="2203" r="3" class="miss"/>
+<circle cx="426.7" cy="2203" r="3" class="miss"/>
+<text x="524.7" y="2207.5" class="t2" font-size="12" text-anchor="end">675 s</text>
+<text x="480.7" y="2207.5" class="t2" font-size="12" text-anchor="end" font-weight="600">0/3</text>
+<text x="24" y="1943.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-sol</text>
+<text x="213.3" y="1943.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="1967.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="1991.5" class="t" font-size="12.5" font-weight="600">gpt-6.1-terra</text>
+<text x="213.3" y="1991.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="213.3" y="2015.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="2039.5" class="t" font-size="12.5" font-weight="600">gpt-6-astra</text>
+<text x="213.3" y="2039.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="2063.5" class="t" font-size="12.5" font-weight="600">Opus 5.5</text>
+<text x="213.3" y="2063.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="2087.5" class="t" font-size="12.5" font-weight="600">Sonnet 5.5</text>
+<text x="213.3" y="2087.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="2111.5" class="t" font-size="12.5" font-weight="600">Haiku 5.5</text>
+<text x="213.3" y="2111.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="2135.5" class="t" font-size="12.5" font-weight="600">gpt-6-luna</text>
+<text x="213.3" y="2135.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="2159.5" class="t" font-size="12.5" font-weight="600">Kimi K3.1 Pro</text>
+<text x="213.3" y="2159.5" class="t2" font-size="12" text-anchor="end">high</text>
+<text x="24" y="2183.5" class="t" font-size="12.5" font-weight="600">Gemini 4 Argon</text>
+<text x="213.3" y="2183.5" class="t2" font-size="12" text-anchor="end">medium</text>
+<text x="24" y="2207.5" class="t" font-size="12.5" font-weight="600">DeepSeek v4.1 Flash</text>
+<text x="213.3" y="2207.5" class="t2" font-size="12" text-anchor="end">high</text>
+</svg>
