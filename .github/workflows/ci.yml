@@ -10,6 +10,13 @@ permissions:
   # The cache step deletes this branch's older caches once it saved a new one.
   actions: write
 
+# One run per branch at a time, so that the latest commit saves the branch's cache last: a run that finished after a
+# newer one would replace that one's cache with its own. On main, a new commit waits for the running run, and GitHub
+# cancels a waiting run when a newer one arrives. On a PR, a new push cancels the run of the commit it replaces.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   checks:
     runs-on: ubuntu-24.04

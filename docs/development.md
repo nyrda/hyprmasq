@@ -21,7 +21,9 @@ VM test's [subtest tables](vm-test.md#subtests) against its code, and
 [bench unit tests](#benchmarks). It runs on PRs and pushes to `main`, and keeps
 the Nix store between runs in the GitHub Actions cache. A package or check
 whose inputs did not change since the cached run is not built again, so a PR of
-docs alone builds no plugin and runs no Go tests. CI does not run the race
+docs alone builds no plugin and runs no Go tests. A branch runs CI once at a
+time: on `main`, a new commit waits for the running run, and on a PR, a new
+push cancels the run it replaces. CI does not run the race
 detector, which slows the tests of screenshots and pixels a hundredfold.
 
 The NixOS VM test is a local gate, and CI does not run it. It runs on a PR's head
