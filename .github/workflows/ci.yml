@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: read
+  # The cache step deletes this branch's older caches once it saved a new one.
+  actions: write
 
 jobs:
   checks:
@@ -19,62 +21,65 @@ jobs:
           extra_nix_config: |
             extra-substituters = https://hyprland.cachix.org
             extra-trusted-public-keys = hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc=
+      # The Nix store of the latest run on this branch, or else on main: the outputs of its builds and checks, and the
+      # flake's inputs. A build whose output is in it does not run again.
+      - name: Restore the Nix store
+        uses: nix-community/cache-nix-action/restore@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: ci-${{ github.sha }}
+          restore-prefixes-first-match: ci-
       # Hyprland's derivation reads the VERSION file of its source, which nix flake check --no-build does not copy.
       - name: Instantiate Hyprland
         run: nix eval --raw .#hyprland.drvPath
       - name: Evaluate flake
         run: nix flake check --no-build
-      - name: Build plugin and MCP server (including Go tests)
-        run: nix build .#hyprmasq .#hyprmasq-mcp -L
-      - name: Check the VM test's areas and subtest tables
-        run: nix build .#checks.x86_64-linux.vm-test-docs -L
-      - name: Check C, C++ and Go formatting
+      # The plugin with the MCP server and its Go tests with -short, all Go tests, clang-format and gofmt, the VM test's
+      # areas and subtest tables, and the Calc checker with LibreOffice. The out-links keep them in the saved store.
+      - name: Build the packages and checks
         run: |
-          # The variables expand in the inner Bash process.
-          # shellcheck disable=SC2016
-          nix develop -c bash -euo pipefail -c '
-            git ls-files -z -- "src/*.cpp" "src/*.hpp" "src/*.c" "src/*.h" "tools/*.c" "tools/*.h" "nix/*.c" |
-              xargs -0 clang-format --dry-run -Werror
-            files=$(gofmt -l mcp)
-            if [[ -n "$files" ]]; then
-              printf "%s\n" "$files"
-              exit 1
-            fi
-          '
+          nix build -L --out-link "$RUNNER_TEMP/roots/result" .#hyprmasq .#hyprmasq-mcp \
+            .#checks.x86_64-linux.{mcp-tests,format,vm-test-docs,bench-calc}
       - name: Bench unit tests
         run: |
-          python3 bench/analyze_test.py
-          python3 bench/dispatch_test.py
-          python3 bench/harness_test.py
-          python3 bench/laptop/run_form_test.py
-          python3 bench/laptop/run_mac_test.py
-          python3 bench/tasks/board/check_test.py
-          python3 bench/tasks/files/check_test.py
-          python3 bench/tasks/form/check_test.py
-          python3 bench/tasks/inkscape/check_test.py
-          python3 bench/tasks/trace/check_test.py
-          python3 bench/render_test.py
+          tests=(bench/analyze_test.py bench/dispatch_test.py bench/harness_test.py bench/laptop/run_form_test.py
+            bench/laptop/run_mac_test.py bench/tasks/board/check_test.py bench/tasks/files/check_test.py
+            bench/tasks/form/check_test.py bench/tasks/inkscape/check_test.py bench/tasks/trace/check_test.py
+            bench/render_test.py)
+          # Several of them wait on real time, so they run side by side.
+          logs=$(mktemp -d)
+          pids=()
+          for test in "${tests[@]}"; do
+            python3 "$test" > "$logs/${#pids[@]}" 2>&1 &
+            pids+=("$!")
+          done
+          failed=0
+          for i in "${!tests[@]}"; do
+            if ! wait "${pids[$i]}"; then
+              printf '::group::%s failed\n' "${tests[$i]}"
+              cat "$logs/$i"
+              printf '::endgroup::\n'
+              failed=1
+            fi
+          done
+          exit "$failed"
       - name: Check the benchmark page against its data
         run: python3 bench/render.py --check
-  go-test:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      # Keeps the flake's inputs, which no output refers to, from the garbage collection before the save, and names the
+      # cache after the outputs, so that a run that built nothing new saves nothing.
+      - name: Name the cache
+        id: cache
+        run: |
+          nix flake archive --json | jq -r '.inputs | .. | .path? // empty' |
+            xargs nix-store --realise --add-root "$RUNNER_TEMP/roots/input" --indirect > /dev/null
+          key=$(readlink "$RUNNER_TEMP"/roots/* | sort | sha256sum | cut -c1-32)
+          echo "key=ci-$key" >> "$GITHUB_OUTPUT"
+      - name: Save the Nix store
+        uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
-          # The dev shell has the plugin's inputs, Hyprland among them, from hyprland.cachix.org.
-          extra_nix_config: |
-            extra-substituters = https://hyprland.cachix.org
-            extra-trusted-public-keys = hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc=
-      # The package build runs the Go tests with -short, which skips the ones that wait on real time.
-      - name: Go tests, all of them
-        run: nix develop -c bash -euo pipefail -c 'cd mcp && go test ./...'
-      - name: Go tests with the race detector
-        run: nix develop -c bash -euo pipefail -c 'cd mcp && go test -race ./...'
-  calc-check:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
-      - name: Calc checker unit tests (LibreOffice)
-        run: nix-build bench/tasks/calc/check-test.nix
+          primary-key: ${{ steps.cache.outputs.key }}
+          # Everything that the out-links above do not keep: build inputs, the dev shell, derivations.
+          gc-max-store-size-linux: 0
+          purge: true
+          purge-prefixes: ci-
+          purge-created: 0
+          purge-primary-key: never

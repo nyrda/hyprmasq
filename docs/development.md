@@ -12,12 +12,17 @@ The VM commands need Nix and KVM, and pass extra arguments to `nix build`.
 `vm-test` builds `.#checks.x86_64-linux.vm-test -L`, and `vm-test-interactive`
 builds its `driverInteractive` attribute and opens the driver.
 
-CI runs `nix flake check --no-build`, builds `hyprmasq` and `hyprmasq-mcp`
-with the Go tests, runs all Go tests with and without the race detector,
-checks C/C++ formatting with clang-format and Go formatting with gofmt, checks
-the VM test's [subtest tables](vm-test.md#subtests) against its code, and
-runs the bench unit tests listed below, including the Calc checker with
-LibreOffice. It runs on PRs and pushes to `main`.
+CI runs `nix flake check --no-build` and builds `hyprmasq` and `hyprmasq-mcp`
+with the Go tests that do not wait on real time. It builds the flake's checks
+`mcp-tests`, which runs all Go tests, `format`, which checks C/C++ formatting
+with clang-format and Go formatting with gofmt, `vm-test-docs`, which checks the
+VM test's [subtest tables](vm-test.md#subtests) against its code, and
+`bench-calc`, the Calc checker with LibreOffice. It also runs the other
+[bench unit tests](#benchmarks). It runs on PRs and pushes to `main`, and keeps
+the Nix store between runs in the GitHub Actions cache. A package or check
+whose inputs did not change since the cached run is not built again, so a PR of
+docs alone builds no plugin and runs no Go tests. CI does not run the race
+detector, which slows the tests of screenshots and pixels a hundredfold.
 
 The NixOS VM test is a local gate, and CI does not run it. It runs on a PR's head
 commit before the PR is opened, and again before merging whenever the head commit is no longer the one it passed on. A
@@ -124,7 +129,7 @@ Change them together. Likewise,
 The Nix build runs `go test -short` without the race detector in the check
 phase of `nix build .#hyprmasq-mcp`, which `nix build .#hyprmasq` and the VM
 test include. `-short` skips the tests that wait on real time for half a second
-or more, and CI runs them all. In `internal/server`, such a test starts with
+or more, and CI runs them all through `nix build .#checks.x86_64-linux.mcp-tests`. In `internal/server`, such a test starts with
 `slow(t)`.
 
 `nix/mcp-package.nix` vendors the Go dependencies by hash. After changing them
