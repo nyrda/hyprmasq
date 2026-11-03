@@ -1,6 +1,6 @@
 # Added by `codex mcp add cua-driver -- ... mcp`, the command `cua-driver mcp-config --client codex` printed.
 [mcp_servers.cua-driver]
-command = "/home/daniel/.cua-driver/packages/releases/0.38.0-x86_64-unknown-linux-gnu/cua-driver"
+command = "/home/you/.cua-driver/packages/releases/0.38.0-x86_64-unknown-linux-gnu/cua-driver"
 args = ["mcp"]
 # Codex starts MCP servers with a minimal environment: forward the desktop session.
 env_vars = ["XDG_RUNTIME_DIR", "HYPRLAND_INSTANCE_SIGNATURE", "WAYLAND_DISPLAY", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP"]

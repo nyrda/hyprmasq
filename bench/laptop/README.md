@@ -51,8 +51,8 @@ skill or the user's own setup:
 
 - `hyprmasq/.codex/config.toml` and `cua/.codex/config.toml` from [homes](homes), each with a copy of the user's
   `~/.codex/auth.json`. Codex starts MCP servers without the session's environment, so both configs pass it on
-  with `env_vars`. Their commands are the absolute paths of the laptop that ran the comparison: replace
-  `/home/daniel` with your home, and Cua's release directory with the one its installer made.
+  with `env_vars`. Their commands are absolute paths: replace `/home/you` with your home, and Cua's release
+  directory with the one its installer made.
 - Cua's skill for Codex: `HOME=$BENCH_HOMES/cua cua-driver skills install`, with `$BENCH_HOMES/cua/.cua-driver`
   a link to `~/.cua-driver`.
 - `claude-hyprmasq` and `claude-cua` for Claude Code, made with `HOME=... claude mcp add --scope user`, the
