@@ -20,6 +20,10 @@ has that name: then the last of the datasets names it too. Views:
   the tasks' counts differ, and the median wall time, and the cost per passed run. Where the tasks do not fit as
   columns, a row per task and a column per agent instead, with each agent's runs passed and cost below, and without
   the times where those columns are too narrow for them. A task an agent did not run reads "not run".
+- glance: a row per agent, the best first by the mean of its tasks' shares of runs passed, with that mean, each
+  task's share, the sum of its tasks' median wall times and its cost per passed run.
+- overview: time with each row's runs passed beside its median, to set agents side by side on every task, each
+  panel's scale fitting the agents whose median is at most 2.5 times the panel's typical one.
 - time: each run's wall time and the medians of the time in hyprmasq's tools and outside them, a panel per task,
   or only TASK's.
 - kinds: the form task's seconds per question of each kind, a bar per model. TASK names the task where the dataset
@@ -76,7 +80,11 @@ NAMES = {
     "claude-opus-5-5": "Opus 5.5",
     "claude-sonnet-5-5": "Sonnet 5.5",
     "claude-haiku-5-5": "Haiku 5.5",
+    "gpt-6-luna": "gpt-6-luna",
     "tensorx/deepseek/deepseek-v4.1-flash-1017": "DeepSeek v4.1 Flash",
+    "opencode-go/kimi-k3.1-pro": "Kimi K3.1 Pro",
+    "opencode-go/gemini-4-argon": "Gemini 4 Argon",
+    "opencode-go/deepseek-v4.1-flash": "DeepSeek v4.1 Flash",
 }
 EFFORTS = ["default", "none", "off", "minimal", "low", "medium", "high", "xhigh", "max"]
 KINDS = ["checkbox", "slider", "text", "dropdown"]
@@ -145,9 +153,10 @@ class Svg:
     def add(self, item):
         self.items.append(item)
 
-    def text(self, x, y, s, cls="t", size=12.5, anchor="start", weight=None):
+    def text(self, x, y, s, cls="t", size=12.5, anchor="start", weight=None, rotate=None):
         attrs = f' text-anchor="{anchor}"' if anchor != "start" else ""
         attrs += f' font-weight="{weight}"' if weight else ""
+        attrs += f' transform="rotate({num(rotate)} {num(x)} {num(y)})"' if rotate else ""
         self.add(f'<text x="{num(x)}" y="{num(y)}" class="{cls}" font-size="{size}"{attrs}>{html.escape(s)}</text>')
 
     def rect(self, x, y, w, h, cls, rx=0):
@@ -565,14 +574,129 @@ def scoreboard(data):
     return svg, alt
 
 
-def time_panel(svg, rows, x0, width, y0, row_h, title, note, limit=None):
+def glance(data):
+    """A row per agent, the best share of runs passed first: a bar of all its runs passed, a cell per task with the
+    share of that task's runs, the sum of its tasks' median wall times with the time in hyprmasq's tools, and its cost
+    per passed run."""
+    runs = data["runs"]
+    ts = tasks(data)
+    names = agent_names(runs)
+    order = agent_order(runs)
+    of = dict(groups(runs))
+    def task_share(rs):
+        """The mean of the tasks' shares of runs passed, so that a task with more runs does not weigh more."""
+        ts_of = list(dict.fromkeys(r["task"] for r in rs))
+        return sum(sum(r["passed"] for r in rs if r["task"] == t) / len([r for r in rs if r["task"] == t])
+                   for t in ts_of) / len(ts_of)
+
+    share_of = {k: task_share(of[k]) for k in of}
+    keys = sorted(of, key=lambda k: (-share_of[k], order.index(k[0])))
+    efforts = several_efforts(runs)
+    total, passed = len(runs), sum(r["passed"] for r in runs)
+
+    def per_task(rs, key):
+        return sum(median(r[key] for r in rs if r["task"] == t) for t in {r["task"] for r in rs})
+
+    wall = {k: per_task(of[k], "wall_s") for k in keys}
+    tools = {k: per_task(of[k], "tools_s") for k in keys}
+    cost = {}
+    for k in keys:
+        ok = sum(r["passed"] for r in of[k])
+        cost[k] = (sum(r["cost_usd"] for r in of[k]) / ok
+                   if ok and all(r["cost_usd"] is not None for r in of[k]) else None)
+    svg = Svg()
+    top = header(
+        svg, "Runs passed, time and cost per model",
+        [f"{passed} of {total} runs passed. A row per model, the best first by the mean of its tasks' shares of runs",
+         "passed, which the first bar shows, so that a task with more runs does not weigh more. Its time is the sum of",
+         "its tasks' median wall times, the part in hyprmasq's tools in blue, and its cost is per passed run."]
+        + [line for line in [effort_note(runs)] if line],
+        [("swatch", "pass", "passed"), ("swatch", "fail", "failed"), ("swatch", "tools", "in hyprmasq's tools"),
+         ("swatch", "out", "rest of the time")],
+    )
+    name_w = max(text_width(names[k[0]], 13, True) for k in keys)
+    effort_w = max(text_width(k[1], 12) for k in keys) + 10 if efforts else 0
+    label_w = name_w + effort_w + 16
+    pct_w = text_width("100%", 13, True)
+    count_w = max(text_width(f"{sum(r['passed'] for r in of[k])}/{len(of[k])}", 11.5) for k in keys)
+    bar_w, cell_bar = 60, 18
+    passed_w = bar_w + 6 + pct_w + 5 + count_w + 14
+    time_texts = {k: f"{wall[k] / 60:.0f} min" for k in keys}
+    cost_texts = {k: f"${cost[k]:.2f}" if cost[k] is not None else "–" for k in keys}
+    time_bar, cost_bar = 64, 44
+    time_w = time_bar + 6 + max(text_width(t, 12.5) for t in time_texts.values()) + 14
+    cost_w = cost_bar + 6 + max(text_width(t, 12.5) for t in cost_texts.values())
+    room = WIDTH - 2 * PAD - label_w - passed_w - time_w - cost_w
+    # The tasks' names stand at an angle above their cells, which are too narrow for them. The last one rises clear of
+    # the time's two-line head beside it.
+    reach = cell_bar / 2 + 2 + 44
+    task_w = (room - reach) / (len(ts) - 1) if len(ts) > 1 else room
+    x_passed = PAD + label_w
+    x_task = x_passed + passed_w
+    x_time = WIDTH - PAD - cost_w - time_w
+    x_cost = x_time + time_w
+    head_h = max(text_width(task_title(t), 11.5, True) for t in ts) * 0.71 + 6
+    base = top + head_h
+    column_heads(svg, [(x_passed, ["Tasks passed"]), (x_time, ["Time, all", "tasks"]),
+                       (x_cost, ["Cost per", "passed run"])], base - 15)
+    for j, t in enumerate(ts):
+        x = x_task + j * task_w + cell_bar / 2 + 2
+        svg.text(x, base, task_title(t), cls="t2", size=11.5, weight="600", rotate=-45)
+    top_wall = max(wall.values())
+    top_cost = max((c for c in cost.values() if c is not None), default=0)
+    row_h = 28
+    y0 = base + 10
+    svg.line(PAD, y0, WIDTH - PAD, y0, "axis")
+
+    def share(x, cy, ok, n, width, h):
+        w = width * ok / n
+        if ok < n:
+            svg.rect(x + w + 0.9, cy - h / 2 + 0.9, width - w - 1.8, h - 1.8, "fail", rx=1.5)
+        if ok:
+            svg.rect(x, cy - h / 2, w, h, "pass", rx=2)
+
+    for i, key in enumerate(keys):
+        rs = of[key]
+        cy = y0 + row_h * i + row_h / 2
+        svg.text(PAD, cy + 4.5, names[key[0]], size=13, weight="600")
+        if efforts:
+            svg.text(PAD + label_w - 16, cy + 4.5, key[1], cls="m", size=12, anchor="end")
+        ok = sum(r["passed"] for r in rs)
+        share(x_passed, cy, share_of[key], 1, bar_w, 12)
+        svg.text(x_passed + bar_w + 6, cy + 4.5, f"{100 * share_of[key]:.0f}%", size=13, weight="600")
+        svg.text(x_passed + bar_w + 6 + pct_w + 5, cy + 4.5, f"{ok}/{len(rs)}", cls="m", size=11.5)
+        for j, t in enumerate(ts):
+            cell = [r for r in rs if r["task"] == t]
+            x = x_task + j * task_w
+            if cell:
+                share(x, cy, sum(r["passed"] for r in cell), len(cell), cell_bar, 12)
+            else:
+                svg.text(x, cy + 4.5, "–", cls="m", size=12)
+        ww = time_bar * wall[key] / top_wall
+        tw = time_bar * tools[key] / top_wall
+        svg.bar(x_time, cy - 6, tw, 12, "tools", round_end=False)
+        svg.bar(x_time + tw + 1.5, cy - 6, ww - tw - 1.5, 12, "out")
+        svg.text(x_time + time_bar + 6, cy + 4.5, time_texts[key], cls="t2", size=12.5)
+        if cost[key] is not None:
+            svg.bar(x_cost, cy - 6, max(2, cost_bar * cost[key] / top_cost) if top_cost else 2, 12, "m")
+        svg.text(x_cost + cost_bar + 6, cy + 4.5, cost_texts[key], cls="t2", size=12.5)
+        if i < len(keys) - 1:
+            svg.line(PAD, y0 + row_h * (i + 1), WIDTH - PAD, y0 + row_h * (i + 1), "grid")
+    svg.height = y0 + row_h * len(keys) + 20
+    alt = (f"Runs passed, time and cost per model. {passed} of {total} runs passed. A row per model, the best first, "
+           "with the mean of its tasks' shares of runs passed, each task's share, the sum of its tasks' median wall "
+           "times and its cost per passed run.")
+    return svg, alt
+
+
+def time_panel(svg, rows, x0, width, y0, row_h, title, note, limit=None, counts=False):
     """A panel of horizontal bars, a row per group: the medians in tools and outside, and a dot per run. limit sets
-    the scale, which otherwise fits the panel's runs."""
+    the scale, which otherwise fits the panel's runs. counts writes each row's runs passed beside its median."""
     if title:
         svg.text(x0, y0, title, size=13, weight="600")
     svg.text(x0 + width, y0, note, cls="m", size=12, anchor="end")
     # The medians stand in a column at the panel's right.
-    plot_w = width - 74
+    plot_w = width - (118 if counts else 74)
     if limit is None:
         limit = scale_limit([rs for _, rs in rows])
     ticks, end = nice_ticks(limit)
@@ -610,6 +734,10 @@ def time_panel(svg, rows, x0, width, y0, row_h, title, note, limit=None):
                 beyond += 1
             svg.circle(x, cy, 3.5 if r["passed"] else 3, "dot" if r["passed"] else "miss")
         svg.text(x0 + width, cy + 4.5, f"{wall:.0f} s", cls="t2", size=12, anchor="end")
+        if counts:
+            svg.text(x0 + width - 44, cy + 4.5, f"{sum(r['passed'] for r in rs)}/{len(rs)}",
+                     cls="t" if all(r["passed"] for r in rs) else "t2", size=12, anchor="end",
+                     weight=None if all(r["passed"] for r in rs) else "600")
     return bottom + 15
 
 
@@ -620,6 +748,18 @@ def scale_limit(groups_of_runs):
     return tops[0] if len(tops) < 2 or tops[0] <= 2.5 * tops[1] else tops[1] * 1.15
 
 
+def focus_limit(groups_of_runs):
+    """The end of a time scale that fits the groups whose median is at most 2.5 times the median of the groups'
+    medians. A slower group's bar is cut at the edge, its time written beside it, so that it does not squeeze the
+    others."""
+    medians = [median(r["wall_s"] for r in rs) for rs in groups_of_runs if rs]
+    if not medians:
+        return None  # time_panel then fits its own scale
+    typical = median(medians)
+    return max(r["wall_s"] for rs in groups_of_runs if rs and median(r["wall_s"] for r in rs) <= 2.5 * typical
+               for r in rs)
+
+
 def shared_limit(groups_of_runs):
     """The end of a time scale that panels share: the slowest run that took at most twice its group's median. A run
     slower than that, such as one that waited long before its first call, stands past the scale's edge."""
@@ -627,8 +767,9 @@ def shared_limit(groups_of_runs):
                if r["wall_s"] <= 2 * median(x["wall_s"] for x in rs))
 
 
-def time_figure(data, only=None, title=task_title, noun="task", shared=False):
-    """title gives a panel's title for its task. shared puts all panels on one scale, for panels to compare."""
+def time_figure(data, only=None, title=task_title, noun="task", shared=False, counts=False):
+    """title gives a panel's title for its task. shared puts all panels on one scale, for panels to compare. counts
+    writes each row's runs passed beside its median, for the overview."""
     runs = data["runs"]
     ts = [only] if only else tasks(data)
     labels = row_labels(runs)
@@ -637,9 +778,13 @@ def time_figure(data, only=None, title=task_title, noun="task", shared=False):
     svg = Svg()
     top = header(
         svg,
-        "Wall time per run" + (f": {title(ts[0])}" if len(ts) == 1 else ""),
-        ["Each bar is a median wall time, written at the right. Its blue part is the median time in hyprmasq's",
-         "MCP tools, and the grey part fills the bar up to the median wall time. Each dot is one run."]
+        ("Runs passed and wall time" if counts else "Wall time per run") + (f": {title(ts[0])}" if len(ts) == 1 else ""),
+        (["Each row gives the runs passed and the median wall time. In its bar, the blue part is the median time",
+          "in hyprmasq's MCP tools, and the grey part fills it up to the median wall time. Each dot is one run.",
+          "Each panel's scale fits most models: a slower model's bar is cut at its edge, and its runs stand past it."]
+         if counts else
+         ["Each bar is a median wall time, written at the right. Its blue part is the median time in hyprmasq's",
+          "MCP tools, and the grey part fills the bar up to the median wall time. Each dot is one run."])
         + (["A dot past the end of its axis is a run off the scale, more than twice its row's median."]
            if off_scale else [])
         + [line for line in [effort_note([r for r in runs if r["task"] in ts])] if line],
@@ -651,7 +796,11 @@ def time_figure(data, only=None, title=task_title, noun="task", shared=False):
     efforts = several_efforts(runs)
     label_w = max(text_width(labels[k][0], 12.5, True) for k in keys) + (
         max(text_width(labels[k][1], 12) for k in keys) + 16 if efforts else 0) + 20
-    columns = 1 if len(ts) == 1 else 2
+    # Where an agent did not run some tasks, such as the efforts tried only where a model failed, each panel lists only
+    # the rows it has, one panel a row, each with its own labels.
+    sparse = any(not [r for r in runs if r["task"] == t and (r["harness"], r["model"]) == key[0] and r["effort"] == key[1]]
+                 for t in ts for key in keys)
+    columns = 1 if len(ts) == 1 or sparse else 2
     gap = 36
     panel_w = (WIDTH - 2 * PAD - label_w - gap * (columns - 1)) / columns
     row_h = 24 if efforts else 26
@@ -661,26 +810,29 @@ def time_figure(data, only=None, title=task_title, noun="task", shared=False):
         for c, t in enumerate(ts[start:start + columns]):
             # Every panel has a row for each key, empty where the task has no runs of it, so that rows line up.
             by_key = dict(groups([r for r in runs if r["task"] == t]))
-            rows = [(key, by_key.get(key, [])) for key in keys]
+            rows = [(key, by_key.get(key, [])) for key in keys if key in by_key or not sparse]
             ok = sum(r["passed"] for _, rs in rows for r in rs)
             n = sum(len(rs) for _, rs in rows)
             x0 = PAD + label_w + c * (panel_w + gap)
+            panel_limit = focus_limit([rs for _, rs in rows]) if counts and limit is None else limit
             bottom = max(bottom, time_panel(svg, rows, x0, panel_w, y, row_h, title(t) if len(ts) > 1 else "",
-                                            f"{ok}/{n} passed", limit))
+                                            f"{ok}/{n} passed", panel_limit, counts))
             if c == 0:
-                for i, key in enumerate(keys):
+                shown = [key for key, _ in rows]
+                for i, key in enumerate(shown):
                     name, effort = labels[key]
                     base = y + 12 + row_h * i + row_h / 2 + 4.5
-                    first = i == 0 or keys[i - 1][0] != key[0]
+                    first = i == 0 or shown[i - 1][0] != key[0]
                     if first:
                         svg.text(PAD, base, name, size=12.5, weight="600")
                     if effort:
                         svg.text(PAD + label_w - 16, base, effort, cls="t2", size=12, anchor="end")
         y = bottom + 34
     svg.height = y - 10
-    alt = ("Wall time per run of each agent" + (f" in the {title(ts[0])} {noun}" if len(ts) == 1 else f", a panel per {noun}")
+    alt = (("Runs passed and wall time per run of each agent" if counts else "Wall time per run of each agent")
+           + (f" in the {title(ts[0])} {noun}" if len(ts) == 1 else f", a panel per {noun}")
            + ". Each bar is the median wall time with the median time in hyprmasq's tools inside it, and each dot "
-           "one run.")
+           "one run." + (" Each row also gives its runs passed." if counts else ""))
     return svg, alt
 
 
@@ -1244,7 +1396,8 @@ def compare_figure(data, before):
 
 
 FIGURES = {"scoreboard": scoreboard, "time": time_figure, "kinds": kinds_figure, "act": act_figure,
-           "compare": compare_figure, "comparison": comparison_figure, "comparison-time": comparison_time_figure,
+           "compare": compare_figure, "glance": glance,
+           "overview": lambda data: time_figure(data, counts=True), "comparison": comparison_figure, "comparison-time": comparison_time_figure,
            "comparison-pooled": lambda data: comparison_figure(data, pooled="agents"),
            "probe": probe_figure, "probe-tasks": probe_tasks_figure,
 
@@ -1313,19 +1466,23 @@ def costs_table(data):
     runs = data["runs"]
     names = agent_names(runs)
     rows = []
-    for a in agent_order(runs):
-        rs = [r for r in runs if (r["harness"], r["model"]) == a]
+    # A row per effort where an agent ran at several, so that their costs do not mix.
+    split = any(len({r["effort"] for r in runs if (r["harness"], r["model"]) == a}) > 1 for a in agent_order(runs))
+    for (a, effort), rs in (groups(runs) if split else
+                            [((a, None), [r for r in runs if (r["harness"], r["model"]) == a])
+                             for a in agent_order(runs)]):
         ok = sum(r["passed"] for r in rs)
         inp, cache, out, cost = (total(rs, k) for k in ("input_tokens", "cache_read_tokens", "output_tokens",
                                                         "cost_usd"))
-        rows.append([
-            names[a], f"{ok}/{len(rs)}", f"{inp / 1e6:.2f}" if inp is not None else "–",
+        rows.append([names[a]] + ([effort_text(rs)] if split else []) + [
+            f"{ok}/{len(rs)}", f"{inp / 1e6:.2f}" if inp is not None else "–",
             f"{100 * cache / inp:.0f}" if inp and cache is not None else "–",
             f"{out / 1000:.0f}" if out is not None else "–", f"{cost:.2f}" if cost is not None else "–",
             f"{cost / ok:.2f}" if ok and cost is not None else "–",
         ])
     note = partial_note(runs)
-    return markdown_table(["Agent", "Passed", "Input M", "Cached %", "Output k", "Cost $", "Cost per passed run $"],
+    return markdown_table(["Agent"] + (["Effort"] if split else []) + ["Passed", "Input M", "Cached %", "Output k",
+                                                                       "Cost $", "Cost per passed run $"],
                           rows) + (f"\n\n{note}" if note else "")
 
 
@@ -1438,7 +1595,7 @@ def render_block(markdown_path, dataset, view, arg, files):
     for theme, suffix in (("light", ""), ("dark", "-dark")):
         files[os.path.join(doc_dir, base, stem + suffix + ".svg")] = svg.render(theme, alt)
     # The datasets' notes, such as which build a model ran on, stand under the overview, not inside a figure.
-    notes = data.get("notes", []) if view == "scoreboard" else []
+    notes = data.get("notes", []) if view in ("scoreboard", "glance") else []
     return (
         "<picture>\n"
         f'  <source media="(prefers-color-scheme: dark)" srcset="{base}/{stem}-dark.svg">\n'

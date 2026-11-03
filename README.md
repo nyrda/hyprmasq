@@ -7,46 +7,40 @@
 > then ends. [`main`](https://github.com/nyrda/hyprmasq) targets the latest
 > stable Hyprland.
 
-hyprmasq is a Hyprland plugin for desktop automation and computer use, by
-scripts or AI agents. Agents can use it to assist you, check their own UI
-work, or automate desktop tasks. It acts on windows even when they are not
-visible, while you keep working in yours. Agents connect through an MCP
-server, and scripts use its command-line tools.
+hyprmasq lets AI agents and scripts see, click and type in Hyprland windows,
+also on hidden workspaces, while you keep working in yours. Your cursor,
+keyboard focus and workspace stay where they are.
 
-## Features
+- **Hidden windows.** Screenshots render a single window offscreen, with its
+  popups and menus, whether or not its workspace is visible.
+- **Your focus stays yours.** Each window gets its own
+  [libei](https://gitlab.freedesktop.org/libinput/libei) input socket, and
+  input goes to that window only. A driven window you are not using cannot
+  grab your pointer or keyboard through its popups.
+- **Made for agents.** An MCP server for Claude Code, Codex and other
+  clients. One `act` call clicks and types, waits for the window to redraw,
+  and returns what changed.
+- **Scriptable.** The same from the shell with `hyprctl hyprmasq`,
+  `hyprmasq-input` and `hyprmasq-launch`.
 
-**Background capture.** Screenshots of a single window, rendered offscreen,
-whether or not its workspace is visible. Wayland popups and menus that reach
-past the window are included. Regions use the same coordinates as input. No
-screen recording, no switching workspaces.
+## Install
 
-**Your focus does not get disturbed.** Each window gets its own
-[libei](https://gitlab.freedesktop.org/libinput/libei) input socket, and
-events go straight to that window. Your cursor, keyboard focus and active
-workspace stay as they are, and a driven app cannot grab your pointer or
-keyboard while you work elsewhere. Dialogs and popups that the agent's input
-opens land on the agent's workspace. On visible workspaces, a light-blue copy
-of the cursor shows where emulated input lands.
+The plugin must be built against the exact Hyprland that loads it, and
+refuses to load into any other. `hyprctl version` shows yours.
 
-**Agent computer use.** `hyprmasq-mcp` gives Claude Code, Codex, pi and any
-other MCP client six tools. One `act` call clicks and types, waits until the
-window has drawn the result, and returns only what changed, which saves input
-tokens and tool calls.
+**Arch and Omarchy.** Build a pacman package from a clone:
 
-**Demo recordings.** Asked to prove a change in a video, as for a pull
-request, an agent records its `act` calls as slides or as video, with the
-pointer, clicks and keys drawn in and a caption per step, also in windows on a
-hidden workspace. See [Recording a demo](docs/mcp.md#recording-a-demo).
+```sh
+git clone -b hyprland-0.56 https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
+```
 
-**A scriptable automation layer.** `hyprctl hyprmasq …`, `hyprmasq-input` and
-`hyprmasq-launch` make the same capabilities usable from shell scripts and
-tests.
+After each Hyprland update, `git switch` the clone to the branch for it,
+run `git pull && makepkg -sif` and restart Hyprland. Until then, the plugin
+refuses to load and Hyprland runs without it.
 
-## Quick start
-
-On NixOS, add the flake input, pass `inputs` through `specialArgs`, and
-enable the module. It installs the plugin, the tools and the exact Hyprland
-build the plugin was compiled against:
+**NixOS.** Add the flake input, pass `inputs` through `specialArgs`, and
+enable the module. It installs the plugin, the tools and the Hyprland build
+they were compiled against:
 
 ```nix
 # flake.nix: inputs.hyprmasq.url = "github:nyrda/hyprmasq/hyprland-0.56";
@@ -56,20 +50,17 @@ build the plugin was compiled against:
 }
 ```
 
-On Arch Linux and Omarchy, build a pacman package from a clone, against the
-installed Hyprland, and build it again with `makepkg -sif` after each
-Hyprland update:
-
-```sh
-git clone -b hyprland-0.56 https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
-```
-
-Both install a loader for the plugin. Load it from `hyprland.lua`:
+**Load it** from `hyprland.lua`:
 
 ```lua
--- hyprland.lua
 dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
 ```
+
+On Arch with `hyprland.conf`, add `plugin = /usr/lib/hyprmasq/hyprmasq.so`
+instead. [Installation](docs/installation.md) covers `hyprland.conf` on NixOS,
+other Nix setups, older Hyprland releases, manual builds and hyprpm.
+
+## Use
 
 Register the MCP server with your agent, for example Claude Code:
 
@@ -77,72 +68,67 @@ Register the MCP server with your agent, for example Claude Code:
 claude mcp add --scope user hyprmasq -- hyprmasq-mcp
 ```
 
+For Codex, add it to `~/.codex/config.toml`. Without `env_vars`, Codex shows
+the model no hyprmasq tools:
+
+```toml
+[mcp_servers.hyprmasq]
+command = "hyprmasq-mcp"
+env_vars = ["XDG_RUNTIME_DIR", "HYPRLAND_INSTANCE_SIGNATURE"]
+```
+
+[Installation](docs/installation.md#mcp-server) has the other clients.
+
 Or drive a window from a script:
 
 ```sh
 addr=$(hyprmasq-launch -- foot)                        # start foot on a hidden workspace
 socket=$(hyprctl hyprmasq eis open "$addr")            # give it an input socket
 hyprmasq-input --socket "$socket" type 'echo hello<enter>'
-hyprctl hyprmasq wait "$addr"                          # until foot has drawn the result
+hyprctl hyprmasq wait "$addr"                          # wait for foot to redraw
 hyprctl hyprmasq screenshot "$addr" /tmp/foot.png      # render just that window
 hyprctl hyprmasq eis close "$addr"
 ```
 
-[Installation](docs/installation.md) also covers what the Arch package
-installs and how it follows Hyprland updates, other Nix setups, a manual
-build, hyprpm, hyprlang configuration, and Codex and pi.
+## Benchmarks
 
-## How it works
+Ten models on eleven desktop tasks in an offline VM. Current Anthropic and
+OpenAI models passed 91 to 100% of their tasks' runs, all but the small
+`gpt-6-luna`, and no run of any model changed the user's focus or
+workspace. See the [benchmarks](docs/benchmarks.md) and the
+[comparison](docs/comparison.md) with other computer use tools.
 
-The plugin runs inside Hyprland. For a screenshot, it renders the window
-into an offscreen buffer the way Hyprland would draw it, so the window's
-workspace does not need to be visible. For input, it opens a libei socket
-for the window and delivers each event to that window's surfaces only,
-without moving the real cursor or changing Hyprland's focus. While they are
-driven, hidden windows get the frame callbacks they need to keep drawing, and
-are not told that they are suspended, which stops some apps from drawing at
-all.
-`hyprmasq-input` paces its input like a person's, and `hyprmasq-mcp` builds
-on the same commands and compares screenshots to find what changed.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/benchmarks/glance-dark.svg">
+  <img alt="Runs passed, time and cost per model on eleven desktop tasks, the most runs passed first." src="docs/benchmarks/glance.svg">
+</picture>
 
-## Status and requirements
+## Limits and trust
 
-Three models passed 213 of 246 [benchmark runs](docs/benchmarks.md#results) on
-eleven desktop tasks, on one build with Hyprland 0.57.0, and the user's focus
-and workspace stayed unchanged in all of them. Every failed run was the
-model's: hyprmasq delivered its input where the agent aimed.
-
-- Built and tested against exactly **Hyprland 0.56.2**. A Hyprland plugin must
-  be compiled against the exact Hyprland build that loads it.
-- Tested on x86_64 Linux, with a NixOS VM test that covers the plugin, the
-  tools and the MCP server.
-- The Nix flake and NixOS module are the primary install path. On Arch and
-  Omarchy, the repository's `PKGBUILD` builds a pacman package. Manual builds
-  and hyprpm are supported.
-- Wayland windows are the main target. XWayland and xwayland-satellite
-  windows work with [caveats](docs/automation.md#x11-windows).
-
-## Trust model
-
-Anyone who can connect to a window's socket controls that window. Sockets
-live in a per-user runtime directory with mode `0700`. A socket exists only
-after `hyprctl hyprmasq eis open`, which `hyprmasq-mcp` also runs for every
-window it captures or acts on, and stays open until it is closed or the
-window closes. hyprmasq is not a security boundary between you and the
-agent: it keeps the agent out of your way, not out of your session. Give it
-only to agents you would trust with your shell. See the
-[security model](docs/automation.md#security-model).
+- Reliable work needs a current model from Anthropic or OpenAI, such as
+  Sonnet 5.5, `gpt-6.1-sol` or Haiku 5.5. Other models, OpenAI's small
+  `gpt-6-luna` among them, manage forms and keyboard work but fail more
+  often on the rest. See the [tested models](docs/benchmarks.md#models).
+- Wayland windows are the main target. XWayland windows work with
+  [caveats](docs/automation.md#x11-windows).
+- Built and tested against exactly **Hyprland 0.56.2**, on x86_64 Linux.
+- The plugin runs inside Hyprland and hooks its internals. A bug in it can
+  crash your session.
+- hyprmasq keeps an agent out of your way, not out of your session. Whoever
+  can reach a window's socket controls that window, so give it only to
+  agents you would trust with your shell. See the
+  [security model](docs/automation.md#security-model).
 
 ## Documentation
 
-| Document | Contents |
+| | |
 | --- | --- |
-| [Installation](docs/installation.md) | NixOS module, Nix packages, Arch and Omarchy, manual build, hyprpm, loading the plugin, registering the MCP server, troubleshooting |
-| [MCP server](docs/mcp.md) | `hyprmasq-mcp`: tools, shots and coordinates, `act`, the focus lease, failures, options, client notes |
-| [Automation](docs/automation.md) | `hyprctl hyprmasq` commands, waiting, `hyprmasq-input`, `hyprmasq-launch`, configuration, security model, limitations |
-| [Development](docs/development.md) | Building, tests, contributing, source layout |
-| [Benchmarks](docs/benchmarks.md) | How agents are measured with hyprmasq, and benchmark results |
-| [Comparisons](docs/comparison.md) | hyprmasq beside Cua Driver, computer-use-linux and hypruse on the benchmark's tasks, and beside OpenAI's and Claude's computer use and Cua Driver on macOS |
+| [Installation](docs/installation.md) | Install, load, register the MCP server |
+| [MCP server](docs/mcp.md) | The agent's tools and options |
+| [Automation](docs/automation.md) | The command-line tools and plugin options |
+| [Benchmarks](docs/benchmarks.md) | How agents do on real desktop tasks |
+| [Comparison](docs/comparison.md) | hyprmasq beside other computer use tools |
+| [Development](docs/development.md) | Building, testing and contributing |
 
 ## License
 

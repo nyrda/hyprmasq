@@ -21,7 +21,7 @@ nix build .#checks.x86_64-linux.vm-test -L
 - [ ] Passed on the PR's head commit: <!-- commit hash -->
 - [ ] Before merging: the head commit is still the one above, or the test passed again on it: <!-- commit hash -->
 
-A PR that changes only Markdown files skips it and says so here: neither the VM test nor its Nix build reads them.
+A PR that changes none of the plugin, its tools, the MCP server, the NixOS module and the VM test, such as one of docs or `bench/` alone, skips it and says so here.
 
 ## Notes for reviewers
 

@@ -3,21 +3,31 @@
 hyprmasq beside three other tools that let an agent use a Linux desktop, on the eleven tasks of the
 [benchmarks](benchmarks.md) in their VM, six runs per task and agent, while the user works on their own workspace:
 
-- **[Cua Driver](https://github.com/trycua/cua)** passed 73 % of its runs on the nine tasks it can do, where hyprmasq
-  passed 91 %, took 2.4 times as long and took the user's focus in most of them. It cannot act in Firefox or Thunderbird on Hyprland.
+- **[Cua Driver](https://github.com/trycua/cua)** passed 145 of 198 runs (73 %) on the nine tasks it can do, where
+  hyprmasq passed 180 (91 %). Cua took 2.4 times as long and took the user's focus in most of its runs. On Hyprland,
+  its input refuses Firefox and Thunderbird.
 - **[computer-use-linux](https://github.com/agent-sh/computer-use-linux)** and
-  **[hypruse](https://github.com/IlyasKhallouki/hypruse)** passed 77 % and 74 % with Terra where hyprmasq passed 92 %,
-  took 1.7 and 2.0 times as long, and took the user's focus in nearly every passed run.
+  **[hypruse](https://github.com/IlyasKhallouki/hypruse)** passed 60 and 58 of 78 runs (77 % and 74 %) with Terra,
+  OpenAI's `gpt-6.1-terra` in Codex, where hyprmasq passed 72 (92 %). They took 1.7 and 2.0 times as long, and took
+  the user's focus in nearly every passed run.
 
-No hyprmasq run disturbed the user. Every failed hyprmasq run was the model's error, such as a label dropped on a
-distractor in the board's photo, as [benchmarks](benchmarks.md) shows for the benchmark's runs: its failed runs look
-like its passed ones, with as many calls and tokens and no failed tool call. Each tool ran as its authors document it,
-run by hyprmasq's author. Every run is
-in [comparison/data](comparison/data), and [Method](#method) has the tasks and the setups. An
-[addendum](#addendum-the-tasks-on-macos) sets OpenAI's computer use, Claude's computer use and Cua Driver on a Mac
-beside hyprmasq's runs of four of the tasks.
+hyprmasq covers one layer, background capture and input per window, and can be the fallback of a fuller tool such as
+Cua where its accessibility falls short.
+
+The tasks were picked to stress hyprmasq, which was developed against them, so they show its best case. Each other
+tool ran as documented and was allowed to take the focus. [Method](#method) has the setups, and every run is in
+[comparison/data](comparison/data).
+
+No hyprmasq run took the user's focus. Every failed run of the benchmark's set was the agent's mistake, such as a
+label dropped on a distractor in the board's photo, as [benchmarks](benchmarks.md) describes, and none had a failed
+tool call. An [addendum](#addendum-the-tasks-on-macos) sets OpenAI's computer use, Claude's computer use and Cua
+Driver on a Mac beside hyprmasq's runs of four of the tasks.
 
 ## hyprmasq and Cua Driver
+
+Cua ran its experimental input build on Hyprland 0.56.2, the only one that build supports, in the user's session
+rather than a Cua Space. Its background input admits only two Arch packages, so in the NixOS VM it had accessibility
+and foreground input.
 
 <!-- render vm-hyprmasq,vm-hyprmasq-qt,vm-cua,vm-cua-qt,vm-cua-chromium comparison-pooled -->
 <picture>
@@ -26,11 +36,9 @@ beside hyprmasq's runs of four of the tasks.
 </picture>
 <!-- /render -->
 
-On the nine tasks that both can do, with the form in both of its toolkits, hyprmasq passed 180 of 198 runs and Cua
-145. For the same task, toolkit and agent, Cua's median time was 2.4 times hyprmasq's, its peak context 3.4 times and
-its cost per run 3.9 times. Cua left the user undisturbed only in the Qt form without dropdowns, whose controls it
-can set through accessibility. Elsewhere it fell back to input in the foreground, as its plugin sends input in the
-background only to two exact Arch packages, none of which the VM has. On Thunderbird and Forgejo it passed no run.
+Cua's peak context was 3.4 times hyprmasq's and its cost per run 3.9 times. In the Qt form without dropdowns, which it
+can do through accessibility, it passed every run without disturbing the user, in about hyprmasq's time. Elsewhere it
+fell back to the foreground, and on Thunderbird and Forgejo it passed no run.
 
 <details><summary>What Cua Driver can drive, app by app</summary>
 
@@ -38,7 +46,7 @@ background only to two exact Arch packages, none of which the VM has. On Thunder
 | --- | --- | --- | --- |
 | Firefox | Board, trace | In the background | Refused. Its foreground input refuses Firefox, which binds the user's seat more than once (`foreground_primary_binding`), and its browser tools take Chromium only. None of 72 runs passed. |
 | Firefox and LibreOffice Calc | Calc | In the background | 16 of 18 runs passed, 12 of them in the foreground. The agents read the reports in Firefox through its accessibility tree, and entered them in Calc. |
-| Chromium | Board, trace and calc, for Cua | Not run, the tasks use Firefox | In the foreground. Its browser tools refuse on Hyprland, as they attach through a GNOME Shell helper (`browser_wrong_target_refused`). The plugin refuses input while a drag and drop is active (`foreground_dnd`), which the board's dnd variant needs, and a trace's curve is straight strokes, as Cua has no path of several points on Hyprland. |
+| Chromium | Board, trace and calc, for Cua | Not run, the tasks use Firefox | In the foreground. Its browser tools first asked to be attached (`browser_consent_required`). Their grant, `--grant existing-profile`, was given in Forgejo only, where they then refused on Hyprland, as they attach through a GNOME Shell helper (`browser_wrong_target_refused`). The plugin refuses input while a drag and drop is active (`foreground_dnd`), which the board's dnd variant needs, and a trace's curve is straight strokes, as Cua has no path of several points on Hyprland. |
 | Thunderbird | Thunderbird | In the background | Refused, as Firefox. None of 18 runs passed. |
 | Chromium | Forgejo | In the background | None of 18 runs passed. Its browser tools refused, as above, and its foreground input refused while the user typed (`foreground_physical_keys`). |
 | The Qt questionnaire | Form | In the background | Through accessibility, in the background: each run of the form without dropdowns left the user undisturbed. A list item of a Qt dropdown takes no accessibility selection, so its lists went to the foreground, and few runs with dropdowns passed. |
@@ -245,8 +253,9 @@ window to the front even for its screenshot, and hypruse's pointer works only in
   runs and hypruse none with Terra, as the user's typing went into the agent's sign-in form and addresses. hyprmasq
   passed each.
 
-hypruse ran with Terra only. Its first seven runs with Sonnet, in the table, reached 18 times hyprmasq's peak context,
-as in Claude Code it returns each screenshot twice, as an image and as base64 text.
+hypruse's full series ran with Terra. Its first seven runs with Sonnet, in the table, reached 18 times hyprmasq's peak
+context: in its image mode, which the suite uses as the agent cannot read the VM's files, it returns each screenshot
+to Claude Code twice, as an image and as base64 text.
 
 <details><summary>Each task</summary>
 
@@ -425,7 +434,8 @@ as in Claude Code it returns each screenshot twice, as an image and as base64 te
 
 The tasks, their VM, their grading and their measures are those of the [benchmarks](benchmarks.md): the user types in
 a terminal on their own workspace, the task's apps are on another, and the agent works through the tool's MCP server
-alone. Only the tool differs, and the prompt.
+alone. The tool and the prompt differ. Cua also ran on Hyprland 0.56.2, and in Chromium for board, trace and calc,
+as the tools and their setups below say.
 
 | Task | App | What the agent does |
 | --- | --- | --- |
@@ -443,10 +453,11 @@ alone. Only the tool differs, and the prompt.
 
 [bench/tasks](../bench/tasks) has each task's prompt, app and grading.
 
-hyprmasq's author chose these tasks and developed hyprmasq against them. They cover common kinds of work on a
-desktop, forms with dropdowns, drags, files, copying data between apps, mail, a sign-in with a popup and drawing, but
-the results are hyprmasq's best case. Tasks chosen and fixed before any run, which no tool was tuned on, would test
-them further.
+The tasks were picked to stress hyprmasq's image-based approach, with common kinds of work on a desktop: forms with
+dropdowns, drags, files, copying data between apps, mail, a sign-in with a popup and drawing. The form also ran in ten
+UI toolkits, on Wayland and on X11, as [benchmarks](benchmarks.md#toolkits) shows. hyprmasq was developed against
+these tasks, so the results are its best case. Tasks chosen and fixed before any run, which no tool was tuned on,
+would test them further.
 
 </details>
 
@@ -471,7 +482,9 @@ Time runs from the agent's start to its end, the median of the passed runs. Unca
 provider did not serve from its cache, summed over a run's requests. Cost is what the requests would cost at the
 provider's list prices, cache reads at their lower price, for Codex too, which ran on a ChatGPT subscription. Peak
 context is the largest single request. The user was disturbed while the focus was away from their window: the figures
-count the passed runs that did, with the median seconds of those runs. Tokens, cost and calls count every run, failed ones too. The tables give the range in brackets, and the
+count the passed runs that did, with the median seconds of those runs. Tokens, cost and calls count every run, failed ones too. A ratio such as "2.4 times as long" is
+the median, over the groups of task, toolkit and agent where both tools passed a run, of one tool's median over the
+other's. Ratios of context and cost take every group. The tables give the range in brackets, and the
 per-run data is in [comparison/data](comparison/data).
 
 </details>
@@ -507,12 +520,13 @@ hyprmasq does not run on macOS. To see how the tools that do behave on the same 
 ran on a Mac in its own apps, with OpenAI's computer use, Claude's computer use and Cua Driver, six times per task,
 tool and agent: 144 runs, of which 143 passed. The figures set them beside hyprmasq's runs of the same tasks in the
 benchmark's VM: the questionnaire's Qt port in both, Inkscape in both, and the file manager task in Nautilus in the
-VM and in Finder on the Mac. The machines differ, so the times compare roughly. Context, tokens, cost and disturbance
-compare better. [On the Mac](#on-the-mac) has the setup.
+VM and in Finder on the Mac. The machines differ, so the times compare roughly. Nobody used the Mac during its runs,
+while in the VM the user types meanwhile. On the Mac, disturbance counts windows drawn over the user's window as well
+as the focus. [On the Mac](#on-the-mac) has the setup.
 
 - **hyprmasq** had the smallest median peak context in every row and never disturbed the user. Its median cost per
   run was the lowest but in the file manager, where OpenAI's computer use cost a fraction of a cent less. With Sonnet
-  it passed five of six runs of each form, its failures the model's errors.
+  it passed five of six runs of each form.
 - **OpenAI's computer use** came close to it in tokens, and was the fastest in the file manager and, with Sol and
   Terra, on the form without dropdowns. Its dropdown lists showed over the user's window while it chose from them,
   and in Inkscape its clicks brought Inkscape to the front.

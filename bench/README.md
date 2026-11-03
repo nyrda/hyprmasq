@@ -71,6 +71,7 @@ python3 bench/run.py --out bench/results/my-run         # resumes: runs with a s
 python3 bench/run.py --source ../hyprmasq-feature       # the plugin and server of another worktree
 python3 bench/run.py --task forgejo                     # another task: a directory under bench/tasks
 python3 bench/run.py --display 2560x1440@1              # another monitor: WIDTHxHEIGHT@SCALE
+python3 bench/run.py --max-calls 20                     # stop and fail a run at its 21st tool call
 python3 bench/run.py --task board --variant pointer     # a task's variant: one of tasks/TASK/variants
 python3 bench/run.py --task form --variant 10           # a quick probe: 10 questions instead of the default 25
 python3 bench/run.py --task form --variant 25-no-dropdowns  # the form without dropdowns
@@ -162,8 +163,8 @@ grading and the measures are the same: only the desktop tool differs.
   with Hyprland's compiler, and its CTest suite passes.
 - **Hyprland 0.56.2:** the plugin's input build refuses any other Hyprland, and its driver sees no window of
   Hyprland 0.57.0, whose `j/monitors` leaves out a workspace's `id`. So the Cua backend runs with `--source` at a
-  checkout of the `hyprland-0.56` branch, which gives the VM Hyprland 0.56.2. A comparison runs hyprmasq from the
-  same checkout. `default.nix` refuses the Cua backend on another Hyprland.
+  checkout of the `hyprland-0.56` branch, which gives the VM Hyprland 0.56.2. A comparison can run hyprmasq from the
+  same checkout, and the published one sets Cua beside hyprmasq's runs on 0.57.0. `default.nix` refuses the Cua backend on another Hyprland.
 - **Plugin:** loaded and enabled as its README says: `hyprctl plugin load`, then
   `hl.config({plugin = {cua = {enabled = true}}})` in the configuration and `hyprctl reload`. `vm.py` waits for
   `hyprctl -j cua:status` to report its input transport ready, and `ready.json` keeps that status as `cua_status`.

@@ -1,6 +1,6 @@
 """Tests run.py's harnesses without their APIs: python3 harness_test.py
 
-pi's isolation, claude-api's key and its check, the names of runs, the efforts agents run at, and report.py's reading
+pi's isolation, claude-api's key and its check, the budget of tool calls, the names of runs, the efforts agents run at, and report.py's reading
 of a recorded pi stream and of each harness's usage and context.
 Fake `pi` and `claude` executables on PATH stand in for the real ones."""
 
@@ -18,6 +18,7 @@ from unittest import mock
 BENCH = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BENCH)
 import export  # noqa: E402
+import mcp_tap  # noqa: E402
 import report  # noqa: E402
 import run  # noqa: E402
 
@@ -319,6 +320,7 @@ class PiIsolation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as user, tempfile.TemporaryDirectory() as work:
             for name, content in (("auth.json", '{"tensorx": {"type": "api_key", "key": "secret"}}'),
                                   ("models.json", '{"providers": {}}'),
+                                  ("models-store.json", '{"providers": {}}'),
                                   ("mcp.json", '{"mcpServers": {"own": {"command": "own-server"}}}'),
                                   ("settings.json", '{"defaultThinkingLevel": "max", "packages": ["npm:x"]}'),
                                   ("AGENTS.md", "the user's instructions")):
@@ -329,8 +331,9 @@ class PiIsolation(unittest.TestCase):
             with mock.patch.dict(os.environ, {"PI_CODING_AGENT_DIR": user}):
                 agent_dir = run.pi_agent_dir(tap, os.path.join(work, "sessions"))
             try:
-                self.assertEqual(sorted(os.listdir(agent_dir)), ["auth.json", "mcp.json", "models.json", "settings.json"])
-                for name in ("auth.json", "models.json"):  # linked, so that no copy of the keys is written
+                self.assertEqual(sorted(os.listdir(agent_dir)),
+                                 ["auth.json", "mcp.json", "models-store.json", "models.json", "settings.json"])
+                for name in ("auth.json", "models.json", "models-store.json"):  # linked: no copy of the keys
                     self.assertEqual(os.readlink(os.path.join(agent_dir, name)), os.path.join(user, name))
                 with open(os.path.join(agent_dir, "mcp.json")) as f:
                     servers = json.load(f)["mcpServers"]
@@ -342,8 +345,21 @@ class PiIsolation(unittest.TestCase):
                 self.assertTrue(os.path.isdir(os.path.join(work, "sessions")))
             finally:
                 shutil.rmtree(agent_dir)
-            self.assertEqual(sorted(os.listdir(user)),
-                             ["AGENTS.md", "auth.json", "extensions", "mcp.json", "models.json", "settings.json"])
+            self.assertEqual(sorted(os.listdir(user)), ["AGENTS.md", "auth.json", "extensions", "mcp.json",
+                                                        "models-store.json", "models.json", "settings.json"])
+
+    def test_a_model_that_pi_lists_only_with_a_suffix_is_refused(self):
+        # pi --list-models matches loosely, as --model does: asked for gemini-4-argon, it may list only a longer ID.
+        listing = ("provider     model                        context  images\n"
+                   "opencode-go  gemini-4-argon-contributor   1.0M     yes\n"
+                   "openrouter   google/gemini-4-argon        1.0M     yes\n")
+        with tempfile.TemporaryDirectory() as bin_dir:
+            executable(bin_dir, "pi", f"printf '%s' '{listing}'\n")
+            with mock.patch.dict(os.environ, {"PATH": bin_dir + os.pathsep + os.environ["PATH"]}):
+                with self.assertRaisesRegex(RuntimeError, "no model opencode-go/gemini-4-argon"):
+                    run.check_pi_model(bin_dir, "opencode-go/gemini-4-argon")
+                run.check_pi_model(bin_dir, "opencode-go/gemini-4-argon-contributor")
+                run.check_pi_model(bin_dir, "openrouter/google/gemini-4-argon")
 
     def test_pi_receives_the_model_effort_and_mcp_tools_and_the_debrief_has_none(self):
         # Interpret the options that affect this contract, without fixing their order or unrelated flags.
@@ -453,6 +469,38 @@ class ClaudeApi(unittest.TestCase):
                 with open(os.path.join(out, name), "w") as f:
                     f.write(text)
             self.assertEqual(run.files_holding(out, KEY), ["sub/transcript.jsonl"])
+
+
+class Budget(unittest.TestCase):
+    def test_the_tap_forwards_the_budgets_tool_calls_and_answers_the_next_itself(self):
+        call = {"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "act"}}
+        for calls in (1, 3):
+            self.assertIsNone(mcp_tap.budget_reply(call, calls, 3))
+        reply = mcp_tap.budget_reply(call, 4, 3)
+        self.assertEqual((reply["id"], reply["result"]["isError"]), (7, True))
+        self.assertIn("budget of 3 tool calls", reply["result"]["content"][0]["text"])
+        # Other requests, such as the listing of tools, still reach the server, and 0 sets no budget.
+        self.assertIsNone(mcp_tap.budget_reply({"id": 8, "method": "tools/list"}, 4, 3))
+        self.assertIsNone(mcp_tap.budget_reply(call, 100, 0))
+
+    def test_an_agent_is_stopped_once_the_tap_has_spent_the_budget(self):
+        with tempfile.TemporaryDirectory() as out:
+            marker = os.path.join(out, "mcp.jsonl.budget")
+            agent = executable(out, "agent", f"sleep 1; touch {marker}; sleep 30; echo late\n")
+            started = time.time()
+            result = run.run_agent([agent], out, os.path.join(out, "a.jsonl"), os.path.join(out, "a.err"), 60,
+                                   budget=marker)
+            self.assertLess(time.time() - started, 10)
+            self.assertEqual((result["budget_exhausted"], result["timed_out"]), (True, False))
+            self.assertEqual(report.load_jsonl(os.path.join(out, "a.jsonl")), [])
+
+    def test_an_agent_that_ends_right_after_the_budget_is_spent_counts_as_stopped(self):
+        with tempfile.TemporaryDirectory() as out:
+            marker = os.path.join(out, "mcp.jsonl.budget")
+            agent = executable(out, "agent", f"touch {marker}\n")
+            result = run.run_agent([agent], out, os.path.join(out, "a.jsonl"), os.path.join(out, "a.err"), 60,
+                                   budget=marker)
+            self.assertEqual((result["budget_exhausted"], result["exit"]), (True, 0))
 
 
 class PiReport(unittest.TestCase):
