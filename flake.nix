@@ -37,6 +37,11 @@
           python3 ${./nix/vm-test}/check.py --docs ${./docs/vm-test.md}
           touch $out
         '';
+      }
+      // import ./nix/ci-checks.nix {
+        inherit pkgs nixpkgs;
+        goPkgs = pkgs;
+        mcp = self.packages.${system}.hyprmasq-mcp;
       };
 
       # Builds the plugin with make, and the MCP server with go in mcp/.

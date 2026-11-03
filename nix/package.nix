@@ -52,6 +52,12 @@
         "mcp"
         "bench"
         "PKGBUILD"
+        # Read by Nix, the dev shell and clang-format, not by make. A change to them does not rebuild the plugin.
+        "flake.nix"
+        "flake.lock"
+        "dev.sh"
+        "LICENSE"
+        ".clang-format"
         # Moved by the backports of older Hyprland branches, and read by hyprpm only.
         "hyprpm.toml"
         # Left by make in the work tree; a copy would keep make from building it.

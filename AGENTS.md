@@ -60,12 +60,14 @@ Nix only sees files known to Git, so `git add` new files before building.
 
 ## Pull requests
 
-CI runs `nix flake check --no-build`, builds `hyprmasq` and `hyprmasq-mcp`
-including the Go tests with `-short`, runs all Go tests with and without
-`-race`, checks C/C++ with clang-format and Go with gofmt, checks the VM
-test's subtest tables (`vm-test-docs`), runs the bench unit tests above,
-including Calc, and checks `docs/benchmarks.md` and `docs/comparison.md` against
-their data with `bench/render.py --check`. The VM test is a local gate; CI does not run it. Before opening a PR, run it on the commit you push and fill
+CI runs `nix flake check --no-build`, then builds `hyprmasq` and `hyprmasq-mcp`
+including the Go tests with `-short`, and the flake checks `mcp-tests` (all Go
+tests), `format` (clang-format and gofmt), `vm-test-docs` (the VM test's
+subtest tables) and `bench-calc` (the Calc checker). It runs the other bench
+unit tests above and checks `docs/benchmarks.md` and `docs/comparison.md`
+against their data with `bench/render.py --check`. It caches the Nix store
+between runs, so a check whose inputs did not change is not built again. CI
+does not run `go test -race`. The VM test is a local gate; CI does not run it. Before opening a PR, run it on the commit you push and fill
 in the VM test section of
 `.github/pull_request_template.md` with that commit. Before merging, compare
 the PR's head commit with the one it passed on: after new commits, an amend, a

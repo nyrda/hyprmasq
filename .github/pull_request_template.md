@@ -4,7 +4,7 @@
 
 ## How it was tested
 
-<!-- CI evaluates the flake, builds the plugin and MCP server with Go tests, checks
+<!-- CI evaluates the flake, builds the plugin and MCP server, runs all Go tests, checks
 C/C++ and Go formatting, and runs the bench unit tests including Calc/LibreOffice.
 Record any additional checks here. -->
 
