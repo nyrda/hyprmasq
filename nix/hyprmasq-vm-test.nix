@@ -53,11 +53,13 @@ let
   scrollProbe = pkgs.callPackage ./scroll-probe.nix { };
   suspendProbe = pkgs.callPackage ./suspend-probe.nix { };
   # hyprland-dialog, without which Hyprland does not watch for apps that stop answering its pings. This one logs each
-  # dialog that it opens, with its arguments on one line, also one that closes again within milliseconds.
+  # dialog that it opens, with its arguments on one line, also one that closes again within milliseconds. It comes from
+  # hyprland-qtutils of the flake's own nixpkgs: Hyprland's nixpkgs no longer has it, and the hyprland-dialog of its
+  # successor, hyprland-guiutils, crashes in the VM before it maps its window.
   dialog = pkgs.writeShellScriptBin "hyprland-dialog" ''
     args="$*"
     printf '%s %s\n' "$(date +%s.%N)" "''${args//$'\n'/ }" >> /tmp/hyprmasq-dialogs.log
-    exec ${pkgs.hyprland-qtutils}/bin/hyprland-dialog "$@"
+    exec ${goPkgs.hyprland-qtutils}/bin/hyprland-dialog "$@"
   '';
   userInput = pkgs.callPackage ./user-input.nix { inherit hyprland; };
   hyprctlCaller = pkgs.callPackage ./hyprctl-caller.nix {

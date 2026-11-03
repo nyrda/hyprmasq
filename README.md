@@ -26,7 +26,7 @@ refuses to load into any other. `hyprctl version` shows yours.
 **Arch and Omarchy.** Build a pacman package from a clone:
 
 ```sh
-# Hyprland 0.57.0
+# Hyprland 0.57.1
 git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
 # Hyprland 0.56.2
 git clone -b hyprland-0.56 https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si

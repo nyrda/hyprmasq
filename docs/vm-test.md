@@ -28,9 +28,12 @@ so does `slider-probe.py`, a slider in Qt 6, GTK 3 or Tk. Chromium opens
 page, and `guest/clip.html`, a textarea that logs its pastes, which log to its
 console.
 
-The VM also has `hyprland-dialog`, from `hyprland-qtutils`, without which
-Hyprland does not watch for apps that stop answering its pings, and the form
-task's GTK 4 questionnaire as `hyprmasq-bench-form`.
+The VM also has `hyprland-dialog`, from `hyprland-qtutils` of the flake's own
+nixpkgs, without which Hyprland does not watch for apps that stop answering its
+pings. Hyprland's nixpkgs no longer has `hyprland-qtutils`, and the
+`hyprland-dialog` of its successor, `hyprland-guiutils`, crashes in the VM
+before it maps its window. The VM also has the form task's GTK 4 questionnaire
+as `hyprmasq-bench-form`.
 
 ## Running it
 
