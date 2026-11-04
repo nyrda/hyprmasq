@@ -13,6 +13,7 @@ namespace hyprmasq {
         UNSUPPORTED,
         INTERNAL,
         UNLOADED,
+        HOOK_HELD,
     };
 
     struct SError {
@@ -28,6 +29,7 @@ namespace hyprmasq {
             case eErrorCode::UNSUPPORTED: return "unsupported";
             case eErrorCode::INTERNAL: return "internal";
             case eErrorCode::UNLOADED: return "unloaded";
+            case eErrorCode::HOOK_HELD: return "hook_held";
         }
         return "internal";
     }

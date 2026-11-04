@@ -6,10 +6,13 @@
 
 #include <cstdint>
 #include <functional>
+#include <unordered_set>
 #include <vector>
 
 #include <xcb/xcb.h>
 
+class CFunctionHook;
+class CHookSystem;
 class CHyprCtl;
 class CIdleNotifyProtocol;
 class CPrimarySelectionDevice;
@@ -128,4 +131,19 @@ namespace hyprmasq {
     // IHyprRenderer::renderWindow, protected: draws a window into the current render.
     void renderWindow(Render::IHyprRenderer& renderer, PHLWINDOW window, PHLMONITOR monitor, const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode,
                       bool ignorePosition, bool standalone);
+
+    // The function hooks of plugins, src/plugins/HookSystem.hpp.
+    // CHookSystem::m_activeHooks: the addresses of the functions that a plugin has hooked, which CFunctionHook::hook()
+    // refuses to hook again.
+    std::unordered_set<uint64_t>& activeHooksOf(CHookSystem& system);
+    // CFunctionHook::m_launchTrampolineAddr and m_landTrampolineAddr: the code that hook() writes for a hook, which jumps
+    // to the replacement, and the original's first instructions and a jump to the rest. hook() takes new memory for them
+    // each time, which Hyprland never frees, and unhook() resets these without freeing it. m_hookLen and m_originalBytes:
+    // the function's first bytes that hook() replaced with a jump, and m_active whether that jump is in place.
+    void*& launchTrampolineOf(CFunctionHook& hook);
+    void*& landTrampolineOf(CFunctionHook& hook);
+    size_t& hookLenOf(CFunctionHook& hook);
+    std::vector<unsigned char>& originalBytesOf(CFunctionHook& hook);
+    bool& activeOf(CFunctionHook& hook);
+
 }

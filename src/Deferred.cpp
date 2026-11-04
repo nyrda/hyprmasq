@@ -53,6 +53,7 @@ namespace hyprmasq::deferred {
         // The hooked function, see SPinned at the end of this file.
         using InvokeHyprctlCommand                  = std::string (*)(const std::string&, const std::string&, const std::string&);
         HookFn<InvokeHyprctlCommand> originalInvoke = nullptr;
+        std::optional<CHookClaim>    installed;
         std::thread::id              mainThread;
         thread_local bool            collectedAtOnce = false; // the job on this thread is one that the main thread waits for, see waited()
         // Frames of this library that Hyprland returns into, and the reference that keeps it mapped for them after
@@ -265,9 +266,12 @@ namespace hyprmasq::deferred {
         if (!batch)
             throw std::runtime_error("hyprmasq: hyprctl has no batch command");
         // HyprlandAPI::invokeHyprctlCommand has C linkage, so its symbol is its name.
-        originalInvoke = hook<InvokeHyprctlCommand>(handle, "invokeHyprctlCommand", "invokeHyprctlCommand", &invokeHyprctlCommand);
-        eventFd        = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-        source         = eventFd < 0 ? nullptr : wl_event_loop_add_fd(g_pCompositor->m_wlEventLoop, eventFd, WL_EVENT_READABLE, onEvent, nullptr);
+        // Other plugins call at any time. Without the hook, a deferred reply to one of them is Hyprland's "deferred
+        // response unavailable for in-process invocation".
+        hooks::pluginCalls.add(defineHook<InvokeHyprctlCommand, &invokeHyprctlCommand>(handle, "invokeHyprctlCommand", "invokeHyprctlCommand", originalInvoke));
+        installed = hooks::forLifetime(hooks::pluginCalls);
+        eventFd   = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        source    = eventFd < 0 ? nullptr : wl_event_loop_add_fd(g_pCompositor->m_wlEventLoop, eventFd, WL_EVENT_READABLE, onEvent, nullptr);
         // Wakes the jobs at the unload, as eventFd wakes the main thread when one is done.
         stopEvent = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
         if (!source || stopEvent < 0)
@@ -313,6 +317,7 @@ namespace hyprmasq::deferred {
         if (eventFd >= 0)
             close(eventFd);
         eventFd = -1;
+        installed.reset();
     }
 
     int stopFd() {

@@ -119,7 +119,15 @@ struct state {
     bool composeLoaded;
     // For each modifier index, the evdev code of the key that sets it, or 0.
     uint32_t modifierKeys[32];
+    // Why the plugin refused the input, from the name of the seat it offers instead of its own, see REFUSED_SEAT, or
+    // empty.
+    char refusedCode[64];
+    char refusedMessage[400];
 };
+
+// A seat named "hyprmasq refused CODE: MESSAGE", with no capabilities, which the plugin offers before it closes the
+// connection, tells why it refuses input to the window, as when another plugin hooks a function that the input needs.
+#define REFUSED_SEAT "hyprmasq refused "
 
 enum actionType {
     ACTION_MOVE,
@@ -254,7 +262,9 @@ static void help(void) {
           "Exit codes:\n"
           "  0  The server confirmed all input, or help/version was printed.\n"
           "  1  Runtime failure, including connection failure, memory exhaustion or signal.\n"
-          "  2  Invalid arguments, untypable input or exceeded budget; no input sent.\n",
+          "  2  Invalid arguments, untypable input or exceeded budget; no input sent.\n"
+          "  3  The plugin refused input to the window, as while another plugin hooks a\n"
+          "     function that input needs; no input sent.\n",
           stdout);
 }
 
@@ -308,9 +318,22 @@ static void handleEvent(struct state* s, struct ei_event* event) {
     struct ei_device* device = ei_event_get_device(event);
 
     switch (ei_event_get_type(event)) {
-        case EI_EVENT_SEAT_ADDED:
+        case EI_EVENT_SEAT_ADDED: {
+            const char* name = ei_seat_get_name(ei_event_get_seat(event));
+            if (name && !strncmp(name, REFUSED_SEAT, strlen(REFUSED_SEAT))) {
+                const char*  code   = name + strlen(REFUSED_SEAT);
+                const char*  colon  = strstr(code, ": ");
+                const size_t length = colon ? (size_t)(colon - code) : 0;
+                if (length && length < sizeof(s->refusedCode)) {
+                    memcpy(s->refusedCode, code, length);
+                    s->refusedCode[length] = '\0';
+                    snprintf(s->refusedMessage, sizeof(s->refusedMessage), "%s", colon + 2);
+                }
+                break;
+            }
             ei_seat_bind_capabilities(ei_event_get_seat(event), EI_DEVICE_CAP_POINTER_ABSOLUTE, EI_DEVICE_CAP_BUTTON, EI_DEVICE_CAP_SCROLL, EI_DEVICE_CAP_KEYBOARD, NULL);
             break;
+        }
         case EI_EVENT_DEVICE_ADDED:
             // A new pointer replaces the old one, also if the server adds it before removing the old one.
             if (ei_device_has_capability(device, EI_DEVICE_CAP_POINTER_ABSOLUTE)) {
@@ -1837,7 +1860,9 @@ int main(int argc, char** argv) {
     if (rc != 0)
         fail("connect_failed", "cannot connect to %s: %s", socket, strerror(-rc));
     else if (!pump(&s, nowNs() + MS(TIMEOUT_MS), devicesReady)) {
-        if (s.pointer && s.keyboard && !s.disconnected)
+        if (s.refusedCode[0])
+            fail(s.refusedCode, "the plugin refused input to the window: %s", s.refusedMessage);
+        else if (s.pointer && s.keyboard && !s.disconnected)
             fail("input_paused", "the server paused input before anything was sent");
         else
             fail("no_devices", "the server did not offer a pointer and a keyboard");
@@ -1942,7 +1967,9 @@ int main(int argc, char** argv) {
         printOutcome(done, total, failedIndex, delivery, keys);
 
     int status = 0;
-    if (failure.code)
+    if (failure.code && s.refusedCode[0] && failure.code == s.refusedCode)
+        status = 3;
+    else if (failure.code)
         status = s.sent.frames == 0 && (!strcmp(failure.code, "invalid_arguments") || !strcmp(failure.code, "cannot_type") || !strcmp(failure.code, "too_long")) ? 2 : 1;
 
     if (s.pointer) {

@@ -49,6 +49,9 @@ const (
 	hintClosedBySent   = "The window closed while the input was sent, maybe because of it, for example through a quit shortcut or a close button. Call windows to see what is open now."
 	hintNothingSent    = "Nothing was sent."
 	hintCaptureFailed  = "The input was applied, but the screenshot failed. Take a screenshot before repeating anything."
+	// The plugin installs the hooks of a feature only while it is in use, and refuses the feature while another plugin
+	// hooks one of their functions.
+	hintHookHeld = "Another Hyprland plugin hooks a function that hyprmasq needs for this, which the error names. Screenshots still work. Tell the user, who can unload that plugin or stop what it is doing."
 
 	// The plugin sends the modifier state again with every frame, but no other held key.
 	hintChordHoldMissing = "This window has the user's keyboard or pointer focus, or shares its Wayland connection with the window that has it, so of the keys of a chord only modifiers such as ctrl, alt, shift and super stay pressed between input frames, and the others would arrive one after another. Hold only modifiers, or press the keys in separate key actions."
@@ -87,6 +90,9 @@ func asToolError(err error) *toolError {
 			return &toolError{Code: "plugin_missing", Message: "the hyprmasq plugin was unloaded", Hint: hintPluginUser}
 		case "unsupported", "invalid_arguments":
 			return &toolError{Code: pe.Code, Message: pe.Message}
+		case "hook_held":
+			// The plugin refuses such a request before it changes anything.
+			return &toolError{Code: pe.Code, Message: pe.Message, Hint: hintHookHeld + " Nothing changed."}
 		case "":
 			return &toolError{Code: "plugin_version", Message: "the hyprmasq plugin answers without error codes, so it is older than this server: " + pe.Message, Hint: hintPluginUser}
 		}

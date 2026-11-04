@@ -326,6 +326,19 @@ def run_input_background(name, path, *args):
     alice(f"nohup sh -c {shlex.quote(command)} > /dev/null 2>&1 &")
 
 
+def hooks_installed(group):
+    """Whether the plugin's group of hooks is installed, see `hyprctl hyprmasq hooks`."""
+    return next(g for g in json.loads(hypr("-j hyprmasq hooks"))["groups"] if g["name"] == group)["installed"]
+
+
+def keep_in_use(name, path, ms, group="input"):
+    """Keeps a socket's input in use for ms milliseconds, through a sender that only waits, until the plugin has the
+    hooks of the group installed. The protections of a driven window, such as refusing its activation, hold while its
+    input is in use. input_result(name) waits for the sender's end."""
+    run_input_background(name, path, "sleep", ms)
+    wait_for(f"the {group} hooks", lambda: hooks_installed(group), timeout=10)
+
+
 def input_result(name):
     machine.wait_until_succeeds(f"test -s /tmp/{name}.status", timeout=120)
     status = int(machine.succeed(f"cat /tmp/{name}.status"))

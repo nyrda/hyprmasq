@@ -9,6 +9,9 @@
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/config/values/types/IntValue.hpp>
 #include <hyprland/src/debug/log/Logger.hpp>
+#include <hyprland/src/devices/IPointer.hpp>
+#include <hyprland/src/devices/ITouch.hpp>
+#include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
 #include <hyprland/src/protocols/PrimarySelection.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
@@ -72,6 +75,8 @@ namespace hyprmasq::selection {
         CHandlerWraps<CPrimarySelectionDevice, CZwpPrimarySelectionDeviceV1, SetPrimarySelection> wrappedPrimary{wireOf, setSelectionOf};
 
         std::array<CHyprSignalListener, 4>                                                        seatListeners;
+        CHyprSignalListener                                                                       userButton, userTouch;
+        wl_event_source*                                                                          touched   = nullptr;
         wl_event_source*                                                                          refresher = nullptr;
 
         // Private members of the window manager, see SPinned at the end of this file.
@@ -81,6 +86,25 @@ namespace hyprmasq::selection {
         HookFn<SelectionOwner> originalSelectionOwner = nullptr;
         // The X window that owns an X selection that stayed the agent's, per kind, or 0.
         std::array<uint32_t, 2> keptOwners{};
+        // Keeps the hooks while a selection stays the agent's: the socket whose input made it may be idle by then.
+        std::optional<CHookClaim> keptHooks;
+        // Keeps them while the agent's input decides whose a new X selection is, see agentSelects(): an X11 app takes a
+        // selection when it gets to the input that makes it, which can be long after the input, once the socket and its
+        // input hooks are idle. And when another socket closed, the check after it.
+        std::optional<CHookClaim> attributingHooks;
+        wl_event_source*          attributionCheck = nullptr;
+
+        // Records the owner of an X selection that stays the agent's, or 0. Called from the hooks, which hooks::x11Input
+        // has installed while emulated input reaches an X11 window.
+        void keep(eKind kind, uint32_t owner) {
+            keptOwners[kind] = owner;
+            if (keptOwners[CLIPBOARD] || keptOwners[PRIMARY]) {
+                if (!keptHooks)
+                    if (auto claim = hooks::x11Selection.claim())
+                        keptHooks = std::move(*claim);
+            } else
+                keptHooks.reset();
+        }
 
         SClient* find(wl_client* client) {
             const auto it = clients.find(client);
@@ -92,6 +116,16 @@ namespace hyprmasq::selection {
         bool agentSelects(wl_client* client) {
             const auto* c = find(client);
             return c && c->agentInput && drivesClient(client) && (!c->userInput || c->agentAt > c->userAt);
+        }
+
+        // Holds the X selection hooks while the agent's input decides Hyprland's X selections.
+        void attributionFollow() {
+            auto* server = x11::xwaylandClient();
+            if (!server || !agentSelects(server))
+                attributingHooks.reset();
+            else if (!attributingHooks)
+                if (auto claim = hooks::x11Selection.claim())
+                    attributingHooks = std::move(*claim);
         }
 
         // Which selection of the kind the client should have now, or with keyboard or pointer, once emulated input has
@@ -177,11 +211,24 @@ namespace hyprmasq::selection {
                 nullptr);
         }
 
+        // The user's touch ends an app's own copy that is the agent clipboard, see userInput(), through the hook on
+        // CSeatManager::sendTouchDown, before the touch reaches the app: Hyprland finds the touched surface only after its
+        // touch event. Keys, buttons and focus changes come through Hyprland's events in time.
+        std::optional<CHookClaim> touchHooks;
+        void touchHooksFollow() {
+            if (!slots[CLIPBOARD].owner)
+                touchHooks.reset();
+            else if (!touchHooks)
+                if (auto claim = hooks::clipboard.claim())
+                    touchHooks = std::move(*claim);
+        }
+
         void clear(eKind kind) {
             slots[kind].source.reset();
             slots[kind].held.reset();
             slots[kind].destroy.reset();
             slots[kind].owner = nullptr;
+            touchHooksFollow();
             changed();
         }
 
@@ -196,6 +243,7 @@ namespace hyprmasq::selection {
             slot.source = source;
             slot.owner  = source ? owner : nullptr;
             slot.held.reset();
+            touchHooksFollow();
             if (source) {
                 source->markUsed();
                 slot.destroy = source->m_events.destroy.listen([kind] { clear(kind); });
@@ -256,6 +304,7 @@ namespace hyprmasq::selection {
                 SClient* gone = wl_container_of(listener, gone, destroyed);
                 wl_list_remove(&gone->destroyed.link);
                 clients.erase(gone->client);
+                attributionFollow();
             };
             wl_client_add_destroy_listener(client, &ref.destroyed);
             clients.emplace(client, std::move(c));
@@ -277,16 +326,16 @@ namespace hyprmasq::selection {
             auto& sel = *found;
             if (e->owner == XCB_WINDOW_NONE) {
                 if (keptOwners[*kind] && sel.owner == keptOwners[*kind]) {
-                    keptOwners[*kind] = 0;
-                    sel.owner         = 0;
+                    keep(*kind, 0);
+                    sel.owner = 0;
                     return true;
                 }
-                keptOwners[*kind] = 0;
+                keep(*kind, 0);
                 return originalSelectionOwner(self, e);
             }
             auto*      server = x11::xwaylandClient();
             const bool agent  = e->owner != sel.window && server && agentSelects(server);
-            keptOwners[*kind] = agent ? e->owner : 0;
+            keep(*kind, agent ? e->owner : 0);
             const bool result = originalSelectionOwner(self, e);
             if (agent) {
                 sel.notifyOnFocus   = true;
@@ -310,12 +359,42 @@ namespace hyprmasq::selection {
     }
 
     void init(void* handle) {
-        originalSetClipboard   = hook<SetClipboard>(handle, "_ZN4CXWM21setClipboardToWaylandER11SXSelection", "CXWM::setClipboardToWayland(SXSelection&)", &setClipboardToWayland);
-        originalSelectionOwner = hook<SelectionOwner>(handle, "_ZN4CXWM27handleSelectionXFixesNotifyEP35xcb_xfixes_selection_notify_event_t",
-                                                      "CXWM::handleSelectionXFixesNotify(xcb_xfixes_selection_notify_event_t*)", &selectionOwner);
-        auto& events           = g_pSeatManager->m_events;
-        seatListeners = {events.keyboardFocusChange.listen([] { changed(); }), events.pointerFocusChange.listen([] { changed(); }), events.setSelection.listen([] { changed(); }),
-                         events.setPrimarySelection.listen([] { changed(); })};
+        // The agent's X11 input can make X selections, which then stay the agent's for as long as their owners keep them.
+        for (auto* hook : {&defineHook<SetClipboard, &setClipboardToWayland>(handle, "_ZN4CXWM21setClipboardToWaylandER11SXSelection", "CXWM::setClipboardToWayland(SXSelection&)",
+                                                                             originalSetClipboard),
+                           &defineHook<SelectionOwner, &selectionOwner>(handle, "_ZN4CXWM27handleSelectionXFixesNotifyEP35xcb_xfixes_selection_notify_event_t",
+                                                                        "CXWM::handleSelectionXFixesNotify(xcb_xfixes_selection_notify_event_t*)", originalSelectionOwner)}) {
+            hooks::x11Input.add(*hook);
+            hooks::x11Selection.add(*hook);
+        }
+        auto& events  = g_pSeatManager->m_events;
+        seatListeners = {events.keyboardFocusChange.listen([] {
+                             // As the hook on CSeatManager::setKeyboardFocus does while hooks::input is installed.
+                             if (const auto focused = g_pSeatManager->m_state.keyboardFocus.lock())
+                                 userInput(focused->client());
+                             changed();
+                         }),
+                         events.pointerFocusChange.listen([] { changed(); }), events.setSelection.listen([] { changed(); }), events.setPrimarySelection.listen([] { changed(); })};
+        // The user's buttons and touches, which Hyprland's input events tell before Hyprland sends them on, also while
+        // the hooks of hooks::input are out. FocusPolicy.cpp's listener does the same for keys. A touch's surface is known
+        // only once Hyprland has handled it, which is in time while hooks::clipboard is installed, see touchHooksFollow().
+        auto& input = Event::bus()->m_events.input;
+        userButton  = input.mouse.button.listen([](const IPointer::SButtonEvent&, Event::SCallbackInfo&) {
+            if (const auto focused = g_pSeatManager->m_state.pointerFocus.lock())
+                userInput(focused->client());
+        });
+        userTouch   = input.touch.down.listen([](const ITouch::SDownEvent&, Event::SCallbackInfo&) {
+            if (touched)
+                return;
+            touched = wl_event_loop_add_idle(
+                g_pCompositor->m_wlEventLoop,
+                [](void*) {
+                    touched = nullptr; // libwayland removes it after this call
+                    if (const auto focused = g_pSeatManager->m_state.touchFocus.lock())
+                        userInput(focused->client());
+                },
+                nullptr);
+        });
     }
 
     void emulatedInput(wl_client* client, bool keyboard, bool pointer) {
@@ -325,6 +404,9 @@ namespace hyprmasq::selection {
         auto& c      = record(client);
         c.agentInput = true;
         c.agentAt    = Time::steadyNow();
+        // The socket that sends it holds hooks::x11Input, which has the X selection hooks, so this claim never fails.
+        if (client == x11::xwaylandClient())
+            attributionFollow();
         if (keyboard || pointer)
             offer(c, true, keyboard, pointer);
     }
@@ -340,7 +422,7 @@ namespace hyprmasq::selection {
         const auto source = slot.source.lock();
         const bool ended  = source && slot.owner == client && !userSelection(source);
         if (ended) {
-            Log::logger->log(Log::DEBUG, "hyprmasq", "the user's input ends the agent's clipboard {:x} in its app", rc<uintptr_t>(source.get()));
+            Log::logger->log(Log::DEBUG, "[hyprmasq] the user's input ends the agent's clipboard {:x} in its app", rc<uintptr_t>(source.get()));
             clear(CLIPBOARD);
             source->cancelled();
         }
@@ -350,6 +432,8 @@ namespace hyprmasq::selection {
             if (ended)
                 offer(*c, false);
         }
+        if (client == x11::xwaylandClient())
+            attributionFollow();
     }
 
     uint64_t setAgentText(std::string text) {
@@ -373,6 +457,18 @@ namespace hyprmasq::selection {
         return out;
     }
 
+    void socketClosed() {
+        if (attributionCheck || !attributingHooks || !g_pCompositor)
+            return;
+        attributionCheck = wl_event_loop_add_idle(
+            g_pCompositor->m_wlEventLoop,
+            [](void*) {
+                attributionCheck = nullptr; // libwayland removes it after this call
+                attributionFollow();
+            },
+            nullptr);
+    }
+
     void restore(wl_client* client) {
         if (auto* c = client ? find(client) : nullptr)
             offer(*c, false);
@@ -381,6 +477,11 @@ namespace hyprmasq::selection {
     void shutdown() {
         for (auto& listener : seatListeners)
             listener.reset();
+        userButton.reset();
+        userTouch.reset();
+        if (touched)
+            wl_event_source_remove(touched);
+        touched = nullptr;
         if (refresher)
             wl_event_source_remove(refresher);
         refresher = nullptr;
@@ -397,6 +498,7 @@ namespace hyprmasq::selection {
             slot.owner = nullptr;
             slot.held.reset();
         }
+        touchHooks.reset();
         heldtext::shutdown();
         // An X selection that stayed the agent's goes back to the window manager, with the user's Wayland selection of
         // that kind if there is one: once the hooks are gone, its owner's exit would clear the user's selection.
@@ -408,6 +510,11 @@ namespace hyprmasq::selection {
             }
         }
         keptOwners = {};
+        keptHooks.reset();
+        if (attributionCheck)
+            wl_event_source_remove(attributionCheck);
+        attributionCheck = nullptr;
+        attributingHooks.reset();
         wrappedData.restore();
         wrappedPrimary.restore();
     }

@@ -12,9 +12,11 @@ class CXDGToplevelResource;
 // draws neither input nor a new size. A window that the plugin drives is told that it is not suspended for as long as
 // a hold on it exists, and what Hyprland told it last once the last hold ends. Hyprland's own state, which its
 // CWindow::setSuspended keeps, does not change. X11 windows have no such state, and neither have the toplevels of an
-// xdg_wm_base older than version 6. Main thread only.
+// xdg_wm_base older than version 6. The hook on CXDGToplevelResource::setSuspeneded, through which Hyprland tells a
+// toplevel, is installed while a hold exists, see hooks::suspension. While another plugin hooks it, holds do nothing.
+// Main thread only.
 namespace hyprmasq::suspension {
-    // Installs the hook on CXDGToplevelResource::setSuspeneded, through which Hyprland tells a toplevel.
+    // Defines the hook.
     void init(void* handle);
 
     struct SHeld;

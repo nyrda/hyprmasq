@@ -411,7 +411,7 @@ with subtest("a driven Wayland window that asks for activation is marked urgent 
     act_user = foot("hm-act-user")
     wait_for("user window focus", lambda: snapshot() == (77, act_user))
     act_path = open_socket(act_bell)
-    send(act_path, "type", "sleep 3; printf '\\a'", "key", 28)
+    send(act_path, "type", "sleep 0.5; printf '\\a'", "key", 28)
     wait_for("the bell's activation request", lambda: urgent("ipc-events", act_bell), timeout=15)
     time.sleep(1)
     assert snapshot() == (77, act_user)

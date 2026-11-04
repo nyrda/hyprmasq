@@ -1,6 +1,7 @@
 #pragma once
 #include "Drag.hpp"
 #include "Eis.hpp"
+#include "Hooks.hpp"
 #include "Suspension.hpp"
 #include <hyprland/src/helpers/math/Math.hpp>
 #include <hyprland/src/helpers/memory/Memory.hpp>
@@ -96,6 +97,9 @@ namespace hyprmasq::input {
         uint32_t                          dragButton = 0;               // the held button that started the drag, its drop
         Vector2D                          pointerAt  = position;        // the last motion, also outside the window
         const char*                       closing    = "socket_closed"; // why the session ends, for its drag; a literal
+        // hooks::input, and for a window of an X server hooks::x11Input, while the socket is in use. Released after the
+        // destructor has given back what the socket held.
+        std::optional<CHookClaim> inputHooks, x11Hooks;
 
         SSession(const PHLWINDOW& w, std::string p, std::string i, bool f);
         ~SSession();
@@ -216,6 +220,15 @@ namespace hyprmasq::input {
         void sendPointerEvent(const SFrame& frame, const WP<CWLPointerResource>& p, eis_event* e, const SP<CWLSurfaceResource>& target, const Vector2D& local);
         // Gives the connection's pointer focus back to the surface of the real focus, where the user's pointer is.
         void restorePointer(const SP<CWLSeatResource>& s, const SP<CWLSurfaceResource>& real);
+        // Installs the hooks that input to the window needs, all or none, as a sender connects or a lease starts, or
+        // tells why not, as when another plugin hooks one of their functions.
+        std::optional<SError> claimHooks();
+        // From the first input to the window until no sender is connected, no lease is held, the emulated focus, X focus
+        // included, has gone back, and a second has passed since the last input, which apps answer with popups and
+        // activation requests after the sender has gone.
+        bool inUse();
+        // The plugin refuses the sender that connects for a reason, which REFUSED_SEAT in hyprmasq-input reads.
+        void refuse(eis_client* sender, const SError& why);
         int tick();
         int poll();
         // The window is gone, so what the sender still has in the socket can only be dropped. Taking it answers the

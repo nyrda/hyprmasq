@@ -3,6 +3,7 @@
 #include <hyprland/src/debug/HyprCtl.hpp>
 #include <hyprland/src/desktop/rule/windowRule/WindowRuleApplicator.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
+#include <hyprland/src/plugins/HookSystem.hpp>
 #include <hyprland/src/pointer/cursor/CursorManager.hpp>
 #include <hyprland/src/protocols/IdleNotify.hpp>
 #include <hyprland/src/protocols/PrimarySelection.hpp>
@@ -158,6 +159,46 @@ namespace hyprmasq {
         };
         template struct SExpose<SIdleInhibited, &CIdleNotifyProtocol::isInhibited>;
 
+        struct SActiveHooks {
+            using type = std::unordered_set<uint64_t> CHookSystem::*;
+            friend constexpr type                     exposed(SActiveHooks);
+        };
+        template struct SExpose<SActiveHooks, &CHookSystem::m_activeHooks>;
+        // src/Hooks.cpp installs a hook again with the trampolines of its first CFunctionHook::hook(), which is safe only
+        // while Hyprland never frees, reuses or unmaps a trampoline. No type says so, so these sizes stop the build once
+        // the hook system changes, as a list of freed trampolines to reuse would change CHookSystem.
+        static_assert(sizeof(CHookSystem) == 104,
+                      "CHookSystem changed: re-read src/plugins/HookSystem.cpp, check that unhook() still neither frees nor reuses trampolines and that "
+                      "getAddressForTrampo() only hands out new space, which rehook() in src/Hooks.cpp relies on, then update this size");
+        static_assert(sizeof(CFunctionHook) == 88,
+                      "CFunctionHook changed: re-read src/plugins/HookSystem.cpp, check that unhook() still neither frees nor reuses trampolines and that "
+                      "getAddressForTrampo() only hands out new space, which rehook() in src/Hooks.cpp relies on, then update this size");
+        struct SLaunchTrampoline {
+            using type = void*    CFunctionHook::*;
+            friend constexpr type exposed(SLaunchTrampoline);
+        };
+        template struct SExpose<SLaunchTrampoline, &CFunctionHook::m_launchTrampolineAddr>;
+        struct SLandTrampoline {
+            using type = void*    CFunctionHook::*;
+            friend constexpr type exposed(SLandTrampoline);
+        };
+        template struct SExpose<SLandTrampoline, &CFunctionHook::m_landTrampolineAddr>;
+        struct SHookLen {
+            using type = size_t   CFunctionHook::*;
+            friend constexpr type exposed(SHookLen);
+        };
+        template struct SExpose<SHookLen, &CFunctionHook::m_hookLen>;
+        struct SOriginalBytes {
+            using type = std::vector<unsigned char> CFunctionHook::*;
+            friend constexpr type                   exposed(SOriginalBytes);
+        };
+        template struct SExpose<SOriginalBytes, &CFunctionHook::m_originalBytes>;
+        struct SHookActive {
+            using type = bool     CFunctionHook::*;
+            friend constexpr type exposed(SHookActive);
+        };
+        template struct SExpose<SHookActive, &CFunctionHook::m_active>;
+
         struct SRenderWindow {
             using type = void (Render::IHyprRenderer::*)(PHLWINDOW, PHLMONITOR, const Time::steady_tp&, bool, Render::eRenderPassMode, bool, bool);
             friend constexpr type exposed(SRenderWindow);
@@ -259,6 +300,30 @@ namespace hyprmasq {
 
     bool& inhibitedOf(CIdleNotifyProtocol& protocol) {
         return protocol.*exposed(SIdleInhibited{});
+    }
+
+    std::unordered_set<uint64_t>& activeHooksOf(CHookSystem& system) {
+        return system.*exposed(SActiveHooks{});
+    }
+
+    void*& launchTrampolineOf(CFunctionHook& hook) {
+        return hook.*exposed(SLaunchTrampoline{});
+    }
+
+    void*& landTrampolineOf(CFunctionHook& hook) {
+        return hook.*exposed(SLandTrampoline{});
+    }
+
+    size_t& hookLenOf(CFunctionHook& hook) {
+        return hook.*exposed(SHookLen{});
+    }
+
+    std::vector<unsigned char>& originalBytesOf(CFunctionHook& hook) {
+        return hook.*exposed(SOriginalBytes{});
+    }
+
+    bool& activeOf(CFunctionHook& hook) {
+        return hook.*exposed(SHookActive{});
     }
 
     void renderWindow(Render::IHyprRenderer& renderer, PHLWINDOW window, PHLMONITOR monitor, const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode,

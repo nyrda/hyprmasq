@@ -260,6 +260,9 @@ namespace hyprmasq {
             return std::unexpected(SError{eErrorCode::UNSUPPORTED, "an X11 window cannot hold a lease: holding X focus would take the user's typing in their X11 apps"});
         if (sharesConnection(window, g_pSeatManager->m_state.keyboardFocus))
             return std::unexpected(SError{eErrorCode::UNSUPPORTED, "the window shares its Wayland connection with the window that has the keyboard focus"});
+        // A lease is input in use, which keeps the emulated focus through the hooks.
+        if (auto refused = session->claimHooks())
+            return std::unexpected(std::move(*refused));
         session->lease = SLease{.until = Time::steadyNow() + std::chrono::milliseconds(ms), .owner = owner};
         // tick() keeps the focus until the lease ends.
         session->scheduleIdle();

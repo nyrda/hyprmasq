@@ -33,6 +33,7 @@ static void shutdownAll() {
     hyprmasq::selection::shutdown();
     hyprmasq::cursor::shutdown();
     hyprmasq::x11::shutdown();
+    hyprmasq::idle::shutdown();
     hyprmasq::unhookAll();
 }
 

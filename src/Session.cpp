@@ -6,6 +6,7 @@
 #include "Wait.hpp"
 #include "X11.hpp"
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/debug/log/Logger.hpp>
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
@@ -19,6 +20,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <format>
 #include <ranges>
 #include <utility>
 
@@ -199,6 +201,9 @@ namespace hyprmasq::input {
         returnKeyboard(false);
         clearClient();
         releaseX();
+        // A window that closes can no longer name its X window.
+        x11::releaseGone();
+        selection::socketClosed();
         if (fdSource)
             wl_event_source_remove(fdSource);
         if (timer)
@@ -900,6 +905,8 @@ namespace hyprmasq::input {
                 other->cancelDrag("other_window");
                 other->lease.reset();
                 other->leave();
+                // Its tick() releases its hooks once it is no longer in use.
+                other->scheduleIdle();
             }
         }
     }
@@ -1112,7 +1119,49 @@ namespace hyprmasq::input {
             const int delay = held ? std::max(1, held->remainingMs) : menu ? MENU_CHECK_MS : PING_INTERVAL_MS;
             wl_event_source_timer_update(timer, client ? std::min(delay, PING_INTERVAL_MS) : delay);
         }
+        // What the socket held has gone back.
+        if (!inUse()) {
+            x11Hooks.reset();
+            inputHooks.reset();
+        }
         return 0;
+    }
+
+    std::optional<SError> SSession::claimHooks() {
+        std::optional<CHookClaim> input, x11;
+        if (!inputHooks) {
+            auto claim = hooks::input.claim();
+            if (!claim)
+                return claim.error();
+            input = std::move(*claim);
+        }
+        if (!x11Hooks && xServer()) {
+            auto claim = hooks::x11Input.claim();
+            if (!claim)
+                return claim.error();
+            x11 = std::move(*claim);
+        }
+        if (input)
+            inputHooks = std::move(input);
+        if (x11)
+            x11Hooks = std::move(x11);
+        return std::nullopt;
+    }
+
+    bool SSession::inUse() {
+        const auto w = window.lock();
+        return client || leased() || keyboardKept || enteredKeyboard || enteredPointer || !keys.empty() || !buttons.empty() || activeDrag() ||
+            Time::steadyNow() - lastInput < std::chrono::milliseconds(IDLE_MS) || (w && x11::holdsFocus(w));
+    }
+
+    void SSession::refuse(eis_client* sender, const SError& why) {
+        Log::logger->log(Log::WARN, "[hyprmasq] refusing the sender of {}: {}", path, why.message);
+        eis_client_connect(sender);
+        if (auto* s = eis_client_new_seat(sender, std::format("hyprmasq refused {}: {}", codeName(why.code), why.message).c_str())) {
+            eis_seat_add(s);
+            eis_seat_unref(s);
+        }
+        eis_client_disconnect(sender);
     }
 
     int SSession::poll() {
@@ -1160,6 +1209,11 @@ namespace hyprmasq::input {
                     auto c = eis_event_get_client(e);
                     if (!eis_client_is_sender(c)) {
                         eis_client_disconnect(c);
+                        break;
+                    }
+                    // Before anything of the sender's can arrive, so that a refused one leaves nothing behind.
+                    if (const auto refused = claimHooks()) {
+                        refuse(c, *refused);
                         break;
                     }
                     // libeis can report a new sender before the exit of the previous one, so the newest one wins.

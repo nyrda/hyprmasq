@@ -1,18 +1,34 @@
 #include "Process.hpp"
 
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <cerrno>
 #include <format>
-#include <fstream>
-#include <iterator>
 #include <sstream>
 
 namespace hyprmasq::process {
     namespace {
+        // Without a stream: libstdc++'s filebuf throws on a read error, which a process that exits between the open and
+        // the read causes, and callers on Hyprland's event loop must not throw.
         std::optional<std::string> readStat(pid_t pid) {
-            std::ifstream file(std::format("/proc/{}/stat", pid));
-            if (!file)
+            const int fd = ::open(std::format("/proc/{}/stat", pid).c_str(), O_RDONLY | O_CLOEXEC);
+            if (fd < 0)
                 return std::nullopt;
-            std::string stat((std::istreambuf_iterator<char>(file)), {});
-            return stat.empty() ? std::nullopt : std::optional{stat};
+            std::string stat;
+            char        buffer[512];
+            bool        failed = false;
+            for (ssize_t n = 0; (n = ::read(fd, buffer, sizeof(buffer))) != 0;) {
+                if (n < 0 && errno == EINTR)
+                    continue;
+                if (n < 0) {
+                    failed = true;
+                    break;
+                }
+                stat.append(buffer, static_cast<size_t>(n));
+            }
+            ::close(fd);
+            return failed || stat.empty() ? std::nullopt : std::optional{stat};
         }
 
         // The fields after the command name, which is in parentheses and may contain spaces and parentheses itself.

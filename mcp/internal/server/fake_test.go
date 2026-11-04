@@ -183,6 +183,9 @@ func fakeInput() int {
 		if parts[1] == "invalid_arguments" || parts[1] == "cannot_type" {
 			return 2
 		}
+		if parts[1] == "hook_held" {
+			return 3
+		}
 		return 1
 	}
 	reply(map[string]any{"ok": true, "done": total, "total": total, "failedIndex": nil, "delivery": "complete"})

@@ -3,6 +3,7 @@
 #include "Deferred.hpp"
 #include "Eis.hpp"
 #include "Error.hpp"
+#include "Hooks.hpp"
 #include "Launch.hpp"
 #include "Placement.hpp"
 #include "Screenshot.hpp"
@@ -40,6 +41,7 @@ namespace hyprmasq {
             "  hyprctl hyprmasq eis list\n"
             "  hyprctl hyprmasq clipboard\n"
             "  hyprctl hyprmasq clipboard set <text-hex>\n"
+            "  hyprctl hyprmasq hooks\n"
             "  hyprctl hyprmasq version\n";
 
         std::string jsonString(std::string_view in) {
@@ -531,6 +533,29 @@ namespace hyprmasq {
         }
     }
 
+    namespace {
+        // The groups of hooks, whether each is installed, and why the last install was refused, if none succeeded since.
+        std::string hooksCommand(eHyprCtlOutputFormat format) {
+            std::string out;
+            for (const auto* group : hooks::all()) {
+                const auto& refused = group->refused();
+                if (format == FORMAT_JSON) {
+                    std::string functions;
+                    for (const auto function : group->functions())
+                        functions += (functions.empty() ? "" : ",") + jsonString(function);
+                    out += std::format(R"({}{{"name":{},"onDemand":{},"installed":{},"claims":{},"installs":{},"functions":[{}],"refused":{}}})", out.empty() ? "" : ",",
+                                       jsonString(group->name()), group->onDemand(), group->installed(), group->claims(), group->installs(), functions,
+                                       refused ? std::format(R"({{"code":"{}","message":{}}})", codeName(refused->code), jsonString(refused->message)) : "null");
+                } else
+                    out += std::format("{} {}, {}{}\n", group->name(), group->onDemand() ? "on demand" : "at load", group->installed() ? "installed" : "not installed",
+                                       refused ? ", refused: " + refused->message : "");
+            }
+            if (format == FORMAT_JSON)
+                return R"({"ok":true,"groups":[)" + out + "]}";
+            return out;
+        }
+    }
+
     std::string handleCommand(eHyprCtlOutputFormat format, std::string request) {
         std::istringstream       stream(request);
         std::vector<std::string> words;
@@ -564,6 +589,12 @@ namespace hyprmasq {
             if (format == FORMAT_JSON)
                 return std::format(R"({{"ok":true,"cancelled":{}}})", cancelled);
             return cancelled ? "cancelled" : "no pending wait";
+        }
+
+        if (words[1] == "hooks") {
+            if (!args.empty())
+                return usage(format);
+            return hooksCommand(format);
         }
 
         if (words[1] == "version") {

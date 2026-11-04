@@ -104,10 +104,11 @@ namespace hyprmasq::placement {
         std::vector<SOpened>                          opened;
         std::vector<SCreated>                         created;
         // The hooked function, see SPinned at the end of this file.
-        using ReadStaticRules                           = bool (Desktop::Rule::CWindowRuleApplicator::*)(bool);
-        HookFn<ReadStaticRules> originalReadStaticRules = nullptr;
-        CHyprSignalListener     key, button, touch, tip;
-        wl_event_source*        afterRefocus = nullptr;
+        using ReadStaticRules                             = bool (Desktop::Rule::CWindowRuleApplicator::*)(bool);
+        HookFn<ReadStaticRules>   originalReadStaticRules = nullptr;
+        std::optional<CHookClaim> installed;
+        CHyprSignalListener       key, button, touch, tip;
+        wl_event_source*          afterRefocus = nullptr;
 
         void prune() {
             const auto now = Time::steadyNow();
@@ -418,11 +419,15 @@ namespace hyprmasq::placement {
         button = input.mouse.button.listen([](const IPointer::SButtonEvent&, Event::SCallbackInfo&) { realInput(g_pSeatManager->m_state.pointerFocus.lock(), true); });
         touch  = input.touch.down.listen([](const ITouch::SDownEvent&, Event::SCallbackInfo&) { realInputAfterRefocus(); });
         tip    = input.tablet.tip.listen([](const CTablet::STipEvent&, Event::SCallbackInfo&) { realInputAfterRefocus(); });
-        originalReadStaticRules = hook<ReadStaticRules>(handle, "_ZN7Desktop4Rule21CWindowRuleApplicator15readStaticRulesEb",
-                                                        "Desktop::Rule::CWindowRuleApplicator::readStaticRules(bool)", &readStaticRules);
+        // A window that emulated input opened can map any time after the input, so the hook stays for the plugin's
+        // lifetime. Without it, such windows open where Hyprland puts them.
+        hooks::placement.add(defineHook<ReadStaticRules, &readStaticRules>(handle, "_ZN7Desktop4Rule21CWindowRuleApplicator15readStaticRulesEb",
+                                                                           "Desktop::Rule::CWindowRuleApplicator::readStaticRules(bool)", originalReadStaticRules));
+        installed = hooks::forLifetime(hooks::placement);
     }
 
     void shutdown() {
+        installed.reset();
         key.reset();
         button.reset();
         touch.reset();

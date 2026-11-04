@@ -45,6 +45,8 @@ let
   '';
   userInput = pkgs.callPackage ./user-input.nix { inherit hyprland; };
   hyprctlCaller = pkgs.callPackage ./hyprctl-caller.nix { inherit plugin; };
+  # Plugins that hook a function of hyprmasq's each, which the hooks area loads beside it.
+  hookTaker = pkgs.callPackage ./hook-taker.nix { inherit plugin; };
   python = pkgs.python3.withPackages (ps: [ ps.pillow ]);
   inherit (pkgs) lib;
 
@@ -205,6 +207,7 @@ pkgs.testers.runNixOSTest {
       environment.etc."hyprmasq-test".source = ./vm-test/guest;
       environment.etc."hyprmasq-plugin".text = "${plugin}/lib/hyprmasq.so";
       environment.etc."hyprmasq-hyprctl-caller".text = "${hyprctlCaller}/lib/hyprmasq-hyprctl-caller.so";
+      environment.etc."hyprmasq-hook-taker".text = "${hookTaker}/lib";
 
       environment.variables = {
         AQ_TRACE = "1";

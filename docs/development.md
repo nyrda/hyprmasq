@@ -185,7 +185,7 @@ nix-build bench/tasks/calc/check-test.nix
 
 | Path | Contents |
 | --- | --- |
-| `src/` | The plugin. `main.cpp` registers the hyprctl command and installs the hooks, `Commands.cpp` parses `hyprctl hyprmasq …`, and `PrivateAccess.cpp` reaches the private members of Hyprland that the plugin uses. |
+| `src/` | The plugin. `main.cpp` registers the hyprctl command and sets up the features, `Hooks.cpp` resolves the hooked functions at load and installs them in groups while their features are in use, `Commands.cpp` parses `hyprctl hyprmasq …`, and `PrivateAccess.cpp` reaches the private members of Hyprland that the plugin uses. |
 | `tools/` | `hyprmasq-input`, `hyprmasq-reaper` and `hyprmasq-launch`. |
 | `mcp/` | `hyprmasq-mcp`, see [above](#hyprmasq-mcp). |
 | `nix/` | The package, the NixOS module, the [VM test](vm-test.md) and its probe clients. |
@@ -207,7 +207,30 @@ against a new release, but not what they do:
   A hooked function that changed needs its new type, symbol and signature
   together: `nm -D` and `nm -D --demangle` on the new Hyprland list its
   symbol and signature in the same order. Check that each hooked function
-  still does what its hook expects. `CXDGToplevelResource::setSuspeneded`,
+  still does what its hook expects, and that `src/plugins/HookSystem.cpp`
+  still refuses a second hook of a function through `m_activeHooks`, which
+  `src/Hooks.cpp` reads to name the function another plugin holds.
+  `src/Hooks.cpp` also installs a hook again without `CFunctionHook::hook()`,
+  which takes trampolines that Hyprland never frees: it writes back the jump
+  that the first `hook()` wrote, and the state that `unhook()` reset. Check
+  that `hook()` still writes only that jump over `m_hookLen` bytes, that
+  `unhook()` still leaves the trampolines in place, and that
+  `getAddressForTrampo()` only hands out new space, so that Hyprland never
+  reuses or unmaps a trampoline. `src/PrivateAccess.cpp` asserts the sizes of
+  `CHookSystem` and `CFunctionHook` at the pin, which a list of freed
+  trampolines would change, and stops the build until this is checked. At
+  run time, the plugin compares the trampolines with what the first `hook()`
+  wrote before it installs a hook again, and refuses the feature with code
+  `internal` if they changed.
+- `unhook()` makes only the first page of a hooked function writable before
+  it writes the function's first bytes back. For each hooked function, its
+  offset within its 4 KiB page plus the bytes that `hook()` replaces, whole
+  instructions over at least 5 bytes and so at most 19, must stay at most
+  4096. List the offsets with
+  `nm -D --defined-only .Hyprland-wrapped`, on the binary in the Hyprland
+  package's `bin`, as the address of each symbol that `src/` hooks modulo
+  4096. An offset of at most 4077 is safe. At v0.57.1 every one is 16-byte
+  aligned and the largest is 3984. `CXDGToplevelResource::setSuspeneded`,
   whose name has Hyprland's typo, must stay the only way that Hyprland tells
   a toplevel that it is suspended.
 - Private and protected members are all reached in one place,
