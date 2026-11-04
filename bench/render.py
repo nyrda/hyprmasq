@@ -86,6 +86,7 @@ NAMES = {
     "opencode-go/gemini-4-argon": "Gemini 4 Argon",
     "opencode-go/deepseek-v4.1-flash": "DeepSeek v4.1 Flash",
     "opencode-go/qwen3.8-flash": "Qwen 3.8 Flash",
+    "opencode-go/glm-5.3-flash": "GLM 5.3 Flash",
 }
 EFFORTS = ["default", "none", "off", "minimal", "low", "medium", "high", "xhigh", "max"]
 KINDS = ["checkbox", "slider", "text", "dropdown"]
