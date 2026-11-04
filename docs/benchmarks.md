@@ -14,7 +14,7 @@ times as long. No run disturbed the user, and every failure was the model's own.
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash glance -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model. 514 of 629 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sum of its tasks&#x27; median wall times and its cost per passed run." src="benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model. 514 of 629 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run." src="benchmarks/glance.svg">
 </picture>
 
 <sub>Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026. gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026. Builds and machines differ, so times compare roughly. Qwen 3.8 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. GLM 5.3 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026.</sub>
