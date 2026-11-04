@@ -95,6 +95,8 @@ PHASES = {"form": ("all answered correctly", "All right at s"),
           "form-no-dropdowns": ("all answered correctly", "All right at s")}
 # The form task's variants without dropdowns end in this, such as 25-no-dropdowns.
 NO_DROPDOWNS = "-no-dropdowns"
+# The tasks that ask to understand a photo on top of the computer use, which the glance figure times apart.
+PHOTO_TASKS = ("board", "trace")
 # The names of the tasks in the figures and tables where a task's own name would not do, in the comparison's order.
 TASK_NAMES = {"form": "Form with dropdowns", "form-no-dropdowns": "Form without dropdowns", "inkscape": "Inkscape",
               "files": "File manager"}
@@ -581,7 +583,12 @@ def glance(data):
     share of that task's runs, the sum of its tasks' median wall times with the time in hyprmasq's tools, and its cost
     per passed run."""
     runs = data["runs"]
-    ts = tasks(data)
+    def is_photo(task):
+        return task.split("-")[0] in PHOTO_TASKS
+
+    # The photo tasks last, a gap before them.
+    ts = sorted(tasks(data), key=is_photo)
+    plain_count = sum(not is_photo(t) for t in ts)
     names = agent_names(runs)
     order = agent_order(runs)
     of = dict(groups(runs))
@@ -596,11 +603,12 @@ def glance(data):
     efforts = several_efforts(runs)
     total, passed = len(runs), sum(r["passed"] for r in runs)
 
-    def per_task(rs, key):
-        return sum(median(r[key] for r in rs if r["task"] == t) for t in {r["task"] for r in rs})
+    def per_task(rs, key, photo):
+        return sum(median(r[key] for r in rs if r["task"] == t)
+                   for t in {r["task"] for r in rs} if is_photo(t) == photo)
 
-    wall = {k: per_task(of[k], "wall_s") for k in keys}
-    tools = {k: per_task(of[k], "tools_s") for k in keys}
+    wall = {photo: {k: per_task(of[k], "wall_s", photo) for k in keys} for photo in (False, True)}
+    tools = {photo: {k: per_task(of[k], "tools_s", photo) for k in keys} for photo in (False, True)}
     cost = {}
     for k in keys:
         ok = sum(r["passed"] for r in of[k])
@@ -610,8 +618,9 @@ def glance(data):
     top = header(
         svg, "Runs passed, time and cost per model",
         [f"{passed} of {total} runs passed. A row per model, the best first by the mean of its tasks' shares of runs",
-         "passed, which the first bar shows, so that a task with more runs does not weigh more. Its time is the sum of",
-         "its tasks' median wall times, the part in hyprmasq's tools in blue, and its cost is per passed run."]
+         "passed, which the first bar shows, so that a task with more runs does not weigh more. Each time is the sum of",
+         "its tasks' median wall times, the part in hyprmasq's tools in blue. Board and trace stand apart: they also ask",
+         "to understand a photo, and a model that cannot spends its calls there. Its cost is per passed run."]
         + [line for line in [effort_note(runs)] if line],
         [("swatch", "pass", "passed"), ("swatch", "fail", "failed"), ("swatch", "tools", "in hyprmasq's tools"),
          ("swatch", "out", "rest of the time")],
@@ -621,30 +630,37 @@ def glance(data):
     label_w = name_w + effort_w + 16
     pct_w = text_width("100%", 13, True)
     count_w = max(text_width(f"{sum(r['passed'] for r in of[k])}/{len(of[k])}", 11.5) for k in keys)
-    bar_w, cell_bar = 60, 18
+    bar_w, cell_bar = 48, 13
     passed_w = bar_w + 6 + pct_w + 5 + count_w + 14
-    time_texts = {k: f"{wall[k] / 60:.0f} min" for k in keys}
+    time_texts = {photo: {k: f"{wall[photo][k] / 60:.0f} min" for k in keys} for photo in (False, True)}
     cost_texts = {k: f"${cost[k]:.2f}" if cost[k] is not None else "–" for k in keys}
-    time_bar, cost_bar = 64, 44
-    time_w = time_bar + 6 + max(text_width(t, 12.5) for t in time_texts.values()) + 14
+    time_bar, cost_bar = 48, 30
+    time_w = time_bar + 6 + max(text_width(t, 12.5) for texts in time_texts.values() for t in texts.values()) + 12
     cost_w = cost_bar + 6 + max(text_width(t, 12.5) for t in cost_texts.values())
-    room = WIDTH - 2 * PAD - label_w - passed_w - time_w - cost_w
+    group_gap = 8
+    room = WIDTH - 2 * PAD - label_w - passed_w - 2 * time_w - cost_w - group_gap
     # The tasks' names stand at an angle above their cells, which are too narrow for them. The last one rises clear of
     # the time's two-line head beside it.
     reach = cell_bar / 2 + 2 + 44
     task_w = (room - reach) / (len(ts) - 1) if len(ts) > 1 else room
     x_passed = PAD + label_w
     x_task = x_passed + passed_w
-    x_time = WIDTH - PAD - cost_w - time_w
-    x_cost = x_time + time_w
-    head_h = max(text_width(task_title(t), 11.5, True) for t in ts) * 0.71 + 6
+    x_cost = WIDTH - PAD - cost_w
+    x_times = {False: x_cost - 2 * time_w, True: x_cost - time_w}
+
+    def x_of(j):
+        return x_task + j * task_w + (group_gap if j >= plain_count else 0)
+
+    head_h = max(text_width(task_title(t), 10.5, True) for t in ts) * 0.71 + 6
     base = top + head_h
-    column_heads(svg, [(x_passed, ["Tasks passed"]), (x_time, ["Time, all", "tasks"]),
+    column_heads(svg, [(x_passed, ["Tasks passed"]), (x_times[False], ["Time, other", f"{plain_count} tasks"]),
+                       (x_times[True], ["Time, the", f"{len(ts) - plain_count} with a photo"]),
                        (x_cost, ["Cost per", "passed run"])], base - 15)
     for j, t in enumerate(ts):
-        x = x_task + j * task_w + cell_bar / 2 + 2
-        svg.text(x, base, task_title(t), cls="t2", size=11.5, weight="600", rotate=-45)
-    top_wall = max(wall.values())
+        x = x_of(j) + cell_bar / 2 + 2
+        svg.text(x, base, task_title(t), cls="t2", size=10.5, weight="600", rotate=-45)
+    # One scale for both, so that their bars compare.
+    top_wall = max(w for by_key in wall.values() for w in by_key.values())
     top_cost = max((c for c in cost.values() if c is not None), default=0)
     row_h = 28
     y0 = base + 10
@@ -669,16 +685,17 @@ def glance(data):
         svg.text(x_passed + bar_w + 6 + pct_w + 5, cy + 4.5, f"{ok}/{len(rs)}", cls="m", size=11.5)
         for j, t in enumerate(ts):
             cell = [r for r in rs if r["task"] == t]
-            x = x_task + j * task_w
+            x = x_of(j)
             if cell:
                 share(x, cy, sum(r["passed"] for r in cell), len(cell), cell_bar, 12)
             else:
                 svg.text(x, cy + 4.5, "–", cls="m", size=12)
-        ww = time_bar * wall[key] / top_wall
-        tw = time_bar * tools[key] / top_wall
-        svg.bar(x_time, cy - 6, tw, 12, "tools", round_end=False)
-        svg.bar(x_time + tw + 1.5, cy - 6, ww - tw - 1.5, 12, "out")
-        svg.text(x_time + time_bar + 6, cy + 4.5, time_texts[key], cls="t2", size=12.5)
+        for photo, x_time in x_times.items():
+            ww = time_bar * wall[photo][key] / top_wall
+            tw = time_bar * tools[photo][key] / top_wall
+            svg.bar(x_time, cy - 6, tw, 12, "tools", round_end=False)
+            svg.bar(x_time + tw + 1.5, cy - 6, max(0, ww - tw - 1.5), 12, "out")
+            svg.text(x_time + time_bar + 6, cy + 4.5, time_texts[photo][key], cls="t2", size=12.5)
         if cost[key] is not None:
             svg.bar(x_cost, cy - 6, max(2, cost_bar * cost[key] / top_cost) if top_cost else 2, 12, "m")
         svg.text(x_cost + cost_bar + 6, cy + 4.5, cost_texts[key], cls="t2", size=12.5)
@@ -686,8 +703,8 @@ def glance(data):
             svg.line(PAD, y0 + row_h * (i + 1), WIDTH - PAD, y0 + row_h * (i + 1), "grid")
     svg.height = y0 + row_h * len(keys) + 20
     alt = (f"Runs passed, time and cost per model. {passed} of {total} runs passed. A row per model, the best first, "
-           "with the mean of its tasks' shares of runs passed, each task's share, the sum of its tasks' median wall "
-           "times and its cost per passed run.")
+           "with the mean of its tasks' shares of runs passed, each task's share, the sums of its tasks' median wall "
+           "times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run.")
     return svg, alt
 
 

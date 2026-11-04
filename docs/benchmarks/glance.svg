@@ -1,384 +1,427 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="674.8" viewBox="0 0 880 674.8" role="img" aria-label="Runs passed, time and cost per model. 514 of 629 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sum of its tasks&#x27; median wall times and its cost per passed run.">
-<title>Runs passed, time and cost per model. 514 of 629 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sum of its tasks&#x27; median wall times and its cost per passed run.</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="685.5" viewBox="0 0 880 685.5" role="img" aria-label="Runs passed, time and cost per model. 514 of 629 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run.">
+<title>Runs passed, time and cost per model. 514 of 629 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run.</title>
 <style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#1f2328}.t2{fill:#59636e}.m{fill:#818b98}.bg{fill:#ffffff;stroke:#d1d9e0}.grid{stroke:#eff2f5;stroke-width:1}.axis{stroke:#d1d9e0;stroke-width:1}.tools{fill:#2a78d6}.out{fill:#c8d1da}.dot{fill:#424a53;stroke:#ffffff;stroke-width:1.5}.miss{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.pass{fill:#1a7f37}.fail{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.cut{stroke:#ffffff;stroke-width:2}.s0{fill:#2a78d6}.s1{fill:#eb6834}.s2{fill:#1baf7a}.s3{fill:#eda100}.s4{fill:#e87ba4}.s5{fill:#008300}.s6{fill:#6250d6}.s7{fill:#e34948}</style>
-<rect x="0.5" y="0.5" width="879" height="673.8" rx="6" class="bg"/>
+<rect x="0.5" y="0.5" width="879" height="684.5" rx="6" class="bg"/>
 <text x="24" y="34" class="t" font-size="15" font-weight="600">Runs passed, time and cost per model</text>
 <text x="24" y="53" class="t2" font-size="12.5">514 of 629 runs passed. A row per model, the best first by the mean of its tasks&#x27; shares of runs</text>
-<text x="24" y="72" class="t2" font-size="12.5">passed, which the first bar shows, so that a task with more runs does not weigh more. Its time is the sum of</text>
-<text x="24" y="91" class="t2" font-size="12.5">its tasks&#x27; median wall times, the part in hyprmasq&#x27;s tools in blue, and its cost is per passed run.</text>
-<text x="24" y="110" class="t2" font-size="12.5">Kimi K3.1 Pro asked for high effort and ran at max.</text>
-<rect x="24" y="127" width="12" height="10" class="pass" rx="2"/>
-<text x="42" y="136" class="t2" font-size="12">passed</text>
-<rect x="102.7" y="127" width="12" height="10" class="fail" rx="2"/>
-<text x="120.7" y="136" class="t2" font-size="12">failed</text>
-<rect x="171.4" y="127" width="12" height="10" class="tools" rx="2"/>
-<text x="189.4" y="136" class="t2" font-size="12">in hyprmasq&#x27;s tools</text>
-<rect x="313.7" y="127" width="12" height="10" class="out" rx="2"/>
-<text x="331.7" y="136" class="t2" font-size="12">rest of the time</text>
-<text x="224.4" y="252.8" class="t2" font-size="12" font-weight="600">Tasks passed</text>
-<text x="653.2" y="237.8" class="t2" font-size="12" font-weight="600">Time, all</text>
-<text x="653.2" y="252.8" class="t2" font-size="12" font-weight="600">tasks</text>
-<text x="774.7" y="237.8" class="t2" font-size="12" font-weight="600">Cost per</text>
-<text x="774.7" y="252.8" class="t2" font-size="12" font-weight="600">passed run</text>
-<text x="384.4" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 384.4 252.8)">Board-dnd</text>
-<text x="406.9" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 406.9 252.8)">Board-pointer</text>
-<text x="429.4" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 429.4 252.8)">Calc</text>
-<text x="451.9" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 451.9 252.8)">File manager</text>
-<text x="474.3" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 474.3 252.8)">Forgejo</text>
-<text x="496.8" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 496.8 252.8)">Form with dropdowns</text>
-<text x="519.3" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 519.3 252.8)">Form without dropdowns</text>
-<text x="541.8" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 541.8 252.8)">Inkscape</text>
-<text x="564.3" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 564.3 252.8)">Thunderbird</text>
-<text x="586.7" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 586.7 252.8)">Trace-rack</text>
-<text x="609.2" y="252.8" class="t2" font-size="11.5" font-weight="600" transform="rotate(-45 609.2 252.8)">Trace-river</text>
-<line x1="24" y1="262.8" x2="856" y2="262.8" class="axis"/>
-<text x="24" y="281.3" class="t" font-size="13" font-weight="600">Opus 5.5</text>
-<text x="208.4" y="281.3" class="m" font-size="12" text-anchor="end">medium</text>
-<rect x="224.4" y="270.8" width="60" height="12" class="pass" rx="2"/>
-<text x="290.4" y="281.3" class="t" font-size="13" font-weight="600">100%</text>
-<text x="330.6" y="281.3" class="m" font-size="11.5">44/44</text>
-<rect x="373.4" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="395.9" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="418.4" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="485.8" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="575.7" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="598.2" y="270.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="653.2" y="270.8" width="3.4" height="12" class="tools"/>
-<path d="M658.1 270.8H659.6Q662.6 270.8 662.6 273.8V279.8Q662.6 282.8 659.6 282.8H658.1Z" class="out"/>
-<text x="723.2" y="281.3" class="t2" font-size="12.5">10 min</text>
-<path d="M774.7 270.8H793Q796 270.8 796 273.8V279.8Q796 282.8 793 282.8H774.7Z" class="m"/>
-<text x="824.7" y="281.3" class="t2" font-size="12.5">$0.21</text>
-<line x1="24" y1="290.8" x2="856" y2="290.8" class="grid"/>
-<text x="24" y="309.3" class="t" font-size="13" font-weight="600">gpt-6-astra</text>
-<text x="208.4" y="309.3" class="m" font-size="12" text-anchor="end">medium</text>
-<rect x="282.6" y="299.7" width="0.9" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="298.8" width="57.3" height="12" class="pass" rx="2"/>
-<text x="290.4" y="309.3" class="t" font-size="13" font-weight="600">95%</text>
-<text x="330.6" y="309.3" class="m" font-size="11.5">42/44</text>
-<rect x="387.8" y="299.7" width="2.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="373.4" y="298.8" width="13.5" height="12" class="pass" rx="2"/>
-<rect x="410.3" y="299.7" width="2.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="395.9" y="298.8" width="13.5" height="12" class="pass" rx="2"/>
-<rect x="418.4" y="298.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="298.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="298.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="485.8" y="298.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="298.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="298.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="298.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="575.7" y="298.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="598.2" y="298.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="653.2" y="298.8" width="2.7" height="12" class="tools"/>
-<path d="M657.5 298.8H661.6Q664.6 298.8 664.6 301.8V307.8Q664.6 310.8 661.6 310.8H657.5Z" class="out"/>
-<text x="723.2" y="309.3" class="t2" font-size="12.5">12 min</text>
-<path d="M774.7 298.8H815.7Q818.7 298.8 818.7 301.8V307.8Q818.7 310.8 815.7 310.8H774.7Z" class="m"/>
-<text x="824.7" y="309.3" class="t2" font-size="12.5">$0.44</text>
-<line x1="24" y1="318.8" x2="856" y2="318.8" class="grid"/>
-<text x="24" y="337.3" class="t" font-size="13" font-weight="600">Sonnet 5.5</text>
-<text x="208.4" y="337.3" class="m" font-size="12" text-anchor="end">medium</text>
-<rect x="281.7" y="327.7" width="1.8" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="326.8" width="56.4" height="12" class="pass" rx="2"/>
-<text x="290.4" y="337.3" class="t" font-size="13" font-weight="600">94%</text>
-<text x="330.6" y="337.3" class="m" font-size="11.5">62/66</text>
-<rect x="373.4" y="326.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="395.9" y="326.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="418.4" y="326.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="326.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="326.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="501.7" y="327.7" width="1.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="485.8" y="326.8" width="15" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="326.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="326.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="326.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="585.6" y="327.7" width="7.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="575.7" y="326.8" width="9" height="12" class="pass" rx="2"/>
-<rect x="598.2" y="326.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="653.2" y="326.8" width="2.8" height="12" class="tools"/>
-<path d="M657.5 326.8H657.5Q660.5 326.8 660.5 329.7V335.8Q660.5 338.8 657.5 338.8H657.5Z" class="out"/>
-<text x="723.2" y="337.3" class="t2" font-size="12.5">8 min</text>
-<path d="M774.7 326.8H778.6Q781.6 326.8 781.6 329.8V335.8Q781.6 338.8 778.6 338.8H774.7Z" class="m"/>
-<text x="824.7" y="337.3" class="t2" font-size="12.5">$0.07</text>
-<line x1="24" y1="346.8" x2="856" y2="346.8" class="grid"/>
-<text x="24" y="365.3" class="t" font-size="13" font-weight="600">gpt-6.1-terra</text>
-<text x="208.4" y="365.3" class="m" font-size="12" text-anchor="end">medium</text>
-<rect x="281.4" y="355.7" width="2.1" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="354.8" width="56.1" height="12" class="pass" rx="2"/>
-<text x="290.4" y="365.3" class="t" font-size="13" font-weight="600">93%</text>
-<text x="330.6" y="365.3" class="m" font-size="11.5">77/90</text>
-<rect x="384.3" y="355.7" width="6.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="373.4" y="354.8" width="10" height="12" class="pass" rx="2"/>
-<rect x="409.8" y="355.7" width="3.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="395.9" y="354.8" width="13" height="12" class="pass" rx="2"/>
-<rect x="418.4" y="354.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="354.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="354.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="485.8" y="354.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="354.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="354.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="354.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="575.7" y="354.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="598.2" y="354.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="653.2" y="354.8" width="2.7" height="12" class="tools"/>
-<path d="M657.4 354.8H657.5Q660.5 354.8 660.5 357.8V363.8Q660.5 366.8 657.5 366.8H657.4Z" class="out"/>
-<text x="723.2" y="365.3" class="t2" font-size="12.5">8 min</text>
-<path d="M774.7 354.8H775.6Q778.6 354.8 778.6 357.8V363.8Q778.6 366.8 775.6 366.8H774.7Z" class="m"/>
-<text x="824.7" y="365.3" class="t2" font-size="12.5">$0.04</text>
-<line x1="24" y1="374.8" x2="856" y2="374.8" class="grid"/>
-<text x="24" y="393.3" class="t" font-size="13" font-weight="600">gpt-6.1-terra</text>
-<text x="208.4" y="393.3" class="m" font-size="12" text-anchor="end">high</text>
-<rect x="281.2" y="383.7" width="2.3" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="382.8" width="55.9" height="12" class="pass" rx="2"/>
-<text x="290.4" y="393.3" class="t" font-size="13" font-weight="600">93%</text>
-<text x="330.6" y="393.3" class="m" font-size="11.5">41/44</text>
-<rect x="383.3" y="383.7" width="7.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="373.4" y="382.8" width="9" height="12" class="pass" rx="2"/>
-<rect x="410.3" y="383.7" width="2.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="395.9" y="382.8" width="13.5" height="12" class="pass" rx="2"/>
-<rect x="418.4" y="382.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="382.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="382.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="485.8" y="382.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="382.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="382.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="382.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="575.7" y="382.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="598.2" y="382.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="653.2" y="382.8" width="3" height="12" class="tools"/>
-<path d="M657.7 382.8H659.1Q662.1 382.8 662.1 385.8V391.8Q662.1 394.8 659.1 394.8H657.7Z" class="out"/>
-<text x="723.2" y="393.3" class="t2" font-size="12.5">9 min</text>
-<path d="M774.7 382.8H775.6Q778.6 382.8 778.6 385.8V391.8Q778.6 394.8 775.6 394.8H774.7Z" class="m"/>
-<text x="824.7" y="393.3" class="t2" font-size="12.5">$0.04</text>
-<line x1="24" y1="402.8" x2="856" y2="402.8" class="grid"/>
-<text x="24" y="421.3" class="t" font-size="13" font-weight="600">gpt-6.1-sol</text>
-<text x="208.4" y="421.3" class="m" font-size="12" text-anchor="end">medium</text>
-<rect x="280.5" y="411.7" width="3" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="410.8" width="55.2" height="12" class="pass" rx="2"/>
-<text x="290.4" y="421.3" class="t" font-size="13" font-weight="600">92%</text>
-<text x="330.6" y="421.3" class="m" font-size="11.5">74/90</text>
-<rect x="381.3" y="411.7" width="9.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="373.4" y="410.8" width="7" height="12" class="pass" rx="2"/>
-<rect x="409.8" y="411.7" width="3.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="395.9" y="410.8" width="13" height="12" class="pass" rx="2"/>
-<rect x="418.4" y="410.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="410.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="410.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="485.8" y="410.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="410.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="410.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="410.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="575.7" y="410.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="598.2" y="410.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="653.2" y="410.8" width="2.9" height="12" class="tools"/>
-<path d="M657.6 410.8H661.6Q664.6 410.8 664.6 413.8V419.8Q664.6 422.8 661.6 422.8H657.6Z" class="out"/>
-<text x="723.2" y="421.3" class="t2" font-size="12.5">12 min</text>
-<path d="M774.7 410.8H780.4Q783.4 410.8 783.4 413.8V419.8Q783.4 422.8 780.4 422.8H774.7Z" class="m"/>
-<text x="824.7" y="421.3" class="t2" font-size="12.5">$0.09</text>
-<line x1="24" y1="430.8" x2="856" y2="430.8" class="grid"/>
-<text x="24" y="449.3" class="t" font-size="13" font-weight="600">gpt-6.1-sol</text>
-<text x="208.4" y="449.3" class="m" font-size="12" text-anchor="end">high</text>
-<rect x="279.9" y="439.7" width="3.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="438.8" width="54.5" height="12" class="pass" rx="2"/>
-<text x="290.4" y="449.3" class="t" font-size="13" font-weight="600">91%</text>
-<text x="330.6" y="449.3" class="m" font-size="11.5">40/44</text>
-<rect x="383.3" y="439.7" width="7.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="373.4" y="438.8" width="9" height="12" class="pass" rx="2"/>
-<rect x="410.3" y="439.7" width="2.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="395.9" y="438.8" width="13.5" height="12" class="pass" rx="2"/>
-<rect x="418.4" y="438.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="438.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="438.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="485.8" y="438.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="438.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="438.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="438.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="575.7" y="438.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="612.6" y="439.7" width="2.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="598.2" y="438.8" width="13.5" height="12" class="pass" rx="2"/>
-<rect x="653.2" y="438.8" width="2.9" height="12" class="tools"/>
-<path d="M657.6 438.8H661.7Q664.7 438.8 664.7 441.8V447.8Q664.7 450.8 661.7 450.8H657.6Z" class="out"/>
-<text x="723.2" y="449.3" class="t2" font-size="12.5">12 min</text>
-<path d="M774.7 438.8H780.8Q783.8 438.8 783.8 441.8V447.8Q783.8 450.8 780.8 450.8H774.7Z" class="m"/>
-<text x="824.7" y="449.3" class="t2" font-size="12.5">$0.09</text>
-<line x1="24" y1="458.8" x2="856" y2="458.8" class="grid"/>
-<text x="24" y="477.3" class="t" font-size="13" font-weight="600">Haiku 5.5</text>
-<text x="208.4" y="477.3" class="m" font-size="12" text-anchor="end">high</text>
-<rect x="279.9" y="467.7" width="3.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="466.8" width="54.5" height="12" class="pass" rx="2"/>
-<text x="290.4" y="477.3" class="t" font-size="13" font-weight="600">91%</text>
-<text x="330.6" y="477.3" class="m" font-size="11.5">40/44</text>
-<rect x="373.4" y="466.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="405.8" y="467.7" width="7.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="395.9" y="466.8" width="9" height="12" class="pass" rx="2"/>
-<rect x="432.8" y="467.7" width="2.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="418.4" y="466.8" width="13.5" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="466.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="466.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="485.8" y="466.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="466.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="466.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="466.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="575.7" y="466.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="612.6" y="467.7" width="2.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="598.2" y="466.8" width="13.5" height="12" class="pass" rx="2"/>
-<rect x="653.2" y="466.8" width="3.6" height="12" class="tools"/>
-<path d="M658.3 466.8H660.5Q663.5 466.8 663.5 469.8V475.8Q663.5 478.8 660.5 478.8H658.3Z" class="out"/>
-<text x="723.2" y="477.3" class="t2" font-size="12.5">11 min</text>
-<path d="M774.7 466.8H774.7Q776.7 466.8 776.7 468.8V476.8Q776.7 478.8 774.7 478.8H774.7Z" class="m"/>
-<text x="824.7" y="477.3" class="t2" font-size="12.5">$0.01</text>
-<line x1="24" y1="486.8" x2="856" y2="486.8" class="grid"/>
-<text x="24" y="505.3" class="t" font-size="13" font-weight="600">Kimi K3.1 Pro</text>
-<text x="208.4" y="505.3" class="m" font-size="12" text-anchor="end">high</text>
-<rect x="268.9" y="495.7" width="14.6" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="494.8" width="43.6" height="12" class="pass" rx="2"/>
-<text x="290.4" y="505.3" class="t" font-size="13" font-weight="600">73%</text>
-<text x="330.6" y="505.3" class="m" font-size="11.5">8/11</text>
-<rect x="373.4" y="494.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="395.9" y="494.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="419.3" y="495.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="440.9" y="494.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="494.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="485.8" y="494.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="494.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="494.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="494.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="576.6" y="495.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="599.1" y="495.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="653.2" y="494.8" width="3.8" height="12" class="tools"/>
-<path d="M658.5 494.8H702Q705 494.8 705 497.8V503.8Q705 506.8 702 506.8H658.5Z" class="out"/>
-<text x="723.2" y="505.3" class="t2" font-size="12.5">55 min</text>
-<path d="M774.7 494.8H793.1Q796.1 494.8 796.1 497.8V503.8Q796.1 506.8 793.1 506.8H774.7Z" class="m"/>
-<text x="824.7" y="505.3" class="t2" font-size="12.5">$0.21</text>
-<line x1="24" y1="514.8" x2="856" y2="514.8" class="grid"/>
-<text x="24" y="533.3" class="t" font-size="13" font-weight="600">Gemini 4 Argon</text>
-<text x="208.4" y="533.3" class="m" font-size="12" text-anchor="end">medium</text>
-<rect x="263.5" y="523.7" width="20" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="522.8" width="38.2" height="12" class="pass" rx="2"/>
-<text x="290.4" y="533.3" class="t" font-size="13" font-weight="600">64%</text>
-<text x="330.6" y="533.3" class="m" font-size="11.5">7/11</text>
-<rect x="373.4" y="522.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="395.9" y="522.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="419.3" y="523.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="441.8" y="523.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="464.2" y="523.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="485.8" y="522.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="522.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="522.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="554.2" y="523.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="575.7" y="522.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="598.2" y="522.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="653.2" y="522.8" width="6.9" height="12" class="tools"/>
-<path d="M661.6 522.8H714.2Q717.2 522.8 717.2 525.8V531.8Q717.2 534.8 714.2 534.8H661.6Z" class="out"/>
-<text x="723.2" y="533.3" class="t2" font-size="12.5">68 min</text>
-<path d="M774.7 522.8H813.7Q816.7 522.8 816.7 525.8V531.8Q816.7 534.8 813.7 534.8H774.7Z" class="m"/>
-<text x="824.7" y="533.3" class="t2" font-size="12.5">$0.42</text>
-<line x1="24" y1="542.8" x2="856" y2="542.8" class="grid"/>
-<text x="24" y="561.3" class="t" font-size="13" font-weight="600">Qwen 3.8 Flash</text>
-<text x="208.4" y="561.3" class="m" font-size="12" text-anchor="end">high</text>
-<rect x="263.5" y="551.7" width="20" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="550.8" width="38.2" height="12" class="pass" rx="2"/>
-<text x="290.4" y="561.3" class="t" font-size="13" font-weight="600">64%</text>
-<text x="330.6" y="561.3" class="m" font-size="11.5">21/33</text>
-<rect x="374.3" y="551.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="402.8" y="551.7" width="10.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="395.9" y="550.8" width="6" height="12" class="pass" rx="2"/>
-<rect x="431.3" y="551.7" width="4.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="418.4" y="550.8" width="12" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="550.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="550.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="485.8" y="550.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="508.3" y="550.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="550.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="550.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="576.6" y="551.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="599.1" y="551.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="653.2" y="550.8" width="3.8" height="12" class="tools"/>
-<path d="M658.5 550.8H705Q708 550.8 708 553.8V559.8Q708 562.8 705 562.8H658.5Z" class="out"/>
-<text x="723.2" y="561.3" class="t2" font-size="12.5">58 min</text>
-<path d="M774.7 550.8H774.9Q777.9 550.8 777.9 553.8V559.8Q777.9 562.8 774.9 562.8H774.7Z" class="m"/>
-<text x="824.7" y="561.3" class="t2" font-size="12.5">$0.03</text>
-<line x1="24" y1="570.8" x2="856" y2="570.8" class="grid"/>
-<text x="24" y="589.3" class="t" font-size="13" font-weight="600">gpt-6-luna</text>
-<text x="208.4" y="589.3" class="m" font-size="12" text-anchor="end">high</text>
-<rect x="260.8" y="579.7" width="22.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="578.8" width="35.5" height="12" class="pass" rx="2"/>
-<text x="290.4" y="589.3" class="t" font-size="13" font-weight="600">59%</text>
-<text x="330.6" y="589.3" class="m" font-size="11.5">26/44</text>
-<rect x="374.3" y="579.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="401.3" y="579.7" width="11.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="395.9" y="578.8" width="4.5" height="12" class="pass" rx="2"/>
-<rect x="418.4" y="578.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="578.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="477.7" y="579.7" width="2.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="463.3" y="578.8" width="13.5" height="12" class="pass" rx="2"/>
-<rect x="485.8" y="578.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="513.7" y="579.7" width="11.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="508.3" y="578.8" width="4.5" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="578.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="578.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="581.1" y="579.7" width="11.7" height="10.2" class="fail" rx="1.5"/>
-<rect x="575.7" y="578.8" width="4.5" height="12" class="pass" rx="2"/>
-<rect x="599.1" y="579.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="653.2" y="578.8" width="3.2" height="12" class="tools"/>
-<path d="M657.9 578.8H662Q665 578.8 665 581.8V587.8Q665 590.8 662 590.8H657.9Z" class="out"/>
-<text x="723.2" y="589.3" class="t2" font-size="12.5">13 min</text>
-<path d="M774.7 578.8H774.7Q776.7 578.8 776.7 580.8V588.8Q776.7 590.8 774.7 590.8H774.7Z" class="m"/>
-<text x="824.7" y="589.3" class="t2" font-size="12.5">$0.01</text>
-<line x1="24" y1="598.8" x2="856" y2="598.8" class="grid"/>
-<text x="24" y="617.3" class="t" font-size="13" font-weight="600">DeepSeek v4.1 Flash</text>
-<text x="208.4" y="617.3" class="m" font-size="12" text-anchor="end">high</text>
-<rect x="256.2" y="607.7" width="27.3" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="606.8" width="30.9" height="12" class="pass" rx="2"/>
-<text x="290.4" y="617.3" class="t" font-size="13" font-weight="600">52%</text>
-<text x="330.6" y="617.3" class="m" font-size="11.5">17/31</text>
-<rect x="374.3" y="607.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="396.8" y="607.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="431.3" y="607.7" width="4.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="418.4" y="606.8" width="12" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="606.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="606.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="498.7" y="607.7" width="4.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="485.8" y="606.8" width="12" height="12" class="pass" rx="2"/>
-<rect x="521.2" y="607.7" width="4.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="508.3" y="606.8" width="12" height="12" class="pass" rx="2"/>
-<rect x="543.7" y="607.7" width="4.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="530.8" y="606.8" width="12" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="606.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="576.6" y="607.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="599.1" y="607.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="653.2" y="606.8" width="3.4" height="12" class="tools"/>
-<path d="M658.1 606.8H691.4Q694.4 606.8 694.4 609.8V615.8Q694.4 618.8 691.4 618.8H658.1Z" class="out"/>
-<text x="723.2" y="617.3" class="t2" font-size="12.5">44 min</text>
-<path d="M774.7 606.8H774.8Q777.8 606.8 777.8 609.8V615.8Q777.8 618.8 774.8 618.8H774.7Z" class="m"/>
-<text x="824.7" y="617.3" class="t2" font-size="12.5">$0.03</text>
-<line x1="24" y1="626.8" x2="856" y2="626.8" class="grid"/>
-<text x="24" y="645.3" class="t" font-size="13" font-weight="600">GLM 5.3 Flash</text>
-<text x="208.4" y="645.3" class="m" font-size="12" text-anchor="end">high</text>
-<rect x="252.6" y="635.7" width="30.9" height="10.2" class="fail" rx="1.5"/>
-<rect x="224.4" y="634.8" width="27.3" height="12" class="pass" rx="2"/>
-<text x="290.4" y="645.3" class="t" font-size="13" font-weight="600">45%</text>
-<text x="330.6" y="645.3" class="m" font-size="11.5">15/33</text>
-<rect x="374.3" y="635.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="396.8" y="635.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="425.3" y="635.7" width="10.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="418.4" y="634.8" width="6" height="12" class="pass" rx="2"/>
-<rect x="440.9" y="634.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="463.3" y="634.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="492.7" y="635.7" width="10.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="485.8" y="634.8" width="6" height="12" class="pass" rx="2"/>
-<rect x="515.2" y="635.7" width="10.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="508.3" y="634.8" width="6" height="12" class="pass" rx="2"/>
-<rect x="530.8" y="634.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="553.3" y="634.8" width="18" height="12" class="pass" rx="2"/>
-<rect x="576.6" y="635.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="599.1" y="635.7" width="16.2" height="10.2" class="fail" rx="1.5"/>
-<rect x="653.2" y="634.8" width="3.7" height="12" class="tools"/>
-<path d="M658.4 634.8H690.3Q693.3 634.8 693.3 637.8V643.8Q693.3 646.8 690.3 646.8H658.4Z" class="out"/>
-<text x="723.2" y="645.3" class="t2" font-size="12.5">42 min</text>
-<path d="M774.7 634.8H777.4Q780.4 634.8 780.4 637.8V643.8Q780.4 646.8 777.4 646.8H774.7Z" class="m"/>
-<text x="824.7" y="645.3" class="t2" font-size="12.5">$0.06</text>
+<text x="24" y="72" class="t2" font-size="12.5">passed, which the first bar shows, so that a task with more runs does not weigh more. Each time is the sum of</text>
+<text x="24" y="91" class="t2" font-size="12.5">its tasks&#x27; median wall times, the part in hyprmasq&#x27;s tools in blue. Board and trace stand apart: they also ask</text>
+<text x="24" y="110" class="t2" font-size="12.5">to understand a photo, and a model that cannot spends its calls there. Its cost is per passed run.</text>
+<text x="24" y="129" class="t2" font-size="12.5">Kimi K3.1 Pro asked for high effort and ran at max.</text>
+<rect x="24" y="146" width="12" height="10" class="pass" rx="2"/>
+<text x="42" y="155" class="t2" font-size="12">passed</text>
+<rect x="102.7" y="146" width="12" height="10" class="fail" rx="2"/>
+<text x="120.7" y="155" class="t2" font-size="12">failed</text>
+<rect x="171.4" y="146" width="12" height="10" class="tools" rx="2"/>
+<text x="189.4" y="155" class="t2" font-size="12">in hyprmasq&#x27;s tools</text>
+<rect x="313.7" y="146" width="12" height="10" class="out" rx="2"/>
+<text x="331.7" y="155" class="t2" font-size="12">rest of the time</text>
+<text x="224.4" y="263.5" class="t2" font-size="12" font-weight="600">Tasks passed</text>
+<text x="581.7" y="248.5" class="t2" font-size="12" font-weight="600">Time, other</text>
+<text x="581.7" y="263.5" class="t2" font-size="12" font-weight="600">7 tasks</text>
+<text x="685.2" y="248.5" class="t2" font-size="12" font-weight="600">Time, the</text>
+<text x="685.2" y="263.5" class="t2" font-size="12" font-weight="600">4 with a photo</text>
+<text x="788.7" y="248.5" class="t2" font-size="12" font-weight="600">Cost per</text>
+<text x="788.7" y="263.5" class="t2" font-size="12" font-weight="600">passed run</text>
+<text x="369.9" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 369.9 263.5)">Calc</text>
+<text x="385.9" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 385.9 263.5)">File manager</text>
+<text x="401.9" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 401.9 263.5)">Forgejo</text>
+<text x="417.9" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 417.9 263.5)">Form with dropdowns</text>
+<text x="433.8" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 433.8 263.5)">Form without dropdowns</text>
+<text x="449.8" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 449.8 263.5)">Inkscape</text>
+<text x="465.8" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 465.8 263.5)">Thunderbird</text>
+<text x="489.8" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 489.8 263.5)">Board-dnd</text>
+<text x="505.7" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 505.7 263.5)">Board-pointer</text>
+<text x="521.7" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 521.7 263.5)">Trace-rack</text>
+<text x="537.7" y="263.5" class="t2" font-size="10.5" font-weight="600" transform="rotate(-45 537.7 263.5)">Trace-river</text>
+<line x1="24" y1="273.5" x2="856" y2="273.5" class="axis"/>
+<text x="24" y="292" class="t" font-size="13" font-weight="600">Opus 5.5</text>
+<text x="208.4" y="292" class="m" font-size="12" text-anchor="end">medium</text>
+<rect x="224.4" y="281.5" width="48" height="12" class="pass" rx="2"/>
+<text x="278.4" y="292" class="t" font-size="13" font-weight="600">100%</text>
+<text x="318.6" y="292" class="m" font-size="11.5">44/44</text>
+<rect x="361.4" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="409.4" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="481.3" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="497.2" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="513.2" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="529.2" y="281.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="581.7" y="281.5" width="2.9" height="12" class="tools"/>
+<path d="M586.1 281.5H586.1Q588.7 281.5 588.7 284.1V290.9Q588.7 293.5 586.1 293.5H586.1Z" class="out"/>
+<text x="635.7" y="292" class="t2" font-size="12.5">7 min</text>
+<rect x="685.2" y="281.5" width="0.6" height="12" class="tools"/>
+<path d="M687.3 281.5H687.3Q687.9 281.5 687.9 282.1V292.9Q687.9 293.5 687.3 293.5H687.3Z" class="out"/>
+<text x="739.2" y="292" class="t2" font-size="12.5">3 min</text>
+<path d="M788.7 281.5H800.2Q803.2 281.5 803.2 284.5V290.5Q803.2 293.5 800.2 293.5H788.7Z" class="m"/>
+<text x="824.7" y="292" class="t2" font-size="12.5">$0.21</text>
+<line x1="24" y1="301.5" x2="856" y2="301.5" class="grid"/>
+<text x="24" y="320" class="t" font-size="13" font-weight="600">gpt-6-astra</text>
+<text x="208.4" y="320" class="m" font-size="12" text-anchor="end">medium</text>
+<rect x="271.1" y="310.4" width="0.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="309.5" width="45.8" height="12" class="pass" rx="2"/>
+<text x="278.4" y="320" class="t" font-size="13" font-weight="600">95%</text>
+<text x="318.6" y="320" class="m" font-size="11.5">42/44</text>
+<rect x="361.4" y="309.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="309.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="309.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="409.4" y="309.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="309.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="309.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="309.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="491.9" y="310.4" width="1.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="481.3" y="309.5" width="9.8" height="12" class="pass" rx="2"/>
+<rect x="507.9" y="310.4" width="1.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="497.2" y="309.5" width="9.8" height="12" class="pass" rx="2"/>
+<rect x="513.2" y="309.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="529.2" y="309.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="581.7" y="309.5" width="2.3" height="12" class="tools"/>
+<path d="M585.5 309.5H587.4Q590.4 309.5 590.4 312.5V318.5Q590.4 321.5 587.4 321.5H585.5Z" class="out"/>
+<text x="635.7" y="320" class="t2" font-size="12.5">9 min</text>
+<rect x="685.2" y="309.5" width="0.5" height="12" class="tools"/>
+<path d="M687.2 309.5H687.2Q688.2 309.5 688.2 310.5V320.6Q688.2 321.5 687.2 321.5H687.2Z" class="out"/>
+<text x="739.2" y="320" class="t2" font-size="12.5">3 min</text>
+<path d="M788.7 309.5H815.7Q818.7 309.5 818.7 312.5V318.5Q818.7 321.5 815.7 321.5H788.7Z" class="m"/>
+<text x="824.7" y="320" class="t2" font-size="12.5">$0.44</text>
+<line x1="24" y1="329.5" x2="856" y2="329.5" class="grid"/>
+<text x="24" y="348" class="t" font-size="13" font-weight="600">Sonnet 5.5</text>
+<text x="208.4" y="348" class="m" font-size="12" text-anchor="end">medium</text>
+<rect x="270.4" y="338.4" width="1.1" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="337.5" width="45.1" height="12" class="pass" rx="2"/>
+<text x="278.4" y="348" class="t" font-size="13" font-weight="600">94%</text>
+<text x="318.6" y="348" class="m" font-size="11.5">62/66</text>
+<rect x="361.4" y="337.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="337.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="337.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="421.1" y="338.4" width="0.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="409.4" y="337.5" width="10.8" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="337.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="337.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="337.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="481.3" y="337.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="497.2" y="337.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="520.6" y="338.4" width="4.7" height="10.2" class="fail" rx="1.5"/>
+<rect x="513.2" y="337.5" width="6.5" height="12" class="pass" rx="2"/>
+<rect x="529.2" y="337.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="581.7" y="337.5" width="2.4" height="12" class="tools"/>
+<path d="M585.6 337.5H585.6Q587.6 337.5 587.6 339.5V347.5Q587.6 349.5 585.6 349.5H585.6Z" class="out"/>
+<text x="635.7" y="348" class="t2" font-size="12.5">6 min</text>
+<rect x="685.2" y="337.5" width="0.5" height="12" class="tools"/>
+<text x="739.2" y="348" class="t2" font-size="12.5">2 min</text>
+<path d="M788.7 337.5H790.4Q793.4 337.5 793.4 340.5V346.5Q793.4 349.5 790.4 349.5H788.7Z" class="m"/>
+<text x="824.7" y="348" class="t2" font-size="12.5">$0.07</text>
+<line x1="24" y1="357.5" x2="856" y2="357.5" class="grid"/>
+<text x="24" y="376" class="t" font-size="13" font-weight="600">gpt-6.1-terra</text>
+<text x="208.4" y="376" class="m" font-size="12" text-anchor="end">medium</text>
+<rect x="270.2" y="366.4" width="1.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="365.5" width="44.8" height="12" class="pass" rx="2"/>
+<text x="278.4" y="376" class="t" font-size="13" font-weight="600">93%</text>
+<text x="318.6" y="376" class="m" font-size="11.5">77/90</text>
+<rect x="361.4" y="365.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="365.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="365.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="409.4" y="365.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="365.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="365.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="365.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="489.4" y="366.4" width="4" height="10.2" class="fail" rx="1.5"/>
+<rect x="481.3" y="365.5" width="7.2" height="12" class="pass" rx="2"/>
+<rect x="507.5" y="366.4" width="1.8" height="10.2" class="fail" rx="1.5"/>
+<rect x="497.2" y="365.5" width="9.4" height="12" class="pass" rx="2"/>
+<rect x="513.2" y="365.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="529.2" y="365.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="581.7" y="365.5" width="2.3" height="12" class="tools"/>
+<path d="M585.5 365.5H585.5Q587.5 365.5 587.5 367.4V375.6Q587.5 377.5 585.5 377.5H585.5Z" class="out"/>
+<text x="635.7" y="376" class="t2" font-size="12.5">6 min</text>
+<rect x="685.2" y="365.5" width="0.5" height="12" class="tools"/>
+<text x="739.2" y="376" class="t2" font-size="12.5">2 min</text>
+<path d="M788.7 365.5H788.7Q791.3 365.5 791.3 368.1V374.9Q791.3 377.5 788.7 377.5H788.7Z" class="m"/>
+<text x="824.7" y="376" class="t2" font-size="12.5">$0.04</text>
+<line x1="24" y1="385.5" x2="856" y2="385.5" class="grid"/>
+<text x="24" y="404" class="t" font-size="13" font-weight="600">gpt-6.1-terra</text>
+<text x="208.4" y="404" class="m" font-size="12" text-anchor="end">high</text>
+<rect x="270" y="394.4" width="1.5" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="393.5" width="44.7" height="12" class="pass" rx="2"/>
+<text x="278.4" y="404" class="t" font-size="13" font-weight="600">93%</text>
+<text x="318.6" y="404" class="m" font-size="11.5">41/44</text>
+<rect x="361.4" y="393.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="393.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="393.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="409.4" y="393.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="393.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="393.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="393.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="488.7" y="394.4" width="4.7" height="10.2" class="fail" rx="1.5"/>
+<rect x="481.3" y="393.5" width="6.5" height="12" class="pass" rx="2"/>
+<rect x="507.9" y="394.4" width="1.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="497.2" y="393.5" width="9.8" height="12" class="pass" rx="2"/>
+<rect x="513.2" y="393.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="529.2" y="393.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="581.7" y="393.5" width="2.6" height="12" class="tools"/>
+<path d="M585.8 393.5H585.8Q588.8 393.5 588.8 396.5V402.5Q588.8 405.5 585.8 405.5H585.8Z" class="out"/>
+<text x="635.7" y="404" class="t2" font-size="12.5">7 min</text>
+<rect x="685.2" y="393.5" width="0.5" height="12" class="tools"/>
+<path d="M687.2 393.5H687.2Q687.3 393.5 687.3 393.6V405.4Q687.3 405.5 687.2 405.5H687.2Z" class="out"/>
+<text x="739.2" y="404" class="t2" font-size="12.5">2 min</text>
+<path d="M788.7 393.5H788.7Q791.3 393.5 791.3 396.1V402.9Q791.3 405.5 788.7 405.5H788.7Z" class="m"/>
+<text x="824.7" y="404" class="t2" font-size="12.5">$0.04</text>
+<line x1="24" y1="413.5" x2="856" y2="413.5" class="grid"/>
+<text x="24" y="432" class="t" font-size="13" font-weight="600">gpt-6.1-sol</text>
+<text x="208.4" y="432" class="m" font-size="12" text-anchor="end">medium</text>
+<rect x="269.4" y="422.4" width="2.1" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="421.5" width="44.1" height="12" class="pass" rx="2"/>
+<text x="278.4" y="432" class="t" font-size="13" font-weight="600">92%</text>
+<text x="318.6" y="432" class="m" font-size="11.5">74/90</text>
+<rect x="361.4" y="421.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="421.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="421.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="409.4" y="421.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="421.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="421.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="421.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="487.2" y="422.4" width="6.1" height="10.2" class="fail" rx="1.5"/>
+<rect x="481.3" y="421.5" width="5.1" height="12" class="pass" rx="2"/>
+<rect x="507.5" y="422.4" width="1.8" height="10.2" class="fail" rx="1.5"/>
+<rect x="497.2" y="421.5" width="9.4" height="12" class="pass" rx="2"/>
+<rect x="513.2" y="421.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="529.2" y="421.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="581.7" y="421.5" width="2.4" height="12" class="tools"/>
+<path d="M585.6 421.5H586.8Q589.8 421.5 589.8 424.5V430.5Q589.8 433.5 586.8 433.5H585.6Z" class="out"/>
+<text x="635.7" y="432" class="t2" font-size="12.5">8 min</text>
+<rect x="685.2" y="421.5" width="0.5" height="12" class="tools"/>
+<path d="M687.2 421.5H687.2Q688.8 421.5 688.8 423V432Q688.8 433.5 687.2 433.5H687.2Z" class="out"/>
+<text x="739.2" y="432" class="t2" font-size="12.5">4 min</text>
+<path d="M788.7 421.5H791.6Q794.6 421.5 794.6 424.5V430.5Q794.6 433.5 791.6 433.5H788.7Z" class="m"/>
+<text x="824.7" y="432" class="t2" font-size="12.5">$0.09</text>
+<line x1="24" y1="441.5" x2="856" y2="441.5" class="grid"/>
+<text x="24" y="460" class="t" font-size="13" font-weight="600">gpt-6.1-sol</text>
+<text x="208.4" y="460" class="m" font-size="12" text-anchor="end">high</text>
+<rect x="268.9" y="450.4" width="2.6" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="449.5" width="43.6" height="12" class="pass" rx="2"/>
+<text x="278.4" y="460" class="t" font-size="13" font-weight="600">91%</text>
+<text x="318.6" y="460" class="m" font-size="11.5">40/44</text>
+<rect x="361.4" y="449.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="449.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="449.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="409.4" y="449.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="449.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="449.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="449.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="488.7" y="450.4" width="4.7" height="10.2" class="fail" rx="1.5"/>
+<rect x="481.3" y="449.5" width="6.5" height="12" class="pass" rx="2"/>
+<rect x="507.9" y="450.4" width="1.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="497.2" y="449.5" width="9.8" height="12" class="pass" rx="2"/>
+<rect x="513.2" y="449.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="539.9" y="450.4" width="1.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="529.2" y="449.5" width="9.8" height="12" class="pass" rx="2"/>
+<rect x="581.7" y="449.5" width="2.5" height="12" class="tools"/>
+<path d="M585.7 449.5H586.6Q589.6 449.5 589.6 452.5V458.5Q589.6 461.5 586.6 461.5H585.7Z" class="out"/>
+<text x="635.7" y="460" class="t2" font-size="12.5">8 min</text>
+<rect x="685.2" y="449.5" width="0.5" height="12" class="tools"/>
+<path d="M687.2 449.5H687.2Q689.1 449.5 689.1 451.4V459.6Q689.1 461.5 687.2 461.5H687.2Z" class="out"/>
+<text x="739.2" y="460" class="t2" font-size="12.5">4 min</text>
+<path d="M788.7 449.5H791.9Q794.9 449.5 794.9 452.5V458.5Q794.9 461.5 791.9 461.5H788.7Z" class="m"/>
+<text x="824.7" y="460" class="t2" font-size="12.5">$0.09</text>
+<line x1="24" y1="469.5" x2="856" y2="469.5" class="grid"/>
+<text x="24" y="488" class="t" font-size="13" font-weight="600">Haiku 5.5</text>
+<text x="208.4" y="488" class="m" font-size="12" text-anchor="end">high</text>
+<rect x="268.9" y="478.4" width="2.6" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="477.5" width="43.6" height="12" class="pass" rx="2"/>
+<text x="278.4" y="488" class="t" font-size="13" font-weight="600">91%</text>
+<text x="318.6" y="488" class="m" font-size="11.5">40/44</text>
+<rect x="372.1" y="478.4" width="1.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="361.4" y="477.5" width="9.8" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="477.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="477.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="409.4" y="477.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="477.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="477.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="477.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="481.3" y="477.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="504.6" y="478.4" width="4.7" height="10.2" class="fail" rx="1.5"/>
+<rect x="497.2" y="477.5" width="6.5" height="12" class="pass" rx="2"/>
+<rect x="513.2" y="477.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="539.9" y="478.4" width="1.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="529.2" y="477.5" width="9.8" height="12" class="pass" rx="2"/>
+<rect x="581.7" y="477.5" width="3.1" height="12" class="tools"/>
+<path d="M586.3 477.5H586.3Q588.5 477.5 588.5 479.7V487.4Q588.5 489.5 586.3 489.5H586.3Z" class="out"/>
+<text x="635.7" y="488" class="t2" font-size="12.5">7 min</text>
+<rect x="685.2" y="477.5" width="0.6" height="12" class="tools"/>
+<path d="M687.3 477.5H687.3Q689 477.5 689 479.2V487.8Q689 489.5 687.3 489.5H687.3Z" class="out"/>
+<text x="739.2" y="488" class="t2" font-size="12.5">4 min</text>
+<path d="M788.7 477.5H788.7Q790.7 477.5 790.7 479.5V487.5Q790.7 489.5 788.7 489.5H788.7Z" class="m"/>
+<text x="824.7" y="488" class="t2" font-size="12.5">$0.01</text>
+<line x1="24" y1="497.5" x2="856" y2="497.5" class="grid"/>
+<text x="24" y="516" class="t" font-size="13" font-weight="600">Kimi K3.1 Pro</text>
+<text x="208.4" y="516" class="m" font-size="12" text-anchor="end">high</text>
+<rect x="260.2" y="506.4" width="11.3" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="505.5" width="34.9" height="12" class="pass" rx="2"/>
+<text x="278.4" y="516" class="t" font-size="13" font-weight="600">73%</text>
+<text x="318.6" y="516" class="m" font-size="11.5">8/11</text>
+<rect x="362.3" y="506.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="377.4" y="505.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="505.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="409.4" y="505.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="505.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="505.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="505.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="481.3" y="505.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="497.2" y="505.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="514.1" y="506.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="530.1" y="506.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="581.7" y="505.5" width="3.3" height="12" class="tools"/>
+<path d="M586.5 505.5H604.9Q607.9 505.5 607.9 508.5V514.5Q607.9 517.5 604.9 517.5H586.5Z" class="out"/>
+<text x="635.7" y="516" class="t2" font-size="12.5">27 min</text>
+<rect x="685.2" y="505.5" width="0.7" height="12" class="tools"/>
+<path d="M687.4 505.5H709.3Q712.3 505.5 712.3 508.5V514.5Q712.3 517.5 709.3 517.5H687.4Z" class="out"/>
+<text x="739.2" y="516" class="t2" font-size="12.5">28 min</text>
+<path d="M788.7 505.5H800.3Q803.3 505.5 803.3 508.5V514.5Q803.3 517.5 800.3 517.5H788.7Z" class="m"/>
+<text x="824.7" y="516" class="t2" font-size="12.5">$0.21</text>
+<line x1="24" y1="525.5" x2="856" y2="525.5" class="grid"/>
+<text x="24" y="544" class="t" font-size="13" font-weight="600">Gemini 4 Argon</text>
+<text x="208.4" y="544" class="m" font-size="12" text-anchor="end">medium</text>
+<rect x="255.9" y="534.4" width="15.7" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="533.5" width="30.5" height="12" class="pass" rx="2"/>
+<text x="278.4" y="544" class="t" font-size="13" font-weight="600">64%</text>
+<text x="318.6" y="544" class="m" font-size="11.5">7/11</text>
+<rect x="362.3" y="534.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="378.3" y="534.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="394.3" y="534.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="409.4" y="533.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="533.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="533.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="458.2" y="534.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="481.3" y="533.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="497.2" y="533.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="513.2" y="533.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="529.2" y="533.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="581.7" y="533.5" width="6" height="12" class="tools"/>
+<path d="M589.2 533.5H626.7Q629.7 533.5 629.7 536.5V542.5Q629.7 545.5 626.7 545.5H589.2Z" class="out"/>
+<text x="635.7" y="544" class="t2" font-size="12.5">49 min</text>
+<rect x="685.2" y="533.5" width="1.1" height="12" class="tools"/>
+<path d="M687.8 533.5H700.1Q703.1 533.5 703.1 536.5V542.5Q703.1 545.5 700.1 545.5H687.8Z" class="out"/>
+<text x="739.2" y="544" class="t2" font-size="12.5">18 min</text>
+<path d="M788.7 533.5H814.3Q817.3 533.5 817.3 536.5V542.5Q817.3 545.5 814.3 545.5H788.7Z" class="m"/>
+<text x="824.7" y="544" class="t2" font-size="12.5">$0.42</text>
+<line x1="24" y1="553.5" x2="856" y2="553.5" class="grid"/>
+<text x="24" y="572" class="t" font-size="13" font-weight="600">Qwen 3.8 Flash</text>
+<text x="208.4" y="572" class="m" font-size="12" text-anchor="end">high</text>
+<rect x="255.9" y="562.4" width="15.7" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="561.5" width="30.5" height="12" class="pass" rx="2"/>
+<text x="278.4" y="572" class="t" font-size="13" font-weight="600">64%</text>
+<text x="318.6" y="572" class="m" font-size="11.5">21/33</text>
+<rect x="371" y="562.4" width="2.5" height="10.2" class="fail" rx="1.5"/>
+<rect x="361.4" y="561.5" width="8.7" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="561.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="561.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="409.4" y="561.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="425.3" y="561.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="561.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="561.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="482.2" y="562.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="502.5" y="562.4" width="6.9" height="10.2" class="fail" rx="1.5"/>
+<rect x="497.2" y="561.5" width="4.3" height="12" class="pass" rx="2"/>
+<rect x="514.1" y="562.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="530.1" y="562.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="581.7" y="561.5" width="3.2" height="12" class="tools"/>
+<path d="M586.4 561.5H602.2Q605.2 561.5 605.2 564.5V570.5Q605.2 573.5 602.2 573.5H586.4Z" class="out"/>
+<text x="635.7" y="572" class="t2" font-size="12.5">24 min</text>
+<rect x="685.2" y="561.5" width="0.7" height="12" class="tools"/>
+<path d="M687.4 561.5H715.1Q718.1 561.5 718.1 564.5V570.5Q718.1 573.5 715.1 573.5H687.4Z" class="out"/>
+<text x="739.2" y="572" class="t2" font-size="12.5">34 min</text>
+<path d="M788.7 561.5H788.7Q790.9 561.5 790.9 563.7V571.4Q790.9 573.5 788.7 573.5H788.7Z" class="m"/>
+<text x="824.7" y="572" class="t2" font-size="12.5">$0.03</text>
+<line x1="24" y1="581.5" x2="856" y2="581.5" class="grid"/>
+<text x="24" y="600" class="t" font-size="13" font-weight="600">gpt-6-luna</text>
+<text x="208.4" y="600" class="m" font-size="12" text-anchor="end">high</text>
+<rect x="253.7" y="590.4" width="17.8" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="589.5" width="28.4" height="12" class="pass" rx="2"/>
+<text x="278.4" y="600" class="t" font-size="13" font-weight="600">59%</text>
+<text x="318.6" y="600" class="m" font-size="11.5">26/44</text>
+<rect x="361.4" y="589.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="589.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="404" y="590.4" width="1.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="393.4" y="589.5" width="9.8" height="12" class="pass" rx="2"/>
+<rect x="409.4" y="589.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="429.5" y="590.4" width="8" height="10.2" class="fail" rx="1.5"/>
+<rect x="425.3" y="589.5" width="3.2" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="589.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="589.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="482.2" y="590.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="501.4" y="590.4" width="8" height="10.2" class="fail" rx="1.5"/>
+<rect x="497.2" y="589.5" width="3.2" height="12" class="pass" rx="2"/>
+<rect x="517.4" y="590.4" width="8" height="10.2" class="fail" rx="1.5"/>
+<rect x="513.2" y="589.5" width="3.2" height="12" class="pass" rx="2"/>
+<rect x="530.1" y="590.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="581.7" y="589.5" width="2.8" height="12" class="tools"/>
+<path d="M586 589.5H587.8Q590.8 589.5 590.8 592.5V598.5Q590.8 601.5 587.8 601.5H586Z" class="out"/>
+<text x="635.7" y="600" class="t2" font-size="12.5">9 min</text>
+<rect x="685.2" y="589.5" width="0.5" height="12" class="tools"/>
+<path d="M687.2 589.5H687.2Q688.2 589.5 688.2 590.5V600.5Q688.2 601.5 687.2 601.5H687.2Z" class="out"/>
+<text x="739.2" y="600" class="t2" font-size="12.5">3 min</text>
+<path d="M788.7 589.5H788.7Q790.7 589.5 790.7 591.5V599.5Q790.7 601.5 788.7 601.5H788.7Z" class="m"/>
+<text x="824.7" y="600" class="t2" font-size="12.5">$0.01</text>
+<line x1="24" y1="609.5" x2="856" y2="609.5" class="grid"/>
+<text x="24" y="628" class="t" font-size="13" font-weight="600">DeepSeek v4.1 Flash</text>
+<text x="208.4" y="628" class="m" font-size="12" text-anchor="end">high</text>
+<rect x="250" y="618.4" width="21.5" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="617.5" width="24.7" height="12" class="pass" rx="2"/>
+<text x="278.4" y="628" class="t" font-size="13" font-weight="600">52%</text>
+<text x="318.6" y="628" class="m" font-size="11.5">17/31</text>
+<rect x="371" y="618.4" width="2.5" height="10.2" class="fail" rx="1.5"/>
+<rect x="361.4" y="617.5" width="8.7" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="617.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="617.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="418.9" y="618.4" width="2.5" height="10.2" class="fail" rx="1.5"/>
+<rect x="409.4" y="617.5" width="8.7" height="12" class="pass" rx="2"/>
+<rect x="434.9" y="618.4" width="2.5" height="10.2" class="fail" rx="1.5"/>
+<rect x="425.3" y="617.5" width="8.7" height="12" class="pass" rx="2"/>
+<rect x="450.9" y="618.4" width="2.5" height="10.2" class="fail" rx="1.5"/>
+<rect x="441.3" y="617.5" width="8.7" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="617.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="482.2" y="618.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="498.1" y="618.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="514.1" y="618.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="530.1" y="618.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="581.7" y="617.5" width="3.1" height="12" class="tools"/>
+<path d="M586.3 617.5H595Q598 617.5 598 620.5V626.5Q598 629.5 595 629.5H586.3Z" class="out"/>
+<text x="635.7" y="628" class="t2" font-size="12.5">17 min</text>
+<rect x="685.2" y="617.5" width="0.4" height="12" class="tools"/>
+<path d="M687.1 617.5H708.4Q711.4 617.5 711.4 620.5V626.5Q711.4 629.5 708.4 629.5H687.1Z" class="out"/>
+<text x="739.2" y="628" class="t2" font-size="12.5">27 min</text>
+<path d="M788.7 617.5H788.7Q790.8 617.5 790.8 619.6V627.4Q790.8 629.5 788.7 629.5H788.7Z" class="m"/>
+<text x="824.7" y="628" class="t2" font-size="12.5">$0.03</text>
+<line x1="24" y1="637.5" x2="856" y2="637.5" class="grid"/>
+<text x="24" y="656" class="t" font-size="13" font-weight="600">GLM 5.3 Flash</text>
+<text x="208.4" y="656" class="m" font-size="12" text-anchor="end">high</text>
+<rect x="247.1" y="646.4" width="24.4" height="10.2" class="fail" rx="1.5"/>
+<rect x="224.4" y="645.5" width="21.8" height="12" class="pass" rx="2"/>
+<text x="278.4" y="656" class="t" font-size="13" font-weight="600">45%</text>
+<text x="318.6" y="656" class="m" font-size="11.5">15/33</text>
+<rect x="366.7" y="646.4" width="6.9" height="10.2" class="fail" rx="1.5"/>
+<rect x="361.4" y="645.5" width="4.3" height="12" class="pass" rx="2"/>
+<rect x="377.4" y="645.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="393.4" y="645.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="414.6" y="646.4" width="6.9" height="10.2" class="fail" rx="1.5"/>
+<rect x="409.4" y="645.5" width="4.3" height="12" class="pass" rx="2"/>
+<rect x="430.6" y="646.4" width="6.9" height="10.2" class="fail" rx="1.5"/>
+<rect x="425.3" y="645.5" width="4.3" height="12" class="pass" rx="2"/>
+<rect x="441.3" y="645.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="457.3" y="645.5" width="13" height="12" class="pass" rx="2"/>
+<rect x="482.2" y="646.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="498.1" y="646.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="514.1" y="646.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="530.1" y="646.4" width="11.2" height="10.2" class="fail" rx="1.5"/>
+<rect x="581.7" y="645.5" width="3.3" height="12" class="tools"/>
+<path d="M586.5 645.5H595.4Q598.4 645.5 598.4 648.5V654.5Q598.4 657.5 595.4 657.5H586.5Z" class="out"/>
+<text x="635.7" y="656" class="t2" font-size="12.5">17 min</text>
+<rect x="685.2" y="645.5" width="0.5" height="12" class="tools"/>
+<path d="M687.2 645.5H706.7Q709.7 645.5 709.7 648.5V654.5Q709.7 657.5 706.7 657.5H687.2Z" class="out"/>
+<text x="739.2" y="656" class="t2" font-size="12.5">25 min</text>
+<path d="M788.7 645.5H789.6Q792.6 645.5 792.6 648.5V654.5Q792.6 657.5 789.6 657.5H788.7Z" class="m"/>
+<text x="824.7" y="656" class="t2" font-size="12.5">$0.06</text>
 </svg>
