@@ -29,6 +29,7 @@
 #include <array>
 #include <cerrno>
 #include <charconv>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
@@ -97,8 +98,12 @@ namespace hyprmasq::x11 {
             SStack            stack;
             xcb_connection_t* wm = nullptr;
         };
-        std::optional<SUnrestored>     unrestored;
-        wl_event_source*               restoreTimer = nullptr;
+        std::optional<SUnrestored> unrestored;
+        wl_event_source*           restoreTimer = nullptr;
+        // Keeps hooks::x11Input, and so handleFocusIn(), from focus() until FOCUS_IN_GRACE after release().
+        std::optional<CHookClaim>      focusHooks;
+        wl_event_source*               graceTimer = nullptr;
+        wl_event_source*               goneCheck  = nullptr;
 
         int                            budgetDepth = 0;
         Time::steady_tp                budgetEnd;
@@ -220,6 +225,8 @@ namespace hyprmasq::x11 {
                 xcb_disconnect(connection);
                 connection = nullptr;
                 held.reset(); // XWayland restarted, its state is gone
+                // No focus is left to give back, so no focus-in event to ignore either.
+                focusHooks.reset();
                 activeWindow = XCB_ATOM_NONE;
             }
             // Hyprland exports DISPLAY when XWayland is ready, and has a window manager from then on.
@@ -408,6 +415,16 @@ namespace hyprmasq::x11 {
             return it == order.end() ? std::nullopt : std::optional{sc<size_t>(it - order.begin())};
         }
 
+        void endGrace() {
+            if (held)
+                return;
+            const auto left = std::chrono::ceil<std::chrono::milliseconds>(ignoreFocusInUntil - Time::steadyNow()).count();
+            if (left > 0 && graceTimer)
+                wl_event_source_timer_update(graceTimer, sc<int>(left));
+            else
+                focusHooks.reset();
+        }
+
         void activateSurface(CXWM* self, SP<CXWaylandSurface> surface, bool activate) {
             // Hyprland is about to move X focus for the user: emulated keys land first, then the focus goes back. Only
             // a driven window of this X server can have emulated input on its way.
@@ -447,9 +464,18 @@ namespace hyprmasq::x11 {
                 return 0;
             },
             nullptr);
-        originalActivateSurface = hook<ActivateSurface>(handle, "_ZN4CXWM15activateSurfaceEN9Hyprutils6Memory14CSharedPointerI16CXWaylandSurfaceEEb",
-                                                        "CXWM::activateSurface(Hyprutils::Memory::CSharedPointer<CXWaylandSurface>, bool)", &activateSurface);
-        originalHandleFocusIn   = hook<HandleFocusIn>(handle, "_ZN4CXWM13handleFocusInEP20xcb_focus_in_event_t", "CXWM::handleFocusIn(xcb_focus_in_event_t*)", &handleFocusIn);
+        graceTimer = wl_event_loop_add_timer(
+            g_pCompositor->m_wlEventLoop,
+            [](void*) {
+                endGrace();
+                return 0;
+            },
+            nullptr);
+        hooks::x11Input.add(defineHook<ActivateSurface, &activateSurface>(handle, "_ZN4CXWM15activateSurfaceEN9Hyprutils6Memory14CSharedPointerI16CXWaylandSurfaceEEb",
+                                                                          "CXWM::activateSurface(Hyprutils::Memory::CSharedPointer<CXWaylandSurface>, bool)",
+                                                                          originalActivateSurface));
+        hooks::x11Input.add(defineHook<HandleFocusIn, &handleFocusIn>(handle, "_ZN4CXWM13handleFocusInEP20xcb_focus_in_event_t", "CXWM::handleFocusIn(xcb_focus_in_event_t*)",
+                                                                      originalHandleFocusIn));
         // Keyboard focus can reach an XWayland surface without the window manager, for example on an unmanaged window.
         // Elsewhere, X focus routes none of the user's keys, and an X11 app closes its menus once it loses it.
         keyboardFocus = g_pSeatManager->m_events.keyboardFocusChange.listen([] {
@@ -468,6 +494,13 @@ namespace hyprmasq::x11 {
         if (restoreTimer)
             wl_event_source_remove(restoreTimer);
         restoreTimer = nullptr;
+        if (graceTimer)
+            wl_event_source_remove(graceTimer);
+        graceTimer = nullptr;
+        if (goneCheck)
+            wl_event_source_remove(goneCheck);
+        goneCheck = nullptr;
+        focusHooks.reset();
         keyboardFocus.reset();
         if (connecting) {
             // Ends a handshake that waits for the X server.
@@ -536,6 +569,13 @@ namespace hyprmasq::x11 {
             return true;
         if (!takes(c))
             return false;
+        // The socket that sends the input has hooks::x11Input installed, see SSession::claimHooks.
+        if (!focusHooks) {
+            auto claim = hooks::x11Input.claim();
+            if (!claim)
+                return false;
+            focusHooks = std::move(*claim);
+        }
         held = SFocus{.window = *id, .previous = current->focus, .revertTo = current->revert_to};
         xcb_set_input_focus(c, XCB_INPUT_FOCUS_POINTER_ROOT, *id, XCB_CURRENT_TIME);
         // The round trip makes the focus change land before the keys, which travel over Wayland.
@@ -559,7 +599,9 @@ namespace hyprmasq::x11 {
         CWaitBudget budget;
         held.reset();
         ignoreFocusInUntil = Time::steadyNow() + FOCUS_IN_GRACE;
-        auto* c            = x();
+        if (graceTimer)
+            wl_event_source_timer_update(graceTimer, sc<int>(std::chrono::milliseconds(FOCUS_IN_GRACE).count()));
+        auto* c = x();
         if (!c)
             return;
         drain();
@@ -575,6 +617,24 @@ namespace hyprmasq::x11 {
         // The round trip makes the restore land before the keys that follow, which travel over Wayland.
         inputFocus(c);
         announceActiveWindow(c);
+    }
+
+    void releaseGone() {
+        if (!held || goneCheck || !g_pCompositor)
+            return;
+        goneCheck = wl_event_loop_add_idle(
+            g_pCompositor->m_wlEventLoop,
+            [](void*) {
+                goneCheck = nullptr; // libwayland removes it after this call
+                if (held && !mappedSurfaces().contains(held->window))
+                    release();
+            },
+            nullptr);
+    }
+
+    bool holdsFocus(const PHLWINDOW& window) {
+        const auto id = held ? xWindow(window) : std::nullopt;
+        return id && *id == held->window;
     }
 
     void refuseActivation(const PHLWINDOW& window) {

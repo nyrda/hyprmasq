@@ -296,36 +296,47 @@ namespace hyprmasq::input {
     }
 
     void initFocusPolicy(void* handle) {
-        originalPopupGrab = hook<PopupGrab>(handle, "_ZN17CXDGShellProtocol14addOrStartGrabEN9Hyprutils6Memory14CSharedPointerI17CXDGPopupResourceEE",
-                                            "CXDGShellProtocol::addOrStartGrab(Hyprutils::Memory::CSharedPointer<CXDGPopupResource>)", &popupGrab);
-        originalStartDrag = hook<StartDrag>(
+        // Input to windows, see Session.hpp, and to X11 windows, whose apps ask for activation through XWayland and whose
+        // new windows Hyprland focuses on map. CWindow::activate also keeps the windows that the plugin placed from
+        // taking the focus, see Launch.hpp.
+        auto& input = hooks::input;
+        input.add(defineHook<PopupGrab, &popupGrab>(handle, "_ZN17CXDGShellProtocol14addOrStartGrabEN9Hyprutils6Memory14CSharedPointerI17CXDGPopupResourceEE",
+                                                    "CXDGShellProtocol::addOrStartGrab(Hyprutils::Memory::CSharedPointer<CXDGPopupResource>)", originalPopupGrab));
+        input.add(defineHook<StartDrag, &startDrag>(
             handle, "_ZN21CWLDataDeviceProtocol12initiateDragEN9Hyprutils6Memory12CWeakPointerI21CWLDataSourceResourceEENS1_14CSharedPointerI18CWLSurfaceResourceEES7_",
             "CWLDataDeviceProtocol::initiateDrag(Hyprutils::Memory::CWeakPointer<CWLDataSourceResource>, "
             "Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>, Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>)",
-            &startDrag);
-        originalActivateX11 = hook<ActivationRequest>(handle, "_ZN7Desktop4View7CWindow19onActivationRequestEv", "Desktop::View::CWindow::onActivationRequest()", &activateX11);
-        originalWindowFocus = hook<WindowFocus>(
+            originalStartDrag));
+        auto& activateHook = defineHook<Activate, &activate>(handle, "_ZN7Desktop4View7CWindow8activateEb", "Desktop::View::CWindow::activate(bool)", originalActivate);
+        input.add(activateHook);
+        hooks::launch.add(activateHook);
+        input.add(defineHook<UpdateDecorations, &updateDecos>(handle, "_ZN7Desktop4View19CWindowPresentation17updateDecorationsEv",
+                                                              "Desktop::View::CWindowPresentation::updateDecorations()", originalUpdateDecos));
+        input.add(defineHook<KeyboardFocus, &setKeyboardFocus>(handle, "_ZN12CSeatManager16setKeyboardFocusEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEE",
+                                                               "CSeatManager::setKeyboardFocus(Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>)", originalKeyboardFocus));
+        input.add(defineHook<PointerFocus, &setPointerFocus>(
+            handle, "_ZN12CSeatManager15setPointerFocusEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEERKNS0_4Math8Vector2DE",
+            "CSeatManager::setPointerFocus(Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>, Hyprutils::Math::Vector2D const&)", originalPointerFocus));
+        input.add(defineHook<KeyboardKey, &sendKeyboardKey>(handle, "_ZN12CSeatManager15sendKeyboardKeyEjj21wl_keyboard_key_state",
+                                                            "CSeatManager::sendKeyboardKey(unsigned int, unsigned int, wl_keyboard_key_state)", originalKeyboardKey));
+        input.add(defineHook<KeyboardMods, &sendKeyboardMods>(handle, "_ZN12CSeatManager16sendKeyboardModsEjjjj",
+                                                              "CSeatManager::sendKeyboardMods(unsigned int, unsigned int, unsigned int, unsigned int)", originalKeyboardMods));
+        input.add(defineHook<PointerButton, &sendPointerButton>(handle, "_ZN12CSeatManager17sendPointerButtonEjj23wl_pointer_button_state",
+                                                                "CSeatManager::sendPointerButton(unsigned int, unsigned int, wl_pointer_button_state)", originalPointerButton));
+        // Also while an app's own copy is the agent clipboard, see Selection.cpp.
+        auto& touchHook = defineHook<TouchDown, &sendTouchDown>(
+            handle, "_ZN12CSeatManager13sendTouchDownEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEEjiRKNS0_4Math8Vector2DE",
+            "CSeatManager::sendTouchDown(Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>, unsigned int, int, Hyprutils::Math::Vector2D const&)", originalTouchDown);
+        input.add(touchHook);
+        hooks::clipboard.add(touchHook);
+        auto& x11 = hooks::x11Input;
+        x11.add(defineHook<ActivationRequest, &activateX11>(handle, "_ZN7Desktop4View7CWindow19onActivationRequestEv", "Desktop::View::CWindow::onActivationRequest()",
+                                                            originalActivateX11));
+        x11.add(defineHook<WindowFocus, &windowFocus>(
             handle, "_ZN7Desktop11CFocusState14rawWindowFocusEN9Hyprutils6Memory14CSharedPointerINS_4View7CWindowEEENS_12eFocusReasonENS3_I18CWLSurfaceResourceEE",
             "Desktop::CFocusState::rawWindowFocus(Hyprutils::Memory::CSharedPointer<Desktop::View::CWindow>, Desktop::eFocusReason, "
             "Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>)",
-            &windowFocus);
-        originalActivate = hook<Activate>(handle, "_ZN7Desktop4View7CWindow8activateEb", "Desktop::View::CWindow::activate(bool)", &activate);
-        originalUpdateDecos =
-            hook<UpdateDecorations>(handle, "_ZN7Desktop4View19CWindowPresentation17updateDecorationsEv", "Desktop::View::CWindowPresentation::updateDecorations()", &updateDecos);
-        originalKeyboardFocus = hook<KeyboardFocus>(handle, "_ZN12CSeatManager16setKeyboardFocusEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEE",
-                                                    "CSeatManager::setKeyboardFocus(Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>)", &setKeyboardFocus);
-        originalPointerFocus =
-            hook<PointerFocus>(handle, "_ZN12CSeatManager15setPointerFocusEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEERKNS0_4Math8Vector2DE",
-                               "CSeatManager::setPointerFocus(Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>, Hyprutils::Math::Vector2D const&)", &setPointerFocus);
-        originalKeyboardKey   = hook<KeyboardKey>(handle, "_ZN12CSeatManager15sendKeyboardKeyEjj21wl_keyboard_key_state",
-                                                  "CSeatManager::sendKeyboardKey(unsigned int, unsigned int, wl_keyboard_key_state)", &sendKeyboardKey);
-        originalKeyboardMods  = hook<KeyboardMods>(handle, "_ZN12CSeatManager16sendKeyboardModsEjjjj",
-                                                   "CSeatManager::sendKeyboardMods(unsigned int, unsigned int, unsigned int, unsigned int)", &sendKeyboardMods);
-        originalPointerButton = hook<PointerButton>(handle, "_ZN12CSeatManager17sendPointerButtonEjj23wl_pointer_button_state",
-                                                    "CSeatManager::sendPointerButton(unsigned int, unsigned int, wl_pointer_button_state)", &sendPointerButton);
-        originalTouchDown     = hook<TouchDown>(
-            handle, "_ZN12CSeatManager13sendTouchDownEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEEjiRKNS0_4Math8Vector2DE",
-            "CSeatManager::sendTouchDown(Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>, unsigned int, int, Hyprutils::Math::Vector2D const&)", &sendTouchDown);
+            originalWindowFocus));
         drag::onSourceless(&sourcelessDrag);
         realKey = Event::bus()->m_events.input.keyboard.key.listen(
             [](const IKeyboard::SKeyEvent&, Event::SCallbackInfo&) { returnKeyboards(g_pSeatManager->m_state.keyboardFocusResource); });

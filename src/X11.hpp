@@ -38,6 +38,11 @@ namespace hyprmasq::x11 {
     // Restores the X input focus that focus() replaced, unless something else has moved it since. With a window,
     // only releases a focus held for that window.
     void release(const PHLWINDOW& window = nullptr);
+    // Whether focus() holds the X input focus for the window.
+    bool holdsFocus(const PHLWINDOW& window);
+    // Once the current batch of events is handled, releases the X input focus that focus() holds for a window that is no
+    // longer mapped, such as one that closed while its socket held it, which release() cannot name any more.
+    void releaseGone();
     // Answers an activation request of an XWayland window that was refused, so that the app does not keep considering
     // itself active.
     void refuseActivation(const PHLWINDOW& window);

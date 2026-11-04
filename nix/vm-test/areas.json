@@ -25,5 +25,6 @@
   { "name": "paging", "requires": ["core", "input"] },
   { "name": "unload", "requires": ["core", "waits", "suspended"] },
   { "name": "idle", "requires": ["core"] },
+  { "name": "hooks", "requires": ["core"] },
   { "name": "compositor-log", "requires": ["drag"] }
 ]

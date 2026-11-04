@@ -14,7 +14,9 @@ struct wl_client;
 // user's. The file descriptors of a paste go from the destination to the source through Hyprland's own offers, which the
 // compositor never reads or writes. See "Clipboard and selections" in docs/automation.md.
 namespace hyprmasq::selection {
-    // Hooks the X window manager's bridge of X selections and listens for changes of the real focus and selections.
+    // Defines the hooks of the X window manager's bridge of X selections, which hooks::x11Input installs with input to X11
+    // windows, and hooks::x11Selection while an X selection stays the agent's, and listens for changes of the real focus
+    // and selections.
     void init(void* handle);
     // Emulated input reaches the client now. Wraps the set_selection handlers of its data devices and primary selection
     // devices, also of ones created since the last call, and counts the input as the agent's, the last input to the client
@@ -37,6 +39,9 @@ namespace hyprmasq::selection {
         size_t   asked = 0, ended = 0, complete = 0;
     };
     SAgentText agentText();
+    // A socket closed, which may end the agent's say over new X selections, see agentSelects() in Selection.cpp. Looks
+    // once the current batch of events is handled, when the socket is gone from Eis.cpp's list.
+    void socketClosed();
     // Emulated input gave the client's keyboard or pointer back to the user's window there: if the client has the agent's
     // selections, it gets the user's back.
     void restore(wl_client* client);

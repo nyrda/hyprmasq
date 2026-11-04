@@ -93,13 +93,16 @@ with subtest("XWayland input is refused while another X11 window is active"):
     assert hypr(f"hyprmasq eis open {x_shell}") == x_shell_path
     assert hypr(f"hyprmasq eis close {x_active}") == "ok"
 
-with subtest("a driven X11 app cannot activate itself"):
+with subtest("a driven X11 app cannot activate itself while its input is in use"):
     focus_workspace(4)
     before_focus = snapshot()
     xid = alice(f"env {x_env} xdotool search --name '^hm-x-shell$'").split()[0]
+    keep_in_use("hm-x-activate", x_shell_path, 4000, "x11-input")
     alice(f"env {x_env} xdotool windowactivate {xid} || true")
     time.sleep(1)
     assert snapshot() == before_focus
+    status, result = input_result("hm-x-activate")
+    assert status == 0, result
     # The same request works once nothing drives the app.
     assert hypr(f"hyprmasq eis close {x_shell}") == "ok"
     alice(f"env {x_env} xdotool windowactivate {xid} || true")
@@ -140,11 +143,14 @@ with subtest("X11 apps learn they are not active after input"):
 
     count = announcements()
     xid = alice(f"env {x_env} xdotool search --name '^hm-x-shell$'").split()[0]
+    keep_in_use("hm-x-announce", path, 4000, "x11-input")
     alice(f"env {x_env} xdotool windowactivate {xid} || true")
     wait_for(
         "announcement after activation", lambda: announcements() > count, timeout=10
     )
     assert snapshot() == before_focus
+    status, result = input_result("hm-x-announce")
+    assert status == 0, result
     assert hypr(f"hyprmasq eis close {x_shell}") == "ok"
     machine.execute("pkill -f 'xprop -spy'")
 
@@ -281,9 +287,12 @@ with subtest("xwayland-satellite windows"):
     focus_workspace(4)
     before_focus = snapshot()
     xid = alice(f"env {satellite_env} xdotool search --name '^hm-sat-active$'").split()[0]
+    keep_in_use("hm-sat-activate", sat_path, 4000, "x11-input")
     alice(f"env {satellite_env} xdotool windowactivate {xid} || true")
     time.sleep(1)
     assert snapshot() == before_focus
+    status, result = input_result("hm-sat-activate")
+    assert status == 0, result
     assert hypr(f"hyprmasq eis close {sat_shell}") == "ok"
     # An activation token spends the input serial it names, and the refused activation spent satellite's last one.
     # Hyprland rejects tokens without a fresh serial, so the user enters a satellite window first.

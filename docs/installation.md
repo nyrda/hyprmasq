@@ -452,6 +452,7 @@ instructions, but the tool descriptions carry every rule, so nothing is lost.
 | --- | --- |
 | The plugin fails to load with "built for another Hyprland build" | It was compiled against another Hyprland build. Rebuild it against the running one. `hyprctl version` shows that build. On Arch, after a Hyprland update, run `makepkg -sif` in your clone and restart Hyprland. |
 | Loading fails with a hook error | The plugin was built against a Hyprland other than the pinned commit, whose functions differ. |
+| `the plugin refused input to the window: another plugin hooks …` | Another Hyprland plugin hooks a function that hyprmasq needs for input to windows, which the message names. Screenshots keep working. Input works again once that plugin no longer holds it. `hyprctl hyprmasq hooks` lists what hyprmasq hooks and what was refused. See [Other plugins](automation.md#other-plugins). |
 | `hyprctl hyprmasq …` says the command is unknown | The plugin is not loaded. Check `hyprctl plugin list`. |
 | `no mapped window 0x…` | Copy the `address` field from `hyprctl -j clients`, including the `0x`. The window must be mapped. |
 | `hyprmasq-input` cannot connect | Use the path that `eis open` printed, as the same user that runs Hyprland. |

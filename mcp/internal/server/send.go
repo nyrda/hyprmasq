@@ -430,6 +430,9 @@ func (s *Server) senderError(clientCtx, sendCtx context.Context, reply senderRep
 		return &toolError{Code: code, Message: where + ": " + message, Hint: hintCannotType}
 	case "input_paused":
 		return pausedError(message, s.pauseReason(clientCtx, r.window), delivery != "none")
+	case "hook_held":
+		// hyprmasq-input exits with 3 before it sends anything.
+		return &toolError{Code: code, Message: message, Hint: hintHookHeld}
 	case "cancelled":
 		// Neither the client nor the deadline stopped it.
 		hint := "Retry; if it happens again, tell the user that something stops hyprmasq-input."

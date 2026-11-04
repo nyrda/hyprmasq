@@ -7,6 +7,7 @@
 #include <hyprland/src/protocols/core/Compositor.hpp>
 
 #include <algorithm>
+#include <optional>
 #include <vector>
 
 namespace hyprmasq::suspension {
@@ -14,6 +15,8 @@ namespace hyprmasq::suspension {
     struct SHeld {
         WP<CXDGToplevelResource> toplevel;
         bool                     suspended = false; // what Hyprland told it last
+        // Released after the destructor has told the toplevel.
+        std::optional<CHookClaim> hooks;
         ~SHeld();
     };
 
@@ -82,6 +85,10 @@ namespace hyprmasq::suspension {
         const auto toplevel = toplevelOf(window);
         if (!toplevel || !wireOf(*toplevel) || wireOf(*toplevel)->version() < SUSPENDED_SINCE || (m_held = heldOf(toplevel.get())))
             return;
+        // Without the hook, Hyprland would tell the toplevel again whenever its state changes.
+        auto claim = hooks::suspension.claim();
+        if (!claim)
+            return;
         const bool suspended = told(*toplevel);
         // Before the entry exists, so that the hook passes the call on. The configure goes out once Hyprland has
         // handled the current batch of events.
@@ -90,11 +97,13 @@ namespace hyprmasq::suspension {
         m_held            = std::make_shared<SHeld>();
         m_held->toplevel  = toplevel;
         m_held->suspended = suspended;
+        m_held->hooks     = std::move(*claim);
         held.push_back(m_held);
     }
 
     void init(void* handle) {
-        originalSetSuspended = hook<SetSuspended>(handle, "_ZN20CXDGToplevelResource13setSuspenededEb", "CXDGToplevelResource::setSuspeneded(bool)", &setSuspended);
+        hooks::suspension.add(
+            defineHook<SetSuspended, &setSuspended>(handle, "_ZN20CXDGToplevelResource13setSuspenededEb", "CXDGToplevelResource::setSuspeneded(bool)", originalSetSuspended));
     }
 }
 

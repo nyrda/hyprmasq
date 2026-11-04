@@ -196,6 +196,41 @@ with subtest("an X11 app's selection that the agent makes stays in its X server,
     dispatch(f'hl.dsp.focus({{ window = "address:{visible}" }})')
     wait_for("user's terminal focused", lambda: snapshot() == (4, visible))
 
+with subtest("an X11 app's selection that the agent's input makes once the input hooks have gone stays in its X server"):
+    # An X11 app takes a selection when it gets to the input that makes it, which can be after the socket and its input
+    # hooks have gone idle. The hooks of X selections stay while the agent's input decides whose new X selections are.
+    # A stopped xterm gets to the agent's double-click only once it continues.
+    focus_workspace(4)
+    user_copies("userclipboard", "userprimary")
+    x_late_user = xterm("hm-clip-x-late-user")
+    dispatch(f'hl.dsp.focus({{ window = "address:{x_late_user}" }})')
+    wait_for("the user's xterm focused", lambda: snapshot() == (4, x_late_user))
+    assert user_selections() == ("userclipboard", "userprimary")
+    focus_workspace(88)
+    x_late = xterm("hm-clip-x-late", "sh -c " + shlex.quote("printf 'xlateword\\n'; exec sleep 900"))
+    focus_workspace(4)
+    dispatch(f'hl.dsp.focus({{ window = "address:{x_late_user}" }})')
+    wait_for("the user's xterm focused", lambda: snapshot() == (4, x_late_user))
+    x_late_path = json.loads(hypr(f"-j hyprmasq eis open {x_late} force"))["path"]
+    x_late_pid = client("hm-clip-x-late")["pid"]
+    machine.succeed(f"kill -STOP {x_late_pid}")
+    send(x_late_path, "move", 30, 8, "click", "left", 2)
+    wait_for("the input hooks gone", lambda: not hooks_installed("input") and not hooks_installed("x11-input"), timeout=10)
+    assert hooks_installed("x11-selection")
+    machine.succeed(f"kill -CONT {x_late_pid}")
+    wait_for("the X primary selection", lambda: alice(f"{x_env} timeout 5 xclip -o -selection primary || true") == "xlateword", timeout=10)
+    time.sleep(1)
+    assert user_selections() == ("userclipboard", "userprimary")
+    dispatch(f'hl.dsp.window.close({{ window = "address:{x_late}" }})')
+    wait_for("the hidden xterm closed", lambda: client("hm-clip-x-late") is None)
+    time.sleep(1)
+    assert user_selections() == ("userclipboard", "userprimary")
+    dispatch(f'hl.dsp.window.close({{ window = "address:{x_late_user}" }})')
+    wait_for("the user's xterm closed", lambda: client("hm-clip-x-late-user") is None)
+    focus_workspace(4)
+    dispatch(f'hl.dsp.focus({{ window = "address:{visible}" }})')
+    wait_for("user's terminal focused", lambda: snapshot() == (4, visible))
+
 with subtest("the agent's paste pastes its text through the agent clipboard, a long one in parts, and leaves every selection alone"):
     # The probe selects a text of its own as the agent's primary selection, as a text field's selection is, and the
     # agent pastes over it with act. The probe gets the text on Shift+Insert, its selection gets no cancel, which in GTK

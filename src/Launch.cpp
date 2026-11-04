@@ -1,6 +1,8 @@
 #include "Launch.hpp"
+#include "Hooks.hpp"
 #include "Process.hpp"
 #include "Windows.hpp"
+#include <hyprland/src/Compositor.hpp>
 
 #include <hyprland/src/config/supplementary/executor/Executor.hpp>
 #include <hyprland/src/debug/log/Logger.hpp>
@@ -54,6 +56,12 @@ namespace hyprmasq::launch {
         unsigned              serial = 0;
 
         CHyprSignalListener   created, mapped, destroyed;
+
+        // hooks::launch, through which CWindow::activate keeps the windows that the plugin placed from taking the focus,
+        // while one of them lives or a launch may still place one, and the timer that looks again once a launch's
+        // minute has passed.
+        std::optional<CHookClaim> launchHooks;
+        wl_event_source*          launchesEnd = nullptr;
 
         // hyprmasq-reaper, which the command of a launch runs under, or empty when there is none.
         std::string reaper;
@@ -130,6 +138,30 @@ namespace hyprmasq::launch {
             return std::nullopt;
         }
 
+        std::optional<SError> claimHooks() {
+            if (launchHooks)
+                return std::nullopt;
+            auto claim = hooks::launch.claim();
+            if (!claim)
+                return claim.error();
+            launchHooks = std::move(*claim);
+            return std::nullopt;
+        }
+
+        // Releases the hooks once no window that the plugin placed lives and no launch places any more.
+        void reconsiderHooks() {
+            const auto                     now     = Time::steadyNow();
+            const bool                     windows = std::ranges::any_of(tracked, [](const auto& t) { return t.placed && !t.window.expired(); });
+            std::optional<Time::steady_tp> placing;
+            for (const auto& launch : launches)
+                if (now - launch.at <= PLACE_WITHIN && alive(launch))
+                    placing = std::max(placing.value_or(launch.at), launch.at);
+            if (placing && launchesEnd)
+                wl_event_source_timer_update(launchesEnd, sc<int>(std::chrono::ceil<std::chrono::milliseconds>(*placing + PLACE_WITHIN - now).count()) + 1);
+            if (!windows && !placing)
+                launchHooks.reset();
+        }
+
         // Tags the window and registers a window rule for that tag that puts it silently on the workspace as it maps,
         // floating at the size it asks for when floating is set. Hyprland matches a tag on the window itself, while an
         // exec rule would read the environment of the window's process, which can wait for that process. Hyprland drops
@@ -139,6 +171,10 @@ namespace hyprmasq::launch {
             auto rule = Desktop::Rule::CWindowRule::buildFromExecString(std::format("workspace {} silent;no_initial_focus 1{}", workspace, floating ? ";float" : ""));
             if (!rule)
                 return;
+            // Held already for a launch, and for input that opens a window, while its socket is in use. A window that
+            // opens later still opens silently, and may take the focus by asking for activation.
+            if (const auto refused = claimHooks())
+                Log::logger->log(Log::WARN, "hyprmasq", "placing a window that may take the focus: {}", refused->message);
             t.tag = std::format("hyprmasq-{}", ++serial);
             window->m_ruleApplicator->m_tagKeeper.applyTag("+" + t.tag);
             (*rule)->registerMatch(Desktop::Rule::RULE_PROP_TAG, t.tag);
@@ -192,6 +228,9 @@ namespace hyprmasq::launch {
                 if (t.rule && (window ? t.window.lock() == window : t.window.expired()))
                     unplace(t, window);
             std::erase_if(tracked, [](const auto& t) { return t.window.expired() && !t.rule; });
+            // The window is still there while Hyprland destroys it, so it counts until the next event.
+            if (launchesEnd)
+                wl_event_source_timer_update(launchesEnd, 1);
         }
     }
 
@@ -201,6 +240,13 @@ namespace hyprmasq::launch {
             Log::logger->log(Log::WARN, "hyprmasq", "hyprmasq-reaper not found next to the plugin or on PATH: a launch loses the windows of an app whose launcher exits");
         else
             Log::logger->log(Log::DEBUG, "hyprmasq", "launching through {}", reaper);
+        launchesEnd = wl_event_loop_add_timer(
+            g_pCompositor->m_wlEventLoop,
+            [](void*) {
+                reconsiderHooks();
+                return 0;
+            },
+            nullptr);
         created   = Event::bus()->m_events.window.create.listen([](PHLWINDOW window) { onCreate(window); });
         mapped    = Event::bus()->m_events.window.openEarly.listen([](PHLWINDOW window) { onMapped(window); });
         destroyed = Event::bus()->m_events.window.destroy.listen([](PHLWINDOWREF window) { onDestroyed(window); });
@@ -214,6 +260,10 @@ namespace hyprmasq::launch {
             unplace(t, t.window.lock());
         tracked.clear();
         launches.clear();
+        if (launchesEnd)
+            wl_event_source_remove(launchesEnd);
+        launchesEnd = nullptr;
+        launchHooks.reset();
     }
 
     std::expected<pid_t, SError> start(const std::string& workspace, const std::string& token, const std::string& command) {
@@ -226,14 +276,20 @@ namespace hyprmasq::launch {
         std::erase_if(launches, [](const auto& l) { return !alive(l); });
         if (launches.size() >= MAX_LAUNCHES)
             launches.erase(launches.begin());
+        // Nothing starts that could take the user's focus.
+        if (auto refused = claimHooks())
+            return std::unexpected(std::move(*refused));
         // Under hyprmasq-reaper, the started process stays, as the parent of the command's processes whose parents exit, as
         // the GUI of an app whose launcher forks it away and exits, until the last of them has exited, so launchOf finds
         // it from their windows too.
         const auto pid = Config::Supplementary::executor()->spawnRaw(reaper.empty() ? command : std::format("exec {} /bin/sh -c {}", shellQuoted(reaper), shellQuoted(command)));
-        if (!pid || *pid <= 1)
+        if (!pid || *pid <= 1) {
+            reconsiderHooks();
             return std::unexpected(SError{eErrorCode::INTERNAL, "cannot start the command"});
+        }
         // A process that has already exited has no windows to find.
         launches.push_back({.pid = sc<pid_t>(*pid), .started = process::started(sc<pid_t>(*pid)).value_or(0), .token = token, .workspace = workspace, .at = Time::steadyNow()});
+        reconsiderHooks();
         return sc<pid_t>(*pid);
     }
 
@@ -274,11 +330,16 @@ namespace hyprmasq::launch {
     }
 
     void withdraw(const PHLWINDOW& window) {
+        bool withdrawn = false;
         for (auto& t : tracked)
             if (t.opened && t.rule && t.window.lock() == window) {
                 unplace(t, window);
-                t.placed = false;
+                t.placed  = false;
+                withdrawn = true;
             }
+        // It may have been the last placed window that needs the hooks.
+        if (withdrawn && launchesEnd)
+            wl_event_source_timer_update(launchesEnd, 1);
     }
 
     bool placed(const PHLWINDOW& window) {

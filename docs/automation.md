@@ -57,6 +57,7 @@ hyprctl hyprmasq eis close "$addr"
 | `launched` | `address token` lines | The mapped windows of launches, or `no launched windows`. |
 | `clipboard set <text-hex>` | `text N` | Make the text, written in hex, the agent's clipboard, which the plugin holds and pastes. `N` is its serial. See [Clipboard and selections](#clipboard-and-selections). |
 | `clipboard` | `text N: A pastes asked for it, E have ended, C with all of it` | How far the pastes of the last text that `clipboard set` made have read it, while it is still the agent's clipboard. |
+| `hooks` | `group mode, state` lines | The plugin's groups of function hooks, whether each is installed, and why its last install was refused. See [Other plugins](#other-plugins). |
 | `version` | `hyprmasq 0.1.0 interface 5` | Plugin version and command interface version. |
 | `help` | usage | The command summary. |
 
@@ -89,6 +90,7 @@ JSON too, with `hyprctl` exiting 0, so check `ok`:
 | `clipboard set` | `{"ok":true,"serial":3}` |
 | `clipboard` | `{"ok":true,"serial":3,"held":true,"asked":1,"ended":1,"complete":1}` |
 | `version` | `{"ok":true,"version":"0.1.0","interface":5}` |
+| `hooks` | `{"ok":true,"groups":[{"name":"input","onDemand":true,"installed":false,"claims":0,"installs":3,"functions":["CSeatManager::setKeyboardFocus(…)"],"refused":null}]}` |
 | an error | `{"ok":false,"error":"no mapped window 0x1234","code":"window_gone"}` |
 
 | Error code | Meaning |
@@ -99,6 +101,7 @@ JSON too, with `hyprctl` exiting 0, so check `ok`:
 | `unsupported` | Not possible for this window, such as a lease on an X11 window, or a `wait` that did not come through Hyprland's request socket. |
 | `internal` | Rendering, file or other failures inside the plugin. |
 | `unloaded` | The plugin was unloaded while the request was pending. |
+| `hook_held` | Another plugin hooks a function that the command needs, which the message names, as for a `lease` or a `launch`. Nothing changed. See [Other plugins](#other-plugins). |
 
 `interface` changes with every incompatible change to the commands. New
 fields in replies are not such a change, so ignore fields you do not know.
@@ -210,6 +213,8 @@ hyprctl hyprmasq lease "$addr" release my-script
   only the keyboard focus.
 - It is refused with `unsupported` for X11 windows, and while the window
   shares its Wayland connection with the window that has your keyboard focus.
+  It is refused with `hook_held` while another plugin hooks a function that
+  input to windows needs, see [Other plugins](#other-plugins).
 
 ## Window state
 
@@ -362,6 +367,7 @@ hyprmasq-input --socket "$socket" type '<shortcut:ctrl+l>https://example.org<ent
 | 0 | The plugin confirmed all input, or help or version was printed. |
 | 1 | Runtime failure after the start, such as no connection, no devices, paused input, a closed connection, memory exhaustion or a signal. Some input may have been sent. |
 | 2 | Invalid arguments, untypable input or an exceeded `--budget`. Nothing was sent. |
+| 3 | The plugin refused input to the window, as while another plugin hooks a function that the input needs. Nothing was sent. |
 
 Messages go to stderr as `hyprmasq-input: <message>`. With `--json`, the last
 line on stdout is one object:
@@ -389,6 +395,7 @@ line on stdout is one object:
 | `no_devices` | The plugin offered no pointer and keyboard, removed one, or sent no usable keymap. |
 | `input_paused` | The plugin paused input: you held a button or key in a window of the same Wayland connection for over a second, or for an X11 window another window of its X server has the focus. `state`'s `lastPause` says which. |
 | `unconfirmed` | The plugin closed the connection, replaced the pointer while events were unconfirmed, or stopped answering. |
+| `hook_held` | The plugin refused input to the window: another plugin hooks a function that the input needs, which the message names. Nothing was sent. See [Other plugins](#other-plugins). |
 | `cancelled` | SIGINT or SIGTERM stopped the run. |
 | `too_many_held`, `out_of_memory` | Too many keys or buttons held at once, or memory exhaustion. |
 
@@ -405,7 +412,10 @@ pointer, whose first region is the window at its logical size from 0,0, and a
 keyboard with the keymap of Hyprland's active keyboard. One sender is
 connected at a time, and a new one replaces the previous one. The pointer device
 is replaced when the window moves or resizes. Reconnect after a keymap
-change.
+change. When the plugin refuses input to the window, it offers a seat without
+capabilities instead, named `hyprmasq refused <code>: <message>`, such as
+`hyprmasq refused hook_held: another plugin hooks …`, and closes the
+connection.
 
 ## hyprmasq-launch
 
@@ -676,6 +686,57 @@ plugin {
 }
 ```
 
+## Other plugins
+
+Hyprland lets one plugin at a time hook a function, and refuses a second hook
+of it. hyprmasq hooks the functions of most of its features only while the
+feature is in use, so that other plugins can hook them in between. A feature
+whose function another plugin hooks is refused, with code `hook_held` and a
+message that names the function, and the rest of hyprmasq works on. hyprmasq
+also loads while another plugin holds one of its functions: only the build
+check fails a load. The hooks are in groups, which go in all or nothing. Uses
+of a group by several windows, senders and agents share one install, and the
+group goes once the last of them has ended.
+
+| Group | Installed | Functions | While another plugin holds one |
+| --- | --- | --- | --- |
+| `input` | From a sender's connection to any socket, or the start of a lease, until no socket has a sender or a lease, every window has given back its emulated focus, and a second has passed since the last input | `CXDGShellProtocol::addOrStartGrab`, `CWLDataDeviceProtocol::initiateDrag`, `Desktop::View::CWindow::activate`, `Desktop::View::CWindowPresentation::updateDecorations`, and of `CSeatManager` `setKeyboardFocus`, `setPointerFocus`, `sendKeyboardKey`, `sendKeyboardMods`, `sendPointerButton` and `sendTouchDown` | A sender is refused before anything is sent: `hyprmasq-input` exits with status 3 and `hook_held`. A lease is refused with `hook_held`. |
+| `x11-input` | The same, for the sockets of X11 windows, of Hyprland's XWayland or of xwayland-satellite, and until half a second after the X focus has gone back | `CXWM::activateSurface`, `CXWM::handleFocusIn`, `CXWM::setClipboardToWayland`, `CXWM::handleSelectionXFixesNotify`, `Desktop::View::CWindow::onActivationRequest`, `Desktop::CFocusState::rawWindowFocus` | Input to X11 windows is refused the same way. Input to Wayland windows goes on. |
+| `x11-selection` | From the agent's input to an X11 window of Hyprland's XWayland until your own input to one, or until no socket is open on one, since an app may take a selection long after the input, and while an X selection that the agent's input made stays the agent's, whichever agent made it | `CXWM::setClipboardToWayland`, `CXWM::handleSelectionXFixesNotify` | Installed with `x11-input`, which input to X11 windows needs. |
+| `clipboard` | While the agent clipboard is a copy that an app made | `CSeatManager::sendTouchDown` | Your touch ends the agent's copy in its app only once Hyprland has sent the touch, so an app that pastes on a touch may paste the agent's copy. |
+| `launch` | From a `launch` until no window that the plugin placed lives and a minute has passed since the last launch | `Desktop::View::CWindow::activate` | `launch` is refused with `hook_held` before anything starts. A window that emulated input opens is placed, but may take your focus by asking for activation. |
+| `suspension` | While a hidden window is driven or a `wait … since` waits on it | `CXDGToplevelResource::setSuspeneded` | Hidden windows are told that they are suspended, as without hyprmasq. |
+| `placement` | From the load | `Desktop::Rule::CWindowRuleApplicator::readStaticRules` | Windows that emulated input opens open where Hyprland puts them. |
+| `idle` | From the load | `CIdleNotifyProtocol::setInhibit` | Windows that map and unmap restart idle timers, as without hyprmasq. |
+| `plugin-calls` | From the load | `invokeHyprctlCommand` | A `screenshot` or `wait` that another plugin calls through `HyprlandAPI::invokeHyprctlCommand` gets Hyprland's `deferred response unavailable for in-process invocation`. |
+
+The last three stay for the plugin's lifetime, because what they act on comes
+at any time: a window that emulated input opened can map long after the
+input, any window's map or unmap restarts idle timers, and other plugins call
+when they like. When another plugin holds one at the load, a notification
+says which feature is off until hyprmasq loads again.
+
+The second after input covers apps that answer it with a popup, an activation
+request or a new window after the sender has gone, such as a menu that a
+click opens. The agent clipboard follows your keys, buttons and focus through
+Hyprland's input events, which need no hook, so it works the same while the
+groups are out. Hyprland tells which app a touch reaches only after its event,
+so the `clipboard` group ends an app's own copy before your touch reaches it.
+
+Hyprland takes memory for each hook it installs and never frees it, also
+once the hook is removed. hyprmasq hooks each function that way once per
+load, and installs it again later with that same memory, so groups that go in
+and out over weeks take no more memory than hooks that stay. Should a
+Hyprland reuse that memory for another hook, hyprmasq finds it changed before
+it installs the hook again, and refuses the feature with code `internal`,
+which `hooks` shows.
+
+`hyprctl hyprmasq hooks` lists the groups, one line each, such as
+`input on demand, not installed`. In JSON, `onDemand`, `installed`, `claims`,
+the uses that keep the group installed, `installs`, how often it went in since
+the load, `functions`, and `refused`, the `code` and `message` of the last
+refused install if none succeeded since, or `null`.
+
 ## Security model
 
 hyprmasq keeps automation out of your way. It is not a security boundary
@@ -690,13 +751,14 @@ between you and the agent or script that drives your windows.
 - Anyone who can connect to a window's socket controls that window, for
   example by typing commands into a terminal. This is the same user that can
   already run `hyprctl`, which can open any socket.
-- Emulated input cannot start an interactive move or resize. A driven window
-  that does not have your focus cannot grab your pointer or keyboard with a
-  popup, and its drag-and-drop never reaches your pointer or another app.
+- Emulated input cannot start an interactive move or resize. While its input
+  is in use, see [Other plugins](#other-plugins), a driven window that does
+  not have your focus cannot grab your pointer or keyboard with a popup, and
+  its drag-and-drop never reaches your pointer or another app.
 - Emulated input never releases a button or key you hold: it waits, then
   pauses.
-- Windows that emulated input opens, and activation requests of driven apps,
-  do not take your focus.
+- Windows that emulated input opens do not take your focus, and neither do
+  activation requests of driven apps while their input is in use.
 - Emulated input cannot change your clipboard or primary selection, or paste
   them into a Wayland app.
 - X11 has no isolation between the apps of one X server, so these protections
@@ -752,3 +814,11 @@ between you and the agent or script that drives your windows.
   when emulated input reached that app in the last 5 seconds.
 - The plugin uses Hyprland internals and loads only into the exact Hyprland
   build it was compiled against.
+- The protections of driven windows hold while their input is in use, see
+  [Other plugins](#other-plugins). An app that grabs with a popup or asks for
+  activation more than a second after its last input, with no sender and no
+  lease, is handled as Hyprland handles any app. A focus lease, which
+  `hyprmasq-mcp` takes for every Wayland window it acts on, keeps them for its
+  length.
+- A popup's `grab` in `state` is known only for popups that asked for their
+  grab while the `input` group was installed.

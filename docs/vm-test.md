@@ -28,6 +28,13 @@ so does `slider-probe.py`, a slider in Qt 6, GTK 3 or Tk. Chromium opens
 page, and `guest/clip.html`, a textarea that logs its pastes, which log to its
 console.
 
+`hook-taker.cpp` is a plugin that hooks one function that hyprmasq hooks
+too, as another plugin would. `hook-taker.nix` builds it three times, as
+`hyprmasq-hook-taker-seat.so` for `CSeatManager::setKeyboardFocus`,
+`hyprmasq-hook-taker-xwm.so` for `CXWM::activateSurface` and
+`hyprmasq-hook-taker-idle.so` for `CIdleNotifyProtocol::setInhibit`, whose
+directory the VM has in `/etc/hyprmasq-hook-taker`. Nothing installs it.
+
 The VM also has `hyprland-dialog`, from `hyprland-qtutils` of the flake's own
 nixpkgs, without which Hyprland does not watch for apps that stop answering its
 pings. Hyprland's nixpkgs no longer has `hyprland-qtutils`, and the
@@ -94,6 +101,7 @@ the VM, such as a window or a log, is declared by hand.
 | `paging` | `core`, `input` | Measured page scrolls, overlap, edit verification and controls that take the wheel. |
 | `unload` | `core`, `waits`, `suspended` | Unloading and loading the plugin again, with pending waits on the busy window of `waits` and the Qt window of `suspended`, selections and screenshot writes. |
 | `idle` | `core` | An idle client, hypridle, and DPMS: windows that map and unmap on a hidden workspace and the agent's input end neither, real input does. |
+| `hooks` | `core` | Sharing Hyprland with another plugin that hooks a function of hyprmasq's: hooks that hyprmasq installs only while input is in use, also by two senders at once, refusals that name the function, and a hook held at load. |
 | `compositor-log` | `drag` | Hyprland's log after its exit, with the serials of `drag`'s protections subtest rejected. It ends Hyprland, so it runs last. |
 
 ## Subtests
@@ -243,6 +251,7 @@ and the code drift apart.
 | the agent's selections go with the app that made them | Once the probe that holds the agent's selections exits, foot pastes nothing, and the user's selections stay. |
 | an app that pastes its own copy pastes the user's clipboard once the user's input reaches it | The agent copies with Ctrl+A and Ctrl+C in a hidden window of a Wayland Chromium, `guest/clip.html`, and pastes it there. Chromium, which pastes its own copy while it takes itself for the owner, pastes the user's clipboard on the user's Ctrl+V in their window of the same Chromium, and the agent's paste then gets nothing, not the user's clipboard. After a second copy, the user focuses the agent's window and pastes their clipboard there too. The user's selections stay. |
 | an X11 app's selection that the agent makes stays in its X server, also when the app exits | The agent's double-click in a hidden `xterm`, through a socket with `force` while the user works in another `xterm`, makes the X primary selection, which `xclip` reads, and leaves the user's Wayland selections alone, also once the hidden `xterm` exits. |
+| an X11 app's selection that the agent's input makes once the input hooks have gone stays in its X server | The agent double-clicks a word in a hidden `xterm` that is stopped, while the user's `xterm` has the focus. Once the input and X11 input groups are out, with the X selection group still in, the `xterm` continues and takes the X primary selection, and the user's selections stay, also after it exits. |
 | the agent's paste pastes its text through the agent clipboard, a long one in parts, and leaves every selection alone | `act`'s `paste` into a clip probe that selected a text as the agent's primary selection: the probe pastes the text on Shift+Insert, then a text of 40000 bytes in three parts in order, each whole. The probe's selection gets no cancel, and the user's selections and focus stay. |
 
 ### `xwayland`
@@ -253,11 +262,11 @@ and the code drift apart.
 | XWayland hidden shell input while a Wayland window is active | Typing into a hidden `xterm` runs the command while a Wayland window stays active. |
 | XWayland pointer events reach a hidden window under a visible one | `xev` on a hidden workspace receives motion, clicks and scrolling at a point where a visible X11 window is stacked above it. The visible one receives no clicks. |
 | XWayland input is refused while another X11 window is active | Input is refused while another X11 window is active and the active window stays untouched. The active window itself can be driven. `force` drives the hidden one. |
-| a driven X11 app cannot activate itself | A driven X11 app cannot activate itself. Once its socket is closed, it can. |
-| X11 apps learn they are not active after input | While a Wayland window stays active, `_NET_ACTIVE_WINDOW` is written again after typing into a hidden `xterm`, after clicking it, and after it asks to be activated. |
+| a driven X11 app cannot activate itself while its input is in use | While a sender is connected to its socket, which installs the X11 input hooks, a driven X11 app cannot activate itself. Once its socket is closed, it can. |
+| X11 apps learn they are not active after input | While a Wayland window stays active, `_NET_ACTIVE_WINDOW` is written again after typing into a hidden `xterm`, after clicking it, and after it asks to be activated while a sender is connected to its socket. |
 | an X server that does not answer holds Hyprland up for 25 ms per input frame at most | With X focus held for one hidden `xterm` and XWayland stopped by SIGSTOP, a sender to a second hidden `xterm` stops with `input_paused` within 100 ms, and so does a second one, and `hyprctl` answers within 300 ms. The user's focus stays. Once XWayland runs again, input to the second `xterm` arrives. |
 | a stopped XWayland never holds Hyprland up, however many requests it leaves unread | With XWayland stopped by SIGSTOP, 96 pointer frames go in turn to four hidden `xterm`s, each frame with a request for the stacking order that XWayland leaves unread, more than fill a quarter of the socket's buffer, from where a flush would wait for XWayland. `hyprctl` answers within 500 ms after each frame, and the user's focus stays. Once XWayland runs again, input to an `xterm` arrives. |
-| xwayland-satellite windows | Screenshots and input for a hidden satellite `xterm`. Input is refused while another satellite window is active, allowed for Hyprland's XWayland windows, and forced with `force`. No satellite app can activate itself while a satellite window is driven, but new satellite windows still get focus. |
+| xwayland-satellite windows | Screenshots and input for a hidden satellite `xterm`. Input is refused while another satellite window is active, allowed for Hyprland's XWayland windows, and forced with `force`. No satellite app can activate itself while a sender to a satellite window is connected, but new satellite windows still get focus. |
 
 ### `x11-menus`
 
@@ -462,6 +471,19 @@ positions. These tests check page movement at two window heights.
 | Subtest | Checks |
 | --- | --- |
 | windows that map and unmap on a hidden workspace and the agent's input end neither idle nor DPMS, and real input does | With `key_press_enables_dpms` and `mouse_move_enables_dpms` on, hypridle with a timeout of a second goes idle and DPMS turns the monitor off. Launching foot on a hidden workspace, typing, pressing Enter, moving and clicking in it through its socket, and closing it neither make hypridle resume nor turn the monitor on. A move of `wlrctl`'s virtual pointer does both. |
+
+### `hooks`
+
+| Subtest | Checks |
+| --- | --- |
+| an idle hyprmasq holds no input hooks, so another plugin can take one, and input waits for it | With a socket open on a hidden foot, and the leases of earlier areas released, `hooks` shows the input and X11 input groups out and the groups of the plugin's lifetime in, and `hyprmasq-hook-taker-seat.so` loads. `hyprmasq-input` then exits with status 3 and code `hook_held`, naming `CSeatManager::setKeyboardFocus` and another plugin, with delivery `none`: a second later the window has drawn nothing, its shell ran nothing, and the active workspace and window are as before. `hooks` shows the refusal, and a lease is refused with `hook_held` in JSON and with `error:` and status 7 in text, and none is held. Screenshots work on. Once the other plugin unloads, input reaches the shell. |
+| hyprmasq loads while another plugin holds an input hook, and only input waits for it | With `hyprmasq-hook-taker-seat.so` loaded first, hyprmasq loads, with the groups of its lifetime in and input out. Screenshots and `eis open` work, and input is refused with `hook_held`. Once the other plugin unloads, input reaches the shell. |
+| the input hooks go once the last sender and lease end, so another plugin can take them | While a sender is connected, `hooks` shows the input group in, and the other plugin does not load. Within seconds of the sender's end it shows it out, and the other plugin loads. A lease holds the group without input, also past the second after input, and its release lets it go. |
+| senders to windows of two apps share the input hooks, which go only after the last | Senders to two foot windows, of two processes, overlap. `hooks` shows the input group with two claims and one more install than before, installed once for both. Once the first has ended, it shows one claim and still that one install, the group stays in, and the other plugin does not load while the second still sends. After the second has ended, the group goes and the other plugin loads. |
+| input to X11 windows needs hooks of its own, which go after it | With `hyprmasq-hook-taker-xwm.so` loaded, input to a hidden `xterm` is refused with `hook_held` naming `CXWM::activateSurface`, while input to a Wayland window goes on without the X11 input group. Once the other plugin unloads, input reaches the `xterm`'s shell, and after the X focus and the window manager's grace for it the group goes and the other plugin loads. |
+| an app's own copy that is the agent clipboard holds the touch hook until the user's input ends it | The agent copies in a hidden clipboard probe. Once the input group is out, the clipboard group stays in. The user's focus moving to the probe cancels the copy there, and the clipboard group goes. |
+| the input hooks go in and out a hundred times without taking memory each time | A hundred leases that start and end, each waited out until `hooks` shows the input group out, count a hundred installs. Hyprland's anonymous mappings that may be written and executed, where it keeps the code of hooks, grow by less than 8 KiB, where an install of new hooks each time would take 64 KiB. |
+| a hook that another plugin holds at load turns off only its own feature | With `hyprmasq-hook-taker-idle.so` loaded first, hyprmasq loads with its idle group out and refused with `hook_held`, naming `CIdleNotifyProtocol::setInhibit`, while input and screenshots work. Loaded again without the other plugin, the group is in. |
 
 ### `compositor-log`
 
