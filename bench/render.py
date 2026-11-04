@@ -85,6 +85,7 @@ NAMES = {
     "opencode-go/kimi-k3.1-pro": "Kimi K3.1 Pro",
     "opencode-go/gemini-4-argon": "Gemini 4 Argon",
     "opencode-go/deepseek-v4.1-flash": "DeepSeek v4.1 Flash",
+    "opencode-go/qwen3.8-flash": "Qwen 3.8 Flash",
 }
 EFFORTS = ["default", "none", "off", "minimal", "low", "medium", "high", "xhigh", "max"]
 KINDS = ["checkbox", "slider", "text", "dropdown"]
