@@ -497,7 +497,10 @@ class Budget(unittest.TestCase):
     def test_an_agent_that_ends_right_after_the_budget_is_spent_counts_as_stopped(self):
         with tempfile.TemporaryDirectory() as out:
             marker = os.path.join(out, "mcp.jsonl.budget")
-            agent = executable(out, "agent", f"touch {marker}\n")
+            # The watcher must not see the marker while the agent runs, or it stops the agent, with an exit of -15.
+            # kill -0 succeeds until the watcher's poll has reaped the agent, which also ends the watcher's loop, and
+            # the child keeps the agent's stdout open, so run_agent looks for the marker after the child has made it.
+            agent = executable(out, "agent", f"(while kill -0 $$ 2>/dev/null; do sleep 0.05; done; touch {marker}) &\n")
             result = run.run_agent([agent], out, os.path.join(out, "a.jsonl"), os.path.join(out, "a.err"), 60,
                                    budget=marker)
             self.assertEqual((result["budget_exhausted"], result["exit"]), (True, 0))
