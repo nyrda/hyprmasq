@@ -8,19 +8,19 @@ visible workspace. They probe how hyprmasq works with each model, and are no for
 ## Models
 
 Reliable work needs a current model of Anthropic or OpenAI, Haiku 5.5 included. The other models, Luna among them,
-manage forms and keyboard work but fail more often on the rest, and Kimi, Argon and DeepSeek take several times as
-long. No run disturbed the user, and every failure was the model's own.
+manage forms and keyboard work but fail more often on the rest, and Kimi, Argon, Qwen and DeepSeek take several
+times as long. No run disturbed the user, and every failure was the model's own.
 
-<!-- render baseline-0.57.0,tested-models glance -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash glance -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model. 478 of 563 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sum of its tasks&#x27; median wall times and its cost per passed run." src="benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model. 499 of 596 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sum of its tasks&#x27; median wall times and its cost per passed run." src="benchmarks/glance.svg">
 </picture>
 
-<sub>Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026. gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026. Builds and machines differ, so times compare roughly.</sub>
+<sub>Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026. gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026. Builds and machines differ, so times compare roughly. Qwen 3.8 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026.</sub>
 <!-- /render -->
 
-<!-- render baseline-0.57.0,tested-models overview -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash overview -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/overview-dark.svg">
   <img alt="Runs passed and wall time per run of each agent, a panel per task. Each bar is the median wall time with the median time in hyprmasq&#x27;s tools inside it, and each dot one run. Each row also gives its runs passed." src="benchmarks/overview.svg">
@@ -39,6 +39,7 @@ long. No run disturbed the user, and every failure was the model's own.
 | Haiku 5.5 | 40/44 | Close to the frontier models, fast and cheap. It missed half its board-pointer runs. |
 | Kimi K3.1 Pro | 8/11 | Passes the long form, mail and web tasks, but slowly, and draws imprecisely. |
 | Gemini 4 Argon | 7/11 | The most precise of these at drawing and placing, and the slowest. It ran out of calls on files, Forgejo and Thunderbird. |
+| Qwen 3.8 Flash | 21/33 | Passed every run of files, Forgejo, Inkscape, Thunderbird and both forms, at about two cents a run, but slowly. It passed one board run and no trace run, most of them ending at the call budget. |
 | gpt-6-luna | 26/44 | Reliable on calc, files, Inkscape, the form with dropdowns and Thunderbird. It misses most board and trace runs, and misread a code in three of four runs of the form without dropdowns. |
 | DeepSeek v4.1 Flash | 17/31 | Keyboard and form work, slowly. It passed no board or trace run. |
 
@@ -72,6 +73,10 @@ that hyprmasq caused was fixed. Tasks it was not developed against may still fin
 | Kimi K3.1 Pro | Calc | 1 | Entered Lisbon's figures for Hamburg. |
 | Gemini 4 Argon | Files, Forgejo, Thunderbird | 1 each | Ran out of calls before it finished. |
 | Gemini 4 Argon | Calc | 1 | Did not save the sheet, and closed one of the report tabs it was to leave open. |
+| Qwen 3.8 Flash | Board | 1 `dnd`, 1 `pointer` | Put the M.2 slots' label on no part, on a connector or chips it took for the slots. |
+| Qwen 3.8 Flash | Board | 2 `dnd`, 1 `pointer` | Ran out of calls with five to nine labels still in the tray. |
+| Qwen 3.8 Flash | Trace | 3 `river`, 3 `rack` | Covered at most 39% of the bank and 83% of the rack, and in one rack run drew nothing. Four of the six ran out of calls. |
+| Qwen 3.8 Flash | Calc | 1 | Ran out of calls with the sheet unsaved. |
 | DeepSeek v4.1 Flash | Board, Trace | 10 | Ran out of calls with few labels placed and at most one stroke drawn. |
 | DeepSeek v4.1 Flash | Calc, Inkscape, Form without dropdowns | 1 each | Ran out of calls before it finished. |
 | DeepSeek v4.1 Flash | Form with dropdowns | 1 | Ticked the wrong days in question 13. |
@@ -84,7 +89,7 @@ close call.
 
 <details><summary>Numbers per task, and tokens and cost</summary>
 
-<!-- render baseline-0.57.0,tested-models table board-dnd -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table board-dnd -->
 <details><summary>Numbers: Board-dnd</summary>
 
 **Outcome and time**
@@ -103,6 +108,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 1/1 | 270 | 16 | 12.5 | 14 | 9 | 14 |
 | Gemini 4 Argon | medium | 1/1 | 154 | 15 | 9.1 | 7 | 10 | 16 |
 | DeepSeek v4.1 Flash | high | 0/1 | 427 | 5 | 14.3 | 20 | 1 | 22 |
+| Qwen 3.8 Flash | high | 0/3 | 465 (322–514) | 10 (9–14) | 18.7 (15.0–19.5) | 20 (17–20) | 4 (4–9) | 23 (23–23) |
 
 **Tokens and cost**
 
@@ -120,10 +126,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 129 | 85 | 6 | 0.130 |
 | Gemini 4 Argon | medium | 115 | 61 | 6 | 0.158 |
 | DeepSeek v4.1 Flash | high | 353 | 83 | 19 | 0.022 |
+| Qwen 3.8 Flash | high | 439 (270–500) | 90 (87–91) | 22 (15–23) | 0.025 (0.018–0.027) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models table board-pointer -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table board-pointer -->
 <details><summary>Numbers: Board-pointer</summary>
 
 **Outcome and time**
@@ -142,6 +149,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 1/1 | 308 | 16 | 15.2 | 12 | 10 | 21 |
 | Gemini 4 Argon | medium | 1/1 | 368 | 31 | 8.4 | 19 | 40 | 13 |
 | DeepSeek v4.1 Flash | high | 0/3 | 213 (185–298) | 13 (7–15) | 8.5 (7.6–15.8) | 20 (20–20) | 6 (5–9) | 25 (23–29) |
+| Qwen 3.8 Flash | high | 1/3 | 318 (276–378) | 15 (4–18) | 13.5 (13.1–16.7) | 17 (15–20) | 9 (0–10) | 20 (14–23) |
 
 **Tokens and cost**
 
@@ -159,10 +167,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 156 | 91 | 5 | 0.118 |
 | Gemini 4 Argon | medium | 284 | 75 | 1 | 0.177 |
 | DeepSeek v4.1 Flash | high | 278 (274–326) | 89 (74–91) | 16 (15–19) | 0.015 (0.014–0.023) |
+| Qwen 3.8 Flash | high | 250 (221–303) | 86 (83–91) | 14 (6–21) | 0.017 (0.013–0.020) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models table calc -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table calc -->
 <details><summary>Numbers: Calc</summary>
 
 **Outcome and time**
@@ -181,6 +190,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 0/1 | 356 | 29 | 11.1 | 20 | 27 | 21 |
 | Gemini 4 Argon | medium | 0/1 | 126 | 14 | 7.1 | 12 | 22 | 15 |
 | DeepSeek v4.1 Flash | high | 2/3 | 152 (146–291) | 31 (24–36) | 3.6 (3.0–5.6) | 29 (29–34) | 64 (31–79) | 68 (64–79) |
+| Qwen 3.8 Flash | high | 2/3 | 339 (261–356) | 32 (22–42) | 7.3 (6.2–9.0) | 29 (24–34) | 81 (39–119) | 35 (35–57) |
 
 **Tokens and cost**
 
@@ -198,10 +208,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 405 | 92 | 6 | 0.210 |
 | Gemini 4 Argon | medium | 189 | 77 | 3 | 0.132 |
 | DeepSeek v4.1 Flash | high | 586 (548–856) | 94 (93–94) | 8 (7–18) | 0.012 (0.011–0.023) |
+| Qwen 3.8 Flash | high | 608 (433–769) | 93 (92–95) | 12 (11–16) | 0.025 (0.019–0.025) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models table files -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table files -->
 <details><summary>Numbers: File manager</summary>
 
 **Outcome and time**
@@ -220,6 +231,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 1/1 | 111 | 6 | 11.7 | 8 | 11 | 12 |
 | Gemini 4 Argon | medium | 0/1 | 410 | 25 | 9.6 | 20 | 43 | 17 |
 | DeepSeek v4.1 Flash | high | 3/3 | 90 (44–105) | 10 (8–16) | 2.8 (2.8–2.9) | 12 (11–14) | 12 (9–20) | 20 (18–23) |
+| Qwen 3.8 Flash | high | 3/3 | 85 (73–86) | 9 (7–10) | 4.8 (4.6–5.1) | 12 (9–14) | 10 (8–12) | 17 (10–21) |
 
 **Tokens and cost**
 
@@ -237,10 +249,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 62 | 85 | 2 | 0.041 |
 | Gemini 4 Argon | medium | 331 | 78 | 1 | 0.181 |
 | DeepSeek v4.1 Flash | high | 116 (99–141) | 87 (81–89) | 2 (1–2) | 0.003 (0.003–0.006) |
+| Qwen 3.8 Flash | high | 140 (99–145) | 86 (82–87) | 3 (3–3) | 0.007 (0.006–0.007) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models table forgejo -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table forgejo -->
 <details><summary>Numbers: Forgejo</summary>
 
 **Outcome and time**
@@ -259,6 +272,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 1/1 | 312 | 32 | 8.2 | 27 | 30 | 50 |
 | Gemini 4 Argon | medium | 0/1 | 440 | 72 | 6.2 | 36 | 25 | 19 |
 | DeepSeek v4.1 Flash | high | 3/3 | 84 (75–106) | 22 (20–27) | 3.2 (2.4–3.3) | 20 (17–24) | 26 (22–34) | 32 (26–42) |
+| Qwen 3.8 Flash | high | 3/3 | 223 (169–265) | 31 (26–39) | 5.7 (5.6–6.5) | 26 (23–28) | 35 (23–44) | 37 (35–42) |
 
 **Tokens and cost**
 
@@ -276,10 +290,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 532 | 94 | 5 | 0.221 |
 | Gemini 4 Argon | medium | 565 | 82 | 2 | 0.263 |
 | DeepSeek v4.1 Flash | high | 277 (230–377) | 92 (91–93) | 4 (3–4) | 0.006 (0.006–0.008) |
+| Qwen 3.8 Flash | high | 507 (396–513) | 93 (92–93) | 7 (5–10) | 0.018 (0.014–0.020) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models table form -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table form -->
 <details><summary>Numbers: Form with dropdowns</summary>
 
 **Outcome and time**
@@ -298,6 +313,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 1/1 | 287 | 44 | 10.2 | 20 | 76 | 38 | 264 |
 | Gemini 4 Argon | medium | 1/1 | 311 | 51 | 9.7 | 21 | 84 | 53 | 288 |
 | DeepSeek v4.1 Flash | high | 2/3 | 210 (158–504) | 53 (47–56) | 3.3 (3.0–4.2) | 42 (33–66) | 65 (60–85) | 70 (68–87) | 310 (150–469) |
+| Qwen 3.8 Flash | high | 3/3 | 392 (247–404) | 53 (47–59) | 5.9 (5.5–6.1) | 36 (27–42) | 68 (66–82) | 63 (45–68) | 347 (226–382) |
 
 **Tokens and cost**
 
@@ -315,10 +331,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 360 | 93 | 5 | 0.178 |
 | Gemini 4 Argon | medium | 954 | 85 | 8 | 0.443 |
 | DeepSeek v4.1 Flash | high | 941 (676–1890) | 94 (92–95) | 9 (8–18) | 0.016 (0.012–0.037) |
+| Qwen 3.8 Flash | high | 931 (549–1099) | 95 (94–96) | 14 (9–15) | 0.031 (0.019–0.034) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models table form-no-dropdowns -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table form-no-dropdowns -->
 <details><summary>Numbers: Form without dropdowns</summary>
 
 **Outcome and time**
@@ -337,6 +354,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 1/1 | 221 | 38 | 9.8 | 16 | 83 | 16 | 143 |
 | Gemini 4 Argon | medium | 1/1 | 162 | 30 | 9.3 | 11 | 56 | 27 | 144 |
 | DeepSeek v4.1 Flash | high | 2/3 | 202 (167–214) | 38 (31–42) | 3.8 (3.6–3.9) | 26 (25–30) | 60 (47–62) | 57 (53–59) | 170 (152–188) |
+| Qwen 3.8 Flash | high | 3/3 | 123 (113–158) | 32 (31–35) | 5.4 (5.2–9.0) | 12 (10–13) | 60 (56–68) | 28 (12–37) | 105 (101–141) |
 
 **Tokens and cost**
 
@@ -354,10 +372,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 278 | 91 | 4 | 0.139 |
 | Gemini 4 Argon | medium | 276 | 67 | 6 | 0.257 |
 | DeepSeek v4.1 Flash | high | 460 (423–537) | 94 (85–95) | 10 (6–14) | 0.013 (0.013–0.015) |
+| Qwen 3.8 Flash | high | 170 (158–170) | 85 (82–86) | 4 (4–7) | 0.009 (0.009–0.011) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models table inkscape -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table inkscape -->
 <details><summary>Numbers: Inkscape</summary>
 
 **Outcome and time**
@@ -376,6 +395,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 1/1 | 71 | 5 | 7.9 | 5 | 7 | 8 |
 | Gemini 4 Argon | medium | 1/1 | 348 | 10 | 13.7 | 10 | 18 | 28 |
 | DeepSeek v4.1 Flash | high | 2/3 | 89 (40–163) | 7 (6–10) | 3.5 (3.0–4.7) | 11 (7–20) | 12 (11–12) | 19 (17–22) |
+| Qwen 3.8 Flash | high | 3/3 | 65 (62–134) | 4 (4–10) | 5.2 (4.9–6.3) | 6 (6–12) | 7 (6–13) | 14 (14–17) |
 
 **Tokens and cost**
 
@@ -393,10 +413,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 44 | 85 | 1 | 0.025 |
 | Gemini 4 Argon | medium | 218 | 61 | 2 | 0.210 |
 | DeepSeek v4.1 Flash | high | 140 (71–221) | 81 (78–91) | 5 (2–6) | 0.007 (0.004–0.008) |
+| Qwen 3.8 Flash | high | 63 (58–219) | 73 (72–88) | 3 (3–6) | 0.006 (0.005–0.011) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models table thunderbird -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table thunderbird -->
 <details><summary>Numbers: Thunderbird</summary>
 
 **Outcome and time**
@@ -415,6 +436,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 1/1 | 262 | 46 | 10.3 | 20 | 54 | 21 |
 | Gemini 4 Argon | medium | 0/1 | 1168 | 167 | 7.0 | 64 | 472 | 38 |
 | DeepSeek v4.1 Flash | high | 3/3 | 177 (116–260) | 30 (26–77) | 4.1 (3.0–4.5) | 25 (23–42) | 28 (23–68) | 34 (22–49) |
+| Qwen 3.8 Flash | high | 3/3 | 227 (181–463) | 35 (34–65) | 7.2 (5.9–8.4) | 25 (23–35) | 39 (29–52) | 29 (24–32) |
 
 **Tokens and cost**
 
@@ -432,10 +454,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 383 | 92 | 4 | 0.169 |
 | Gemini 4 Argon | medium | 2228 | 89 | 6 | 0.757 |
 | DeepSeek v4.1 Flash | high | 372 (291–935) | 93 (86–96) | 4 (3–10) | 0.009 (0.008–0.015) |
+| Qwen 3.8 Flash | high | 496 (362–969) | 92 (91–95) | 6 (4–16) | 0.018 (0.014–0.032) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models table trace-rack -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table trace-rack -->
 <details><summary>Numbers: Trace-rack</summary>
 
 **Outcome and time**
@@ -454,6 +477,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 0/1 | 397 | 6 | 33.7 | 11 | 3 | 12 |
 | Gemini 4 Argon | medium | 1/1 | 274 | 6 | 16.8 | 5 | 3 | 12 |
 | DeepSeek v4.1 Flash | high | 0/3 | 302 (146–518) | 3 (2–7) | 11.2 (4.8–16.7) | 20 (20–20) | 0 (0–6) | 20 (19–20) |
+| Qwen 3.8 Flash | high | 0/3 | 606 (420–634) | 10 (8–14) | 23.9 (23.7–24.4) | 20 (18–20) | 5 (3–8) | 24 (23–27) |
 
 **Tokens and cost**
 
@@ -471,10 +495,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 151 | 89 | 8 | 0.164 |
 | Gemini 4 Argon | medium | 68 | 25 | 3 | 0.131 |
 | DeepSeek v4.1 Flash | high | 363 (144–420) | 75 (73–76) | 22 (13–25) | 0.027 (0.014–0.032) |
+| Qwen 3.8 Flash | high | 547 (359–549) | 90 (88–90) | 33 (23–36) | 0.035 (0.025–0.036) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models table trace-river -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash table trace-river -->
 <details><summary>Numbers: Trace-river</summary>
 
 **Outcome and time**
@@ -493,6 +518,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 0/1 | 699 | 5 | 36.0 | 15 | 1 | 15 |
 | Gemini 4 Argon | medium | 1/1 | 307 | 13 | 16.7 | 14 | 7 | 13 |
 | DeepSeek v4.1 Flash | high | 0/3 | 675 (373–850) | 4 (4–6) | 18.1 (12.2–25.0) | 20 (20–20) | 0 (0–1) | 20 (20–22) |
+| Qwen 3.8 Flash | high | 0/3 | 644 (424–699) | 8 (6–9) | 30.1 (17.5–33.4) | 20 (20–20) | 3 (2–4) | 22 (21–23) |
 
 **Tokens and cost**
 
@@ -510,10 +536,11 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 274 | 91 | 15 | 0.304 |
 | Gemini 4 Argon | medium | 248 | 80 | 9 | 0.212 |
 | DeepSeek v4.1 Flash | high | 510 (456–744) | 75 (72–87) | 44 (25–76) | 0.049 (0.033–0.062) |
+| Qwen 3.8 Flash | high | 468 (410–609) | 89 (87–90) | 38 (17–43) | 0.036 (0.022–0.042) |
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models costs -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash costs -->
 <details><summary>Tokens and cost per agent</summary>
 
 | Agent | Effort | Passed | Input M | Cached % | Output k | Cost $ | Cost per passed run $ |
@@ -530,6 +557,7 @@ close call.
 | Kimi K3.1 Pro | high, ran max | 8/11 | 2.78 | 92 | 61 | 1.70 | 0.21 |
 | Gemini 4 Argon | medium | 7/11 | 5.48 | 82 | 48 | 2.92 | 0.42 |
 | DeepSeek v4.1 Flash | high | 17/31 | 14.06 | 89 | 419 | 0.52 | 0.03 |
+| Qwen 3.8 Flash | high | 21/33 | 13.78 | 91 | 452 | 0.66 | 0.03 |
 
 </details>
 <!-- /render -->
@@ -556,10 +584,10 @@ The form's seconds per kind of question, of Sol, Terra and Sonnet:
 
 The time of `act`, hyprmasq's tool that sends input and returns what changed, over all runs:
 
-<!-- render baseline-0.57.0,tested-models act -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash act -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/act-dark.svg">
-  <img alt="Time in finished act calls: Input pacing 3442 s, Settle wait 1778 s, Redraw watch 2004 s, Pauses 510 s, Rest 2078 s" src="benchmarks/act.svg">
+  <img alt="Time in finished act calls: Input pacing 3644 s, Settle wait 1945 s, Redraw watch 2175 s, Pauses 515 s, Rest 2240 s" src="benchmarks/act.svg">
 </picture>
 <!-- /render -->
 
@@ -1115,7 +1143,7 @@ recovered.
   input elsewhere than the agent aimed it, apart from that attempt.
 - **Models:** Sol, Terra, Astra and Luna are OpenAI's `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-astra` and
   `gpt-6-luna` through Codex, Opus, Sonnet and Haiku Anthropic's Claude 5.5 models through Claude Code, and Kimi K3.1
-  Pro, Gemini 4 Argon and DeepSeek v4.1 Flash run through pi. Costs are what the requests cost at the providers' API
+  Pro, Gemini 4 Argon, DeepSeek v4.1 Flash and Qwen 3.8 Flash run through pi. Costs are what the requests cost at the providers' API
   list prices, also where a subscription paid for them. The figures' cost is per passed run: the cost of all runs
   over those that passed.
 
@@ -1201,6 +1229,23 @@ run.
   `gemini-4-argon` at `medium`.
 
 The 317 runs cost an estimated $38.76 at API list prices, Astra's $18.37 and Opus's $9.29 of it.
+
+</details>
+
+<details><summary>Models: Qwen 3.8 Flash, 4 Nov 2026</summary>
+
+The runs took place on 2026-11-04 at main's [`e2acd79`](https://github.com/nyrda/hyprmasq/commit/e2acd79), with
+Hyprland 0.57.1. They are in [qwen3.8-flash.json](benchmarks/data/qwen3.8-flash.json). Qwen 3.8 Flash, an open model
+that can run on local GPUs, ran each task three times through opencode-go, once on each of the machines of the set of
+2 Nov: the Ryzen 7 5800X3D, the Ryzen 7 PRO 4750U and the Ryzen 5 5600X, three VMs at once on each, each VM on cores of
+its own, two physical cores on the first two and one on the 5600X. The call budgets are those of the set of 2 Nov.
+
+- pi 1.5.0 on the 5800X3D and 1.4.0 on the others: `opencode-go/qwen3.8-flash` at `high`.
+
+An Inkscape run that the provider ended with an error after four calls, with the drawing unsaved, ran again on the
+same machine and counts in its place.
+
+The 33 runs cost $0.66 at the provider's prices.
 
 </details>
 
