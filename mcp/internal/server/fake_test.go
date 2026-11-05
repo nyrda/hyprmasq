@@ -255,6 +255,10 @@ type fakeWindow struct {
 	Caps     hypr.Capabilities
 	// The box of the window and its popups in window-local logical pixels, or nil for the window alone.
 	PopupBox *hypr.Rect
+	// A frame comes right after the next render of the window, so that the screenshot's counter misses it, and neither
+	// its state nor the screenshot tells: one that the window held back for the render's frame callback, or the start of
+	// an animation on a timer.
+	HeldFrame bool
 	// The window has not caught up with its size. A wait without onWait ends once it has.
 	Resizing bool
 	// The window waits for a frame callback and has got none from hyprmasq. Waits send it frame callbacks, which end
@@ -334,6 +338,13 @@ type fakeHyprland struct {
 }
 
 // launchToken finds the token of the launch that the process or a parent of it is, as the plugin does.
+func (w *fakeWindow) releaseHeldFrame() {
+	if w.HeldFrame {
+		w.HeldFrame = false
+		w.Commits++
+	}
+}
+
 func (f *fakeHyprland) launchToken(pid int) string {
 	for depth := 0; pid > 1 && depth < 32; depth, pid = depth+1, f.parents[pid] {
 		if token, ok := f.launches[pid]; ok {
@@ -697,7 +708,9 @@ func (f *fakeHyprland) plugin(words []string) string {
 		return jsonReply(map[string]any{"ok": true, "held": true, "remainingMs": ms, "owner": words[3]})
 	case "screenshot":
 		defer f.mu.Unlock()
-		return f.screenshot(w, words[2:])
+		reply := f.screenshot(w, words[2:])
+		w.releaseHeldFrame()
+		return reply
 	case "wait":
 		args := map[string]string{}
 		for i := 2; i+1 < len(words); i += 2 {

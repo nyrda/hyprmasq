@@ -148,32 +148,32 @@ const (
 // the frame callbacks let it draw what it has, and its shot is not marked when it draws nothing. The plugin's wait does not end quiet before the
 // window has caught up, and sends a hidden window the frame callbacks it may need to draw. A window that does not catch
 // up or draw in time is captured anyway, and its shot says so. For a starved window, it returns how long the window had
-// to draw, 0 when the wait did not run, and whether it drew.
-func (s *Server) catchUp(ctx context.Context, window string, commits *int64, starved bool) (expectMs int, drew bool, err error) {
+// to draw, 0 when the wait did not run, and the wait's reply.
+func (s *Server) catchUp(ctx context.Context, window string, commits *int64, starved bool) (expectMs int, reply hypr.WaitReply, err error) {
 	limit := catchUpMax
 	if deadline, ok := ctx.Deadline(); ok {
 		limit = min(limit, time.Until(deadline)-captureReserve)
 	}
 	if limit < catchUpQuietMs*time.Millisecond || commits == nil {
-		return 0, false, nil
+		return 0, hypr.WaitReply{}, nil
 	}
 	args := hypr.WaitArgs{Since: *commits, QuietMs: catchUpQuietMs, DeadlineMs: int(limit.Milliseconds()), ID: s.waitID()}
 	if starved {
 		args.ExpectMs = min(starvedExpectMs, args.DeadlineMs)
 	}
-	reply, err := s.wait(ctx, window, args)
+	reply, err = s.wait(ctx, window, args)
 	if ctx.Err() != nil {
-		return 0, false, ctx.Err()
+		return 0, hypr.WaitReply{}, ctx.Err()
 	}
 	var pe *hypr.Error
 	if errors.As(err, &pe) && pe.Code == "window_gone" {
-		return 0, false, err
+		return 0, hypr.WaitReply{}, err
 	}
 	// Any other failure leaves the shot to say whether the window caught up, and a starved window is still starved.
 	if err != nil {
-		return 0, false, nil
+		return 0, hypr.WaitReply{}, nil
 	}
-	return args.ExpectMs, reply.RedrawObserved, nil
+	return args.ExpectMs, reply, nil
 }
 
 func (s *Server) waitID() string {
@@ -197,9 +197,9 @@ func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) 
 	starvedMs, starvedDrew := 0, false
 	catchUp := func(st hypr.State, starved bool) error {
 		caughtUp = true
-		ms, drew, err := s.catchUp(ctx, window, st.Commits, starved)
+		ms, reply, err := s.catchUp(ctx, window, st.Commits, starved)
 		if starved {
-			starvedMs, starvedDrew = ms, drew
+			starvedMs, starvedDrew = ms, reply.RedrawObserved
 		}
 		return err
 	}

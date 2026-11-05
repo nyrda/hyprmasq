@@ -180,8 +180,12 @@ verify the edits before continuing from the new view. A page scroll always retur
 that full view. The result's `scroll` reports the notches, measured
 movement and viewport height in logical pixels, and why it stopped.
 
+Without edits in the call, the first view waits until the window has drawn
+nothing for 100 ms, apart from an animation such as a scrollbar's fade, and is
+taken again if it drew, as a hidden window often has a frame to catch up with.
 If the images cannot be aligned confidently, a control takes the wheel, the
-window fails to settle or time runs short, it stops. A failed measurement or
+window goes on drawing outside its scrollbar before the first notch, fails to
+settle or time runs short, it stops. A failed measurement or
 no movement is not a claim that the page ended. Repeating patterns, animations
 and separate panes can prevent measurement; inspect the returned view and
 use ordinary notch scrolling there.

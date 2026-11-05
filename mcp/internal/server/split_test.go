@@ -23,6 +23,11 @@ func paintOnWaits(e *testEnv, answer func(w *fakeWindow, args map[string]string)
 				return jsonReply(map[string]any{"ok": true, "ended": "no_redraw", "commits": since, "socketId": w.socketID(), "redrawObserved": false,
 					"commitsSince": 0, "quietMs": 0, "elapsedMs": 100, "resizing": false})
 			}
+			if args["quiet"] == strconv.Itoa(catchUpQuietMs) {
+				// A wait with no input before it, for what the window still has to draw, which uses up no paint.
+				return jsonReply(map[string]any{"ok": true, "ended": "quiet", "commits": w.Commits, "socketId": w.socketID(),
+					"redrawObserved": w.Commits > since, "commitsSince": w.Commits - since, "quietMs": catchUpQuietMs, "elapsedMs": catchUpQuietMs, "resizing": false})
+			}
 			mu.Lock()
 			i := n
 			n++

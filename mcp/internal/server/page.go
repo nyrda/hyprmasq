@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -37,7 +38,7 @@ func (s *Server) actPage(ctx, sendCtx context.Context, r *actRequest, out *actOu
 	if sh != nil {
 		observed = &waitOut{animated: slices.Clone(sh.Animated)}
 	}
-	a, cur, wait, page, err := s.sendPage(ctx, sendCtx, r, sh, st, start, sendBy, p, observed)
+	a, cur, wait, page, err := s.sendPage(ctx, sendCtx, r, sh, st, start, sendBy, p, observed, true)
 	out.Actions, out.Wait, out.Scroll = a, wait, page
 	r.captureMode = "window"
 	result := s.finish(ctx, r, out, cur, end, nil, a.Delivery != "none", before)
@@ -47,7 +48,70 @@ func (s *Server) actPage(ctx, sendCtx context.Context, r *actRequest, out *actOu
 	return result
 }
 
-func (s *Server) sendPage(ctx, sendCtx context.Context, r *actRequest, sh *shot, st hypr.State, start, sendBy time.Time, p *progress, observed *waitOut) (*actionsOut, hypr.State, *waitOut, *pageScrollOut, error) {
+// firstViewRetakes is how many times a page scroll takes its first view again after the window drew.
+const firstViewRetakes = 2
+
+// settledFirstView takes the first view of a page scroll, of a window that no input in this call has made draw, and
+// returns it with the animations that it saw. Nothing has been sent yet, so a frame that comes after the view costs only
+// another view. It comes often: a hidden window gets no frame callbacks some time after the last input, and an
+// application or XWayland then holds a new frame back for one, which its state does not tell. Rendering the window for
+// the view sends it that callback, and the frame arrives right after the view, as a change that the scroll cannot tell
+// from the window's own. Frame callbacks can also start an animation that was waiting for them, as GTK 4's overlay
+// scrollbar fades out then. A wait sends frame callbacks, shows whether the window drew, and ends while an animation
+// goes on, whose boxes it tells. A window that draws anything else all along gets its last view anyway, and stops the
+// scroll.
+func (s *Server) settledFirstView(ctx, sendCtx context.Context, window string, st hypr.State, sendBy time.Time) (*frame, []hypr.IntRect, error) {
+	waitCtx, done := context.WithDeadline(ctx, sendBy)
+	defer done()
+	var animated []hypr.IntRect
+	settle := func(commits *int64, starved bool) (drew bool, err error) {
+		_, reply, err := s.catchUp(waitCtx, window, commits, starved)
+		switch {
+		case ctx.Err() != nil:
+			return false, errCancelled
+		case errors.Is(err, context.DeadlineExceeded):
+			// The scroll reports the deadline.
+			return false, nil
+		case err != nil:
+			return false, err
+		}
+		animated = mergeAnimated(animated, reply.Animated)
+		return reply.RedrawObserved, nil
+	}
+	f, err := s.captureFrame(sendCtx, window, st.StableID)
+	if errors.Is(err, errStarved) {
+		if _, err := settle(st.Commits, true); err != nil {
+			return nil, nil, err
+		}
+		f, err = s.captureFrame(sendCtx, window, st.StableID)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else if err != nil {
+		return nil, nil, err
+	}
+	for retake := 0; retake < firstViewRetakes; retake++ {
+		drew, err := settle(f.reply.Commits, false)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !drew {
+			break
+		}
+		next, err := s.captureFrame(sendCtx, window, st.StableID)
+		// A window that cannot be taken again now keeps the view it has, which the scroll then finds changed.
+		if errors.Is(err, errStarved) || errors.Is(err, errNotSettled) {
+			break
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		f = next
+	}
+	return f, animated, nil
+}
+
+func (s *Server) sendPage(ctx, sendCtx context.Context, r *actRequest, sh *shot, st hypr.State, start, sendBy time.Time, p *progress, observed *waitOut, settle bool) (*actionsOut, hypr.State, *waitOut, *pageScrollOut, error) {
 	index := len(r.batch) - 1
 	page := &pageScrollOut{Ended: "step_limit"}
 	actions := &actionsOut{Done: r.from, Total: len(r.batch), Delivery: "none"}
@@ -60,7 +124,18 @@ func (s *Server) sendPage(ctx, sendCtx context.Context, r *actRequest, sh *shot,
 		page.Viewport = int(math.Round(float64(page.Viewport) / scale))
 		return actions, st, wait, page, err
 	}
-	f, err := s.captureFrame(sendCtx, r.window, st.StableID)
+	var f *frame
+	var err error
+	if settle {
+		var animated []hypr.IntRect
+		f, animated, err = s.settledFirstView(ctx, sendCtx, r.window, st, sendBy)
+		if len(animated) > 0 {
+			observed = &waitOut{animated: mergeAnimated(slices.Clone(observed.animatedBoxes()), animated)}
+		}
+	} else {
+		// The input of the actions before the scroll got the frame callbacks going, and the wait for it ended quiet.
+		f, err = s.captureFrame(sendCtx, r.window, st.StableID)
+	}
 	if err != nil {
 		return finish(err)
 	}
