@@ -42,6 +42,8 @@
 
       checks.${system} = {
         vm-test = vmTest;
+        # The same test in containers at once, which needs a GPU and the Nix settings of docs/vm-test.md.
+        container-test = import ./nix/container-test.nix { inherit system pkgs goPkgs; };
         module-compatibility = import ./nix/module-test.nix { inherit self pkgs; };
         # The subtest tables of docs/vm-test.md against the VM test's areas, without a VM.
         vm-test-docs = pkgs.runCommand "hyprmasq-vm-test-docs" { nativeBuildInputs = [ pkgs.python3 ]; } ''

@@ -50,7 +50,7 @@ with subtest("a shortcut takes effect in a hidden window of the connection with 
     state = window_state(sc_agent)
     assert not state["capabilities"]["hold"] and state["interrupted"] == 0, state
     start = len(probe_events("sc"))
-    machine.send_chars("ab", delay=0.05)
+    send_chars("ab", delay=0.05)
     wait_for("the user's keys", lambda: keys_of(probe_events("sc", start), "hm-sc-user") == [30, 48], timeout=10)
     send(sc_path, "keys", "ctrl+l")
     wait_for("the shortcut", lambda: any(e.startswith("shortcut ") for _, e in probe_events("sc", start)), timeout=10)
@@ -63,7 +63,7 @@ with subtest("a shortcut takes effect in a hidden window of the connection with 
     wait_for("the keyboard back in the user's window", lambda: returned() is not None, timeout=10)
     # It stays a quarter of a second after the last key.
     assert returned() >= 200, probe_events("sc", start)
-    machine.send_chars("cd", delay=0.05)
+    send_chars("cd", delay=0.05)
     wait_for("the user's keys after", lambda: len(keys_of(probe_events("sc", start), "hm-sc-user")) == 4, timeout=10)
     events = probe_events("sc", start)
     assert [e for _, e in events if e.startswith("shortcut ")] == ["shortcut hm-sc-agent 4 38"], events
@@ -83,7 +83,7 @@ with subtest("the user's typing beside a shortcut takes the keyboard back first,
         before = window_state(sc_agent)["interrupted"]
         start = len(probe_events("sc"))
         spawn("sh -c " + shlex.quote(f"sleep 0.3; hyprmasq-input --socket {sc_path} keys ctrl+l"), "sc-sender")
-        machine.send_chars(user_text, delay=0.03)
+        send_chars(user_text, delay=0.03)
         wait_for("the shortcut", lambda: any(e.startswith("shortcut ") for _, e in probe_events("sc", start)), timeout=10)
         wait_for("the user's keys", lambda: len(keys_of(probe_events("sc", start), "hm-sc-user")) == len(codes), timeout=10)
         events = probe_events("sc", start)
@@ -154,7 +154,7 @@ with subtest("an emulated click leaves the keyboard focus of the connection with
     start = len(probe_events("cfs"))
     clicks = " ".join(["click sleep 60"] * 8)
     spawn("sh -c " + shlex.quote(f"sleep 0.2; hyprmasq-input --socket {cfs_path} move 30 30 {clicks}"), "cfs-sender")
-    machine.send_chars(user_text, delay=0.04)
+    send_chars(user_text, delay=0.04)
     wait_for("the agent's clicks", lambda: [e for _, e in probe_events("cfs", start)].count("button hm-cfs-agent 0") == 8, timeout=10)
     wait_for("the user's keys", lambda: len(keys_of(probe_events("cfs", start), "hm-cfs-user")) == len(codes), timeout=10)
     events = probe_events("cfs", start)
@@ -163,7 +163,7 @@ with subtest("an emulated click leaves the keyboard focus of the connection with
     # The agent's typing after its click still reaches its window, and the user's after it theirs.
     start = len(probe_events("cfs"))
     send(cfs_path, "click", "text", "z")
-    machine.send_chars("x")
+    send_chars("x")
     wait_for("the user's key after", lambda: keys_of(probe_events("cfs", start), "hm-cfs-user") == [letter_codes["x"]], timeout=10)
     events = probe_events("cfs", start)
     assert keys_of(events, "hm-cfs-agent") == [letter_codes["z"]], events
@@ -245,7 +245,7 @@ with subtest("the user's held key in a window of the agent's connection survives
     # A key to the agent's window moves the connection's keyboard focus away from the user's window and back, and
     # the user's window would take the leave for the release of the key they hold, which then stops repeating.
     start = len(probe_events("hb"))
-    machine.send_monitor_command("sendkey a 700")
+    sendkey("a", 700)
     wait_for("the user's key", lambda: keys_of(probe_events("hb", start), "hm-hb-user") == [letter_codes["a"]], timeout=10)
     run_input_background("hb-key", hb_path, "key", letter_codes["b"])
     status, result = input_result("hb-key")
@@ -258,7 +258,7 @@ with subtest("the user's held key in a window of the agent's connection survives
     assert up < agent_key and not any(e == "keyboard leave hm-hb-user" for _, e in events[down:up]), events
 
     start = len(probe_events("hb"))
-    machine.send_monitor_command("sendkey a 2500")
+    sendkey("a", 2500)
     wait_for("the user's key", lambda: keys_of(probe_events("hb", start), "hm-hb-user") == [letter_codes["a"]], timeout=10)
     run_input_background("hb-key-paused", hb_path, "key", letter_codes["b"])
     status, result = input_result("hb-key-paused")
@@ -291,7 +291,7 @@ with subtest("the agent's pointer input beside the user's window has the agent's
         """The probe's events while the user holds key, whose evdev code is code, through QEMU's keyboard and the
         agent's input goes meanwhile, up to the release of the key."""
         start = len(probe_events("pm"))
-        machine.send_monitor_command(f"sendkey {key} 1500")
+        sendkey(key, 1500)
         wait_for(f"the user's {key}", lambda: f"key hm-pm-user {code} 1" in [e for _, e in probe_events("pm", start)], timeout=10)
         send(pm_path, *input)
         wait_for(f"the release of {key}", lambda: f"key hm-pm-user {code} 0" in [e for _, e in probe_events("pm", start)], timeout=10)
@@ -321,7 +321,7 @@ with subtest("the agent's pointer input beside the user's window has the agent's
     start = len(probe_events("pm"))
     clicks = " ".join(["click sleep 30"] * 16)
     spawn("sh -c " + shlex.quote(f"sleep 0.2; hyprmasq-input --socket {pm_path} move 30 30 {clicks}"), "pm-sender")
-    machine.send_chars(user_text, delay=0.04)
+    send_chars(user_text, delay=0.04)
     wait_for("the agent's clicks", lambda: [e for _, e in probe_events("pm", start)].count("button hm-pm-agent 0") == 16, timeout=15)
     events = probe_events("pm", start)
     letters = [(i, int(e.split()[2])) for i, (_, e) in enumerate(events) if e.startswith("key hm-pm-user ") and e.endswith(" 1") and e.split()[2] != "42"]
@@ -333,7 +333,7 @@ with subtest("the agent's pointer input beside the user's window has the agent's
     # The agent's own Ctrl-click has Ctrl, alone: its Ctrl waits until the user lets go of their Shift, and the user's
     # window gets its modifiers back with the keyboard focus.
     start = len(probe_events("pm"))
-    machine.send_monitor_command("sendkey shift 800")
+    sendkey("shift", 800)
     wait_for("the user's shift", lambda: "key hm-pm-user 42 1" in [e for _, e in probe_events("pm", start)], timeout=10)
     send(pm_path, "move", 30, 30, "click", "left", 1, "ctrl")
     wait_for("the keyboard back in the user's window", lambda: "keyboard enter hm-pm-user" in [e for _, e in probe_events("pm", start)], timeout=10)
@@ -360,7 +360,7 @@ with subtest("the user's keys take the keyboard back from a window that keeps it
         before = window_state(ime_agent)["interrupted"]
         start, grabbed = len(probe_events("ime")), len(machine.succeed("cat /tmp/hyprmasq-ime-grab.log").splitlines())
         spawn("sh -c " + shlex.quote(f"sleep 0.3; hyprmasq-input --socket {ime_path} keys ctrl+l"), "ime-sender")
-        machine.send_chars(user_text, delay=0.03)
+        send_chars(user_text, delay=0.03)
         wait_for("the shortcut", lambda: any(e.startswith("shortcut ") for _, e in probe_events("ime", start)), timeout=10)
         got = lambda: [line for line in machine.succeed("cat /tmp/hyprmasq-ime-grab.log").splitlines()[grabbed:] if line.startswith("key ") and line.endswith(" 1")]
         wait_for("the user's keys at the input method", lambda: len(got()) == len(user_text), timeout=10)
@@ -380,7 +380,7 @@ with subtest("the user's keys take the keyboard back from a window that keeps it
     time.sleep(1)
     start, grabbed = len(probe_events("ime")), len(machine.succeed("cat /tmp/hyprmasq-ime-grab.log").splitlines())
     ime_keys = lambda: [line.split() for line in machine.succeed("cat /tmp/hyprmasq-ime-grab.log").splitlines()[grabbed:] if line.startswith("key ")]
-    machine.send_monitor_command("sendkey a 700")
+    sendkey("a", 700)
     wait_for("the held key at the input method", lambda: any(k[2:] == ["30", "1"] for k in ime_keys()), timeout=10)
     run_input_background("ime-key", ime_path, "key", letter_codes["b"])
     status, result = input_result("ime-key")
@@ -396,7 +396,7 @@ with subtest("the user's keys take the keyboard back from a window that keeps it
     machine.succeed("pkill -f '[h]yprmasq-user-input ime'")
     # Without the grab, the user's keys reach their window again.
     start = len(probe_events("ime"))
-    wait_for("keys without the input method", lambda: machine.send_chars("x") or keys_of(probe_events("ime", start), "hm-ime-user"), timeout=10)
+    wait_for("keys without the input method", lambda: send_chars("x") or keys_of(probe_events("ime", start), "hm-ime-user"), timeout=10)
     for title in ["hm-ime-agent", "hm-ime-user"]:
         dispatch(f'hl.dsp.window.close({{ window = "title:^{title}$" }})')
     wait_for("input method probe closed", lambda: client("hm-ime-agent") is None and client("hm-ime-user") is None)

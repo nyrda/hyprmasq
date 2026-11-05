@@ -23,7 +23,7 @@ directory = Path(__file__).resolve().parent
 # Names that the NixOS test driver gives the test script.
 driver_names = {"machine", "subtest", "driver", "log", "os", "retry", "t", "start_all", "join_all", "polling_condition"}
 # Names that nix/hyprmasq-vm-test.nix defines before common.py.
-nix_names = {"expected_version"}
+nix_names = {"expected_version", "nested"}
 errors = []
 
 

@@ -5,7 +5,9 @@ Run `./dev.sh` from the repository root.
 | Command | Purpose |
 | --- | --- |
 | `./dev.sh build` | Build `hyprmasq.so`, `hyprmasq-reaper` and `hyprmasq-input` inside the flake's dev shell. This is the default command. |
+| `./dev.sh gate` | Run the test gate for PRs: the container test where the machine allows it, and otherwise the VM test. |
 | `./dev.sh vm-test` | Run the headless NixOS VM integration test. |
+| `./dev.sh container-test` | Run the same test in containers at once, in about a sixth of the time. It needs a GPU and [these Nix settings](vm-test.md#containers). |
 | `./dev.sh vm-test-interactive` | Open the test's interactive driver. |
 
 The VM commands need Nix and KVM, and pass extra arguments to `nix build`.
@@ -26,9 +28,12 @@ time: on `main`, a new commit waits for the running run, and on a PR, a new
 push cancels the run it replaces. CI does not run the race
 detector, which slows the tests of screenshots and pixels a hundredfold.
 
-The NixOS VM test is a local gate, and CI does not run it. It runs on a PR's head
+The test gate, `./dev.sh gate`, is local, and CI does not run it. It runs the
+[container test](vm-test.md#containers) on a machine with a render node and the
+`uid-range` and `gpu` system features, and otherwise the VM test. It runs on a PR's head
 commit before the PR is opened, and again before merging whenever the head commit is no longer the one it passed on. A
-PR that changes only Markdown files skips it, since neither the test nor its
+PR that changes how the test itself runs in the VM or the container passes both
+tests. A PR that changes only Markdown files skips it, since neither the test nor its
 Nix build reads them. The PR template asks for both runs.
 
 The flake's dev shell, `nix develop`, has the build inputs of the plugin and
@@ -59,13 +64,15 @@ Contributions are welcome as pull requests against `main`.
    (with `-race` when you change concurrency or process handling), the
    [bench unit tests](#benchmarks), and
    `nix build .#checks.x86_64-linux.vm-test-docs`.
-3. Run the VM test, `./dev.sh vm-test`, on the commit you push. It needs Nix
-   and KVM, takes a while, and is the local gate that CI does not run. Add a
+3. Run the test gate, `./dev.sh gate`, on the commit you push. It is the local
+   gate that CI does not run: the container test with a GPU and
+   [these Nix settings](vm-test.md#containers), and otherwise the VM test, which
+   needs Nix and KVM and takes a while. Add a
    subtest for new behaviour and list it in the
    [subtest tables](vm-test.md#subtests).
    A PR that changes only Markdown files skips it.
-4. Fill in `.github/pull_request_template.md`, including the commit the VM
-   test passed on.
+4. Fill in `.github/pull_request_template.md`, including the commit the test
+   passed on and which test ran.
 
 ## hyprmasq-mcp
 
@@ -144,6 +151,8 @@ The NixOS VM test in `nix/vm-test/` boots Hyprland with the plugin and covers
 the plugin, the tools and the MCP server. Run it with `./dev.sh vm-test`, or
 only some of its areas with
 `nix-build nix/hyprmasq-vm-test.nix --argstr areas "mcp unload"`.
+`./dev.sh container-test` runs all of it in [containers](vm-test.md#containers)
+at once, and `./dev.sh gate` picks that where the machine allows it.
 [VM test](vm-test.md) describes how it is built, its areas and every
 subtest. A new subtest goes into its tables there, which
 `nix build .#checks.x86_64-linux.vm-test-docs` checks against the code.

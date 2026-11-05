@@ -1,18 +1,48 @@
 import json
-import math
-import random
-import re
+# For the areas, which the test script puts after this file. A run of only some areas may not use them.
+import math  # noqa: F401
+import random  # noqa: F401
+import re  # noqa: F401
 import shlex
-import string
+import string  # noqa: F401
 import time
+
+from test_driver.machine import CHAR_TO_KEY
 
 machine.wait_for_unit("multi-user.target")
 runtime = "/run/user/1000"
 machine.succeed(f"install -d -o alice -g users -m 700 {runtime}")
+# In the container, Hyprland runs nested in labwc, headless on the host's render node, since Aquamarine's headless
+# backend has no allocator of its own. labwc's headless seat has no keyboard and no pointer, and Hyprland's Wayland
+# backend then gives Hyprland neither, where QEMU gives the VM both, so hyprmasq-parent-seat holds a virtual one of each.
+# It also sends the user's keys, which the VM gets from QEMU: sendkey() below writes them to its FIFO.
+parent_env = ""
+# In the runtime directory, since fs.protected_fifos keeps root from opening alice's FIFO in /tmp.
+parent_fifo = f"{runtime}/parent-seat.fifo"
+if nested:
+    machine.succeed(
+        "su - alice -c "
+        + shlex.quote(
+            f"XDG_RUNTIME_DIR={runtime} WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 WLR_RENDERER=gles2 "
+            "WLR_RENDER_DRM_DEVICE=$(ls /dev/dri/renderD* | head -1) WLR_LIBINPUT_NO_DEVICES=1 "
+            "LABWC_UPDATE_ACTIVATION_ENV=0 nohup labwc > /tmp/hyprmasq-labwc.log 2>&1 &"
+        )
+    )
+    machine.wait_until_succeeds(f"test -S {runtime}/wayland-0", timeout=60)
+    machine.succeed("su - alice -c " + shlex.quote(f"mkfifo -m 600 {parent_fifo}"))
+    machine.succeed(
+        "su - alice -c "
+        + shlex.quote(
+            f"XDG_RUNTIME_DIR={runtime} WAYLAND_DISPLAY=wayland-0 "
+            f"nohup hyprmasq-parent-seat {parent_fifo} > /tmp/hyprmasq-parent-seat.log 2>&1 &"
+        )
+    )
+    machine.wait_until_succeeds("grep -q ' ready$' /tmp/hyprmasq-parent-seat.log", timeout=60)
+    parent_env = "WAYLAND_DISPLAY=wayland-0 "
 machine.succeed(
     "su - alice -c "
     + shlex.quote(
-        f"XDG_RUNTIME_DIR={runtime} HYPRLAND_HEADLESS_ONLY=1 "
+        f"XDG_RUNTIME_DIR={runtime} {parent_env}"
         "nohup Hyprland --config /etc/hyprmasq-test.lua > /tmp/hyprmasq-hyprland.log 2>&1 &"
     )
 )
@@ -35,6 +65,52 @@ plugin = machine.succeed("cat /etc/hyprmasq-plugin").strip()
 
 def alice(command):
     return machine.succeed("su - alice -c " + shlex.quote(command))
+
+
+# The Linux key codes of QEMU's key names (https://www.qemu.org/docs/master/interop/qemu-qmp-ref.html#enum-QKeyCode)
+# that the areas send, and of the names "0x.." that CHAR_TO_KEY gives: PS/2 set 1 scancodes, which below 0x59 are the
+# Linux key codes themselves.
+qemu_key_codes = {
+    **{letter: code for row, first in (("qwertyuiop", 16), ("asdfghjkl", 30), ("zxcvbnm", 44))
+       for code, letter in enumerate(row, first)},
+    **{digit: code for code, digit in enumerate("1234567890", 2)},
+    "esc": 1, "backspace": 14, "tab": 15, "ret": 28, "ctrl": 29, "shift": 42, "shift_r": 54, "alt": 56, "spc": 57,
+    "kp_8": 72, "ctrl_r": 97, "alt_r": 100, "up": 103, "left": 105, "right": 106, "down": 108, "insert": 110,
+    "delete": 111, "meta_l": 125, "meta_r": 126,
+}
+
+
+def qemu_key_code(name):
+    return int(name, 16) if name.startswith("0x") else qemu_key_codes[name]
+
+
+def sendkey(keys, hold_ms=0):
+    """The user's chord keys, such as "ctrl-x" in QEMU's key names, from the keyboard that Hyprland has as real input:
+    QEMU's sendkey in the VM, hyprmasq-parent-seat in the container, which sends them the same way. Each key event
+    is followed by hold_ms, or 10 ms with 0, and this returns at once, while later keys queue behind them."""
+    if nested:
+        codes = " ".join(str(qemu_key_code(name)) for name in keys.split("-"))
+        machine.succeed(f"echo 'sendkey {hold_ms} {codes}' > {parent_fifo}")
+    else:
+        machine.send_monitor_command(f"sendkey {keys}" + (f" {hold_ms}" if hold_ms else ""))
+
+
+def send_key(key, delay=0.01):
+    """machine.send_key, also in the container: a chord or a character, then a pause of delay seconds."""
+    if nested:
+        sendkey(CHAR_TO_KEY.get(key, key))
+        time.sleep(delay)
+    else:
+        machine.send_key(key, delay)
+
+
+def send_chars(chars, delay=0.01):
+    """machine.send_chars, also in the container: each character as send_key types it."""
+    if nested:
+        for char in chars:
+            send_key(char, delay)
+    else:
+        machine.send_chars(chars, delay=delay)
 
 
 def hypr(command):
@@ -688,6 +764,19 @@ def wait_for_hyprland():
         ),
         timeout=120,
     )
+    if nested:
+        # labwc sends keys to Hyprland's window, which exists only while Hyprland's output in labwc is enabled. As a mirror
+        # the output stays out of Hyprland's layout, its list of monitors and its workspaces.
+        hypr("eval " + shlex.quote(
+            'hl.monitor({ output = "WAYLAND-1", mode = "640x480", position = "0x0", scale = "1", mirror = "HYPRMASQ-TEST" })'
+        ))
+        wait_for(
+            "the mirror in labwc",
+            lambda: any(
+                m["name"] == "WAYLAND-1" and m["mirrorOf"] != "none" for m in json.loads(hypr("-j monitors all"))
+            ),
+            timeout=30,
+        )
     assert "hyprmasq" in hypr("plugin list")
     assert not hypr("configerrors")
 
@@ -700,6 +789,8 @@ def save_logs():
     for artifact in [
         "/tmp/hyprmasq-hyprland.log",
         "/tmp/hyprmasq-hyprland-full.log",
+        "/tmp/hyprmasq-labwc.log",
+        "/tmp/hyprmasq-parent-seat.log",
         "/tmp/hyprmasq-wev.log",
         "/tmp/hyprmasq-hm-i-wev.log",
         "/tmp/hyprmasq-hm-i-x-active.log",
