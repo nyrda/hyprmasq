@@ -77,24 +77,54 @@ with subtest("hyprmasq-mcp stops a batch whose window is resized while it is sen
     float_window(probe, 100, 100, 300, 200)
     assert snapshot() == before_focus
 
-with subtest("hyprmasq-mcp checks a window again after waiting for input to another window"):
-    shot_id = mcp.call("screenshot", {"window": probe}).data["shot"]["id"]
+with subtest("hyprmasq-mcp sends input to windows of different apps at the same time"):
     start = len(probe_events("m-probe"))
-    # A long text into the shell holds the send lock, while a click on the probe waits for it.
+    # A long text into the shell takes about 9 s. The probe, another process, gets its keys meanwhile.
     long_line = "# " + "x" * 600
     typing = mcp.start("act", {"window": shell, "actions": [{"action": "type", "text": long_line}, {"action": "key", "keys": ["ctrl+u"]}]}, token="hm-m-long")
     wait_for("typing", progressed(mcp, "hm-m-long", "sending input"), timeout=10)
-    queued = mcp.start("act", {"window": probe, "shot": shot_id, "actions": [{"action": "click", "x": 20, "y": 20}]}, token="hm-m-queued")
-    wait_for("queued", progressed(mcp, "hm-m-queued", "waiting for input to other windows"), timeout=10)
-    float_window(probe, 100, 100, 320, 220)
+    beside = mcp.call("act", {"window": probe, "actions": [{"action": "type", "text": "a" * 20}], "wait": {"expect_change": False}, "capture": "none"})
+    assert not beside.is_error and beside.data["actions"]["delivery"] == "complete", beside
+    assert not any(p.get("message") == "waiting for input to other windows of the same app" for p in mcp.progress("hm-m-long")), mcp.progress("hm-m-long")
+    typed = mcp.result(typing)
+    assert not typed.is_error and typed.data["actions"]["delivery"] == "complete", typed
+    # The probe's keys all came while the shell's text was still being typed.
+    assert beside.received < typed.received, (beside, typed)
+    key_presses = [e for _, e in probe_input(start) if e.startswith("key ") and e.endswith(" 1")]
+    assert key_presses == ["key hm-m-probe 30 1"] * 20, probe_events("m-probe", start)
+    assert snapshot() == before_focus
+
+with subtest("hyprmasq-mcp checks a window again after waiting for input to another window of its app"):
+    # Two toplevels of one probe share a Wayland connection, so input to them takes turns.
+    focus_workspace(50)
+    spawn("hyprmasq-focus-probe focus hm-m-pair-a hm-m-pair-b", "m-pair")
+    wait_for("pair", lambda: client("hm-m-pair-a") is not None and client("hm-m-pair-b") is not None)
+    focus_workspace(4)
+    pair_a, pair_b = client("hm-m-pair-a")["address"], client("hm-m-pair-b")["address"]
+    float_window(pair_b, 100, 100, 300, 200)
+    wait_for("pair-b floats", lambda: client("hm-m-pair-b")["size"] == [300, 200])
+    shot_id = mcp.call("screenshot", {"window": pair_b}).data["shot"]["id"]
+    start = len(probe_events("m-pair"))
+    # A long text into one toplevel holds its app's send lock, while a click on the other waits for it.
+    typing = mcp.start("act", {"window": pair_a, "actions": [{"action": "type", "text": "x" * 400}], "wait": {"expect_change": False}}, token="hm-m-pair-long")
+    wait_for("typing", progressed(mcp, "hm-m-pair-long", "sending input"), timeout=10)
+    queued = mcp.start("act", {"window": pair_b, "shot": shot_id, "actions": [{"action": "click", "x": 20, "y": 20}]}, token="hm-m-queued")
+    wait_for("queued", progressed(mcp, "hm-m-queued", "waiting for input to other windows of the same app"), timeout=10)
+    float_window(pair_b, 100, 100, 320, 220)
     stale = mcp.result(queued)
     typed = mcp.result(typing)
     assert not typed.is_error and typed.data["actions"]["delivery"] == "complete", typed
     refused(stale, "stale_shot")
     assert stale.data["error"]["message"] == f"the window was resized from 300×200 to 320×220 since shot {shot_id}", stale
     time.sleep(0.5)
-    assert probe_input(start) == [], probe_events("m-probe", start)
-    float_window(probe, 100, 100, 300, 200)
+    events = [e for _, e in probe_events("m-pair", start)]
+    assert not any(e.startswith(("motion hm-m-pair-b", "button hm-m-pair-b")) for e in events), events
+    assert sum(e == "key hm-m-pair-a 45 1" for e in events) == 400, events
+    hypr(f"hyprmasq eis close {pair_a}")
+    hypr(f"hyprmasq eis close {pair_b}")
+    machine.succeed("pkill -f '[h]yprmasq-focus-probe focus hm-m-pair-a'")
+    wait_for("the pair closed", lambda: client("hm-m-pair-a") is None and client("hm-m-pair-b") is None)
+    assert snapshot() == before_focus
 
 with subtest("hyprmasq-mcp captures a region after the input"):
     shot_id = mcp.call("screenshot", {"window": probe}).data["shot"]["id"]

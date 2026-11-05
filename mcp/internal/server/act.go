@@ -55,6 +55,8 @@ type actRequest struct {
 	baseReason string
 	// The token of the launch by this server that the window belongs to, read before the input, which may close it.
 	launch string
+	// The pid of the window's process, read before the input, which decides the send lock it shares, or 0.
+	pid int
 	// The first action of the part of the batch that a send sends and checks: act sends a batch that ends with
 	// scrolling in two parts, see split.go.
 	from        int
@@ -235,6 +237,7 @@ func (s *Server) act(ctx context.Context, r *actRequest, start time.Time, p *pro
 		return fail(err)
 	}
 	r.launch = s.launchOf(callCtx, before, r.window)
+	r.pid = windowPID(before, r.window)
 	// A shot names the window by its stable_id too, so a window that closed since, also one whose address another
 	// window has now, fails before anything opens a socket or captures.
 	shown, stableID := s.shownWindow(r.window, r.shotID, r.regionShot())

@@ -835,8 +835,26 @@ func (s *Server) lockPath(stableID string) string {
 	return filepath.Join(s.cfg.StateDir, "window-"+unsafePathChars.ReplaceAllString(stableID, "_")+".lock")
 }
 
-func (s *Server) sendLockPath() string {
-	return filepath.Join(s.cfg.StateDir, "send.lock")
+// sendLockPath is the lock that input to a window takes while it is sent, shared by the windows that input to one of
+// them can disturb: those of one Wayland connection, which has one keyboard and pointer focus and one set of modifiers
+// that the plugin lends to each frame of a target, and all windows of Hyprland's XWayland, whose X server has one focus.
+// A connection belongs to one process, so the windows of one pid share the lock, also when the process has several
+// connections. A window whose pid Hyprland does not tell shares the lock of the other such windows. Input to windows of
+// different processes runs at the same time.
+func (s *Server) sendLockPath(pid int, xwayland bool) string {
+	switch {
+	case xwayland:
+		return filepath.Join(s.cfg.StateDir, "send-xwayland.lock")
+	case pid > 0:
+		return filepath.Join(s.cfg.StateDir, fmt.Sprintf("send-pid-%d.lock", pid))
+	}
+	return filepath.Join(s.cfg.StateDir, "send-unknown.lock")
+}
+
+// clipboardLockPath is the lock that a batch with a paste takes while it is sent: the plugin holds one agent clipboard,
+// so pastes into any windows take turns.
+func (s *Server) clipboardLockPath() string {
+	return filepath.Join(s.cfg.StateDir, "clipboard.lock")
 }
 
 // windowArgs are the arguments of the tools that take only a window.

@@ -187,6 +187,16 @@ func batchTypes(batch []action) bool {
 	return false
 }
 
+// batchPastes tells whether the batch pastes, through the agent clipboard that pastes into all windows share.
+func batchPastes(batch []action) bool {
+	for _, a := range batch {
+		if a.Kind == "paste" {
+			return true
+		}
+	}
+	return false
+}
+
 // batchHasCoordinates tells whether an action of the batch has coordinates, which are pixels of a shot.
 func batchHasCoordinates(batch []action) bool {
 	for _, a := range batch {

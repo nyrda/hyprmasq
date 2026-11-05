@@ -324,6 +324,11 @@ long paste cannot be set, the error says that the parts before it were pasted,
 so that the agent pastes only what is missing. A paste into an X11 window
 is refused with `unsupported`, as X11 apps paste the X server's clipboard.
 
+The agent clipboard is one for all agents. Pastes take turns, but a copy
+that input makes in another app, such as Ctrl+C there, replaces it at once,
+also while a paste waits for its app to read it. That app then pastes the
+other copy, and the result lists the paste in `actions.unread_pastes`.
+
 ### A press outside an open popup
 
 A menu or a dropdown's list closes when a click comes outside it, and apps
@@ -508,9 +513,27 @@ input is not an error.
 `no_redraw` and `timeout` are not errors: they are wait outcomes, returned
 with a shot and a hint.
 
-Several servers can drive one desktop. They take turns on each window
-through lock files in `$XDG_RUNTIME_DIR/hyprmasq/<instance>/`. Scripts that
-run `hyprmasq-input` directly take no locks.
+Several servers can drive one desktop, such as one per agent, through lock
+files in `$XDG_RUNTIME_DIR/hyprmasq/<instance>/`. Scripts that run
+`hyprmasq-input` directly take no locks.
+
+- **One window:** calls take turns. Each `act` holds the window from before
+  its input until its result is captured.
+- **Windows of one app:** input takes turns, and waits and captures run at
+  the same time. The windows of one process share a Wayland connection,
+  whose focus and modifiers the plugin lends to each target, such as two
+  windows of one browser. All X11 windows of Hyprland's XWayland share one
+  X server, whose focus works the same way. Start a separate instance of an
+  app, such as a browser with its own profile, to drive its windows at the
+  same time.
+- **Windows of different apps:** input runs at the same time.
+- **Pastes:** the plugin holds one agent clipboard, so batches with a
+  `paste` take turns, whatever their windows.
+
+A batch holds these locks while it is sent, its `pause` actions included,
+and the wait for a redraw runs after it lets them go. Waiting for a lock
+counts against `deadline_ms`, and a call that gets none in time fails with
+`deadline` and sends nothing.
 
 ## Configuration
 

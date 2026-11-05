@@ -104,13 +104,13 @@ the changes captures. `internal/server` has the tools, a file per area:
 | `act.go` | The `act` tool: its arguments, the order of its steps, and the result it finishes with. |
 | `actions.go`, `batch.go` | Parsing actions, and checking a batch and turning it into `hyprmasq-input` steps. |
 | `path.go` | The steps of a `path`, and the sampling of its spline. |
-| `send.go`, `input.go` | Running `hyprmasq-input` under the send lock, its pacing and locale, and mapping its failures. |
+| `send.go`, `input.go` | Running `hyprmasq-input` under the send lock of the window's app and the clipboard lock of a paste, its pacing and locale, and mapping its failures. |
 | `wait.go` | The plugin's wait for a redraw, and its baselines. |
 | `lease.go` | Focus leases and the `release` tool. |
 | `drag.go` | Reading how the app's drag-and-drop went. |
 | `newwindows.go`, `late.go` | Shots of the windows that input opened, of the window a closed one came from, and of windows that opened after their act. |
 | `result.go`, `summary.go`, `hints.go`, `errors.go` | What a result says: its structured content, its summary line, its hints, and its errors. |
-| `locks.go` | The window and send locks, shared with other servers. |
+| `locks.go` | The window, send and clipboard locks, shared with other servers. A send lock is shared by the windows of one process, or by all windows of Hyprland's XWayland. |
 
 The tests of an area are in the `_test.go` files named after it or a part of
 it, such as `send_test.go`, and `answer_test.go` for the wait for a click's

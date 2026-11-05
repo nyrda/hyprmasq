@@ -102,5 +102,5 @@ func unreadPasteHint(unread []int) string {
 	if len(unread) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("No app read all of the text of the paste at actions %v within %v of its Shift+Insert: the focused widget may not take text, or the app may not paste on Shift+Insert, as terminals paste the primary selection there. Look at the shot; type the text with [\"type\",text] where paste does not work.", unread, pasteReadTimeout)
+	return fmt.Sprintf("No app read all of the text of the paste at actions %v within %v of its Shift+Insert: the focused widget may not take text, the app may not paste on Shift+Insert, as terminals paste the primary selection there, or a copy in another window replaced the agent clipboard first. Look at the shot; type the text with [\"type\",text] where paste does not work.", unread, pasteReadTimeout)
 }

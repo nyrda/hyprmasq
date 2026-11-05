@@ -66,7 +66,7 @@ func TestLeaseOfABatchThatSentNothing(t *testing.T) {
 	}
 
 	// Cancelled and timed out while another window's batch holds the send lock.
-	sendLock, err := acquireLock(context.Background(), e.server.sendLockPath())
+	sendLock, err := acquireLock(context.Background(), e.server.sendLockPath(4242, false))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -262,3 +262,33 @@ with subtest("the agent's paste pastes its text through the agent clipboard, a l
     hypr(f"hyprmasq eis close {paste_probe}")
     machine.succeed("pkill -f '[h]yprmasq-clip-probe hm-paste-probe'")
     wait_for("the paste probe closed", lambda: client("hm-paste-probe") is None)
+
+with subtest("pastes into windows of different apps take turns, and each app gets its own text"):
+    # The plugin holds one agent clipboard, so a paste waits while another one's batch runs, also in another app.
+    paste_a, _ = clip_probe("hm-paste-a", 88)
+    paste_b, _ = clip_probe("hm-paste-b", 89)
+    focus_workspace(4)
+    dispatch(f'hl.dsp.focus({{ window = "address:{visible}" }})')
+    wait_for("user's terminal focused", lambda: snapshot() == (4, visible))
+    user_copies("userclipboard", "userprimary")
+    start_a, start_b = len(probe_events("hm-paste-a")), len(probe_events("hm-paste-b"))
+    agent_a, agent_b = Mcp("paste-a"), Mcp("paste-b")
+    agent_a.initialize()
+    agent_b.initialize()
+    # The first batch holds the clipboard lock through the pause after its paste.
+    first = agent_a.start("act", {"window": paste_a, "actions": [["paste", "textfora"], ["pause", 3000]], "capture": "none"}, token="hm-paste-first")
+    wait_for("the first paste is sent", lambda: any(p.get("message") == "sending input" for p in agent_a.progress("hm-paste-first")), timeout=10)
+    second = agent_b.start("act", {"window": paste_b, "actions": [["paste", "textforb"]], "capture": "none"}, token="hm-paste-second")
+    wait_for("the second paste waits", lambda: any(p.get("message") == "waiting for a paste into another window" for p in agent_b.progress("hm-paste-second")), timeout=10)
+    first_result, second_result = agent_a.result(first), agent_b.result(second)
+    for result in (first_result, second_result):
+        assert not result.is_error and result.data["actions"]["delivery"] == "complete" and "unread_pastes" not in result.data["actions"], result
+    events_a = wait_clip("hm-paste-a", start_a, "paste clipboard textfora")
+    events_b = wait_clip("hm-paste-b", start_b, "paste clipboard textforb")
+    assert "paste clipboard textforb" not in events_a and "paste clipboard textfora" not in events_b, (events_a, events_b)
+    assert user_selections() == ("userclipboard", "userprimary") and snapshot() == (4, visible)
+    assert agent_a.stop() == 0 and agent_b.stop() == 0
+    for address, title in ((paste_a, "hm-paste-a"), (paste_b, "hm-paste-b")):
+        hypr(f"hyprmasq eis close {address}")
+        machine.succeed(f"pkill -f '[h]yprmasq-clip-probe {title}'")
+        wait_for(f"{title} closed", lambda: client(title) is None)

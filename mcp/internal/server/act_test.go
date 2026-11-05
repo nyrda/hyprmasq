@@ -188,7 +188,7 @@ func TestWindowReadAgainAfterTheLocks(t *testing.T) {
 			w := e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Socket, w.Commits = true, 10 })
 			e.screenshot(`{"window":"0xa1"}`)
 			// A batch on another window holds the send lock.
-			sendLock, err := acquireLock(context.Background(), e.server.sendLockPath())
+			sendLock, err := acquireLock(context.Background(), e.server.sendLockPath(4242, false))
 			if err != nil {
 				t.Fatal(err)
 			}
