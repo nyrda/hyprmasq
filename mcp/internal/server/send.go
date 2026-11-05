@@ -22,18 +22,32 @@ func watchesGeometry(batch []action) bool {
 	return (len(batch) > 1 && batchHasCoordinates(batch[1:])) || (len(batch) > 0 && (batch[0].Kind == "path" || (len(batch) == 1 && batch[0].hasCoordinates())))
 }
 
-// send takes the send lock, checks the window again, and runs the batch in one hyprmasq-input, which checks every
-// action, including whether the keymap can type it, before it sends anything. It returns the window's state read just
-// before the input, whose counter is the wait's baseline. clientCtx tells a cancellation from the deadline of sendCtx.
+// send takes the send lock of the window's app and, for a paste, the clipboard lock, checks the window again, and runs
+// the batch in one hyprmasq-input, which checks every action, including whether the keymap can type it, before it
+// sends anything. It returns the window's state read just before the input, whose counter is the wait's baseline.
+// clientCtx tells a cancellation from the deadline of sendCtx.
 func (s *Server) send(clientCtx, sendCtx context.Context, r *actRequest, steps []inputStep, sh *shot, st hypr.State, start time.Time, p *progress,
 	locale targetLocale) (*actionsOut, hypr.State, error) {
 	out := &actionsOut{Total: len(r.batch), Delivery: "none"}
-	p.set("waiting for input to other windows")
-	sendLock, err := acquireLock(sendCtx, s.sendLockPath())
+	// Locks are taken in one order: the window's, its app's send lock, then the clipboard's.
+	p.set("waiting for input to other windows of the same app")
+	sendLock, err := acquireLock(sendCtx, s.sendLockPath(r.pid, st.XWayland))
 	if err != nil {
-		return out, st, lockError(clientCtx, err, start, "the send lock, held by a call on another window")
+		what := "the send lock, held by a call on another window of the same app"
+		if st.XWayland {
+			what = "the send lock, held by a call on another X11 window"
+		}
+		return out, st, lockError(clientCtx, err, start, what)
 	}
 	defer sendLock.release()
+	if batchPastes(r.batch[r.from:]) {
+		p.set("waiting for a paste into another window")
+		clipboardLock, err := acquireLock(sendCtx, s.clipboardLockPath())
+		if err != nil {
+			return out, st, lockError(clientCtx, err, start, "the clipboard lock, held by a paste into another window")
+		}
+		defer clipboardLock.release()
+	}
 
 	// Other calls may have changed the window while this one waited for the locks.
 	cur, err := s.sendable(clientCtx, sendCtx, r, sh, st)

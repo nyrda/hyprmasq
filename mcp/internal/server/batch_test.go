@@ -367,7 +367,7 @@ func TestBatchesThatTheDeadlineCannotFit(t *testing.T) {
 	}
 
 	// Waiting for another window's input left too little time.
-	sendLock, err := acquireLock(context.Background(), e.server.sendLockPath())
+	sendLock, err := acquireLock(context.Background(), e.server.sendLockPath(4242, false))
 	if err != nil {
 		t.Fatal(err)
 	}
