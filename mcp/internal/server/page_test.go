@@ -236,6 +236,52 @@ func TestPageWithoutBudgetKeepsDeliveredEdits(t *testing.T) {
 // A known fading scrollbar may keep committing between the reference and input.
 // Its evidence must survive both an edit capture and the previous act's shot.
 // An animation in the content still makes that same counter drift refuse more input.
+// A frame can come right after the first view of the scroll, which sends a hidden window the frame callback that it held
+// a frame back for. Nothing has been sent yet, so the view is taken again, and the scroll goes on.
+func TestPageScrollIsNotStoppedByAFrameRightAfterItsFirstView(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Paint = page(300) })
+	e.screenshot(`{"window":"0xa1"}`)
+	paintOnWaits(e, nil, page(315), page(390), page(450))
+	e.fake.with(func() { e.fake.find("0xa1").HeldFrame = true })
+	res := e.act(`{"window":"0xa1","shot":"s1","next_page":{"x":200,"y":100}}`)
+	if res.IsError || get(t, res, "scroll.ended") != "page" || get(t, res, "scroll.moved_px") != 150.0 {
+		t.Fatal(text(res))
+	}
+}
+
+// Frame callbacks can start an animation in the window, which goes on through the first view and the first notch. The
+// wait before the first view tells of it, so a scrollbar's fade does not stop the scroll, while an animation in the
+// content does.
+func TestPageTakesAnimationsFromTheWaitBeforeItsFirstView(t *testing.T) {
+	for _, strip := range []bool{false, true} {
+		e := newTestEnv(t)
+		e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Paint = page(300) })
+		e.screenshot(`{"window":"0xa1"}`)
+		paintOnWaits(e, nil, page(315), page(390), page(450))
+		box, ended := hypr.IntRect{X: 20, Y: 40, Width: 16, Height: 20}, "reference_changed"
+		if strip {
+			box, ended = hypr.IntRect{X: 312, Y: 20, Width: 8, Height: 100}, "page"
+		}
+		e.fake.with(func() {
+			wait := e.fake.onWait
+			e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+				var reply map[string]any
+				if err := json.Unmarshal([]byte(wait(w, args, cancel)), &reply); err != nil {
+					panic(err)
+				}
+				reply["animated"] = []hypr.IntRect{box}
+				return jsonReply(reply)
+			}
+			e.fake.onState = func(w *fakeWindow) { w.Commits++ }
+		})
+		res := e.act(`{"window":"0xa1","shot":"s1","next_page":{"x":200,"y":100}}`)
+		if res.IsError || get(t, res, "scroll.ended") != ended {
+			t.Fatalf("strip %v: %s", strip, text(res))
+		}
+	}
+}
+
 func TestPageKeepsScrollbarEvidence(t *testing.T) {
 	for _, prefix := range []bool{false, true} {
 		for _, strip := range []bool{false, true} {

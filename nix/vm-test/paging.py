@@ -26,6 +26,20 @@ def scr_settled(positions):
     return (positions() or [0])[-1]
 
 
+def scr_page_window(toolkit, log):
+    """The title and the command of a window with a long page of the toolkit."""
+    title = "hm-x-scroll" if toolkit == "browser" else f"hm-{log}"
+    if toolkit == "qt":
+        return title, f"hyprmasq-qt-probe --scroll {title}"
+    if toolkit == "gtk":
+        return title, f"env GDK_BACKEND=wayland hyprmasq-combo-probe --scroll {title}"
+    if toolkit == "gtk4":
+        return title, f"env GDK_BACKEND=wayland hyprmasq-scroll-probe {title}"
+    return title, (f"env {x_env} chromium --ozone-platform=x11 --user-data-dir=/tmp/hm-{log} "
+                   "--no-first-run --no-default-browser-check --disable-gpu --enable-logging=stderr "
+                   "--app=file:///etc/hyprmasq-test/scroll.html")
+
+
 output_mode(1280, 800)
 focus_workspace(99)
 scr_user = foot("hm-pg-user")
@@ -38,17 +52,7 @@ with subtest("page scrolling keeps overlap on Qt, GTK and browser pages at diffe
         output_mode(scr_width, scr_height)
         for scr_toolkit in ["qt", "gtk", "gtk4", "browser"]:
             scr_log = f"page-{scr_toolkit}-{scr_height}"
-            scr_title = "hm-x-scroll" if scr_toolkit == "browser" else f"hm-{scr_log}"
-            if scr_toolkit == "qt":
-                scr_command = f"hyprmasq-qt-probe --scroll {scr_title}"
-            elif scr_toolkit == "gtk":
-                scr_command = f"env GDK_BACKEND=wayland hyprmasq-combo-probe --scroll {scr_title}"
-            elif scr_toolkit == "gtk4":
-                scr_command = f"env GDK_BACKEND=wayland hyprmasq-scroll-probe {scr_title}"
-            else:
-                scr_command = (f"env {x_env} chromium --ozone-platform=x11 --user-data-dir=/tmp/hm-{scr_log} "
-                               "--no-first-run --no-default-browser-check --disable-gpu --enable-logging=stderr "
-                               "--app=file:///etc/hyprmasq-test/scroll.html")
+            scr_title, scr_command = scr_page_window(scr_toolkit, scr_log)
             scr_address = scr_hidden(scr_command, scr_log, scr_title, 104)
 
             def scr_page_positions():
@@ -116,6 +120,25 @@ with subtest("page scrolling keeps overlap on Qt, GTK and browser pages at diffe
             assert snapshot() == (99, scr_user), snapshot()
             machine.succeed(f"kill {client(scr_title)['pid']}")
             wait_for("the page probe closed", lambda: client(scr_title) is None)
+
+with subtest("a page scroll goes on when its first view releases a frame that the hidden window held back"):
+    # Some time after the input, the window gets no more frame callbacks, and what it draws then waits for the next. The
+    # capture of the first view sends one. These pauses let that happen, each in its toolkit and size, in the VM and in
+    # the container: without the wait before the first view, the scroll stops after one notch at reference_changed.
+    for scr_toolkit, scr_width, scr_height, scr_pause in [("browser", 1280, 800, 0.5), ("gtk4", 800, 600, 3)]:
+        output_mode(scr_width, scr_height)
+        scr_log = f"held-{scr_toolkit}"
+        scr_title, scr_command = scr_page_window(scr_toolkit, scr_log)
+        scr_address = scr_hidden(scr_command, scr_log, scr_title, 104)
+        scr_shot = scr_shot_of(scr_address)
+        for scr_direction in ["down", "up", "down", "up"]:
+            scr_page = scr_agent.call("act", {"window": scr_address, "shot": scr_shot,
+                                               "next_page": {"x": 100, "y": scr_height // 2, "direction": scr_direction}})
+            assert not scr_page.is_error and scr_page.data["scroll"]["ended"] == "page", (scr_log, scr_direction, scr_page)
+            scr_shot = scr_page.data["shot"]["id"]
+            time.sleep(scr_pause)
+        machine.succeed(f"kill {client(scr_title)['pid']}")
+        wait_for("the page probe closed", lambda: client(scr_title) is None)
 
 with subtest("a page scroll stops when a control takes the wheel without claiming the page ended"):
     output_mode(1280, 800)

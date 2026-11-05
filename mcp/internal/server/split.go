@@ -188,7 +188,7 @@ func (s *Server) actSplit(ctx, sendCtx context.Context, c splitCall) *mcp.CallTo
 	var scrolled *actionsOut
 	var pageWait *waitOut
 	if endsWithPage(r) {
-		scrolled, cur, pageWait, out.Scroll, err = s.sendPage(ctx, sendCtx, &scroll, c.sh, st, c.start, c.sendBy, c.p, wait)
+		scrolled, cur, pageWait, out.Scroll, err = s.sendPage(ctx, sendCtx, &scroll, c.sh, st, c.start, c.sendBy, c.p, wait, false)
 		r.captureMode = "window"
 	} else {
 		scrolled, cur, err = s.send(ctx, sendCtx, &scroll, tail, c.sh, st, c.start, c.p, targetLocale{})
