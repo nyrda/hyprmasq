@@ -104,7 +104,8 @@ func parseActArgs(c *call) (*actRequest, int, error) {
 	if r.batch, err = parseActions(args.Actions); err != nil {
 		return nil, total, err
 	}
-	if len(args.NextPage) > 0 && string(args.NextPage) != "null" {
+	hasNextPage := len(args.NextPage) > 0 && string(args.NextPage) != "null"
+	if hasNextPage {
 		if len(r.batch) >= maxActions {
 			return nil, total, invalidf("actions and next_page together allow at most %d actions", maxActions)
 		}
@@ -173,8 +174,21 @@ func parseActArgs(c *call) (*actRequest, int, error) {
 		return nil, total, err
 	}
 	for i, a := range r.batch {
-		if a.Unit == "page" && (i != len(r.batch)-1 || slices.ContainsFunc(r.batch[:i], func(a action) bool { return a.Kind == "scroll" }) || r.captureMode == "none" || r.captureMode == "region") {
-			return nil, total, invalidf("a page scroll must be the last action, with no earlier scroll and capture changes or window")
+		if a.Unit != "page" {
+			continue
+		}
+		misplaced := i != len(r.batch)-1 || slices.ContainsFunc(r.batch[:i], func(a action) bool { return a.Kind == "scroll" })
+		switch {
+		case misplaced && hasNextPage:
+			return nil, total, invalidf("next_page is a page scroll of its own, after the actions: take the scroll out of actions, or leave out next_page")
+		case misplaced:
+			return nil, total, invalidf("a page scroll must be the last action and the only scroll in the batch")
+		case r.captureMode == "none" || r.captureMode == "region":
+			subject := "a page scroll"
+			if hasNextPage {
+				subject = "next_page"
+			}
+			return nil, total, invalidf("%s needs capture changes or window, not none or a region", subject)
 		}
 	}
 	if r.shotID == "" {
