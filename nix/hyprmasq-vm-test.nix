@@ -3,6 +3,11 @@
   # The areas of nix/vm-test/areas.json to run, as a list or a string of names separated by spaces, with the areas
   # they require. null runs them all.
   areas ? null,
+  # Ends the test's name when it runs only some areas, which tells builds that run at once apart in their logs.
+  label ? "areas",
+  # Runs the machine as a systemd-nspawn container instead of a VM, with Hyprland nested in labwc on the host's GPU.
+  # The build needs the uid-range and gpu system features, see docs/vm-test.md.
+  container ? false,
   nixpkgs ?
     let
       locked = (builtins.fromJSON (builtins.readFile ../flake.lock)).nodes.nixpkgs.locked;
@@ -44,6 +49,15 @@ let
     exec ${pkgs.hyprland-qtutils}/bin/hyprland-dialog "$@"
   '';
   userInput = pkgs.callPackage ./user-input.nix { inherit hyprland; };
+  # The keyboard and pointer of labwc's seat, in the container.
+  parentSeat = pkgs.callPackage ./parent-seat.nix { inherit hyprland; };
+  # labwc, the container's parent compositor, without its own XWayland, which would take the first free X display that
+  # the test gives Hyprland's X11 windows.
+  labwc = pkgs.labwc.overrideAttrs (old: {
+    mesonFlags = map (
+      flag: if flag == lib.mesonEnable "xwayland" true then lib.mesonEnable "xwayland" false else flag
+    ) old.mesonFlags;
+  });
   hyprctlCaller = pkgs.callPackage ./hyprctl-caller.nix { inherit plugin; };
   # Plugins that hook a function of hyprmasq's each, which the hooks area loads beside it.
   hookTaker = pkgs.callPackage ./hook-taker.nix { inherit plugin; };
@@ -90,6 +104,7 @@ let
     [
       "# Areas: ${toString (map (area: area.name) selected)}, checked by ${areasChecked}"
       "expected_version = ${builtins.toJSON plugin.version}"
+      "nested = ${if container then "True" else "False"}"
       (builtins.readFile ./vm-test/common.py)
       "try:"
       "    wait_for_hyprland()"
@@ -138,12 +153,8 @@ let
     })
   '';
 
-in
-pkgs.testers.runNixOSTest {
-  passthru = { inherit plugin; };
-  name = "hyprmasq-window-automation-vm" + lib.optionalString (areas != null) "-areas";
-
-  nodes.machine =
+  # The machine, the same as a VM and as a container but for what the end of this file adds to each.
+  machine =
     { pkgs, ... }:
     {
       # The benchmark's GTK 4 questionnaire, as hyprmasq-bench-form, which the anr and settle areas drive.
@@ -222,18 +233,48 @@ pkgs.testers.runNixOSTest {
       # Its Compose table makes the dead acute and c a ç, where that of en_US.UTF-8, the default, makes them a ć.
       i18n.extraLocales = [ "pt_BR.UTF-8/UTF-8" ];
 
-      virtualisation = {
-        cores = 4;
-        memorySize = 8192;
-        resolution = {
-          x = 1024;
-          y = 768;
-        };
-        qemu.options = [ "-vga none -device virtio-gpu-pci" ];
-      };
-
       system.stateVersion = "24.11";
     };
 
-  inherit testScript;
-}
+in
+pkgs.testers.runNixOSTest (
+  {
+    passthru = { inherit plugin; };
+    name =
+      "hyprmasq-window-automation-${if container then "container" else "vm"}"
+      + lib.optionalString (areas != null) "-${label}";
+    inherit testScript;
+  }
+  // (
+    if container then
+      {
+        containers.machine = {
+          imports = [ machine ];
+          # Mesa for labwc and Hyprland, which render on the host's render node. The sandbox has it when the build
+          # requires the gpu feature, through nix-required-mounts on the host.
+          hardware.graphics.enable = true;
+          virtualisation.systemd-nspawn.options = [ "--bind=/dev/dri" ];
+          environment.systemPackages = [
+            labwc
+            parentSeat
+          ];
+        };
+        requiredFeatures.gpu = true;
+      }
+    else
+      {
+        nodes.machine = {
+          imports = [ machine ];
+          virtualisation = {
+            cores = 4;
+            memorySize = 8192;
+            resolution = {
+              x = 1024;
+              y = 768;
+            };
+            qemu.options = [ "-vga none -device virtio-gpu-pci" ];
+          };
+        };
+      }
+  )
+)

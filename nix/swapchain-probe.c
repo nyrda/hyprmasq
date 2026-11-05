@@ -8,7 +8,9 @@
 // copies shm buffers and releases them at once. A press of a key or a button draws 4 frames, each in the next color
 // and after the frame callback of the one before. A frame takes a buffer that the compositor has released, and while
 // none is, the probe dispatches only the queue of the buffers' events, as Mesa's vkAcquireNextImageKHR and
-// eglSwapBuffers do: the compositor's pings wait, and Hyprland counts them as missed.
+// eglSwapBuffers do: the compositor's pings wait, and Hyprland counts them as missed. Where there is no card, as in
+// the container test, which has only the host GPU's render node, it allocates the LINEAR buffers through GBM on the
+// first render node instead and maps their dmabufs.
 //
 // It logs after a CLOCK_MONOTONIC timestamp in milliseconds: "ready" once it committed its first frame, "ping" for each
 // ping it answers, "frame N" for each frame it commits, and "waited MS" after it waited MS milliseconds for a buffer.
@@ -21,6 +23,7 @@
 #include <drm/drm_fourcc.h>
 #include <drm/drm_mode.h>
 #include <fcntl.h>
+#include <gbm.h>
 #include <sys/ioctl.h>
 
 #define WIDTH            320
@@ -41,7 +44,8 @@ static struct wl_seat*             seat;
 static struct xdg_wm_base*         wm;
 static struct zwp_linux_dmabuf_v1* dmabuf;
 static struct wl_surface*          surface;
-static int                         card = -1; // the DRM card that has the buffers
+static int                         card = -1;   // the DRM card that has the buffers
+static struct gbm_device*          gbm  = NULL; // or the render node's GBM device, without a card
 static struct swap_buffer          buffers[BUFFERS];
 static int                         frames;   // committed
 static int                         pending;  // still to draw
@@ -73,13 +77,34 @@ static void open_card(void) {
         snprintf(path, sizeof(path), "/dev/dri/card%d", i);
         card = open(path, O_RDWR | O_CLOEXEC);
     }
-    if (card < 0) {
-        fprintf(stderr, "%s: no DRM card to make buffers on\n", program_invocation_short_name);
+    if (card >= 0)
+        return;
+    for (int i = 128; i < 136 && !gbm; ++i) {
+        snprintf(path, sizeof(path), "/dev/dri/renderD%d", i);
+        const int fd = open(path, O_RDWR | O_CLOEXEC);
+        if (fd >= 0)
+            CHECK(gbm = gbm_create_device(fd));
+    }
+    if (!gbm) {
+        fprintf(stderr, "%s: no DRM card or render node to make buffers on\n", program_invocation_short_name);
         exit(1);
     }
 }
 
-static void make_buffer(struct swap_buffer* b) {
+// A LINEAR buffer from the render node's GBM device, as a dmabuf, with its pixels mapped.
+static int make_gbm_buffer(struct swap_buffer* b) {
+    struct gbm_bo* bo = gbm_bo_create(gbm, WIDTH, HEIGHT, GBM_FORMAT_XRGB8888, GBM_BO_USE_LINEAR | GBM_BO_USE_RENDERING);
+    CHECK(bo);
+    CHECK(gbm_bo_get_stride(bo) == WIDTH * 4);
+    const int fd = gbm_bo_get_fd(bo);
+    CHECK(fd >= 0);
+    b->pixels = mmap(NULL, WIDTH * HEIGHT * 4, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    CHECK(b->pixels != MAP_FAILED);
+    return fd;
+}
+
+// A dumb buffer of the card, as a dmabuf, with its pixels mapped.
+static int make_dumb_buffer(struct swap_buffer* b) {
     struct drm_mode_create_dumb create = {.height = HEIGHT, .width = WIDTH, .bpp = 32};
     CHECK(ioctl(card, DRM_IOCTL_MODE_CREATE_DUMB, &create) == 0);
     struct drm_mode_map_dumb map = {.handle = create.handle};
@@ -89,7 +114,11 @@ static void make_buffer(struct swap_buffer* b) {
     CHECK(create.pitch == WIDTH * 4);
     struct drm_prime_handle prime = {.handle = create.handle, .flags = DRM_CLOEXEC | DRM_RDWR};
     CHECK(ioctl(card, DRM_IOCTL_PRIME_HANDLE_TO_FD, &prime) == 0);
-    const int                          fd     = prime.fd;
+    return prime.fd;
+}
+
+static void make_buffer(struct swap_buffer* b) {
+    const int                          fd     = gbm ? make_gbm_buffer(b) : make_dumb_buffer(b);
     struct zwp_linux_buffer_params_v1* params = zwp_linux_dmabuf_v1_create_params(dmabuf);
     zwp_linux_buffer_params_v1_add_listener(params, &params_listener, &b->buffer);
     zwp_linux_buffer_params_v1_add(params, fd, 0, 0, WIDTH * 4, DRM_FORMAT_MOD_LINEAR >> 32, DRM_FORMAT_MOD_LINEAR & 0xffffffff);

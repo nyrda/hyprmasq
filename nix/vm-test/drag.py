@@ -331,7 +331,7 @@ with subtest("the user's typing during a private drag arrives unchanged, with th
     typed_from = vm_now()
     # QEMU drops keys of the guest's terminal at 10 ms a key also without a drag, so they come slower.
     lines = [f"line {n} the quick brown fox jumps over the lazy dog" for n in range(6)]
-    machine.send_chars("".join(line + "\n" for line in lines), delay=0.04)
+    send_chars("".join(line + "\n" for line in lines), delay=0.04)
     typed_until = vm_now()
     events = wait_dnd("dnd-typing", "source finished", timeout=90)
     assert f"payload {dnd_payload}" in events, events

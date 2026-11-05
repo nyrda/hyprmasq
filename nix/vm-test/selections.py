@@ -58,10 +58,10 @@ with subtest("the agent's copy pastes into another hidden app, which the source 
 
 with subtest("the user's own copy and paste work, also in an app with a socket"):
     # The user pastes into their window through QEMU's keyboard, real input: their clipboard and primary selection.
-    machine.send_key("ctrl-shift-v")
-    machine.send_key("ret")
-    machine.send_key("shift-insert")
-    machine.send_key("ret")
+    send_key("ctrl-shift-v")
+    send_key("ret")
+    send_key("shift-insert")
+    send_key("ret")
     wait_for("the user's pastes", lambda: cat_output("user") == "userclipboard\nuserprimary\n", timeout=15)
     # The user focuses the probe, whose window has a socket, and copies there with a key, and selects with a click of
     # a virtual pointer: both are the user's.
@@ -74,7 +74,7 @@ with subtest("the user's own copy and paste work, also in an app with a socket")
     events = wait_clip("hm-clip-probe", start, "source cancelled hm-clip-probe-copy1")
     assert "source cancelled hm-clip-probe-select1" not in events, events
     start = len(probe_events("hm-clip-probe"))
-    machine.send_chars("c")
+    send_chars("c")
     probe_at = client("hm-clip-probe")
     dispatch(f"hl.dsp.cursor.move({{ x = {probe_at['at'][0] + 50}, y = {probe_at['at'][1] + 50} }})")
     alice(f"{client_env} wlrctl pointer click left")
@@ -88,7 +88,7 @@ with subtest("the user's own copy and paste work, also in an app with a socket")
     send(clip_probe_path, "keys", "v")
     wait_clip("hm-clip-probe", start, "paste clipboard hm-clip-probe-copy3")
     assert user_selections() == ("hm-clip-probe-copy2", "hm-clip-probe-select2")
-    machine.send_chars("v")
+    send_chars("v")
     events = wait_clip("hm-clip-probe", start, "source cancelled hm-clip-probe-copy3", "paste clipboard hm-clip-probe-copy2")
     assert events.index("source cancelled hm-clip-probe-copy3") < events.index("paste clipboard hm-clip-probe-copy2"), events
     assert user_selections() == ("hm-clip-probe-copy2", "hm-clip-probe-select2") and snapshot() == (85, clip_probe_address)
@@ -137,7 +137,7 @@ with subtest("an app that pastes its own copy pastes the user's clipboard once t
     wait_for("the agent's paste", lambda: cc_pastes("agent") == ["agentcopy"], timeout=15)
     assert user_selections() == ("userclipboard", "userprimary") and snapshot() == (4, cc_user)
     # The user pastes in their window of the same Chromium: their clipboard, not the agent's copy.
-    machine.send_key("ctrl-v")
+    send_key("ctrl-v")
     wait_for("the user's paste", lambda: cc_pastes("user") != [], timeout=15)
     assert cc_pastes("user") == ["userclipboard"], cc_pastes("user")
     # The agent's copy has ended there: the agent's paste gets nothing, and never the user's clipboard.
@@ -152,7 +152,7 @@ with subtest("an app that pastes its own copy pastes the user's clipboard once t
     focus_workspace(89)
     dispatch(f'hl.dsp.focus({{ window = "address:{cc_agent}" }})')
     wait_for("the agent's Chromium window focused", lambda: snapshot() == (89, cc_agent))
-    machine.send_key("ctrl-v")
+    send_key("ctrl-v")
     wait_for("the user's paste in the agent's window", lambda: len(cc_pastes("agent")) > cc_agent_pastes, timeout=15)
     assert cc_pastes("agent")[cc_agent_pastes:] == ["userclipboard"], cc_pastes("agent")
     assert user_selections() == ("userclipboard", "userprimary")

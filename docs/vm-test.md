@@ -17,8 +17,8 @@ that it puts together from `nix/vm-test/`:
 
 The test's own Wayland clients are in `nix/` and share `nix/probe-common.h`:
 `focus-probe.c`, whose modes it lists when run without arguments,
-`dnd-probe.c`, `clip-probe.c`, `swapchain-probe.c`, `suspend-probe.c` and
-`user-input.c`. They log what they get to stdout, most of it stamped with
+`dnd-probe.c`, `clip-probe.c`, `swapchain-probe.c`, `suspend-probe.c`,
+`user-input.c` and, for the [containers](#containers), `parent-seat.c`. They log what they get to stdout, most of it stamped with
 `CLOCK_MONOTONIC` in milliseconds, and exit with status 2 on arguments they do
 not take.
 `qt-probe.py`, a Qt 6 app in PySide6, logs the same way. `combo-probe.py` is a
@@ -41,8 +41,10 @@ task's GTK 4 questionnaire as `hyprmasq-bench-form`.
 
 ## Running it
 
-The gate for PRs is the whole test, `nix build .#checks.x86_64-linux.vm-test`,
-which is what `./dev.sh vm-test` runs. To iterate on some areas, name them.
+The gate for PRs is the whole test, which `./dev.sh gate` runs: in
+[containers](#containers) on a machine that allows it, and otherwise in the VM,
+`nix build .#checks.x86_64-linux.vm-test`, which is what `./dev.sh vm-test` runs.
+To iterate on some areas, name them.
 They run in order with the areas they require:
 
 ```sh
@@ -53,6 +55,60 @@ The test copies the screenshots and logs into the build result, for example
 `result/hyprmasq-green.png` after `nix build .#checks.x86_64-linux.vm-test -L`.
 
 `./dev.sh vm-test-interactive` opens the test's interactive driver.
+
+## Containers
+
+`nix/container-test.nix` runs the whole test in systemd-nspawn containers, one
+build per group of areas, which Nix runs at once up to `max-jobs`. Each group
+also runs `core`, and the evaluation fails when a group leaves out an area or
+names one twice. With seven groups, it takes about a sixth of the VM test's
+time, and each container uses about 0.5 GiB of its own memory, where a VM
+reserves 8 GiB:
+
+```sh
+./dev.sh container-test
+nix-build nix/hyprmasq-vm-test.nix --arg container true --argstr areas "mcp unload"
+```
+
+It needs a GPU with a render node and these Nix settings on the host, which
+give builds a range of user ids and the builds that ask for it the render node:
+
+```nix
+{
+  nix.settings = {
+    experimental-features = [ "auto-allocate-uids" "cgroups" ];
+    auto-allocate-uids = true;
+    extra-system-features = [ "uid-range" "gpu" ];
+  };
+  programs.nix-required-mounts = {
+    enable = true;
+    allowedPatterns.gpu = {
+      onFeatures = [ "gpu" ];
+      paths = [ "/dev/dri/renderD*" "/sys/dev/char/226:*" ];
+      unsafeFollowSymlinks = true;
+    };
+  };
+}
+```
+
+Aquamarine's headless backend has no allocator, so Hyprland cannot run on it
+alone, and a container has no display of its own. So `common.py` starts labwc
+on its headless backend, rendering on the host's render node, and Hyprland as
+its Wayland client. The test's monitor is the same headless output as in the VM.
+Three things stand in for what the VM has:
+
+- labwc is built without XWayland, which would take the X display of Hyprland's.
+- `hyprmasq-parent-seat` holds a virtual keyboard and pointer on labwc's seat,
+  which Hyprland's Wayland backend then has as its own. It also sends the user's
+  keys, as QEMU's `sendkey` does: the areas call `sendkey`, `send_key` and
+  `send_chars` of `common.py`, and they reach Hyprland as a real keyboard's.
+- Hyprland's output in labwc mirrors the test's monitor. labwc sends keys to its
+  window, and as a mirror it stays out of Hyprland's layout and list of monitors.
+
+Timing differs from the VM's, as rendering runs on a GPU and programs start
+faster, so the two can find different races. A subtest that fails in one of them
+and not in the other is worth a look at the product first. A change to how the
+test runs in either of them passes both.
 
 ## What it cannot cover
 

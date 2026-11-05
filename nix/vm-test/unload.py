@@ -43,7 +43,7 @@ with subtest("unload removes all sockets and hooks, reload succeeds"):
     focus_workspace(87)
     dispatch(f'hl.dsp.focus({{ window = "address:{unload_probe}" }})')
     wait_for("the probe focused", lambda: snapshot() == (87, unload_probe))
-    machine.send_chars("cs")
+    send_chars("cs")
     wait_for("the user's copy", lambda: user_selections() == ("hm-clip-unload-copy2", "hm-clip-unload-select2"), timeout=10)
     focus_workspace(4)
     for path in paths:

@@ -97,7 +97,7 @@ with subtest("hyprmasq-mcp launches an app whose launcher forks it away and exit
     )
     call = mcp.start("launch", {"command": ["sh", "-c", launcher], "workspace": "hm-m-detach", "timeout_ms": 20000})
     lines = [f"user line {n} typed during the launch" for n in range(3)]
-    machine.send_chars("".join(line + "\n" for line in lines), delay=0.04)
+    send_chars("".join(line + "\n" for line in lines), delay=0.04)
     detached = mcp.result(call)
     assert not detached.is_error, detached
     keep(detached, "launched-detached")
@@ -400,7 +400,7 @@ with subtest("hyprmasq-mcp says when the user's typing took the shared keyboard 
     for attempt in range(5):
         start = len(probe_events("m-sc"))
         call = mcp.start("act", {"window": m_agent, "actions": [{"action": "pause", "ms": 300}, {"action": "key", "keys": ["ctrl", "l"]}]})
-        machine.send_chars(user_text, delay=0.03)
+        send_chars(user_text, delay=0.03)
         result = mcp.result(call)
         assert not result.is_error and result.data["actions"]["delivery"] == "complete", result
         wait_for("the user's keys", lambda: len(keys_of(probe_events("m-sc", start), "hm-m-sc-user")) == len(user_text), timeout=10)
@@ -441,7 +441,7 @@ with subtest("hyprmasq-mcp says that a shortcut beside the user's window may hav
     assert not late.is_error and late.data["actions"] == {"done": 1, "total": 1, "delivery": "complete"}, late
     assert late.data["wait"]["ended"] == "no_redraw" and late.data["hint"].endswith(" " + late_hint) and late_hint in late.text, late
     wait_for("the late shortcut", lambda: any(e.startswith("shortcut ") for _, e in probe_events("m-late", start)), timeout=10)
-    machine.send_chars("ab", delay=0.05)
+    send_chars("ab", delay=0.05)
     wait_for("the user's keys", lambda: keys_of(probe_events("m-late", start), "hm-m-late-user") == [30, 48], timeout=10)
     events = probe_events("m-late", start)
     assert [e for _, e in events if e.startswith("shortcut ")] == ["shortcut hm-m-late-agent 4 38 inactive"], events

@@ -50,9 +50,12 @@ pinned Hyprland source. The build checks only their types.
   `python3 bench/tasks/inkscape/check_test.py` and
   `python3 bench/tasks/trace/check_test.py`. The Calc checker needs LibreOffice:
   `nix-build bench/tasks/calc/check-test.nix`.
-- Test: `nix build .#checks.x86_64-linux.vm-test -L`, the NixOS VM test in
-  `nix/vm-test/`, split into areas. It must pass. Screenshots and logs from the
-  run land in `result/`. Add a subtest for new behaviour, and update the
+- Test: `./dev.sh gate` runs the test in `nix/vm-test/`, split into areas. It must
+  pass. It runs the areas in containers at once, in about a sixth of the time, on a
+  machine with a GPU and the Nix settings in `docs/vm-test.md`
+  (`.#checks.x86_64-linux.container-test`), and otherwise in a NixOS VM
+  (`.#checks.x86_64-linux.vm-test`). Screenshots and logs from the run land in
+  `result/`. Add a subtest for new behaviour, and update the
   subtest table in `docs/vm-test.md`, which
   `nix build .#checks.x86_64-linux.vm-test-docs` checks against the code.
 
@@ -67,11 +70,12 @@ subtest tables) and `bench-calc` (the Calc checker). It runs the other bench
 unit tests above and checks `docs/benchmarks.md` and `docs/comparison.md`
 against their data with `bench/render.py --check`. It caches the Nix store
 between runs, so a check whose inputs did not change is not built again. CI
-does not run `go test -race`. The VM test is a local gate; CI does not run it. Before opening a PR, run it on the commit you push and fill
-in the VM test section of
-`.github/pull_request_template.md` with that commit. Before merging, compare
+does not run `go test -race`. The test gate, `./dev.sh gate`, is local; CI does not run it. Before opening a PR, run it on the commit you push and fill
+in the test gate section of
+`.github/pull_request_template.md` with that commit and which test ran. Before merging, compare
 the PR's head commit with the one it passed on: after new commits, an amend, a
-rebase or a force-push, run it again on the new head. A PR that changes none
-of the plugin, its tools, the MCP server, the NixOS module and the VM test,
-such as one of docs or `bench/` alone, skips the VM test and says so in that
+rebase or a force-push, run it again on the new head. A PR that changes how the
+test itself runs in the VM or the container passes both tests. A PR that changes none
+of the plugin, its tools, the MCP server, the NixOS module and the test,
+such as one of docs or `bench/` alone, skips the gate and says so in that
 section.
