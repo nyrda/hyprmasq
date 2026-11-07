@@ -11,6 +11,8 @@ hyprmasq lets AI agents and scripts see, click and type in Hyprland windows,
 also on hidden workspaces, while you keep working in yours. Your cursor,
 keyboard focus and workspace stay where they are.
 
+https://github.com/user-attachments/assets/4f07d0f6-b3c4-4176-a3c6-930452c4a4d6
+
 - **Hidden windows.** Screenshots render a single window offscreen, with its
   popups and menus, whether or not its workspace is visible.
 - **Your focus stays yours.** Each window gets its own
@@ -20,6 +22,9 @@ keyboard focus and workspace stay where they are.
 - **Made for agents.** An MCP server for Claude Code, Codex and other
   clients. One `act` call clicks and types, waits for the window to redraw,
   and returns what changed.
+- **Several agents at once.** Agents can work side by side, each in its own
+  window. Input to different apps runs at the same time, and windows of one
+  app [take turns](docs/mcp.md#several-agents-at-once).
 - **Scriptable.** The same from the shell with `hyprctl hyprmasq`,
   `hyprmasq-input` and `hyprmasq-launch`.
 
@@ -92,7 +97,7 @@ hyprctl hyprmasq eis close "$addr"
 
 ## Benchmarks
 
-Ten models on eleven desktop tasks in an offline VM. Current Anthropic and
+Twelve models on eleven desktop tasks in an offline VM. Current Anthropic and
 OpenAI models passed 91 to 100% of their tasks' runs, all but the small
 `gpt-6-luna`, and no run of any model changed the user's focus or
 workspace. See the [benchmarks](docs/benchmarks.md) and the
