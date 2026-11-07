@@ -62,14 +62,20 @@ namespace hyprmasq {
             SHookCall(const SHookCall&)            = delete;
             SHookCall& operator=(const SHookCall&) = delete;
         };
-        // What Hyprland calls instead of the function: Replacement, counted as a running hook.
+        // What Hyprland calls instead of the function: Replacement, counted as a running hook. It hands Replacement
+        // copies of the arguments and leaves its own as they came. A class argument by value, such as an SP, lives in
+        // the caller, which destroys it after the call, and an optimizing build of Hyprland may destroy it as it was
+        // before the call when it knows that the original function leaves it alone, as GCC does with LTO: Arch's
+        // Hyprland drops its reference to the popup in xdg_popup.grab through the pointer it held before the call. A
+        // hook that moved out of the argument would release that reference a second time, and Hyprland would free the
+        // popup, the surface or the window while it is still in use.
         template <auto Replacement>
         struct SCounted;
         template <typename R, typename... A, R (*Replacement)(A...)>
         struct SCounted<Replacement> {
             static R call(A... args) {
                 SHookCall running;
-                return Replacement(std::forward<A>(args)...);
+                return Replacement(args...);
             }
         };
         CHook& defineHook(void* handle, const char* symbol, std::string_view signature, void* replacement, void** original);
