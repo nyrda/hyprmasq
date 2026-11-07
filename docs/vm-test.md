@@ -34,6 +34,14 @@ too, as another plugin would. `hook-taker.nix` builds it three times, as
 `hyprmasq-hook-taker-xwm.so` for `CXWM::activateSurface` and
 `hyprmasq-hook-taker-idle.so` for `CIdleNotifyProtocol::setInhibit`, whose
 directory the VM has in `/etc/hyprmasq-hook-taker`. Nothing installs it.
+`call-probe.cpp`, which `call-probe.nix` builds as `hyprmasq-call-probe.so`,
+in `/etc/hyprmasq-call-probe`, adds `hyprctl hmprobe grab <window>` and
+`hyprctl hmprobe focus`. They call `CXDGShellProtocol::addOrStartGrab` with
+the window's first xdg popup and `CSeatManager::setKeyboardFocus` with the
+surface that has the keyboard focus, passing the `SP` by its address as the
+C++ ABI does, and answer `kept` when the argument still holds the object with
+as many references as before, or `moved`. An optimizing build of Hyprland can
+rely on that, as Arch's does, and the VM's Hyprland does not.
 
 The VM also has `hyprland-dialog`, from `hyprland-qtutils` of the flake's own
 nixpkgs, without which Hyprland does not watch for apps that stop answering its
@@ -151,7 +159,7 @@ the VM, such as a window or a log, is declared by hand.
 | `settle` | `core` | How long `act` waits for a hidden GTK 4 app: the form task's questionnaire, whose overlay scrollbar fades in at each act, settles once its widgets have drawn. |
 | `recording` | `core` | `hyprmasq-mcp`'s recordings of `act` calls as slides and as video, with the settings that the NixOS module writes, and the recording that a session leaves running. |
 | `suspended` | `core` | Hidden windows that Hyprland tells they are suspended: a Qt 6 app, which commits no frame while it is suspended, is shown while driven and draws each act's input and a resize, and every way a hold ends gives it Hyprland's state back, also to a toplevel that unmaps and maps again. |
-| `qt-popups` | `core` | A click after the Enter that picks an item of a Qt dropdown: it reaches the window once the list has closed, and `act` holds it back when Enter opened the list again, as it does with the platform theme of GTK. |
+| `qt-popups` | `core` | A click after the Enter that picks an item of a Qt dropdown: it reaches the window once the list has closed, and `act` holds it back when Enter opened the list again, as it does with the platform theme of GTK. Hooks that leave the arguments Hyprland passes them as they came, so that the list's popup lives until the app closes it. |
 | `key-pace` | `core` | Repeated plain keys, with every press counted on Qt 6, GTK 3 and Tk sliders. |
 | `scrolling` | `core` | `act`'s scroll at the end of a batch, which comes after the changes of the input before it or is held back, a dropdown that takes the wheel, and scrolls on X11 that move by every notch. |
 | `paging` | `core`, `input` | Measured page scrolls, overlap, edit verification and controls that take the wheel. |
@@ -472,12 +480,14 @@ configure it gets.
 
 The Qt probe runs on hidden workspaces of its own, while the user's foot keeps
 the focus. One `act` clicks its dropdown, picks the next planet with Down and
-Enter, and clicks its check box above the list.
+Enter, and clicks its check box above the list. The last subtest loads
+`hyprmasq-call-probe.so` while the list is open.
 
 | Subtest | Checks |
 | --- | --- |
 | a click after the Enter that closed a Qt dropdown's list reaches the window | With Qt's default platform theme, Enter closes the list, the batch is delivered whole, the probe logs the choice and the check, and `state` reports no popup. The user's focus and workspace stay. |
 | a click after the Enter that opened a Qt dropdown's list again is held back, and lands once the list is closed | With `QT_QPA_PLATFORMTHEME=gtk3`, Enter closes the list and its press opens it again. `act` delivers 3 of 4 actions, holds back the click with `held_back` and the summary and hint that say why, and its shot shows the list. The probe logs the choice and no check, and `state` reports one popup with `grab` below the dropdown. An `act` with Escape and the click delivers both, the probe logs the check, and the popup is gone. The user's focus and workspace stay. |
+| hooks leave the arguments that Hyprland passes them by value as they came, and the list closes | With the input hooks held by an `act`'s lease, while the Qt probe's list is open with `grab`, `hmprobe grab` on the probe and `hmprobe focus` both answer `kept`: a hook that moved out of the argument would have Arch's Hyprland free the popup at its grab, and close the app when it destroys the popup. An `act` with Down and Enter then delivers both, the probe logs the choice, its list is gone, and its window is still mapped a second later. The user's focus and workspace stay. |
 
 ### `key-pace`
 

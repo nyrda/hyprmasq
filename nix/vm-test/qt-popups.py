@@ -60,5 +60,36 @@ with subtest("a click after the Enter that opened a Qt dropdown's list again is 
     assert window_state(qpp_gtk)["popups"] == [], window_state(qpp_gtk)
     assert snapshot() == (89, qpp_user), snapshot()
 
-for qpp_window in [qpp_plain, qpp_gtk]:
+# Arch's Hyprland, built with LTO, drops its reference to a popup after xdg_popup.grab through the pointer it held
+# before the call, as a build may for a function that it knows leaves its argument alone. A hook that moved out of the
+# argument released that reference a second time: Hyprland freed the popup at its grab, and the app's destroy of it, as
+# the list closed, was a protocol error that ended GTK 4 and Qt 6 apps. The VM's Hyprland reads the argument again
+# after the call, so a test plugin calls two hooked functions as Arch's does and says what the hook left in it.
+with subtest("hooks leave the arguments that Hyprland passes them by value as they came, and the list closes"):
+    qpp_call_probe = machine.succeed("cat /etc/hyprmasq-call-probe").strip()
+    assert hypr(f"plugin load {qpp_call_probe}") == "ok"
+    qpp_args = qpp_probe("hm-qp-args", "")
+    qpp_shot = qpp_agent.call("screenshot", {"window": qpp_args})
+    qpp_acted = qpp_agent.call("act", {"window": qpp_args, "shot": qpp_shot.data["shot"]["id"], "actions": qpp_batch[:1]})
+    assert qpp_acted.data["actions"] == {"done": 1, "total": 1, "delivery": "complete"}, qpp_acted
+    wait_for("the probe's list", lambda: len(window_state(qpp_args)["popups"]) == 1, timeout=10)
+    assert window_state(qpp_args)["popups"][0]["grab"], window_state(qpp_args)
+    # The act's lease holds the input hooks: the calls reach them. hyprmasq refuses the grab of a hidden driven
+    # window's popup, and the keyboard focus is the user's foot already, so neither call changes anything.
+    qpp_groups = {g["name"]: g for g in json.loads(hypr("-j hyprmasq hooks"))["groups"]}
+    assert qpp_groups["input"]["installed"], qpp_groups
+    qpp_kept = (hypr(f"hmprobe grab {qpp_args}"), hypr("hmprobe focus"))
+    assert qpp_kept == ("kept", "kept"), qpp_kept
+    assert snapshot() == (89, qpp_user), snapshot()
+    # The list closes on Enter after the choice, and the probe goes on.
+    qpp_acted = qpp_agent.call("act", {"window": qpp_args, "actions": qpp_batch[1:3]})
+    assert qpp_acted.data["actions"] == {"done": 2, "total": 2, "delivery": "complete"}, qpp_acted
+    wait_for("the probe's choice", lambda: "choice Venus" in qpp_events("hm-qp-args", 0), timeout=10)
+    assert window_state(qpp_args)["popups"] == [], window_state(qpp_args)
+    time.sleep(1)
+    assert client("hm-qp-args") is not None
+    assert snapshot() == (89, qpp_user), snapshot()
+    assert hypr(f"plugin unload {qpp_call_probe}") == "ok"
+
+for qpp_window in [qpp_plain, qpp_gtk, qpp_args]:
     dispatch(f'hl.dsp.window.close({{ window = "address:{qpp_window}" }})')

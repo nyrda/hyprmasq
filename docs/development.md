@@ -231,6 +231,13 @@ against a new release, but not what they do:
   run time, the plugin compares the trampolines with what the first `hook()`
   wrote before it installs a hook again, and refuses the feature with code
   `internal` if they changed.
+- A build of Hyprland may rely on what a function it knows does to its
+  arguments, as Arch's does with LTO. Arch's Hyprland releases its `SP` that
+  it passed `CXDGShellProtocol::addOrStartGrab` by value through the pointer
+  it held before the call. So the code that Hyprland calls for a hook,
+  `SCounted` in `src/Hooks.hpp`, hands the hook copies and leaves the
+  arguments as they came. The `qt-popups` area checks it with
+  `nix/call-probe.cpp`.
 - `unhook()` makes only the first page of a hooked function writable before
   it writes the function's first bytes back. For each hooked function, its
   offset within its 4 KiB page plus the bytes that `hook()` replaces, whole

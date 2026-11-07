@@ -80,6 +80,11 @@ let
     inherit plugin;
     inherit (hyprland) stdenv;
   };
+  # A plugin that calls two hooked functions as an optimizing build of Hyprland does, which the qt-popups area loads.
+  callProbe = pkgs.callPackage ./call-probe.nix {
+    inherit plugin;
+    inherit (hyprland) stdenv;
+  };
   # Plugins that hook a function of hyprmasq's each, which the hooks area loads beside it.
   hookTaker = pkgs.callPackage ./hook-taker.nix {
     inherit plugin;
@@ -243,6 +248,7 @@ let
       environment.etc."hyprmasq-plugin".text = "${plugin}/lib/hyprmasq.so";
       environment.etc."hyprmasq-hyprctl-caller".text = "${hyprctlCaller}/lib/hyprmasq-hyprctl-caller.so";
       environment.etc."hyprmasq-hook-taker".text = "${hookTaker}/lib";
+      environment.etc."hyprmasq-call-probe".text = "${callProbe}/lib/hyprmasq-call-probe.so";
 
       environment.variables = {
         AQ_TRACE = "1";
