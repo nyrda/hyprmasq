@@ -513,6 +513,8 @@ input is not an error.
 `no_redraw` and `timeout` are not errors: they are wait outcomes, returned
 with a shot and a hint.
 
+## Several agents at once
+
 Several servers can drive one desktop, such as one per agent, through lock
 files in `$XDG_RUNTIME_DIR/hyprmasq/<instance>/`. Scripts that run
 `hyprmasq-input` directly take no locks.
