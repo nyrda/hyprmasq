@@ -39,7 +39,7 @@ hyprmasq is built for one Hyprland release: `main` for 0.57.2 and the
 **Arch and Omarchy.** Build a pacman package from a clone:
 
 ```sh
-# Hyprland 0.57.2
+# Hyprland main after v0.57.0
 git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
 # Hyprland 0.56.2
 git clone -b hyprland-0.56 https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
