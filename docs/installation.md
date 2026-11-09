@@ -1,6 +1,6 @@
 # Installation
 
-hyprmasq 0.1.0 is built and tested against **Hyprland v0.57.1** at the
+hyprmasq 0.1.0 is built and tested against **Hyprland v0.57.2** at the
 release commit `flake.lock` pins, on x86_64 Linux.
 A Hyprland plugin must be compiled against the exact Hyprland build
 that loads it: hyprmasq compares the build hash when it loads and refuses to
@@ -43,8 +43,8 @@ git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
 `-s` installs the missing dependencies, such as `go` for the build, and `-i`
 installs the package, both through pacman. Nothing else runs as root: the
 package has no install script and no pacman hook. The installed Hyprland must
-be version 0.57.1. Older releases have other internals, and the build stops
-on their version. Use a package built from the v0.57.1 release commit.
+be version 0.57.2. Older releases have other internals, and the build stops
+on their version. Use a package built from the v0.57.2 release commit.
 
 makepkg builds the commit that is checked out, `HEAD`. It leaves out
 uncommitted changes and warns when there are any, so commit a change to build
@@ -138,7 +138,7 @@ The package depends on `hyprland` without pinning its version. A pin would
 keep `pacman -Syu` from updating Hyprland until you removed hyprmasq, and
 makepkg can build against a new Hyprland only once it is installed.
 
-hyprmasq supports one Hyprland at a time, here v0.57.1. When
+hyprmasq supports one Hyprland at a time, here v0.57.2. When
 `hyprland-git` moves past what hyprmasq supports, the build or the plugin's
 hooks fail until a hyprmasq update supports it.
 
@@ -293,7 +293,8 @@ hyprpm enable hyprmasq
 
 `commit_pins` in `hyprpm.toml` give a Hyprland release that `main` no longer
 targets the head of its branch, so hyprpm on Hyprland 0.56.2 builds
-`hyprland-0.56`.
+`hyprland-0.56`. A patch release that `main` moved past has no branch, so
+hyprpm on Hyprland 0.57.1 builds the last commit of `main` for it.
 
 and load enabled plugins at startup, in `hyprland.lua`:
 
@@ -322,7 +323,7 @@ a while after the release, while people move to the new one.
 
 | Hyprland | Branch |
 | --- | --- |
-| v0.57.1 | `main` |
+| v0.57.2 | `main` |
 | v0.56.2 | `hyprland-0.56` |
 
 Install from the branch that matches your Hyprland:

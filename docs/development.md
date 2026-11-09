@@ -245,8 +245,8 @@ against a new release, but not what they do:
   4096. List the offsets with
   `nm -D --defined-only .Hyprland-wrapped`, on the binary in the Hyprland
   package's `bin`, as the address of each symbol that `src/` hooks modulo
-  4096. An offset of at most 4077 is safe. At v0.57.1 every one is 16-byte
-  aligned and the largest is 3984. `CXDGToplevelResource::setSuspeneded`,
+  4096. An offset of at most 4077 is safe. At v0.57.2 every one is 16-byte
+  aligned and the largest is 4000. `CXDGToplevelResource::setSuspeneded`,
   whose name has Hyprland's typo, must stay the only way that Hyprland tells
   a toplevel that it is suspended.
 - Private and protected members are all reached in one place,
