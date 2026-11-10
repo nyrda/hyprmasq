@@ -131,8 +131,8 @@ installs the package that it built before, against the old Hyprland.
 Hyprland itself checks only its plugin API version, which rarely changes, so
 it would load a plugin built for another Hyprland. hyprmasq checks the build
 when it loads: the commit that Hyprland was built from, and the major and
-minor versions of aquamarine, hyprutils, hyprgraphics, hyprcursor and
-hyprlang. When they differ, it refuses to load, before it hooks anything, and
+minor versions of aquamarine, hyprutils, hyprgraphics and hyprcursor. When
+they differ, it refuses to load, before it hooks anything, and
 Hyprland shows "[hyprmasq] Not loaded: it was built for another Hyprland
 build" and runs without it. Rebuild, then restart Hyprland or load the plugin again.
 
