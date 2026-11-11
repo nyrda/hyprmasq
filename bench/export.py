@@ -76,13 +76,49 @@ def run_record(results_dir, name, fail, variant):
         "context": s.get("context"),
         # None where the run's events were not recorded.
         "user_undisturbed": (s.get("user") or {}).get("undisturbed"),
+        # The view measure under its name from v2 on, the input that went into the user's window and the pointer's
+        # move, and the user's own work where the task has it.
+        "user_no_view_change": (s.get("user") or {}).get("no_view_change"),
+        "desktop_input_to_user_window": len((s.get("user") or {}).get("desktop_input_to_user_window") or []),
+        "desktop_shortcuts": len((s.get("user") or {}).get("desktop_shortcuts") or []),
+        "cursor_displacement_px": (s.get("user") or {}).get("cursor_displacement_px"),
+        "user_work": s.get("user_work"),
         # Seconds the focus was away from the user's window, which the comparison's figures count as disturbed.
         "focus_away_s": (s.get("user") or {}).get("focus_away_seconds"),
+        "focus_takes": (s.get("user") or {}).get("focus_takes"),
+        "first_focus_take_s": (s.get("user") or {}).get("first_focus_take_seconds"),
         "phases": s.get("phases") or {},
         "act_s": {part: act[part + "_s"] for part in parts} if act else None,
     }
     if s.get("refusals"):
         record["refusals"] = s["refusals"]
+    if s.get("refused_calls"):
+        record["refused_calls"] = s["refused_calls"]
+        record["refused_kinds"] = s["refused_kinds"]
+    # Cua's accessibility walks, which the VM makes slower than a desktop does: the page can give their ratio.
+    if s.get("walk"):
+        record["walk"] = s["walk"]
+    # The screenshots' first frame and frames unchanged after input, the actions asked for, sent and done, and refusals
+    # that a script caught.
+    for key in ("frames", "actions_requested", "actions_attempted", "actions_done", "script_refusals"):
+        if s.get(key) is not None:
+            record[key] = s[key]
+    # What the failure analysis needs. The machine is the label a series gave it, as a run's times hold only there.
+    record["failures"] = s.get("failures") or []
+    record["final"] = s.get("final")
+    if s.get("error_texts"):
+        record["error_texts"] = s["error_texts"]
+    if s.get("infrastructure"):
+        record["infrastructure"] = s["infrastructure"]
+    if s.get("assignment"):
+        record["machine"] = s["assignment"]
+    if s.get("desktop") and s["desktop"] != "bare":
+        record["desktop"] = s["desktop"]
+    if s.get("identity"):
+        record["identity"] = {k: os.path.basename(v) for k, v in s["identity"].items() if v}
+    # The tool's release and the Hyprland it ran on, which a run's source commit does not tell of another backend.
+    if s.get("versions"):
+        record["versions"] = s["versions"]
     kinds = (s.get("checks") or {}).get("kinds")
     # The form task's kinds of question, with their times; the trace task counts its kinds of stroke there.
     if kinds and all(isinstance(v, dict) for v in kinds.values()):
@@ -115,7 +151,10 @@ def export(results_dirs, fail, several_machines=False, agents=()):
             source = json.load(f)
         sources.append({**{k: source.get(k) for k in ("commit", "dirty", "task", "variant", "display")},
                         "backend": source.get("backend", "hyprmasq"), "prompt": source.get("prompt", "task"),
-                        "browser": source.get("browser", "firefox")})
+                        "browser": source.get("browser", "firefox"), "desktop": source.get("desktop", "bare"),
+                        # How the user's browser started and what hyprmasq-mcp was given: a slice such as Chromium with a
+                        # debugging port, or the image size probe, is a configuration of its own.
+                        "chromium_options": source.get("chromium_options", ""), "mcp_args": source.get("mcp_args", "")})
     for results_dir, s in zip(results_dirs, sources):
         for name in sorted(os.listdir(results_dir)):
             if os.path.exists(os.path.join(results_dir, name, "summary.json")):
@@ -128,11 +167,12 @@ def export(results_dirs, fail, several_machines=False, agents=()):
     # by which render.py tells a task's variants apart.
     builds = {}
     for s in sources:
-        build = tuple(s[k] for k in ("commit", "dirty", "display", "backend", "prompt", "browser"))
+        build = tuple(s[k] for k in ("commit", "dirty", "display", "backend", "prompt", "browser", "desktop",
+                                     "chromium_options", "mcp_args"))
         builds.setdefault(s["task"], set()).add(build)
     mixed = sorted(task for task, b in builds.items() if len(b) > 1)
     if mixed:
-        sys.exit(f"export.py: the results directories hold several commits, displays, backends, prompts or browsers of "
+        sys.exit(f"export.py: the results directories hold several commits, displays, backends, prompts, browsers, desktops or launch options of "
                  f"{', '.join(mixed)}. Export each to its own dataset.")
     if len(machines) > 1 and not several_machines:
         sys.exit("export.py: the runs ran on several machines, whose times differ. Export each machine's runs to "
@@ -153,7 +193,8 @@ def dumps(data):
     """The dataset with one run a line, so that a diff shows which runs changed."""
     sources = ",\n  ".join(json.dumps(s) for s in data["sources"])
     runs = ",\n  ".join(json.dumps(r) for r in data["runs"])
-    return f'{{\n "sources": [\n  {sources}\n ],\n "runs": [\n  {runs}\n ]\n}}\n'
+    analysis = f'\n "analysis": {json.dumps(data["analysis"])},' if data.get("analysis") else ""
+    return f'{{{analysis}\n "sources": [\n  {sources}\n ],\n "runs": [\n  {runs}\n ]\n}}\n'
 
 
 def main(argv):
@@ -163,6 +204,11 @@ def main(argv):
     parser.add_argument("--several-machines", action="store_true")
     parser.add_argument("--agent", action="append", default=[], metavar="AGENT",
                         help="keep only the runs of the agents that match, HARNESS[:MODEL[@EFFORT]] with *; repeatable")
+    parser.add_argument("--registered", action="store_true",
+                        help="mark the dataset as one of a comparison series whose analysis its rules fix "
+                             "(comparison-series.json, analysis): render.py then gives pass rates with Wilson intervals, "
+                             "times only with at least MIN_PASSES passes, failed runs' times apart, and the user's view "
+                             "and work")
     parser.add_argument("results", nargs="+")
     args = parser.parse_args(argv)
     fail = {}
@@ -172,6 +218,8 @@ def main(argv):
             parser.error(f"--fail {item}: expected RUN=REASON")
         fail[run] = reason
     data = export(args.results, fail, args.several_machines, args.agent)
+    if args.registered:
+        data["analysis"] = {"rules": "bench/comparison-series.json", "min_passes": 3, "interval": "wilson-95"}
     with open(args.out, "w", encoding="utf-8", newline="") as f:
         f.write(dumps(data))
     print(f"{args.out}: {len(data['runs'])} runs")

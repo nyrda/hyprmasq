@@ -23,7 +23,7 @@ import os
 import re
 import statistics
 
-from report import cua_step, server_backend
+from report import CUA_SCRIPT_READS, cua_step, server_backend
 
 # The fields of act's array form of each action after its name, in order, as expandAction in
 # mcp/internal/server/actions.go reads them.
@@ -443,6 +443,7 @@ CUA_POINTER = {
     "right_click": ("click", "right", None),
     "drag": ("drag", None, None),
     "mouse_button_down": ("press", None, None),
+    "browser_pointer": ("browser_pointer", None, None),
 }
 
 
@@ -464,6 +465,14 @@ def cua_action(tool, args):
     """A step of Cua's as an action object, as action_object makes act's, with why its point cannot be mapped to the
     window's screenshot, or None: points in a zoom or on the desktop."""
     kind, button, count = CUA_POINTER.get(tool, (tool, None, None))
+    if kind == "browser_pointer":
+        # Its points are a tab's CSS pixels, or refs, with no window's screenshot to map them to: a drag that attribution
+        # lists and does not place.
+        gesture = args.get("action")
+        action = {"action": "drag" if gesture == "drag" else f"browser_pointer {gesture}"}
+        if gesture == "drag":
+            action.update({"from": [args.get("x"), args.get("y")], "to": [args.get("to_x"), args.get("to_y")]})
+        return action, "its points are in a browser tab"
     action = {"action": kind}
     if kind == "drag":
         action.update({"from": [args.get("from_x"), args.get("from_y")], "to": [args.get("to_x"), args.get("to_y")]})
@@ -531,6 +540,18 @@ def cua_calls(tap):
             steps = [(name, args)]
             window = cua_window(args)
             done = 0 if failed and UNKNOWN_DELIVERY not in text else 1
+        elif name == "run_script":
+            # The script's own operations, which its result lists: no points of the agent's to map. A record of each,
+            # marked as not placed, so that its actions are not left out.
+            ops = [c for c in sc.get("calls") or [] if isinstance(c, dict) and c.get("op") not in CUA_SCRIPT_READS]
+            if ops:
+                shot_id = f"call-{msg['id']}"
+                out.append({"start": start, "end": entry["t"], "args": {"shot": shot_id}, "window": None,
+                            "actions": [{"action": f"run_script {c.get('op')}"} for c in ops],
+                            "result": {"actions": {"done": sum(1 for c in ops if c.get("ok"))}},
+                            "summary": text.split("\n", 1)[0], "shots": {},
+                            "unknown": {shot_id: "its points are in a script"}})
+            steps = None
         else:
             steps = None
         if steps is not None:

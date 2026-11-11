@@ -8,6 +8,7 @@ RESULTS-DIR/report.md and RESULTS-DIR/runs.json. run.py calls metrics() for each
 """
 
 import collections
+import contextlib
 import glob
 import json
 import os
@@ -59,15 +60,29 @@ CUA_ACTIONS = {
     "invoke_menu", "launch_app", "bring_to_front", "set_window_frame", "kill_app", "browser_click", "browser_type",
     "browser_navigate", "browser_select", "browser_pointer", "browser_dialog", "browser_set_input_files",
 }
+# What Cua's run_script may call that only reads or waits, among the operations its result lists: the rest act. Its log
+# names them in snake case, such as get_window_state, and the script's helpers in camel case, such as getState.
+CUA_SCRIPT_READS = {"getApp", "launch", "listApps", "listWindows", "sleep", "getState", "query", "waitFor", "verify",
+                    "screenshot", "console", "get_app", "list_apps", "list_windows", "get_window_state", "find",
+                    "wait_for"}
+# Its tools whose text is documentation: the codes in it are not refusals.
+CUA_TEXT_TOOLS = {"get_guide", "describe"}
 # The codes of Cua's refusals, from its driver and its Hyprland plugin: a route that did not deliver, as
-# background_unavailable (client_not_qualified) for an app outside its input plugin's qualification, or
-# foreground_unavailable (primary_target_busy): foreground_grab while a popup holds the seat; and its browser tools'.
+# background_unavailable (client_not_bound) for an app that binds only the user's seat, (client_drops_background_keys)
+# for Qt 6's keys, (client_xwayland) for XWayland, or, in 0.38.0, (client_not_qualified) for any app outside its two
+# packages; or foreground_unavailable (primary_target_busy): foreground_grab while a popup holds the seat; and its
+# browser tools'. foreground_fallback is no refusal: it is a run_steps option, which its hints name.
 REFUSAL = re.compile(
-    r"\b(background_unavailable|foreground_unavailable|client_not_qualified|primary_target_busy|agent_target_busy"
+    r"\b(background_unavailable|foreground_unavailable|client_not_qualified|client_not_bound"
+    r"|client_drops_background_keys|client_xwayland|client_unattested|primary_target_busy|agent_target_busy"
     r"|lane_busy|lane_not_claimed|stale_target|stale_geometry|session_unavailable|unsupported_layout"
-    r"|action_not_admitted|route_mismatch|foreground_[a-z_]+|browser_requires_setup|browser_consent_required"
+    r"|action_not_admitted|route_mismatch|foreground_(?!fallback\b)[a-z_]+|browser_requires_setup|browser_consent_required"
     r"|browser_consent_revoked|browser_input_trust_unavailable|browser_route_unavailable"
-    r"|browser_wrong_target_refused|browser_endpoint_owner_mismatch)\b")
+    r"|browser_wrong_target_refused|browser_endpoint_owner_mismatch|browser_action_unavailable)\b")
+# What a refused call of Cua's was, by its codes: the browser tools asking for setup, a target that changed since it
+# was read, and otherwise a route that does not deliver. A call that may have delivered part is partial, whatever its code.
+CUA_SETUP = {"browser_requires_setup", "browser_consent_required"}
+CUA_STALE = {"stale_target", "stale_geometry"}
 
 
 # hypruse's tools that act, each one action, named by its action where it has one (pointer click, keyboard type, hypr
@@ -110,10 +125,10 @@ def server_backend(tap):
     return "hyprmasq"
 
 
-def call_actions(tool, args, backend=None):
-    """The actions of a call: act's, the steps of Cua's run_steps or hypruse's sequence, or the one action of Cua's,
-    hypruse's or computer-use-linux's tools that act; none for a read. backend is the run's (server_backend): without
-    it, act's and Cua's."""
+def call_actions(tool, args, backend=None, structured=None):
+    """The actions of a call: act's, the steps of Cua's run_steps or hypruse's sequence, the operations of its run_script
+    that its structured result lists, or the one action of Cua's, hypruse's or computer-use-linux's tools that act; none
+    for a read. backend is the run's (server_backend): without it, act's and Cua's."""
     if tool == "act":
         return [a.get("action") for a in named_actions(args)]
     if backend == "hypruse":
@@ -127,6 +142,10 @@ def call_actions(tool, args, backend=None):
     if tool == "run_steps":
         steps = args.get("steps") if isinstance(args.get("steps"), list) else []
         return [cua_step(step)[0] for step in steps]
+    if tool == "run_script":
+        calls = (structured or {}).get("calls")
+        return [c.get("op") for c in calls if isinstance(c, dict) and c.get("op") not in CUA_SCRIPT_READS] \
+            if isinstance(calls, list) else []
     return [tool] if tool in CUA_ACTIONS else []
 
 
@@ -134,6 +153,27 @@ def hypruse_action(tool, args):
     """A hypruse action's name: its tool, and the action of pointer, keyboard and hypr, such as `pointer drag`."""
     action = args.get("action") if tool in ("pointer", "keyboard", "hypr") else None
     return f"{tool} {action}" if isinstance(action, str) and action else tool
+
+
+def cua_refused(tool, result, text):
+    """Whether Cua's result says the call did not do what it asked, by its status and not by what its text mentions: a
+    hint of a call that worked can name a route that did not. A tool's documentation refuses nothing."""
+    if tool in CUA_TEXT_TOOLS:
+        return False
+    structured = result.get("structuredContent") or {}
+    return bool(result.get("isError") or structured.get("refusal") or structured.get("effect") == "refused"
+                or structured.get("failed_step") is not None or text.startswith("refused ("))
+
+
+def refusal_kind(codes, structured):
+    """What a refused call of Cua's was: partial delivery, a request for setup, a stale target or a closed route."""
+    if structured.get("effect") == "partial":
+        return "partial"
+    if set(codes) & CUA_SETUP:
+        return "setup"
+    if set(codes) & CUA_STALE:
+        return "stale"
+    return "route"
 
 
 def call_refusals(text, backend, failed):
@@ -146,6 +186,145 @@ def call_refusals(text, backend, failed):
     return sorted(set(REFUSAL.findall(text)))
 
 
+# What says a call of Cua's did not deliver on its route without a code of its own, as its results word it.
+CUA_UNCODED_ROUTE = re.compile(r"no native Wayland toplevel|Background delivery is not available|"
+                               r"Foreground delivery is not available|not available on this (?:desktop|compositor)")
+
+
+def cua_call_status(tool, result, text, structured):
+    """What became of a call of Cua's, by its result's status and not by what its text mentions: (refused, kind, codes).
+    A failed call is a refusal when its codes or its words say that a route did not deliver, and otherwise an error of
+    the call, such as an element that is not there: kind error. Refusals that a script caught inside it count apart."""
+    if not cua_refused(tool, result, text):
+        return False, None, []
+    codes = call_refusals(text + json.dumps(structured), "cua", True)
+    if codes:
+        return True, refusal_kind(codes, structured), codes
+    if CUA_UNCODED_ROUTE.search(text):
+        return True, "route_uncoded", []
+    return False, "error", []
+
+
+def script_refusals(structured):
+    """The driver calls inside a run_script that its log says were refused, also when the script caught them and went
+    on: the outer call then succeeded."""
+    calls = structured.get("calls") if isinstance(structured.get("calls"), list) else []
+    return sum(1 for c in calls if isinstance(c, dict) and c.get("ok") is False
+               and (REFUSAL.search(str(c.get("detail") or "")) or CUA_UNCODED_ROUTE.search(str(c.get("detail") or ""))))
+
+
+def act_text_progress(text):
+    """What a hyprmasq act result without structured content, as Claude Code gets them, says of its delivery, in the shape
+    of the structured content's actions: `D/T delivered`, with the first action that failed where delivery was partial
+    or uncertain, and whether it was held back. None where the text gives no delivery."""
+    found = re.search(r"(\d+)/(\d+) delivered([^\n]*)", text or "")
+    if not found:
+        return None
+    done, total, rest = int(found.group(1)), int(found.group(2)), found.group(3)
+    out = {"done": done, "total": total}
+    if done < total and ("held back" in rest or "delivery partial" in rest or "uncertain" in rest):
+        out["failed_index"] = done
+    if "held back" in rest:
+        out["held_back"] = True
+    return out
+
+
+def call_progress(tool, args, backend, structured, actions, failed, text=""):
+    """How many of a call's actions it was asked for, sent and did, pauses aside: (requested, attempted, done). act and
+    run_steps say how far a batch went, a script's log says each of its operations, and a single action did or did not."""
+    requested = len([a for a in actions or [] if a != "pause"])
+    if not requested:
+        return 0, 0, 0
+    if tool == "act":
+        out = structured.get("actions") if isinstance(structured.get("actions"), dict) else act_text_progress(text) or {}
+        listed = [a.get("action") for a in named_actions(args)]
+        done = out.get("done", 0 if failed else len(listed))
+        # A failed action was attempted. An action held back, as hyprmasq says with held_back, was not sent at all.
+        attempted = done + (1 if out.get("failed_index") is not None and not out.get("held_back") else 0)
+        pauses_done = sum(1 for a in listed[:done] if a == "pause")
+        pauses_tried = sum(1 for a in listed[:attempted] if a == "pause")
+        return requested, max(0, attempted - pauses_tried), max(0, done - pauses_done)
+    if tool == "run_steps":
+        executed = structured.get("executed")
+        failed_step = structured.get("failed_step")
+        attempted = executed if isinstance(executed, int) else (failed_step + 1 if isinstance(failed_step, int) else requested)
+        return requested, attempted, attempted - (1 if isinstance(failed_step, int) else 0)
+    if tool == "run_script":
+        calls = structured.get("calls") if isinstance(structured.get("calls"), list) else []
+        acting = [c for c in calls if isinstance(c, dict) and c.get("op") not in CUA_SCRIPT_READS]
+        return requested, len(acting), sum(1 for c in acting if c.get("ok"))
+    return requested, requested, 0 if failed else requested
+
+
+def call_window(args):
+    """The window a call is about, as its arguments name it, for comparing its screenshots: Cua's window_id or pid,
+    hyprmasq's window."""
+    for key in ("window_id", "window", "pid"):
+        if args.get(key) is not None:
+            return str(args[key])
+    return None
+
+
+def desktop_input(tool, args):
+    """Whether a call asks for input to the desktop rather than to a window: Cua's tools with a desktop target or scope,
+    or a run_steps with such a step. Such input goes wherever the user's focus is."""
+    return tool in CUA_ACTIONS and is_desktop(args) or tool == "run_steps" and any(
+        is_desktop(step_args) and name in CUA_ACTIONS for name, step_args in (cua_step(s) for s in args.get("steps") or []))
+
+
+def is_desktop(args):
+    target = args.get("target") if isinstance(args.get("target"), dict) else {}
+    return target.get("kind") == "desktop" or args.get("scope") == "desktop"
+
+
+# The VM's compositor binds (omarchy-desktop.lua): a desktop hotkey that matches one is a shortcut to the compositor, as
+# a workspace switch, and reaches no app. Keys as sets of lowercase names; the workspace binds' key codes are 1 to 0.
+KEY_NAMES = {"meta": "super", "win": "super", "cmd": "super", "logo": "super", "control": "ctrl", "return": "enter"}
+
+
+def key_set(keys):
+    """A key combination as a set of names, from a list of keys or a text such as super+2."""
+    if isinstance(keys, str):
+        keys = keys.replace(" ", "").split("+")
+    return frozenset(KEY_NAMES.get(k.strip().lower(), k.strip().lower()) for k in keys or [] if str(k).strip())
+
+
+def compositor_binds(path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "omarchy-desktop.lua")):
+    binds = set()
+    with contextlib.suppress(OSError), open(path) as f:
+        for combo in re.findall(r'hl\.bind\("([^"]+)"', f.read()):
+            if "mouse" not in combo:
+                binds.add(key_set(combo))
+    for workspace in range(1, 11):
+        key = str(workspace % 10)
+        binds.update(key_set(c) for c in (f"super+{key}", f"super+shift+{key}", f"super+shift+alt+{key}"))
+    return binds
+
+
+COMPOSITOR_BINDS = compositor_binds()
+
+
+def desktop_steps(tool, args, structured, text, failed):
+    """The desktop inputs a call of Cua's delivered, each as (tool, kind): a shortcut where it is a hotkey that matches a
+    compositor bind, and otherwise input, which goes to the focused window. Only what the tool says it ran and did not
+    fail counts: not a batch rejected before it ran anything, nor a step that failed, such as a drag whose points could
+    not be mapped, nor the steps after it. A run_script's operations name no target and are not counted."""
+    def kind(name, a):
+        keys = a.get("keys") if name == "hotkey" else a.get("key") if name == "press_key" else None
+        return "shortcut" if keys is not None and key_set(keys) in COMPOSITOR_BINDS else "input"
+    if tool == "run_steps":
+        steps = [cua_step(s) for s in args.get("steps") or []]
+        executed = structured.get("executed")
+        if not isinstance(executed, int) or "rejected before running anything" in text:
+            return []
+        failed_step = structured.get("failed_step")
+        return [(name, kind(name, a)) for i, (name, a) in enumerate(steps[:executed])
+                if name in CUA_ACTIONS and is_desktop(a) and i != failed_step]
+    if tool in CUA_ACTIONS and is_desktop(args) and not failed:
+        return [(tool, kind(tool, args))]
+    return []
+
+
 def cua_step(step):
     """A step of Cua's run_steps as (tool, args): {tool, args} or {<tool>: args}."""
     if not isinstance(step, dict):
@@ -154,6 +333,112 @@ def cua_step(step):
         return step.get("tool"), step.get("args") if isinstance(step.get("args"), dict) else {}
     tool = next((k for k in step if k not in ("wait_for", "expect", "timeout_ms")), None)
     return tool, step.get(tool) if isinstance(step.get(tool), dict) else {}
+
+
+# How Cua's reads say how long their walk took, and why a walk stopped before the whole tree: its time budget ran out,
+# its budget of elements did, or a container had more children than it lists, as a spreadsheet's grid. Only the first
+# is a walk that the machine's speed cut.
+WALK_MS = re.compile(r"\bwalk_ms=(\d+)")
+PARTIAL_TREE = "PARTIAL TREE"
+PARTIAL_KINDS = {"budget": "timeout_ms budget ran out", "elements": "max_elements node budget ran out",
+                 "container": "container with more children than can be enumerated"}
+# run_script's own timeout_ms bounds the script, not a walk: a budget for a read inside it is in its source.
+SCRIPT_READ_BUDGET = re.compile(r"\btimeout_?[mM]s\b\s*[:=]\s*\d")
+
+
+def names_walk_budget(args, tool=None):
+    """Whether a call of Cua's names a budget for its walk, timeout_ms, itself or in its observation, in place of the
+    driver's default of 2 s for a first read and 1 s after: what an agent chooses, not what the machine does. A script
+    names one only in its source, for the reads in it."""
+    if tool == "run_script":
+        return bool(SCRIPT_READ_BUDGET.search(json.dumps({k: v for k, v in args.items() if k != "timeout_ms"})))
+    observe = args.get("observe") if isinstance(args.get("observe"), dict) else {}
+    return bool(args.get("timeout_ms") or observe.get("timeout_ms"))
+
+
+def call_walks(tool, text, structured):
+    """The walks of a call of Cua's in ms. A script's are in the log of its driver calls, once each: its text can hold
+    them again in what the script returned."""
+    if tool == "run_script" and isinstance(structured.get("calls"), list):
+        return [int(ms) for c in structured["calls"] if isinstance(c, dict)
+                for ms in WALK_MS.findall(str(c.get("detail") or ""))]
+    return [int(ms) for ms in WALK_MS.findall(text)]
+
+
+def partial_kinds(text):
+    """How many walks in a call's text stopped before the whole tree, by why: each PARTIAL TREE says."""
+    found = {kind: 0 for kind in PARTIAL_KINDS}
+    for line in text.split(PARTIAL_TREE)[1:]:
+        kind = next((k for k, said in PARTIAL_KINDS.items() if said in line[:200]), "budget")
+        found[kind] += 1
+    return found
+
+
+def walk_split(calls):
+    """The time of a run's calls that Cua's accessibility walks took, the part of its time in tools that the VM makes
+    slower than a desktop: its seconds, how many walks, how many stopped at the budget, how many had a budget the agent
+    named, the length of the first, whether it stopped at the budget, and their median in ms. None for a run without walks,
+    as the other backends' have. A walk cut at its budget costs less and shows less, and an agent that names a longer
+    budget after a cut read pays for the whole tree on each read from there on: so these say how much of a difference in
+    time is the agent's reaction to where a machine's walk ends against the default budget."""
+    walking = [c for c in calls if c.get("walk_ms")]
+    if not walking:
+        return None
+    walks = [ms for c in walking for ms in c["walk_ms"]]
+    cut = {kind: sum((c.get("partial_kinds") or {}).get(kind, 0) for c in calls) for kind in PARTIAL_KINDS}
+    return {"seconds": round(sum(walks) / 1000, 1), "count": len(walks),
+            # Walks that the time budget cut, which a machine's speed decides; the others stopped at a budget of
+            # elements or at a container too large to list, as a spreadsheet's grid, which no machine changes.
+            "partial": cut["budget"], "partial_elements": cut["elements"], "partial_container": cut["container"],
+            "median_ms": round(statistics.median(walks)),
+            "budget_named": sum(len(c["walk_ms"]) for c in walking if c.get("walk_budget_named")),
+            "first_ms": walks[0], "first_partial": bool((walking[0].get("partial_kinds") or {}).get("budget"))}
+
+
+# What says a run ended for the infrastructure and not for the agent, by kind, in the last of its stream and stderr: a
+# subscription's or provider's limit, a login that ended, the provider's own failure. The agent's own errors, and a
+# tool's, do not match: they are in its tool results, which this does not read.
+INFRASTRUCTURE = {
+    "rate_limit": r"usage_limit_reached|hit your (?:usage |session |weekly |[0-9a-z-]+ )?limit|usage limit|rate_limit_exceeded"
+                  r"|too many requests|rate limit reached|out of extra usage|limit will reset|quota exceeded",
+    "auth": r"please run /login|invalid_grant|refresh token|authentication_failed|failed to authenticate"
+            r"|oauth session expired|not logged in|oauth token has expired"
+            r"|401 unauthorized|token_expired|sign in again",
+    "provider": r"overloaded_error|api_error_status\W+5\d\d|internal server error|stream disconnected|bad gateway"
+                r"|service unavailable|connection error|econnreset",
+}
+
+
+def infrastructure_failure(run_dir, stream, run):
+    """Why a run ended for the infrastructure, as {"kind", "detail"}, or None: Claude Code's rate limit event with
+    status rejected, Codex's and Claude Code's error events and results, and the harness's stderr. It looks only where
+    the harness reports its own failures, as a task's text could name any of these words."""
+    for entry in reversed(stream):
+        line = entry.get("line") or {}
+        info = line.get("rate_limit_info") if line.get("type") == "rate_limit_event" else None
+        if info and info.get("status") == "rejected":
+            return {"kind": "rate_limit", "detail": f"{info.get('rateLimitType')} until {info.get('resetsAt')}",
+                    "resets_at": info.get("resetsAt")}
+    texts = []
+    for entry in stream[-20:]:
+        line = entry.get("line") or {}
+        if line.get("type") in ("error", "turn.failed") or (line.get("type") == "result" and line.get("is_error")):
+            texts.append(json.dumps(line)[:2000])
+    with contextlib.suppress(OSError), open(os.path.join(run_dir, "agent.stderr"), errors="replace") as f:
+        if run.get("agent_exit"):
+            texts.append(f.read()[-4000:])
+    for kind, pattern in INFRASTRUCTURE.items():
+        for text in texts:
+            found = re.search(pattern, text, re.IGNORECASE)
+            if found:
+                return {"kind": kind, "detail": text[max(0, found.start() - 150):found.end() + 150]}
+    return None
+
+
+def hyprmasq_whole_frame(text):
+    """Whether a hyprmasq call's image is the whole window: a shot of its own size, and not a zoom of a shot or act's crops
+    of what changed, which its text gives as `shot sN = sM + K changes`."""
+    return bool(re.search(r"\bshot s\d+ \d+×\d+", text)) and "zoom of" not in text and not re.search(r"\bshot s\d+ = s\d+ \+", text)
 
 
 def tool_calls(tap):
@@ -171,15 +456,41 @@ def tool_calls(tap):
             text = "\n".join(c.get("text", "") for c in content if c.get("type") == "text")
             images = [c for c in content if c.get("type") == "image"]
             args = params.get("arguments") or {}
+            structured = result.get("structuredContent") or {}
+            # The backend's refusals in the result, each once (call_refusals). One call can name several codes, of one
+            # refusal: refused says whether it was one, and is what to sum. Cua's are by its result's status.
+            failed = bool(result.get("isError")) or "error" in msg
+            tool = params.get("name")
+            if backend == "cua":
+                refused, kind, refusals = cua_call_status(tool, result, text, structured)
+            else:
+                refusals = call_refusals(text, backend, failed)
+                refused, kind = bool(refusals), None
+            actions = call_actions(tool, args, backend, structured)
+            requested, attempted, done = call_progress(tool, args, backend, structured, actions, failed or refused, text)
             calls.append({
-                "tool": params.get("name"),
+                "tool": tool,
                 "start": start,
                 "end": entry["t"],
                 "seconds": entry["t"] - start,
-                "actions": call_actions(params.get("name"), args, backend),
-                "error": bool(result.get("isError")) or "error" in msg,
-                # The backend's refusals in the result, each once (call_refusals).
-                "refusals": call_refusals(text, backend, bool(result.get("isError")) or "error" in msg),
+                "actions": actions,
+                "requested": requested,
+                "attempted": attempted,
+                "done": done,
+                "error": failed,
+                "refusals": refusals,
+                "refused": refused,
+                "refusal_kind": kind,
+                "script_refusals": script_refusals(structured) if backend == "cua" and tool == "run_script" else 0,
+                "desktop_input": backend == "cua" and desktop_input(tool, args),
+                "desktop_steps": desktop_steps(tool, args, structured, text, failed or refused) if backend == "cua" else [],
+                "window": call_window(args),
+                "whole_frame": backend != "hyprmasq" or hyprmasq_whole_frame(text),
+                "image_hashes": [i.get("sha256") for i in images if i.get("sha256")],
+                # Cua's walks of the accessibility tree in this call, with why each that stopped early stopped.
+                "walk_ms": call_walks(tool, text, structured) if backend == "cua" else [],
+                "partial_kinds": partial_kinds(text) if backend == "cua" else {},
+                "walk_budget_named": backend == "cua" and names_walk_budget(args, tool),
                 "summary": text.split("\n", 1)[0][:300],
                 "hint": "\n".join(text.split("\n")[1:])[:600],
                 "images": len(images),
@@ -467,9 +778,13 @@ def agent_usage(harness, stream, transcript=()):
     return usage
 
 
-def user_disturbance(run_dir, ready, start, end, offset):
-    """What the run did to the user's visible workspace, from Hyprland's events in the VM: windows that opened
-    on it, how long the keyboard focus was away from the user's window, and switches of the active workspace."""
+def user_disturbance(run_dir, ready, start, end, offset, calls=(), cursor=None):
+    """What the run did to the user's view and input, from Hyprland's events in the VM: windows that opened on the
+    user's workspace, how long the keyboard focus was away from the user's window, switches of the active workspace,
+    desktop input that went to the user's window, as it held the focus when it came, and whether the user's pointer
+    moved. None of it sees what changed inside the user's window or what the user typed: no_view_change says only that
+    none of these happened, and a run that did little has it as easily as a careful one. A task that keeps the user's
+    own work has its own result (user_work)."""
     path = os.path.join(run_dir, "vm-events.log")
     if not os.path.exists(path):
         return None
@@ -481,9 +796,20 @@ def user_disturbance(run_dir, ready, start, end, offset):
             t, _, event = line.rstrip("\n").partition(" ")
             name, _, data = event.partition(">>")
             events.append((float(t) + offset, name, data))
-    opened, workspaces = [], []
+    opened, workspaces, takes = [], [], []
     focus, away_since, away = user_window, None, 0.0
-    for t, name, data in events:
+    # The focus at the start of each call that delivered desktop input: the user's window's when its input went to it.
+    # A shortcut to the compositor reaches no window and counts apart. A batch's steps take the focus at its start.
+    pending = sorted((c["start"], name) for c in calls if c.get("end")
+                     for name, kind in c.get("desktop_steps") or [] if kind == "input")
+    shortcuts = [{"at": round(c["start"] - start, 1), "tool": name} for c in calls if c.get("end")
+                 for name, kind in c.get("desktop_steps") or [] if kind == "shortcut"]
+    into_user = []
+    for t, name, data in events + [(float("inf"), "", "")]:
+        while pending and pending[0][0] <= t:
+            at, tool = pending.pop(0)
+            if focus == user_window and start <= at <= end:
+                into_user.append({"at": round(at - start, 1), "tool": tool})
         if t < start or t > end:
             if name == "activewindowv2" and t < start:
                 focus = data.removeprefix("0x")
@@ -498,17 +824,79 @@ def user_disturbance(run_dir, ready, start, end, offset):
             focus = data.removeprefix("0x")
             if focus != user_window and away_since is None:
                 away_since = t
+                takes.append(round(t - start, 1))
             elif focus == user_window and away_since is not None:
                 away += t - away_since
                 away_since = None
     if away_since is not None:
         away += end - away_since
+    before, after = (cursor or (None, None))
+    moved = round(((after["x"] - before["x"]) ** 2 + (after["y"] - before["y"]) ** 2) ** 0.5) \
+        if before and after else None
     return {
-        "undisturbed": not opened and not workspaces and away == 0,
+        # What the name says and no more: no window on the user's workspace, no switch of it and the keyboard focus
+        # never away from the user's window. It does not see input that went into the user's window, which follows.
+        "no_view_change": not opened and not workspaces and away == 0,
+        # Cua's alone: hyprmasq sends no input to the desktop, only to a window.
+        "desktop_input_to_user_window": into_user,
+        "desktop_shortcuts": shortcuts,
+        # How far the pointer was from where it started when the run ended: a pointer that moved and came back has 0.
+        "cursor_displacement_px": moved,
         "windows_opened_on_user_workspace": opened,
         "focus_away_seconds": round(away, 1),
+        # How often the focus left the user's window, and when first: a tool that does not give it back counts as away
+        # until the run ends, and the user authorized the focus changes in a comparison's prompt.
+        "focus_takes": len(takes),
+        "first_focus_take_seconds": takes[0] if takes else None,
         "workspace_switches": workspaces,
     }
+
+
+def user_work(check):
+    """Whether the user's own work survived, in a task where the user works during the run, apart from the task's
+    result: Forgejo's notes, kept when what the user typed is all saved and nothing they typed went elsewhere. None for a
+    task where the user does not work."""
+    notes = (check.get("checks") or {}).get("user_notes")
+    if not isinstance(notes, dict):
+        return None
+    return {"kept": bool(notes.get("intact")) and not notes.get("lost_chars"), **notes}
+
+
+def frames(calls):
+    """What the run's screenshots say of a window's frame: per window, the encoded size in bytes of the first against the
+    median of the later ones, and how many came back the same as the window's previous one although an input to that
+    window worked between them. The bytes, not the pixels, as a window that had not drawn yet is mostly blank and
+    encodes small at its full size: a first frame under half the later ones is flagged, and the flag can also mean a page
+    that filled in later. The same image after an input is a frame that may be stale, or an input that changed nothing
+    to see. Only whole frames of a named window count: a desktop
+    state names none, and a zoom or act's crops of what changed are not the window's frame, though their call's input
+    still counts. None without screenshots or their hashes."""
+    shots = [(c, h) for c in calls for h in c.get("image_hashes") or []]
+    if not shots:
+        return None
+    by_window, first_ratio, unchanged = {}, [], 0
+    for c in calls:
+        key = c.get("window")
+        if key is None:
+            continue
+        if c.get("image_hashes") and c.get("whole_frame", True):
+            entry = by_window.setdefault(key, {"hashes": [], "bytes": [], "input": False})
+            # The input before this frame: the calls' since the last frame, and this call's own, as a call that acts
+            # returns the frame after its actions.
+            before = entry["input"] or bool(c.get("done"))
+            if entry["hashes"] and c["image_hashes"][0] == entry["hashes"][-1] and before:
+                unchanged += 1
+            entry["hashes"].append(c["image_hashes"][-1])
+            entry["bytes"].append(c.get("image_bytes", 0) // max(1, len(c["image_hashes"])))
+            entry["input"] = False
+        elif key in by_window and c.get("done"):
+            by_window[key]["input"] = True
+    for entry in by_window.values():
+        if len(entry["bytes"]) > 1 and entry["bytes"][0]:
+            later = sorted(entry["bytes"][1:])
+            first_ratio.append(round(entry["bytes"][0] / later[len(later) // 2], 2))
+    return {"shots": len(shots), "first_to_later": min(first_ratio) if first_ratio else None,
+            "first_small": bool(first_ratio) and min(first_ratio) < 0.5, "unchanged_after_input": unchanged}
 
 
 def model_gaps(calls, start, end):
@@ -583,20 +971,44 @@ def metrics(run_dir):
         "calls": len(calls),
         "by_tool": by_tool,
         "actions": sum(len(c["actions"] or []) for c in finished if c.get("actions")),
+        # The actions asked for, pauses aside, those the tool sent and those it says it did: a batch can stop early.
+        "actions_requested": sum(c.get("requested", 0) for c in finished),
+        "actions_attempted": sum(c.get("attempted", 0) for c in finished),
+        "actions_done": sum(c.get("done", 0) for c in finished),
         "errors": sum(1 for c in finished if c.get("error")),
-        # The backend's refusals, by code or kind: how many calls each turned up in.
+        # The backend's refusals, by code or kind: how many calls each turned up in. One call can name several: never sum
+        # them, but take refused_calls, and refused_kinds for what they were.
         "refusals": dict(collections.Counter(code for c in finished for code in c.get("refusals") or [])),
+        "refused_calls": sum(1 for c in finished if c.get("refused")),
+        "refused_kinds": dict(collections.Counter(c["refusal_kind"] for c in finished
+                                                  if c.get("refused") and c.get("refusal_kind"))),
+        # Refusals that a script caught inside it, whose call then succeeded.
+        "script_refusals": sum(c.get("script_refusals", 0) for c in finished),
+        # The part of the time in tools that Cua's accessibility walks took, None for the other backends.
+        "walk": walk_split(finished),
+        # What the failure analysis needs: the agent's last message, and the first lines of the calls that failed.
+        "final": (usage or {}).get("final"),
+        "error_texts": distinct(c.get("summary") for c in finished if c.get("error"))[:40],
+        "infrastructure": infrastructure_failure(run_dir, stream, run),
         "no_change": sum(1 for c in finished if c.get("no_change")),
         "images": sum(c.get("images", 0) for c in finished),
         "image_kib": round(sum(c.get("image_bytes", 0) for c in finished) / 1024),
         "task": run["task"],
         "phases": phases,
         "checks": check.get("checks", {}),
-        "user": user_disturbance(run_dir, ready, start, end, offset),
+        "user": user_disturbance(run_dir, ready, start, end, offset, finished,
+                                 (vm.get("cursor_before"), vm.get("cursor_after"))),
+        "user_work": user_work(check),
+        "frames": frames(finished),
+        "start_state": ready.get("start_state"),
         "usage": usage,
         "context": context_usage(run["harness"], stream, transcript, usage),
         "harness_version": run.get("harness_version"),
+        "versions": ready.get("versions"),
         "machine": run.get("machine"),
+        "desktop": run.get("desktop", "bare"),
+        "identity": {**(run.get("identity") or {}), **(ready.get("identity") or {})} or None,
+        "assignment": (run.get("dispatch") or {}).get("host"),
     }
 
 
@@ -664,7 +1076,7 @@ def table(runs, phase_names, group):
         groups.setdefault((group(r), (r.get("effort") or {}).get("requested")), []).append(r)
     columns = ["Agent", "Effort", "Passed", "Wall s", "In tools s", "Outside tools s", "Turn s", "Calls", "Actions",
                "Images", "Input k", "Cached %", "Output k", "Cost $"] \
-        + [f"{name.capitalize()} at s" for name in phase_names] + ["User undisturbed"]
+        + [f"{name.capitalize()} at s" for name in phase_names] + ["No view change"]
     out = ["| " + " | ".join(columns) + " |", "| " + " | ".join("---" for _ in columns) + " |"]
     for (name, _), rs in groups.items():
         passed = [r for r in rs if r["passed"]]
@@ -678,7 +1090,7 @@ def table(runs, phase_names, group):
             f"{fmt([thousands(r, 'output_tokens') for r in rs])} | "
             f"{fmt([(r.get('usage') or {}).get('cost_usd') for r in rs], 3)} | "
             + "".join(f"{fmt([r.get('phases', {}).get(name) for r in rs])} | " for name in phase_names)
-            + f"{sum(1 for r in rs if (r.get('user') or {}).get('undisturbed'))}/{len(rs)} |"
+            + f"{sum(1 for r in rs if (r.get('user') or {}).get('no_view_change'))}/{len(rs)} |"
         )
     return out
 

@@ -23,6 +23,7 @@ import contextlib
 import datetime
 import fcntl
 import glob
+import hashlib
 import json
 import os
 import re
@@ -74,9 +75,12 @@ SKILLS = {"cua": ("cua-driver", "cua"), "computer-use-linux": ("computer-use-lin
 # tool-neutral one of a comparison, prompt-comparison.md, with the laptop's wording: the user has authorized foreground
 # input and focus changes if the tools need them, and prefers ways that leave their window alone.
 PROMPTS = {"task": "prompt.md", "comparison": "prompt-comparison.md"}
-# The user's browser in the tasks that have one: Firefox, the default, or Chromium, for a tool that refuses Firefox, as
-# Cua Driver does every raw action to it on Hyprland. A task lists the browsers it takes in tasks/TASK/browsers.
+# The user's browser in the tasks that have one: Firefox, the default, or Chromium, for a tool that does more there, as
+# Cua Driver, whose foreground input refuses Firefox on Hyprland. A task lists the browsers it takes in tasks/TASK/browsers.
 BROWSERS = ("firefox", "chromium")
+# The VM's desktop: bare, as the published benchmarks ran it, or omarchy, with Omarchy's key binds, its portals and the
+# packages the tools reach for, and the task's windows on numbered workspaces (default.nix, vm.py).
+DESKTOPS = ("bare", "omarchy")
 # How long one tool call may take, in seconds, for every harness and backend: Codex's tool_timeout_sec, Claude Code's
 # MCP_TOOL_TIMEOUT and pi's MCP timeout.
 TOOL_TIMEOUT = 600
@@ -96,13 +100,24 @@ CODEX_DISABLED = [
 ]
 
 
-def build_driver(out, source, task, variant, display, backend="hyprmasq", browser="firefox"):
+# What Claude Code gets beside a backend's server when that backend has a skill.
+SKILL_TOOLS = ("Skill", "ListMcpResourcesTool", "ReadMcpResourceTool")
+# What Claude Code brings of its own, turned off for every backend: the skills and plugins it bundles, which
+# CLAUDE_CODE_DISABLE_BUNDLED_SKILLS (agent_env) leaves these of.
+CLAUDE_SETTINGS = {
+    "skillOverrides": {"design": "off", "doctor": "off", "plugin-authoring": "off"},
+    "enabledPlugins": {f"cc-plugin-{name}@builtin": False
+                       for name in ("agents-md", "telemetry", "privacy", "plugin-authoring")},
+}
+
+
+def build_driver(out, source, task, variant, display, backend="hyprmasq", browser="firefox", desktop="bare"):
     """Builds the VM's test driver into OUT/driver, and with a backend that has a skill (SKILLS) the skill into
     OUT/BACKEND-skill."""
     link = os.path.join(out, "driver")
     command = ["nix-build", os.path.join(BENCH, "default.nix"), "-A", "driver", "-o", link, "--argstr", "task", task,
                "--argstr", "variant", variant or "", "--argstr", "display", display, "--argstr", "backend", backend,
-               "--argstr", "browser", browser]
+               "--argstr", "browser", browser, "--argstr", "desktop", desktop]
     if source:
         command += ["--arg", "source", source]
     subprocess.run(command, check=True, stdout=subprocess.DEVNULL, env=without_api_keys(os.environ))
@@ -115,6 +130,15 @@ def build_driver(out, source, task, variant, display, backend="hyprmasq", browse
 
 def skill_link(out, backend="cua"):
     return os.path.join(out, f"{backend}-skill")
+
+
+def variants_optional(task):
+    """Whether a task with variants also runs without one: a line of its variants file is `NAME optional`."""
+    path = os.path.join(BENCH, "tasks", task, "variants")
+    if not os.path.exists(path):
+        return False
+    with open(path) as f:
+        return any(line.split()[1:] == ["optional"] for line in f)
 
 
 def task_variants(task):
@@ -252,8 +276,11 @@ def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprma
     skill = backend in SKILLS and not resume
     command = [
         "claude", "-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose",
-        # Only the backend's tools, and none of the user's CLAUDE.md, settings, hooks, skills or MCP servers.
-        "--tools", "Skill" if skill else "", "--setting-sources", "user" if skill else "", "--strict-mcp-config",
+        # Only the backend's tools, and none of the user's CLAUDE.md, settings, hooks, skills or MCP servers. With a
+        # skill, the resource tools as well, as a skill's guides are files that a real agent reads: here they are the
+        # server's resources, for a server that has them.
+        "--tools", ",".join(SKILL_TOOLS) if skill else "", "--setting-sources", "user" if skill else "",
+        "--strict-mcp-config", "--settings", json.dumps(CLAUDE_SETTINGS),
     ]
     if not skill:
         command += ["--disable-slash-commands"]
@@ -264,7 +291,7 @@ def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprma
     else:
         config = {"mcpServers": {server: {"command": tap[0], "args": tap[1:]}}}
         command += ["--mcp-config", json.dumps(config),
-                    "--allowedTools", ("Skill " if skill else "") + f"mcp__{server}"]
+                    "--allowedTools", " ".join(SKILL_TOOLS) + f" mcp__{server}" if skill else f"mcp__{server}"]
     return command
 
 
@@ -276,9 +303,10 @@ def codex_command(model, prompt, tap, resume=None, effort=None, backend="hyprmas
     command += [
         "--json", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "-m", model,
         "-c", 'web_search="disabled"',
+        # Its own system skills stay out, for every backend, and it looks for no newer version.
+        "-c", "skills.bundled.enabled=false", "-c", "check_for_update_on_startup=false",
     ]
-    # The user's skills would be listed to the model. With a backend's skill, the agent home has that skill alone
-    # (skill_home).
+    # Without a backend's skill, no list of skills at all. With one, the agent home has that skill alone (agent_home).
     if backend not in SKILLS:
         command += ["-c", "skills.include_instructions=false"]
     if effort:
@@ -371,26 +399,39 @@ def browser_text(text, browser):
     return text.replace("Firefox", "Chromium") if browser == "chromium" else text
 
 
-def skill_home(harness, skill, name="cua-driver"):
-    """A fresh agent home that holds a backend's skill, named name, and nothing else of the user's, as
-    `cua-driver skills install` links Cua's for each agent (docs/content/docs/cua-driver/guides/connect-your-agent.mdx,
-    Install the agent skill) and computer-use-linux's plugin installs its own, and the environment that points the
-    harness at it: Claude Code's configuration directory with skills/NAME and, for its subscription, a link to the
-    user's credentials; or for Codex a HOME with .agents/skills/NAME, its CODEX_HOME staying the user's for the login and
-    the sessions. Returns (directory, environment)."""
-    home = tempfile.mkdtemp(prefix="hyprmasq-bench-skill-home-")
-    skill = os.path.realpath(skill)
+def agent_home(harness, skill=None, name="cua-driver"):
+    """A fresh agent home for one run, for every backend, that holds the login and, with a backend's skill, that skill,
+    named name, and nothing else of the user's, as `cua-driver skills install` links Cua's for each agent
+    (docs/content/docs/cua-driver/guides/connect-your-agent.mdx, Install the agent skill) and computer-use-linux's plugin
+    installs its own, and the environment that points the harness at it: Claude Code's configuration directory, with
+    skills/NAME and for its subscription a copy of the user's login without its refresh token; or for Codex a HOME, with
+    .agents/skills/NAME, and a CODEX_HOME in it with a link to the user's login, which also takes the run's sessions.
+    Claude Code, tried at 2.1.319, replaces a linked credentials file with a regular one and leaves the link's target
+    with a refresh token that it has spent, and it refreshes on any 401 as well as near the expiry. Without the refresh
+    token it never refreshes and a run cannot touch the user's login, and renew_claude_login leaves each run enough time.
+    Codex, tried at 0.167.0, writes a renewed login through the link, so that it reaches the user's.
+    Returns (directory, environment)."""
+    home = tempfile.mkdtemp(prefix="hyprmasq-bench-agent-home-")
+    skill = os.path.realpath(skill) if skill else None
     if family(harness) == "claude":
         config = os.path.join(home, "claude")
-        os.makedirs(os.path.join(config, "skills"))
-        os.symlink(skill, os.path.join(config, "skills", name))
+        os.makedirs(os.path.join(config, "skills") if skill else config)
+        if skill:
+            os.symlink(skill, os.path.join(config, "skills", name))
         credentials = os.path.expanduser("~/.claude/.credentials.json")
         if harness == "claude" and os.path.exists(credentials):
-            os.symlink(credentials, os.path.join(config, ".credentials.json"))
+            with open(credentials) as f:
+                login = json.load(f)
+            (login.get("claudeAiOauth") or {}).pop("refreshToken", None)
+            write_login(os.path.join(config, ".credentials.json"), login)
         return home, {"CLAUDE_CONFIG_DIR": config}
-    os.makedirs(os.path.join(home, ".agents", "skills"))
-    os.symlink(skill, os.path.join(home, ".agents", "skills", name))
-    return home, {"HOME": home, "CODEX_HOME": os.path.expanduser("~/.codex")}
+    codex_home = os.path.join(home, ".codex")
+    os.makedirs(codex_home)
+    if skill:
+        os.makedirs(os.path.join(home, ".agents", "skills"))
+        os.symlink(skill, os.path.join(home, ".agents", "skills", name))
+    os.symlink(os.path.expanduser("~/.codex/auth.json"), os.path.join(codex_home, "auth.json"))
+    return home, {"HOME": home, "CODEX_HOME": codex_home}
 
 
 def agent_env(extra=None):
@@ -403,7 +444,11 @@ def agent_env(extra=None):
         and k != "AI_AGENT"
     }
     env.update({"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
-                "MCP_TOOL_TIMEOUT": str(TOOL_TIMEOUT * 1000)})
+                "CLAUDE_CODE_DISABLE_BUNDLED_SKILLS": "1", "MCP_TOOL_TIMEOUT": str(TOOL_TIMEOUT * 1000),
+                # A run's harness stays the version it started as, and does what the pinned package does on every
+                # machine: this machine's NixOS package sets these in its wrapper.
+                "DISABLE_AUTOUPDATER": "1", "DISABLE_INSTALLATION_CHECKS": "1",
+                "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1"})
     env.update(extra or {})
     return env
 
@@ -451,6 +496,72 @@ def check_api_auth(env):
         raise RuntimeError(f"Claude Code would not use the API key: auth method {status.get('authMethod')}, "
                            f"key source {status.get('apiKeySource')}")
     return {"auth_method": status["authMethod"], "api_key_source": status["apiKeySource"]}
+
+
+# How long before it ends a run renews the subscription's login: more than a run can last, its VM's boot, agent and
+# debrief, as the run gets the access token alone and cannot renew it (agent_home).
+LOGIN_MARGIN_SECONDS = 3600
+# What a run takes beyond its agent's timeout: the VM's boot and the debrief.
+RUN_ALLOWANCE_SECONDS = 900
+
+
+def login_margin(timeout):
+    """How long the Claude login must still last when a run starts: the run's whole length, and at least an hour."""
+    return max(LOGIN_MARGIN_SECONDS, timeout + RUN_ALLOWANCE_SECONDS)
+
+
+def login_expiry(path):
+    """When the Claude login in a credentials file ends, in seconds since the epoch, or None if it holds none that does."""
+    with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
+        with open(path) as f:
+            return json.load(f)["claudeAiOauth"]["expiresAt"] / 1000
+    return None
+
+
+def write_login(path, login):
+    """Writes a new credentials file that only its owner can read."""
+    with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as f:
+        json.dump(login, f)
+
+
+def renew_claude_login(margin=LOGIN_MARGIN_SECONDS, now=time.time):
+    """Renews the Claude subscription's login before a run that could outlive it, and fails the run if that did not work.
+    Claude Code refreshes only in the login's last minutes, so a request with the user's own file would not renew it yet.
+    Here one process at a time, under a lock of this file as the refresh token works once, has Claude Code refresh a copy
+    marked as expired in a private directory, and puts the copy in the user's place only if its expiry moved forward. A
+    refresh the endpoint refuses logs out the copy alone. A login without a file, or one that does not expire, needs
+    nothing."""
+    path = os.path.expanduser("~/.claude/.credentials.json")
+
+    def enough():
+        ends = login_expiry(path)
+        return ends is None or ends - now() > margin
+
+    if enough():
+        return
+    with open(path + ".bench-lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if enough():
+            return
+        ends = login_expiry(path)
+        print(f"renewing the Claude login, which ends in {ends - now():.0f} s", flush=True)
+        # Beside the user's file, so that the replacement below is atomic.
+        with tempfile.TemporaryDirectory(prefix=".bench-renew-", dir=os.path.dirname(path)) as config:
+            renewed = os.path.join(config, ".credentials.json")
+            with open(path) as f:
+                login = json.load(f)
+            login["claudeAiOauth"]["expiresAt"] = int((now() - 60) * 1000)
+            write_login(renewed, login)
+            # A request that hangs after the refresh has still renewed the file.
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                subprocess.run(["claude", "-p", "Reply with OK.", "--model", "claude-haiku-5-5", "--tools", "",
+                                "--setting-sources", "", "--strict-mcp-config", "--disable-slash-commands"],
+                               cwd=tempfile.gettempdir(), env=agent_env({"CLAUDE_CONFIG_DIR": config}),
+                               stdin=subprocess.DEVNULL, capture_output=True, timeout=180)
+            if (login_expiry(renewed) or 0) > ends:
+                os.replace(renewed, path)
+        if not enough():
+            raise RuntimeError(f"the Claude login could not be renewed: it ends in {login_expiry(path) - now():.0f} s")
 
 
 def session_of(line):
@@ -534,7 +645,8 @@ def claude_project(cwd, config=None):
 
 
 def move_transcript(harness, session, cwd, run_dir, sessions=None, config=None):
-    """Moves the harness's own transcript of the session into the run's directory."""
+    """Moves the harness's own transcript of the session into the run's directory. config is the harness's directory,
+    its agent home's, by default the user's."""
     if not session:
         return
     project = None
@@ -545,7 +657,8 @@ def move_transcript(harness, session, cwd, run_dir, sessions=None, config=None):
         # The transcript, and a directory of the same name with the session's tool results.
         paths = glob.glob(os.path.join(project, f"{session}*"))
     else:
-        paths = glob.glob(os.path.expanduser(f"~/.codex/sessions/*/*/*/rollout-*{session}.jsonl"))
+        codex_home = config or os.path.expanduser("~/.codex")
+        paths = glob.glob(os.path.join(codex_home, f"sessions/*/*/*/rollout-*{session}.jsonl"))
     for path in paths:
         shutil.move(path, os.path.join(run_dir, f"transcript-{os.path.basename(path)}"))
     if project and os.path.isdir(project) and not os.listdir(project):
@@ -653,8 +766,41 @@ def booted_vm(driver, run_dir, cid, timeout, cpus=None, env=None):
         shutil.rmtree(runtime, ignore_errors=True)
 
 
+def run_debrief(harness, model, effort, backend, browser, task_dir, variant, run_dir, cwd, agent_vars, summary, resume,
+                label, run):
+    """Asks the agent, in its own session, the task's debrief questions about its run, into debrief.md."""
+    calls = report.tool_calls(report.load_jsonl(os.path.join(run_dir, "mcp.jsonl")))
+    text = open(task_file(task_dir, variant, "debrief.md")).read().replace(
+        "{report}", report.debrief_report(summary, calls, TOOL_NAME[backend]))
+    # The debriefs name hyprmasq, the tool the run used: with another backend, that one.
+    text = browser_text(text.replace("hyprmasq", TOOL_NAME[backend]), browser)
+    with open(os.path.join(run_dir, "debrief-prompt.md"), "w") as f:
+        f.write(text)
+    print(f"{label} debrief", flush=True)
+    command = agent_command(harness, model, text, None, resume=resume, effort=effort, backend=backend)
+    told = run_agent(command, cwd, os.path.join(run_dir, "debrief.jsonl"),
+                     os.path.join(run_dir, "debrief.stderr"), 900, agent_vars,
+                     api_key=harness == "claude-api")
+    answer = None if told["refused"] else final_text(harness, os.path.join(run_dir, "debrief.jsonl"))
+    with open(os.path.join(run_dir, "debrief.md"), "w") as f:
+        f.write(answer or "(no answer)\n")
+    if family(harness) == "claude":
+        run["debrief_api_key_source"] = told["api_key_source"]
+        with open(os.path.join(run_dir, "run.json"), "w") as f:
+            json.dump(run, f, indent=2)
+    try:
+        check_api_key_used(told, "debrief")
+    except RuntimeError as e:
+        raise DebriefKeyError(str(e)) from e
+
+
+class DebriefKeyError(RuntimeError):
+    """A debrief that used other credentials than the run's key: the run fails, as for the agent."""
+
+
 def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief, cpus=None,
-            dispatched=None, backend="hyprmasq", prompt_kind="task", browser="firefox", max_calls=0):
+            dispatched=None, backend="hyprmasq", prompt_kind="task", browser="firefox", max_calls=0, desktop="bare",
+            chromium_options="", mcp_args=""):
     task_dir = os.path.join(BENCH, "tasks", task)
     run_dir = os.path.join(out, run_name(harness, model, rep, effort))
     label = f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}]"
@@ -662,6 +808,8 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
     # back to the subscription.
     api_env = anthropic_api_env() if harness == "claude-api" else None
     auth = check_api_auth(api_env) if api_env else None
+    if harness == "claude":
+        renew_claude_login(login_margin(timeout))
     os.makedirs(os.path.join(run_dir, "tmp"))
     os.makedirs(os.path.join(run_dir, "driver-out"))
     # A fresh directory outside any project: harnesses load instructions such as AGENTS.md from the directory
@@ -674,17 +822,21 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         agent_dir = pi_agent_dir(tap, sessions)
         check_pi_model(agent_dir, model)
         api_env = {"PI_CODING_AGENT_DIR": agent_dir}
-    # The variables of the agent's process: claude-api's key or pi's directory, and with a backend's skill the agent
-    # home with it.
+    # The variables of the agent's process: claude-api's key or pi's directory, and the agent home, with a backend's
+    # skill in it.
     agent_vars = dict(api_env or {})
-    if backend in SKILLS:
-        home, home_env = skill_home(harness, skill_link(out, backend), SKILLS[backend][0])
+    if harness != "pi":
+        home, home_env = agent_home(harness, skill_link(out, backend) if backend in SKILLS else None,
+                                    SKILLS[backend][0] if backend in SKILLS else "")
         agent_vars.update(home_env)
-    config = agent_vars.get("CLAUDE_CONFIG_DIR")
+    config = agent_vars.get("CLAUDE_CONFIG_DIR") or agent_vars.get("CODEX_HOME")
     agent, leaked = {"session": None}, []
     try:
         print(f"{label} booting the VM", flush=True)
-        with booted_vm(driver, run_dir, cid, timeout + 120, cpus):
+        load = {}
+        vm_env = {**({"HYPRMASQ_BENCH_CHROMIUM_OPTIONS": chromium_options} if chromium_options else {}),
+                  **({"HYPRMASQ_BENCH_MCP_ARGS": mcp_args} if mcp_args else {})}
+        with host_load(load), booted_vm(driver, run_dir, cid, timeout + 120, cpus, vm_env or None):
             prompt = task_prompt(harness, backend, open(task_file(task_dir, variant, PROMPTS[prompt_kind])).read(),
                                  browser)
             command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort, backend=backend)
@@ -696,7 +848,9 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
 
         run = {
             "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
-            "backend": backend, "prompt": prompt_kind, "browser": browser,
+            "backend": backend, "prompt": prompt_kind, "browser": browser, "desktop": desktop,
+            # What built the run: the VM's driver, with the plugin and the server in it, and the skill.
+            "identity": driver_identity(driver, out, backend),
             # The VM's session has the AT-SPI bus and toolkit-accessibility on (default.nix), which runs before
             # these fields had not.
             "accessibility": True,
@@ -709,6 +863,9 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             "harness_version": version([executable(harness), "--version"]), "machine": machine(),
             # The CPUs the VM ran on, or None where it could run on any.
             "cpus": format_cpus(cpus) if cpus else None,
+            # The host's load while the VM was up: a run that shared the host with other VMs or another benchmark's
+            # work runs again in a series (series.py).
+            "host_load": load,
         }
         if dispatched:
             run["dispatch"] = dispatched
@@ -729,32 +886,23 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         summary = report.metrics(run_dir)
 
         resume = session_file if harness == "pi" else agent["session"]
-        if debrief and resume:
-            calls = report.tool_calls(report.load_jsonl(os.path.join(run_dir, "mcp.jsonl")))
-            text = open(task_file(task_dir, variant, "debrief.md")).read().replace(
-                "{report}", report.debrief_report(summary, calls, TOOL_NAME[backend]))
-            # The debriefs name hyprmasq, the tool the run used: with another backend, that one.
-            text = browser_text(text.replace("hyprmasq", TOOL_NAME[backend]), browser)
-            with open(os.path.join(run_dir, "debrief-prompt.md"), "w") as f:
-                f.write(text)
-            print(f"{label} debrief", flush=True)
-            command = agent_command(harness, model, text, None, resume=resume, effort=effort, backend=backend)
-            told = run_agent(command, cwd, os.path.join(run_dir, "debrief.jsonl"),
-                             os.path.join(run_dir, "debrief.stderr"), 900, agent_vars,
-                             api_key=harness == "claude-api")
-            answer = None if told["refused"] else final_text(harness, os.path.join(run_dir, "debrief.jsonl"))
-            with open(os.path.join(run_dir, "debrief.md"), "w") as f:
-                f.write(answer or "(no answer)\n")
-            if family(harness) == "claude":
-                run["debrief_api_key_source"] = told["api_key_source"]
-                with open(os.path.join(run_dir, "run.json"), "w") as f:
-                    json.dump(run, f, indent=2)
-            check_api_key_used(told, "debrief")
+        # The debrief comes after the run is graded: a debrief that fails leaves the run's result, and says so.
+        try:
+            if debrief and resume:
+                run_debrief(harness, model, effort, backend, browser, task_dir, variant, run_dir, cwd, agent_vars, summary,
+                            resume, label, run)
+        except DebriefKeyError:
+            raise
+        except Exception as e:  # noqa: BLE001: whatever else stopped it, the run stands
+            print(f"{label} debrief failed: {e!r}", flush=True)
+            run["debrief_error"] = repr(e)[:500]
+            with open(os.path.join(run_dir, "run.json"), "w") as f:
+                json.dump(run, f, indent=2)
     finally:
         move_transcript(harness, agent["session"], cwd, run_dir, sessions, config)
         shutil.rmtree(cwd, ignore_errors=True)
         if home:
-            # Links to the skill and the user's credentials, which rmtree removes and does not follow.
+            # The run's copy of the login, and links, which rmtree removes and does not follow.
             shutil.rmtree(home, ignore_errors=True)
         if agent_dir:
             if os.path.exists(os.path.join(agent_dir, "mcp.log")):
@@ -780,6 +928,61 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
 
 
 LOCK_POLL_SECONDS = 5
+# How often a run samples its host's load, and the file a guard on the host holds while another benchmark runs
+# there and the series' runs wait (bench/README.md, The comparison series).
+HOST_LOAD_SECONDS = 15
+GUARD_FILE = "/tmp/hyprmasq-bench-guard"
+
+
+def host_load_sample():
+    """The host's load now: the 1-minute load average, the CPUs' mean clock in MHz, the QEMU processes of this
+    benchmark's VMs and of anything else, and whether a guard says that another benchmark runs."""
+    with open("/proc/loadavg") as f:
+        load1 = float(f.read().split()[0])
+    clocks = []
+    for path in glob.glob("/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_cur_freq"):
+        with contextlib.suppress(OSError, ValueError), open(path) as f:
+            clocks.append(int(f.read()) / 1000)
+    own = other = 0
+    for path in glob.glob("/proc/[0-9]*/cmdline"):
+        with contextlib.suppress(OSError):
+            with open(path, "rb") as f:
+                argv = f.read().split(b"\0")
+            if argv and b"qemu" in os.path.basename(argv[0]):
+                if any(b"hyprmasq-bench-vm-" in a for a in argv):
+                    own += 1
+                else:
+                    other += 1
+    return {"t": round(time.time(), 1), "load1": load1, "mhz": round(sum(clocks) / len(clocks)) if clocks else None,
+            "own_qemu": own, "other_qemu": other, "guard": os.path.exists(GUARD_FILE)}
+
+
+@contextlib.contextmanager
+def host_load(record):
+    """Samples the host's load while a run's VM is up, into record: its samples and their worst."""
+    samples, stop = [], threading.Event()
+
+    def sample():
+        while True:
+            with contextlib.suppress(Exception):
+                samples.append(host_load_sample())
+            if stop.wait(HOST_LOAD_SECONDS):
+                break
+
+    thread = threading.Thread(target=sample, daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        thread.join(timeout=5)
+        with contextlib.suppress(Exception):
+            samples.append(host_load_sample())
+        mhz = [s["mhz"] for s in samples if s["mhz"]]
+        record.update({"samples": samples, "max_load1": max((s["load1"] for s in samples), default=None),
+                       "min_mhz": min(mhz, default=None), "max_own_qemu": max((s["own_qemu"] for s in samples), default=0),
+                       "max_other_qemu": max((s["other_qemu"] for s in samples), default=0),
+                       "guard": any(s["guard"] for s in samples)})
 
 
 def exclusive_waiting(path, locks="/proc/locks"):
@@ -816,11 +1019,50 @@ def vm_lock(path, waiting=contextlib.nullcontext):
             fcntl.flock(f, fcntl.LOCK_UN)
 
 
+def driver_identity(driver, out, backend):
+    """The store paths that say what a run ran: the driver's holds the VM, its plugin and its server, and the skill's the
+    skill the agent read."""
+    skill = skill_link(out, backend)
+    return {"driver": os.path.realpath(driver), "skill": os.path.realpath(skill) if os.path.exists(skill) else None}
+
+
+def file_sha256(paths):
+    digest = hashlib.sha256()
+    for path in paths:
+        with open(path, "rb") as f:
+            digest.update(f.read())
+    return digest.hexdigest()
+
+
+def run_config(source, task, variant, args):
+    """What a results directory holds one of, which check_resume keeps it to: the VM's source, this benchmark's commit,
+    the task and how it ran, the hash of the prompt and the debrief the agent gets, and the settings of the measurement."""
+    task_dir = os.path.join(BENCH, "tasks", task)
+    bench = source_commit(None)
+    return {**source_commit(source), "bench_commit": bench["commit"], "bench_dirty": bench["dirty"], "task": task,
+            "variant": variant, "display": args.display, "backend": args.backend, "prompt": args.prompt,
+            "browser": args.browser, "desktop": args.desktop, "chromium_options": args.chromium_options, "mcp_args": args.mcp_args,
+            "prompt_sha256": file_sha256([task_file(task_dir, variant, PROMPTS[args.prompt]),
+                                          task_file(task_dir, variant, "debrief.md")]),
+            "timeout": args.timeout, "max_calls": args.max_calls, "debrief": not args.no_debrief}
+
+
+def check_identity(out, identity):
+    """The finished runs of a results directory that another driver or skill built, as (run, what differs)."""
+    differ = []
+    for name in sorted(os.listdir(out)):
+        with contextlib.suppress(OSError, ValueError), open(os.path.join(out, name, "run.json")) as f:
+            before = json.load(f).get("identity") or {}
+            if os.path.exists(os.path.join(out, name, "summary.json")):
+                differ += [(name, k) for k, v in before.items() if identity.get(k) != v]
+    return differ
+
+
 def check_resume(out, config, parser, agents):
     """Refuse to add runs to a results directory whose finished runs had another commit, task, variant, display,
-    backend, prompt or browser, so that one report never mixes them. Keys that an older source.json lacks are not
-    compared, but for its backend, prompt and browser, which were hyprmasq, the task's own and Firefox
-    (DEFAULT_CONFIG). Refuse also an agent
+    backend, prompt, browser, desktop, benchmark commit, prompt text or setting of the measurement, so that one report
+    never mixes them. Keys that an older source.json lacks are not compared, but for its backend, prompt, browser and
+    desktop, which were hyprmasq, the task's own, Firefox and bare (DEFAULT_CONFIG). Refuse also an agent
     whose run directory holds another agent's run, such as codex:gpt-high's for codex:gpt@high: a resume would count
     that run as its own, or remove it."""
     runs = {}
@@ -839,15 +1081,19 @@ def check_resume(out, config, parser, agents):
         return
     with open(path) as f:
         before = {**DEFAULT_CONFIG, **json.load(f)}
-    differ = [k for k in ("commit", "task", "variant", "display", "backend", "prompt", "browser")
-              if k in before and before[k] != config.get(k, DEFAULT_CONFIG.get(k))]
+    differ = [k for k in IDENTITY_KEYS if k in before and before[k] != config.get(k, DEFAULT_CONFIG.get(k))]
     if differ:
         parser.error(f"{out} has runs with another {', '.join(differ)}: "
                      + ", ".join(f"{k} {before[k]} against {config[k]}" for k in differ) + "; use another --out")
 
 
 # What results directories from before the backend and prompt options ran with.
-DEFAULT_CONFIG = {"backend": "hyprmasq", "prompt": "task", "browser": "firefox"}
+DEFAULT_CONFIG = {"backend": "hyprmasq", "prompt": "task", "browser": "firefox", "desktop": "bare", "chromium_options": "",
+                  "mcp_args": ""}
+# What must be the same for runs to go into one results directory. The driver and the skill are the run's own (run.json's
+# identity, check_identity), and bench_dirty says a commit does not name the benchmark's code.
+IDENTITY_KEYS = ("commit", "task", "variant", "display", "backend", "prompt", "browser", "desktop", "chromium_options", "mcp_args",
+                 "bench_commit", "bench_dirty", "prompt_sha256", "timeout", "max_calls", "debrief")
 
 
 def pending_runs(out, reps, agents):
@@ -886,6 +1132,12 @@ def add_run_options(parser, tasks=False):
                         help="the task's own prompt, or the tool-neutral one of a comparison (prompt-comparison.md)")
     parser.add_argument("--browser", choices=BROWSERS, default="firefox",
                         help="the user's browser, in the tasks that list it in tasks/TASK/browsers")
+    parser.add_argument("--desktop", choices=DESKTOPS, default="bare",
+                        help="the VM's desktop: bare, or omarchy, with Omarchy's key binds, portals and packages")
+    parser.add_argument("--mcp-args", default="", help="options of hyprmasq-mcp in the VM, such as --max-image-size 1920")
+    parser.add_argument("--chromium-options", default="",
+                        help="more options of the user's Chromium, as the user started it, such as "
+                             "--remote-debugging-port=0 for a browser whose remote debugging was on before the agent came")
 
 
 def check_run_options(args, parser):
@@ -922,7 +1174,7 @@ def check_task(task, variant, parser, prompt="task", browser="firefox"):
     variants, default = task_variants(task)
     if variants and variant is None:
         variant = default
-    if variants and variant not in variants:
+    if variants and variant not in variants and not (variant is None and variants_optional(task)):
         parser.error(f"task {task} needs --variant, one of {', '.join(variants)}")
     if not variants and variant:
         parser.error(f"task {task} has no variants")
@@ -976,10 +1228,13 @@ def main():
     out = os.path.abspath(args.out or default_out(args.task, args.variant))
     os.makedirs(out, exist_ok=True)
     source = os.path.abspath(args.source) if args.source else None
-    config = {**source_commit(source), "task": args.task, "variant": args.variant, "display": args.display,
-              "backend": args.backend, "prompt": args.prompt, "browser": args.browser}
+    config = run_config(source, args.task, args.variant, args)
     check_resume(out, config, parser, agents)
-    driver = build_driver(out, source, args.task, args.variant, args.display, args.backend, args.browser)
+    driver = build_driver(out, source, args.task, args.variant, args.display, args.backend, args.browser, args.desktop)
+    differ = check_identity(out, driver_identity(driver, out, args.backend))
+    if differ:
+        parser.error(f"{out} has runs that another build ran: "
+                     + ", ".join(f"{name} ({what})" for name, what in differ) + "; use another --out")
     with open(os.path.join(out, "source.json"), "w") as f:
         json.dump(config, f, indent=2)
     for rep, harness, model, effort in pending_runs(out, reps, agents):
@@ -988,7 +1243,7 @@ def main():
             with vm_lock(args.lock):
                 run_one(driver, args.task, args.variant, harness, model, effort, rep, out, args.cid, args.timeout,
                         not args.no_debrief, cpus, args.dispatch, args.backend, args.prompt, args.browser,
-                        args.max_calls)
+                        args.max_calls, args.desktop, args.chromium_options, args.mcp_args)
         except Exception as e:  # one broken run does not end the benchmark
             print(f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}] error: {e}", flush=True)
     print(report.report(out))

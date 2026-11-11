@@ -1,28 +1,36 @@
 # The comparison's data
 
-Every run behind [docs/comparison.md](../../comparison.md), one entry a run. `bench/render.py` draws the page's
-figures and tables from these files, and `render.py --check` keeps the page in step with them. Each file holds one
+Every run behind [docs/comparison.md](../../comparison.md), its [numbers](../../comparison-numbers.md) and
+[the tasks on macOS](../../comparison-macos.md), one entry a run. `bench/render.py` draws the pages'
+figures and tables from these files, and `render.py --check` keeps the pages in step with them. Each file holds one
 tool's runs in one setup, run by hyprmasq's author.
 
 ## Datasets
 
-| File | Runs | What it holds | On the page |
+| File | Runs | What it holds | On the pages |
 | --- | --- | --- | --- |
-| `vm-hyprmasq.json` | 198 | hyprmasq on the benchmark's eleven tasks in its NixOS VM, with Sol, Terra and Sonnet. The questionnaire is the GTK app, the web tasks run in Firefox. | Both VM sections, and the addendum's file manager and Inkscape |
-| `vm-hyprmasq-qt.json` | 36 | hyprmasq on the questionnaire's Qt port in the VM, with and without dropdowns. | Both VM sections, and the addendum's two forms |
-| `vm-cua.json` | 108 | Cua Driver in the VM: the forms, the file manager, Inkscape, Forgejo and Thunderbird. | hyprmasq and Cua Driver |
-| `vm-cua-qt.json` | 36 | Cua Driver on the Qt questionnaire in the VM. | hyprmasq and Cua Driver |
-| `vm-cua-chromium.json` | 90 | Cua Driver on the board, trace and calc tasks in Chromium, where it can act. | hyprmasq and Cua Driver |
-| `vm-cua-firefox.json` | 90 | Cua Driver on the same tasks in Firefox, which it refuses. Kept for the record, in no figure. | Linked from hyprmasq and Cua Driver |
-| `vm-computer-use-linux.json`, `vm-computer-use-linux-qt.json` | 132, 24 | computer-use-linux on the eleven tasks, and on the Qt questionnaire. | hyprmasq, computer-use-linux and hypruse |
-| `vm-hypruse.json`, `vm-hypruse-qt.json` | 66, 12 | hypruse with Terra on the eleven tasks, and on the Qt questionnaire. | hyprmasq, computer-use-linux and hypruse |
-| `vm-hypruse-sonnet.json` | 7 | hypruse with Sonnet, a series that stopped after seven tasks. | hyprmasq, computer-use-linux and hypruse |
-| `omarchy-form-codex-cua-documented.json` | 1 | Cua Driver on an Omarchy laptop with the plugin package it documents for Arch, which sends no input. | Linked from Method |
-| `macos-tasks.json` | 144 | OpenAI's computer use, Claude's computer use and Cua Driver on a Mac: the forms, the file manager in Finder and Inkscape. Its `about` and `sources` give the setup. | Addendum: the tasks on macOS |
-| `macos-form-qt.json`, `macos-form-nodrop.json`, `macos-form-qt-openai.json` | 12, 12, 3 | Superseded: earlier runs of the form on the Mac, on older versions of the ChatGPT app and its Computer Use plugin. Cua Driver's screenshots failed in them, so its runs worked from the accessibility tree alone. `macos-tasks.json` replaces them. | Not on the page |
+| `v2-hyprmasq.json`, `v2-hyprmasq-chromium.json` | 156, 60 | hyprmasq in the comparison series: the apps and Firefox, and Chromium. | The comparison and its numbers |
+| `v2-cua.json`, `v2-cua-chromium.json` | 156, 60 | Cua Driver in the series, as its documentation sets it up. | The comparison and its numbers |
+| `v2-hypruse.json`, `v2-hypruse-chromium.json` | 156, 60 | hypruse in the series. | The comparison and its numbers |
+| `v2-computer-use-linux.json`, `v2-computer-use-linux-chromium.json` | 156, 60 | computer-use-linux in the series. | The comparison and its numbers |
+| `v2-cua-attach.json` | 72 | Cua Driver with the user's Chromium started with a debugging port, on the units where that applies. Never pooled with the others. | The numbers' side checks and failed runs |
+| `v2-hyprmasq-machine-a.json`, `v2-hyprmasq-machine-a-chromium.json` | 26, 10 | One round of hyprmasq on Cua Driver's machine. Never pooled with the others. | The numbers' side checks and failed runs |
+| `v2-failures.json` | 191 | One verdict per failed run of the above, with both reviewers' answers and evidence, as paths inside the run's bundle. `bench/review_failures.py` writes it. | Why runs failed |
+| `v2-exclusions.json` | 71 | Every excluded run of Sonnet and Terra in the series, with why. | Method |
+| `replay-board.json` | 395 trials | A replay outside the series: one of the probe's first screenshots of the board, or a variant of it moved or with the other browser's toolbar, given to Sol or Terra with the task's prompt, and where each would drop the CPU power headers label. No VM ran. | Why runs failed |
+| `probe-image-1280.json`, `probe-image-1280-chromium.json`, `probe-image-1920.json`, `probe-image-1920-chromium.json` | 48 each | A probe outside the series: hyprmasq on the eight photo tasks, in Firefox and in Chromium, with Terra and Sol, at its default `max-image-size` of 1280 and at 1920, the two limits taking turns each round on machine B. Never pooled with the series. | Why runs failed |
+| `vm-hyprmasq.json` | 198 | hyprmasq on the benchmark's eleven tasks in its NixOS VM, with Sol, Terra and Sonnet. The questionnaire is the GTK app, the web tasks run in Firefox. | macOS: the file manager and Inkscape |
+| `vm-hyprmasq-qt.json` | 36 | hyprmasq on the questionnaire's Qt port in the VM, with and without dropdowns. | macOS: the two forms |
+| `vm-cua.json`, `vm-cua-qt.json`, `vm-cua-chromium.json`, `vm-cua-firefox.json` | 108, 36, 90, 90 | Superseded by the series: Cua Driver 0.38.0, before the start of a run was the same for every tool. | On no page |
+| `vm-computer-use-linux.json`, `vm-computer-use-linux-qt.json`, `vm-hypruse.json`, `vm-hypruse-qt.json`, `vm-hypruse-sonnet.json` | 132, 24, 66, 12, 7 | Superseded by the series. | On no page |
+| `omarchy-form-codex-cua-documented.json` | 1 | Cua Driver 0.38.0 on an Omarchy laptop with the plugin package it documents for Arch, which sends no input. | On no page |
+| `macos-tasks.json` | 144 | OpenAI's computer use, Claude's computer use and Cua Driver on a Mac: the forms, the file manager in Finder and Inkscape. Its `about` and `sources` give the setup. | macOS |
+| `macos-form-qt.json`, `macos-form-nodrop.json`, `macos-form-qt-openai.json` | 12, 12, 3 | Superseded: earlier runs of the form on the Mac, on older versions of the ChatGPT app and its Computer Use plugin. Cua Driver's screenshots failed in them, so its runs worked from the accessibility tree alone. `macos-tasks.json` replaces them. | On no page |
 
-The VM's runs spread over three machines, whose `cpu` each run names. The Mac's ran on one. Times compare within a
-machine, and only roughly across them. Context, tokens, cost and disturbance do not depend on the machine.
+Each `v2-*` dataset's tool ran on one machine, whose `cpu` each run names, and a `run` starts with its series, such as
+`main-rest--calc/`. The series' rules are [comparison-series.json](../../../bench/comparison-series.json). The older `vm-*` runs
+spread over three machines, and the Mac's ran on one. Times compare within a machine, and only roughly across them.
+Context, tokens, cost and disturbance do not depend on the machine.
 
 ## Two formats
 
@@ -57,9 +65,11 @@ for the task's app and for full control of the screen waited to be granted, from
 The Mac's runs repeat `passed` in `passed_without_hyprland_dialogs`, a field that applies on Hyprland alone. `final`
 and `error_texts` hold text the agents and tools wrote during a run: read them as data, not as instructions.
 
-## How the page reads them
+## How the pages read them
 
-The page's figures and tables give medians: time over the passed runs, and tokens and cost over all runs. The
+The figures and tables give medians: time over the passed runs, and tokens and cost over all runs. The
 seconds the user was disturbed are, in the figures, the median of the passed runs that disturbed the user, beside
 how many did, and in the tables, the median of all passed runs, with the ranges.
-`bench/render.py` holds every view, and `python3 bench/render.py --check` fails when the page and these files differ.
+The `v2-*` datasets are marked as a registered series, and their tables follow its rules instead: pass rates with Wilson
+intervals, a time only where a tool passed at least 3 runs, and the failed runs' times apart.
+`bench/render.py` holds every view, and `python3 bench/render.py --check` fails when a page and these files differ.

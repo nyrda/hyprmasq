@@ -339,6 +339,220 @@ class CuaCalls(unittest.TestCase):
         act_calls.assert_called_once_with(log)
 
 
+class CuaResults(unittest.TestCase):
+    """How a run of Cua's counts: by what its results say of themselves, with its server known from the tools it lists."""
+
+    def calls(self, *results):
+        return report.tool_calls(server_tap(["run_steps"], *results))
+
+    def test_a_hint_that_names_a_route_is_no_refusal_and_a_refused_call_counts_once(self):
+        worked = ("click", {}, {"content": [{"type": "text", "text": "Done. background_unavailable is possible later."}],
+                                "structuredContent": {"effect": "unverifiable"}})
+        refused = ("click", {}, {"isError": True, "content": [{"type": "text", "text": (
+            "foreground_unavailable (primary_target_busy): foreground_grab")}], "structuredContent": {"effect": "refused"}})
+        setup = ("browser_prepare", {}, {"content": [{"type": "text", "text": "refused (browser_consent_required): needs a grant"}],
+                                         "structuredContent": {"refusal": {"code": "browser_consent_required"}}})
+        partial = ("drag", {}, {"isError": True, "content": [{"type": "text", "text": "foreground_unavailable: may have started"}],
+                                "structuredContent": {"effect": "partial"}})
+        guide = ("get_guide", {}, {"content": [{"type": "text", "text": "Refusals such as background_unavailable mean ..."}]})
+        found = self.calls(worked, refused, setup, partial, guide)
+        self.assertEqual([c["refused"] for c in found], [False, True, True, True, False])
+        self.assertEqual(found[1]["refusals"], ["foreground_grab", "foreground_unavailable", "primary_target_busy"])
+        self.assertEqual([c["refusal_kind"] for c in found], [None, "route", "setup", "partial", None])
+
+    def test_the_operations_of_a_script_count_as_actions_and_its_reads_do_not(self):
+        script = ("run_script", {"script": "..."}, {"content": [{"type": "text", "text": "run_script: ok"}], "structuredContent": {
+            "calls": [{"op": "getApp"}, {"op": "click", "ok": True}, {"op": "query"}, {"op": "drag", "ok": True}]}})
+        self.assertEqual(self.calls(script)[0]["actions"], ["click", "drag"])
+
+    def test_walks_are_split_out_by_why_they_stopped_and_a_scripts_count_once(self):
+        full = ("get_window_state", {"timeout_ms": 5000}, {"content": [{"type": "text", "text": "window_id=1 elements=28 walk_ms=1000 snapshot_id=s1"}]})
+        # Cua's own words for the three cuts: only the time budget's is the machine's.
+        cut = ("run_steps", {}, {"content": [{"type": "text", "text": (
+            "1/1 steps ok\nwindow_id=1 elements=9 walk_ms=3000 snapshot_id=s2\n\u26a0\ufe0f PARTIAL TREE: the 1000 ms "
+            "timeout_ms budget ran out after 9 node(s)\nwindow_id=1 elements=67 walk_ms=500\n\u26a0\ufe0f PARTIAL TREE: the "
+            "max_elements node budget ran out after 67 node(s)")}]})
+        grid = ("get_window_state", {}, {"content": [{"type": "text", "text": (
+            "window_id=2 elements=365 walk_ms=900\n\u26a0\ufe0f PARTIAL TREE: a container with more children than can be "
+            "enumerated (e.g. a spreadsheet's cell grid) was not expanded")}]})
+        # A script's walk is in its log and again in the state it returned; its own timeout bounds the script.
+        script = ("run_script", {"script": "return getState(w)", "timeout_ms": 60000}, {
+            "content": [{"type": "text", "text": "run_script: ok\nreturn value: window_id=1 elements=28 walk_ms=700"}],
+            "structuredContent": {"calls": [{"op": "get_window_state", "ok": True, "detail": "window_id=1 elements=28 walk_ms=700"}]}})
+        self.assertEqual(report.walk_split(self.calls(full, cut, grid, script)),
+                         {"seconds": 6.1, "count": 5, "partial": 1, "partial_elements": 1, "partial_container": 1,
+                          "median_ms": 900, "budget_named": 1, "first_ms": 1000, "first_partial": False})
+        named = ("run_script", {"script": "getState(w, {timeout_ms: 8000})", "timeout_ms": 60000}, script[2])
+        self.assertTrue(self.calls(named)[0]["walk_budget_named"])
+        self.assertIsNone(report.walk_split(report.tool_calls(server_tap(["act"], full))))
+
+    def test_a_failed_call_is_a_refusal_by_its_status_and_words_and_otherwise_an_error(self):
+        uncoded = ("click", {}, {"isError": True, "content": [{"type": "text", "text": "no native Wayland toplevel for pid 12"}]})
+        error = ("click", {}, {"isError": True, "content": [{"type": "text", "text": "no element [9] in the last state"}]})
+        caught = ("run_script", {"script": "..."}, {"content": [{"type": "text", "text": "run_script: ok"}], "structuredContent": {
+            "calls": [{"op": "drag", "ok": False, "detail": "foreground_unavailable (primary_target_busy)"},
+                      {"op": "drag", "ok": True}]}})
+        found = self.calls(uncoded, error, caught)
+        self.assertEqual([(c["refused"], c["refusal_kind"]) for c in found],
+                         [(True, "route_uncoded"), (False, "error"), (False, None)])
+        self.assertEqual(found[2]["script_refusals"], 1)
+
+    def test_a_batch_says_how_many_of_its_actions_were_asked_for_sent_and_done(self):
+        steps = ("run_steps", {"steps": [{"click": {"x": 1, "y": 1}}, {"press_key": {"key": "a"}}, {"click": {"x": 2, "y": 2}}]},
+                 {"isError": True, "content": [{"type": "text", "text": "run_steps: step 2 of 3 failed"}],
+                  "structuredContent": {"total": 3, "executed": 2, "failed_step": 1}})
+        script = ("run_script", {"script": "..."}, {"content": [{"type": "text", "text": "run_script: ok"}], "structuredContent": {
+            "calls": [{"op": "getApp"}, {"op": "click", "ok": True}, {"op": "drag", "ok": False}]}})
+        self.assertEqual([(c["requested"], c["attempted"], c["done"]) for c in self.calls(steps, script)], [(3, 2, 1), (2, 2, 1)])
+        act = report.tool_calls(server_tap(["act"], ("act", {"actions": [["click", 1, 1], ["pause", 200], ["type", "x"]]}, {
+            "content": [{"type": "text", "text": "ok"}], "structuredContent": {"actions": {"done": 3, "total": 3}}})))
+        self.assertEqual((act[0]["requested"], act[0]["attempted"], act[0]["done"]), (2, 2, 2))
+
+
+class UserAndFrames(unittest.TestCase):
+    """What a run did to the user beside the focus, and what its screenshots say of a window's frame."""
+
+    def test_desktop_input_while_the_user_holds_the_focus_goes_to_the_users_window(self):
+        with tempfile.TemporaryDirectory() as run_dir:
+            # The focus goes to the task window at 20 s and back to the user's at 30 s, VM time 1000 s behind.
+            with open(os.path.join(run_dir, "vm-events.log"), "w") as f:
+                f.write(f"{20 - 1000:.3f} activewindowv2>>{TASK[2:]}\n{30 - 1000:.3f} activewindowv2>>{USER[2:]}\n")
+            ready = {"user": {"workspace": 1, "window": USER}}
+            calls = [{"tool": "drag", "start": 15, "end": 16, "desktop_steps": [("drag", "input")]},
+                     {"tool": "hotkey", "start": 17, "end": 18, "desktop_steps": [("hotkey", "shortcut")]},
+                     {"tool": "drag", "start": 25, "end": 26, "desktop_steps": [("drag", "input")]},
+                     {"tool": "click", "start": 35, "end": 36, "desktop_steps": []}]
+            user = report.user_disturbance(run_dir, ready, 10, 40, 1000, calls, ({"x": 960, "y": 540}, {"x": 113, "y": 299}))
+        self.assertEqual(user["desktop_input_to_user_window"], [{"at": 5.0, "tool": "drag"}])
+        self.assertEqual(user["desktop_shortcuts"], [{"at": 7.0, "tool": "hotkey"}])
+        self.assertEqual(user["cursor_displacement_px"], 881)
+        self.assertFalse(user["no_view_change"])
+
+    def test_only_desktop_input_that_cua_delivered_counts_and_its_compositor_shortcuts_apart(self):
+        desktop = {"target": {"kind": "desktop", "display_id": "primary"}}
+        cases = [
+            # A batch rejected before it ran anything sent nothing.
+            ("run_steps", {"steps": [{"tool": "hotkey", "args": {**desktop, "keys": ["alt", "tab"]}}], "observe": {}},
+             {"isError": True, "content": [{"type": "text", "text": "run_steps rejected before running anything: observe"}],
+              "structuredContent": {"ok": False, "executed": 0}}, []),
+            # A drag whose points could not be mapped sent nothing.
+            ("drag", {"scope": "desktop", "from_x": 1, "from_y": 1, "to_x": 2, "to_y": 2},
+             {"isError": True, "content": [{"type": "text", "text": "desktop-frame coordinates could not be mapped into window 9"}]}, []),
+            # Workspace and window switches are the compositor's binds; a key the binds do not take is input.
+            ("hotkey", {"scope": "desktop", "keys": ["super", "2"]},
+             {"content": [{"type": "text", "text": "Pressed desktop hotkey super+2."}]}, [("hotkey", "shortcut")]),
+            ("hotkey", {**desktop, "keys": ["ctrl", "a"]},
+             {"content": [{"type": "text", "text": "Pressed desktop hotkey ctrl+a."}]}, [("hotkey", "input")]),
+            # A batch counts the steps before the one that failed, and not that one or those after it.
+            ("run_steps", {"steps": [{"tool": "click", "args": {**desktop, "x": 1, "y": 1}},
+                                     {"tool": "click", "args": {**desktop, "x": 2, "y": 2, "modifier": ["shift"]}},
+                                     {"tool": "drag", "args": {**desktop, "from_x": 1, "from_y": 1, "to_x": 2, "to_y": 2}}]},
+             {"isError": True, "content": [{"type": "text", "text": "run_steps: step 2 of 3 failed"}],
+              "structuredContent": {"ok": False, "total": 3, "executed": 2, "failed_step": 1}}, [("click", "input")]),
+            ("drag", {"scope": "desktop", "from_x": 225, "from_y": 1060, "to_x": 240, "to_y": 670},
+             {"content": [{"type": "text", "text": "Dragged on the desktop."}], "structuredContent": {"effect": "unverifiable"}},
+             [("drag", "input")]),
+        ]
+        for tool, args, result, expected in cases:
+            with self.subTest(tool=tool, args=args):
+                self.assertEqual(report.tool_calls(server_tap(["run_steps"], (tool, args, result)))[0]["desktop_steps"], expected)
+
+    def test_a_small_first_frame_and_a_frame_unchanged_after_an_input_are_flagged(self):
+        # A call that names no window, as a desktop state or act's crop of a change, is no window's frame.
+        calls = [{"window": None, "image_hashes": ["d"], "image_bytes": 900000, "done": 0},
+                 {"window": "7", "image_hashes": ["a"], "image_bytes": 30000, "done": 0},
+                 {"window": None, "image_hashes": ["c"], "image_bytes": 1000, "done": 1},
+                 {"window": "7", "done": 1},
+                 {"window": "7", "image_hashes": ["b"], "image_bytes": 200000, "done": 0},
+                 {"window": "7", "done": 2},
+                 {"window": "7", "image_hashes": ["b"], "image_bytes": 200000, "done": 0}]
+        self.assertEqual(report.frames(calls), {"shots": 5, "first_to_later": 0.15, "first_small": True,
+                                                "unchanged_after_input": 1})
+        drawn = [{"window": None, "image_hashes": ["d"], "image_bytes": 2700000, "done": 0},
+                 {"window": "7", "image_hashes": ["a"], "image_bytes": 1600000, "done": 0},
+                 {"window": None, "image_hashes": ["d2"], "image_bytes": 2700000, "done": 0},
+                 {"window": "7", "image_hashes": ["b"], "image_bytes": 1600000, "done": 0}]
+        self.assertFalse(report.frames(drawn)["first_small"])
+
+    def test_a_scripts_reads_by_their_logged_names_are_no_actions(self):
+        structured = {"calls": [{"op": "get_app", "ok": True}, {"op": "get_window_state", "ok": True}, {"op": "find"},
+                                {"op": "click", "ok": True}]}
+        self.assertEqual(report.call_actions("run_script", {}, "cua", structured), ["click"])
+
+    def test_an_act_result_in_text_alone_counts_as_its_structured_content_would(self):
+        args = {"actions": [["click", 1, 2], ["type", "x"]]}
+        actions = report.call_actions("act", args, "hyprmasq", {})
+        partial = "1/2 delivered, delivery partial: actions[1] (type) may be partly applied · shot s3 1280×720"
+        self.assertEqual(report.call_progress("act", args, "hyprmasq", {}, actions, True, partial), (2, 2, 1))
+        held = "1/2 delivered, scroll held back · shot s3 1280×720"
+        self.assertEqual(report.call_progress("act", args, "hyprmasq", {}, actions, False, held), (2, 1, 1))
+        self.assertEqual(report.call_progress("act", args, "hyprmasq", {}, actions, True, "0/2 delivered, nothing sent"),
+                         (2, 0, 0))
+
+    def test_an_action_held_back_was_not_attempted(self):
+        args = {"actions": [["click", 1, 2], ["scroll", "down", 3]]}
+        actions = report.call_actions("act", args, "hyprmasq", {})
+        structured = {"actions": {"done": 1, "total": 2, "delivery": "partial", "failed_index": 1, "held_back": "a popup"}}
+        self.assertEqual(report.call_progress("act", args, "hyprmasq", structured, actions, False), (2, 1, 1))
+
+    def test_a_frame_is_judged_by_the_input_before_it(self):
+        # An act that changed A to B returns B: a later screenshot of B with no input between is not unchanged.
+        changed = [{"window": "7", "image_hashes": ["a"], "image_bytes": 100, "done": 0},
+                   {"window": "7", "image_hashes": ["b"], "image_bytes": 100, "done": 1},
+                   {"window": "7", "image_hashes": ["b"], "image_bytes": 100, "done": 0}]
+        self.assertEqual(report.frames(changed)["unchanged_after_input"], 0)
+        # An act whose own frame came back the same as before it is.
+        same = [{"window": "7", "image_hashes": ["a"], "image_bytes": 100, "done": 0},
+                {"window": "7", "image_hashes": ["a"], "image_bytes": 100, "done": 1}]
+        self.assertEqual(report.frames(same)["unchanged_after_input"], 1)
+
+    def test_act_crops_of_a_named_window_count_as_input_and_not_as_its_frames(self):
+        # hyprmasq's act names its window but returns crops of what changed: a larger crop does not make the first frame
+        # look small, and the whole frame after it is compared with the whole frame before.
+        calls = [{"window": "7", "image_hashes": ["a"], "image_bytes": 200000, "done": 0, "whole_frame": True},
+                 {"window": "7", "image_hashes": ["crop"], "image_bytes": 900000, "done": 1, "whole_frame": False},
+                 {"window": "7", "image_hashes": ["a"], "image_bytes": 200000, "done": 0, "whole_frame": True}]
+        frames = report.frames(calls)
+        self.assertFalse(frames["first_small"])
+        self.assertEqual(frames["unchanged_after_input"], 1)
+
+
+class InfrastructureFailures(unittest.TestCase):
+    """What allows a rerun: a limit, a login or the provider, from where the harness reports them, and not the agent's words."""
+
+    def failure(self, stream, stderr="", exit_code=1):
+        with tempfile.TemporaryDirectory() as run_dir:
+            with open(os.path.join(run_dir, "agent.stderr"), "w") as f:
+                f.write(stderr)
+            return report.infrastructure_failure(run_dir, [{"line": line} for line in stream], {"agent_exit": exit_code})
+
+    def test_a_rejected_rate_limit_event_says_when_the_limit_ends(self):
+        found = self.failure([{"type": "rate_limit_event", "rate_limit_info": {
+            "status": "rejected", "rateLimitType": "seven_day", "resetsAt": 123}}])
+        self.assertEqual((found["kind"], found["resets_at"]), ("rate_limit", 123))
+
+    def test_the_harnesses_own_errors_are_told_apart(self):
+        self.assertEqual(self.failure([{"type": "turn.failed", "error": {"message": "You've hit your usage limit."}}])["kind"],
+                         "rate_limit")
+        self.assertEqual(self.failure([{"type": "result", "is_error": True, "result": "Please run /login"}])["kind"], "auth")
+        self.assertEqual(self.failure([], "stream disconnected before completion")["kind"], "provider")
+
+    def test_a_login_that_could_not_be_refreshed_is_the_infrastructures(self):
+        # Claude Code's own result when its login failed, as a run with no tool call ended on a machine whose login broke.
+        found = self.failure([{"type": "result", "is_error": True, "subtype": "success", "terminal_reason": "api_error",
+                               "result": "Failed to authenticate: OAuth session expired and could not be refreshed"}])
+        self.assertEqual(found["kind"], "auth")
+        # An agent that only wrote of a failed sign-in in the task's page did not fail for the login.
+        self.assertIsNone(self.failure([{"type": "result", "is_error": False,
+                                         "result": "The form said: failed to authenticate"}], exit_code=0))
+
+    def test_an_agent_that_only_read_of_a_limit_and_a_warning_are_no_failure(self):
+        self.assertIsNone(self.failure([
+            {"type": "assistant", "message": {"content": "The page says: you've hit your usage limit."}},
+            {"type": "rate_limit_event", "rate_limit_info": {"status": "allowed_warning", "utilization": 0.9}},
+            {"type": "result", "is_error": False, "result": "Done"}], exit_code=0))
+
+
 class Refusals(unittest.TestCase):
     def test_a_calls_refusal_codes_and_actions_are_counted(self):
         text = ("run_steps: step 2 of 2 failed. press_key ERROR (action): "
@@ -350,6 +564,24 @@ class Refusals(unittest.TestCase):
         self.assertEqual(call["refusals"], ["background_unavailable", "client_not_qualified", "foreground_grab",
                                             "foreground_unavailable", "primary_target_busy"])
         self.assertEqual((call["actions"], call["error"]), (["click", "press_key"], True))
+
+    def test_the_refusals_of_cuas_admission_by_capability_are_counted(self):
+        for text, codes in (
+            ("background_unavailable (client_not_bound)", ["background_unavailable", "client_not_bound"]),
+            ("background_unavailable (client_drops_background_keys)",
+             ["background_unavailable", "client_drops_background_keys"]),
+            ("background_unavailable (client_xwayland)", ["background_unavailable", "client_xwayland"]),
+            ("background_unavailable (client_unattested)", ["background_unavailable", "client_unattested"]),
+        ):
+            [call] = report.tool_calls(tap(("click", {}, {"isError": True,
+                                                          "content": [{"type": "text", "text": text}]})))
+            self.assertEqual(call["refusals"], codes)
+
+    def test_the_foreground_fallback_option_in_a_hint_is_no_refusal(self):
+        text = 'To run it, set "foreground_fallback":true on run_steps. foreground_unavailable: foreground_grab'
+        [call] = report.tool_calls(tap(("run_steps", {}, {"isError": True,
+                                                          "content": [{"type": "text", "text": text}]})))
+        self.assertEqual(call["refusals"], ["foreground_grab", "foreground_unavailable"])
         [read] = report.tool_calls(tap(("get_window_state", {}, {"content": [{"type": "text", "text": "ok"}]})))
         self.assertEqual((read["actions"], read["refusals"]), ([], []))
 

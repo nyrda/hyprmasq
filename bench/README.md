@@ -12,8 +12,9 @@ thunderbird and trace.
 Run results are in [docs/benchmarks.md](../docs/benchmarks.md). `export.py` turns results directories into the
 datasets that page is generated from, and `render.py` draws its figures and tables; see
 [Updating the results](#updating-the-results). `render.py` draws
-[docs/comparison.md](../docs/comparison.md) as well, from the datasets in `docs/comparison/data` that `export.py`
-writes of the other backends' runs.
+[docs/comparison.md](../docs/comparison.md) as well, with its pages of
+[numbers](../docs/comparison-numbers.md) and of [macOS](../docs/comparison-macos.md), from the datasets in
+`docs/comparison/data` that `export.py` writes of the other backends' runs.
 
 ## Updating the results
 
@@ -32,7 +33,8 @@ variant, its `backend`, `prompt` and `browser` (see [Cua Driver](#cua-driver)), 
 as `summary.json` has it (see [Measures](#measures)). A Cua run's `act_s` is `null`: it has no act calls. A dataset
 holds one backend, one prompt and one browser of each task. `--several-machines` takes runs that `bench/dispatch.py` spread over several machines into one dataset, each
 run with its CPU. `--agent PATTERN` keeps only the runs of the agents that match, as `dispatch.py`'s `agents=`
-takes them, such as `'*:*@medium'`, so that one results directory gives several datasets. `python3 bench/render.py` generates each block of `docs/benchmarks.md` and `docs/comparison.md`
+takes them, such as `'*:*@medium'`, so that one results directory gives several datasets. `python3 bench/render.py` generates each block of `docs/benchmarks.md`, `docs/comparison.md`, `docs/comparison-numbers.md` and
+`docs/comparison-macos.md`
 between `<!-- render DATASET VIEW [TASK] -->` and `<!-- /render -->` from a dataset. Where a block's data holds
 several variants of a task, it names them by their variant too, such as `board-dnd`, and TASK takes that name. It also
 writes the figures in `docs/benchmarks` and `docs/comparison`, one for GitHub's light theme and one for its dark
@@ -80,15 +82,21 @@ python3 bench/run.py --prompt comparison                # the tool-neutral promp
 python3 bench/run.py --backend cua --prompt comparison --source ../hyprmasq-0.56  # Cua Driver instead of hyprmasq
 python3 bench/run.py --backend hypruse --prompt comparison  # hypruse, or computer-use-linux, instead of hyprmasq
 python3 bench/run.py --task board --browser chromium    # Chromium as the user's browser instead of Firefox
+python3 bench/run.py --desktop omarchy                  # Omarchy's key binds, portals and packages, for every backend
 python3 bench/report.py bench/results/my-run            # the report again
 ```
 
 `--source DIR` builds the plugin, `hyprmasq-mcp` and the NixOS module from another checkout, for example a
 feature branch's worktree, so that a branch can be benchmarked without the benchmark in it. The plugin is
 built from the files Git tracks there, as in a flake build. `source.json` in the results records its commit,
-the task, its variant, the display, the backend and the prompt, and `run.py` refuses to add runs to a directory
-whose finished runs had another of them. A `source.json` from before the backend and the prompt counts as hyprmasq's with
-the task's own prompt.
+the task, its variant, the display, the backend, the prompt, the browser and the desktop, this benchmark's commit and
+whether it had changes, the hash of the prompt and the debrief the agent gets, the agent's timeout, the budget of calls and
+whether a debrief runs. `run.py` and `dispatch.py` refuse to add runs to a directory whose finished runs had another of
+them, or that another build ran: each run's `run.json` records the store paths of the VM's driver, with its plugin and
+server in it, and of the skill as `identity`, and `ready.json` those of the server and of Cua's plugin. So a change to the
+benchmark takes a new results directory, which is what a series wants: its results stay one build's. A `source.json` from
+before these fields counts as hyprmasq's with the task's own prompt, Firefox and the bare desktop, and is not compared
+for the rest.
 
 `--variant NAME` picks one of a task's variants, which `tasks/TASK/variants` lists, one a line. A task with that
 file needs it, unless a line there is `NAME default`, which it then takes; others refuse it. A variant's directory,
@@ -100,6 +108,9 @@ carry it.
 within 1280 pixels and zooms come at the monitor's scale, so what agents can read depends on it. The VM draws
 in software: at 3840×2160 everything draws slower, also hyprmasq's captures, so times compare only between runs
 on the same display. `source.json` records it.
+
+`--mcp-args` gives `hyprmasq-mcp` in the VM options of its own, such as `--max-image-size 1920`, and `source.json`
+records them as `mcp_args`. The comparison's image size probe ran with it.
 
 `--lock FILE` holds a shared lock on FILE while each run's VM is up, for machines where other VMs, such as the VM
 test under `flock FILE`, would not fit into memory next to the benchmark's. Benchmark VMs share the lock, so the
@@ -129,7 +140,8 @@ slot such a list.
 Repetitions go round the agents, so a slow hour of one API does not land on one agent's runs only.
 
 It needs KVM, Nix, and the harnesses of the agents logged in for the user who runs it; it uses those logins as they
-are, subscriptions included, and copies no credentials. A run takes the VM's boot (about a minute), the
+are, subscriptions included. It copies no credentials off the machine: a run of the Claude subscription has its own
+copy of the access token, without the refresh token, removed with the run's directory. A run takes the VM's boot (about a minute), the
 agent, and the debrief; runs are sequential, so that they do not compete for the CPU. `dispatch.py` runs several at
 once, each VM on cores of its own.
 
@@ -150,11 +162,134 @@ their state on their server, and calc reads Mara's tabs from Chromium's session 
 stays the default, and hyprmasq, which works with any browser, keeps it. `run.json` and `source.json` record the
 browser as `browser`, and `run.py` refuses to mix browsers in one results directory.
 
+`--desktop omarchy` gives the VM what a real Omarchy 4.5 desktop offers a tool, for every backend, in place of the bare
+desktop the published benchmarks ran on, which stays the default, so that those can be repeated:
+
+- Omarchy's workspace and window key binds and its input settings ([omarchy-desktop.lua](omarchy-desktop.lua)), but for
+  binds that run its own scripts. `SUPER+2` reveals a workspace, as on the machine.
+- The task's windows on numbered workspaces, from 2 up, in place of named ones, which those binds reach. vm.py's `move`
+  maps the names, the user stays on workspace 1, and the measures of what disturbed the user read as before: a switch of the
+  active workspace, a window opened on the user's and the time the focus was away.
+- Its portals, Hyprland's and GTK's in its order, running for the whole session, and the session's variables.
+- The commands of its package list that the tools call: `wtype`, `wl-copy`, `xdg-open`, `gdbus` and others.
+- Chromium with `--force-renderer-accessibility` for every backend, so that all run the same browser.
+
+What stays different from the real machine, and whether it matters, is in [capability-results.md](capability-results.md).
+
 ### Cua Driver
 
 `--backend cua` runs the task with [Cua Driver](https://github.com/trycua/cua) in place of hyprmasq, set up as its
 documentation sets it up on Linux and Hyprland, for comparing the two on the whole suite. The task, its VM, its
 grading and the measures are the same: only the desktop tool differs.
+
+- **Release:** Cua Driver 0.42.1, tag `cua-driver-rs-v0.42.1`, commit `badaa6e0d59fb5add81474bc04efadb89f713eb9`, from
+  the tag's source, unchanged ([cua/default.nix](cua/default.nix)), the newest tag that was not a nightly on 7 November
+  2026. Tags come several times a day and are marked pre-release, so the suite pins one. The driver is built by Cua's own Nix package with the features of its Linux release binary
+  (`portal-input`), the plugin with CMake as its README builds it, with `-DCUA_HYPRLAND_INPUT=ON` as its release build
+  kit builds it, against the VM's Hyprland and with Hyprland's compiler, and its CTest suite passes. Since
+  [#6495](https://github.com/trycua/cua/pull/6495) and [#6329](https://github.com/trycua/cua/pull/6329) the plugin
+  compile-checks Hyprland's internals instead of pinning 0.56.2, and it builds, passes its tests and loads on 0.57.1.
+- **Hyprland 0.56.2:** the driver still sees no window of Hyprland 0.57.1, so the plugin's support for it does not help.
+  Its `j/monitors` and `j/clients` leave out `id` for a named workspace and for an absent special workspace, which is
+  every monitor without one, and the driver's `Workspace` in `wayland/hyprland.rs` requires it. `list_windows` then says
+  `Found 0 windows`, with `invalid Hyprland IPC JSON: missing field 'id'` in its log, the same at the pinned tag on 7
+  November 2026. Making that field optional in a scratch build, which the suite does not use, gave on 0.57.1 the same
+  results as on 0.56.2 in the GTK 4 form, so it is the only obstacle found there. So the Cua backend runs with `--source` at a checkout of
+  the `hyprland-0.56` branch, `e4273e0` in the 0.38.0 series and the commit in the rules in the comparison series, and
+  `default.nix` refuses it on another Hyprland.
+- **Plugin:** loaded and enabled as its README says: `hyprctl plugin load`, then
+  `hl.config({plugin = {cua = {enabled = true}}})` in the configuration and `hyprctl reload`. `vm.py` waits for
+  `hyprctl -j cua:status` to report its input transport ready, and `ready.json` keeps that status as `cua_status`, with
+  the versions of Hyprland and the driver as `versions`, which `export.py` copies into each run. The VM's `kb_layout = "us"`
+  compiles to the plain `evdev`/`pc105`/`us` keymap that its foreground keys ask for: they were not refused for the layout.
+- **Server:** `cua-driver mcp`, served on the vsock port as `hyprmasq-mcp` is, with `CUA_DRIVER_RS_ENABLE_WAYLAND=1`
+  (its skill's `LINUX.md`), the session's variables, and `CUA_DRIVER_RS_TELEMETRY_ENABLED=false`, as the VM is
+  offline (its guide's Telemetry). It runs in Cua's default `standard` permission mode. The agent knows the server as
+  `cua-driver`, the name in Cua's table of harnesses.
+- **Skill:** the skill pack as `cua-driver skills install` installs it on Linux, the release's `Skills/cua-driver`
+  without the other platforms' guides, in an agent home of the run's own, and named at the start of the prompt, as
+  the [laptop's runs](laptop/README.md) did. Claude Code gets `CLAUDE_CONFIG_DIR` with `skills/cua-driver`, its Skill
+  tool beside the server's tools, `--setting-sources user`, which in that fresh home holds the skill alone, and
+  `/cua-driver ` before the prompt. Codex gets a `HOME` with `.agents/skills/cua-driver`, its skills listed, and
+  `$cua-driver ` before the prompt. The skill's guides, such as `LINUX.md` and `BROWSER.md`, are files that a real agent reads
+  with its file tools. Here the agent has none, as no agent in the suite does, and reads them as the server's resources
+  (`skill://cua-driver/LINUX.md`), the transport Cua ships for this, with Claude Code's `ListMcpResourcesTool` and
+  `ReadMcpResourceTool` and Codex's `read_mcp_resource`. The debrief names Cua Driver where it named hyprmasq. pi does not
+  run with Cua, whose documentation has pi call its CLI.
+- **Agent cursor:** `cua-driver mcp --no-overlay`. Its cursor is a full-screen layer surface that it repaints while it works, for a
+  person to watch, which a desktop composites on its GPU for next to nothing. The VM has no GPU, and its Hyprland composites it in
+  software at more than two of the VM's four CPUs while the driver reads a window, which made its walks 2 to 2.7 times as long
+  and its screenshots twice as long, as [capability-results.md](capability-results.md) measures. No tool of the driver depends on it.
+- **Desktop route:** with `--desktop omarchy`, its desktop tools reach a hidden window: `hotkey` with `super+2` reveals the
+  window's workspace, and `click`, `drag`, `type_text` and `press_key` with `target: {kind: desktop}` then act on it, with
+  `wtype` for text, as its skill's Desktop loop has it. This is what is left for an app that binds the user's seat more
+  than once, as Firefox and Thunderbird do, whose `foreground` the plugin refuses.
+- **Background input:** nothing to set up. Since [#6706](https://github.com/trycua/cua/pull/6706) the driver admits any
+  native Wayland window whose app bound the plugin's agent seats, in place of the two Arch packages it admitted before.
+- **Browser tools:** its documentation sends Chromium's pages to them. They have two ways in, and the suite gives both:
+  - The user's own browser, with `cua-driver mcp --grant existing-profile` and `--force-renderer-accessibility` (its guide's
+    Attach to a logged-in profile), wherever the user's browser is Chromium: the Forgejo task and `--browser chromium`.
+    Calc needs it most, as its tabs are signed in and an isolated browser is not. `browser_prepare` then refuses with
+    `browser_wrong_target_refused`, as its navigation to `chrome://inspect` needs a foreground adapter that Hyprland lacks
+    (`no trusted Wayland compositor adapter`, `interaction/mod.rs`), where without the grant it refuses with
+    `browser_consent_required`. `get_browser_state` before that says `browser_consent_required` either way, its way of
+    saying "not attached yet", which `report.py` counts under its kind `setup`. With remote debugging on from the
+    browser's start, as this refusal suggests, `browser_prepare` has an endpoint to find and attaches:
+    `capability.py`'s case `attach-debugging-board-pointer`.
+  - A browser of its own, `browser_prepare` with `allow_launch` and `isolated_new` (its guide's Use an isolated browser,
+    which its skill prefers when a task needs no login). It launches only a root-owned file at a package's path, which
+    NixOS lacks, so a VM with Chromium gets one at Arch's `/usr/lib/chromium/chromium`, a script that starts the VM's
+    Chromium, for Cua alone. This route was closed in the 0.38.0 series, as the file was missing. It binds with
+    `binding_quality: exact` on Hyprland, and `browser_pointer` with `delivery_mode: foreground` places the board's labels where aimed, in
+    both of its variants. Its window opens on the user's workspace and takes the focus. In the background `browser_pointer`
+    refuses a trusted drag (`browser_input_trust_unavailable`), and its `dom_event` route takes only a ref that declares
+    `pointer`, which the board's labels do not. Passing the user's browser's `pid`, the guide's other form, launches that
+    process's executable, on NixOS Chromium without its wrapper. It died with SIGILL, a failed check of Chromium's as it
+    found no sandbox helper beside it, where a distribution's package has one: `--no-sandbox` or the wrapper's
+    `CHROME_DEVEL_SANDBOX` alone let it start, and the library path did not. So the server has that variable.
+
+What each app takes on the pinned release, route by route and judged by each app's own state, is in
+[capability-results.md](capability-results.md), which `capability.py` writes. See [The capability check](#the-capability-check).
+
+More that holds on Hyprland:
+
+- A hidden Firefox showed its first frame at the size it had before it moved, until input reached it: an agent's first
+  screenshot can show half a page, and a drag aimed at it misses.
+- `drag` is one straight stroke, and a curve is straight segments. The plugin refuses input while a drag-and-drop is
+  active (`foreground_dnd`). A drag-and-drop that a background app starts is cancelled, as the agent seats have none
+  (`drags_withheld` in `cua:status`), so the board's dnd variant places no label through `drag` in either browser.
+- A background popup, such as a combo box, opens without the grab on the user's keyboard, by its README
+  (`popup_grabs_withheld`). This was not checked here.
+
+`report.py` counts these refusals. `foreground_fallback`, an option of `run_steps` that Cua's hints name, is no refusal
+and no longer counts as one: the published data still holds it as one, 14 times.
+
+#### Checking a VM without an agent
+
+`bench/cua/probe.py CID DIR` checks a VM of the Cua backend that `smoke.sh` booted, without an agent: it reads each
+window but the user's terminal with `get_window_state` and writes how many accessibility elements and what screenshot
+each had to `DIR/probe.json`. `--input` also sends each window a click, a key, text, a scroll and a drag in the
+background and then the foreground, at the middle of the window or at `--at X,Y` of the task's, and records the
+refusals, the route and whether the screenshot changed. That is a hint: Cua's result for a delivered action says
+`unverifiable`, and an app can drop it, so a claim needs the app's state, in `vm-result.json` after `agent-done` is written
+to DIR. `--browser` asks the browser tools for each window and starts the isolated browser.
+
+```sh
+nix-build bench/default.nix -A driver --argstr task form --argstr variant 25 --argstr backend cua \
+    --arg source "$SOURCE" -o /tmp/cua-form
+bench/smoke.sh /tmp/cua-form /tmp/cua-form-run 5201
+python3 bench/cua/probe.py 5201 /tmp/cua-form-run --input --at 545,367
+touch /tmp/cua-form-run/agent-done
+```
+
+#### A series
+
+[The comparison series](#the-comparison-series) runs Cua Driver on the pinned release with hyprmasq beside it.
+
+#### The series on 0.38.0
+
+[docs/comparison.md](../docs/comparison.md) and its data `vm-cua*.json` hold Cua Driver 0.38.0, tag `cua-driver-rs-v0.38.0`,
+commit `85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19`, run on 30 October 2026, without the isolated browser's file. This was its setup, which that page cites, as it stood:
 
 - **Release:** Cua Driver 0.38.0, the newest non-nightly release of `cua-driver-rs`, from the release tag's source,
   unchanged ([cua/default.nix](cua/default.nix)). The driver is built by Cua's own Nix package with the features of
@@ -201,16 +336,14 @@ grading and the measures are the same: only the desktop tool differs.
     with `modified clicks are unsupported`, so a curve is straight segments.
   - Background input is refused with `client_not_qualified`, as in every app.
 
-`bench/cua/probe.py CID DIR` checks a VM of the Cua backend that `smoke.sh` booted, without an agent: it reads each
-window but the user's terminal with `get_window_state` and writes how many accessibility elements and what screenshot
-each had to `DIR/probe.json`.
-
 ### hypruse and computer-use-linux
 
 `--backend hypruse` and `--backend computer-use-linux` run the task with one of two Linux computer-use MCP servers that
 claim Hyprland support, in place of hyprmasq, each set up as its own documentation sets it up on Hyprland, for a
-comparison on the whole suite with `--prompt comparison`. Both run on the suite's Hyprland 0.57.0, as released and
-without hyprmasq's plugin or any other, and keep their defaults. The task, its VM, its grading, the timeouts (the
+comparison on the whole suite with `--prompt comparison`. Both run as released and without hyprmasq's plugin or any
+other, on the Hyprland of `--source`: 0.57.0 in the published runs, and in [the comparison series](#the-comparison-series) the
+same 0.56.2 as Cua Driver and hyprmasq, on Omarchy's desktop. They keep their defaults, but for computer-use-linux's
+Hyprland background mode below. The task, its VM, its grading, the timeouts (the
 agent's, and 600 s a tool call) and the agent's isolation are the same as for the other backends: no shell, and the
 tool's MCP server alone, behind `mcp_tap.py` on the vsock port. The tables list each aspect of the setup, what the
 tool's documentation says, and what the suite does, with every difference and its reason.
@@ -220,7 +353,7 @@ tool's documentation says, and what the suite does, with every difference and it
 | Aspect | Its documentation | The suite | Difference and why |
 | --- | --- | --- | --- |
 | Release | PyPI `hypruse`, run with `uvx hypruse` | 0.13.0, the newest, from its PyPI sdist (SHA-256 `321362…e114b`), unchanged, built with nixpkgs' Python 3.14 and `mcp` 1.29.0, its 1040 unit tests passing | Nix in place of uv, as the VM is offline. `mcp` is in its range, `>=1.21.1,<2` |
-| Hyprland | 0.54+ for a window's own screenshot, both config managers | 0.57.0 with the Lua configuration. Its `doctor` passes every check | None |
+| Hyprland | 0.54+ for a window's own screenshot, both config managers | The Hyprland of `--source` with the Lua configuration. Its `doctor` passes every check | None |
 | Programs | `grim` (1.5+), `wtype`, `busctl`, optional ImageMagick for `marks` and `wl-clipboard` for the opt-in clipboard tool | grim 1.5.0, wtype 0.4, systemd's busctl and ImageMagick with Ghostscript on its PATH | ImageMagick's build with Ghostscript, whose fonts draw the marks' numbers, which the build without cannot. No wl-clipboard, as the clipboard tool is off by default |
 | libxkbcommon | Found with `ctypes.util.find_library`, through ldconfig on other distributions | The wrapper gives `LD_LIBRARY_PATH` and `ld`, with which Python finds it on NixOS | NixOS has no ldconfig cache. Without it, keys to a hidden window are refused |
 | Server | `claude mcp add -s user hypruse -- uvx hypruse`, a stdio server named `hypruse` | `hypruse` on the vsock port, named `hypruse` for the agent, with the session's variables | None |
@@ -235,8 +368,8 @@ tool's documentation says, and what the suite does, with every difference and it
 
 | Aspect | Its documentation | The suite | Difference and why |
 | --- | --- | --- | --- |
-| Release | `cargo install computer-use-linux`, its plugins, npm or prebuilt binaries | 0.7.32, the newest, its crate from crates.io (SHA-256 `6dafe72d…e985`), unchanged, built as `cargo install` builds it with the crate's `Cargo.lock`, all three binaries in one directory | Nix in place of cargo, as the VM is offline |
-| Hyprland | Window targeting with `hyprctl clients -j` and `hyprctl dispatch` | 0.57.0. Its `doctor` reports no blocker, and the Hyprland backend lists and focuses windows | None |
+| Release | `cargo install computer-use-linux`, its plugins, npm or prebuilt binaries | 0.7.47, the newest on 7 November 2026, its crate from crates.io (SHA-256 `789c213a…d2ad`), unchanged, built as `cargo install` builds it with the crate's `Cargo.lock`, all three binaries in one directory, and the published runs' 0.7.32 before it | Nix in place of cargo, as the VM is offline. The skill comes from the release's tag, as the crate no longer holds the plugin |
+| Hyprland | Window targeting with `hyprctl clients -j` and `hyprctl dispatch`. Since 0.7.35, `COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1` to work on a window without focusing it, opt-in: its README's support matrix and settings and its skill name it, its Codex plugin forwards it, and its quick start does not set it | The Hyprland of `--source`. Its `doctor` reports no blocker, and the Hyprland backend lists and focuses windows. **Background mode on** | The docs leave it to the user. A comparison's prompt says the user prefers that their window stays alone, so a user who read the docs for this would set it, and it is the tool's best shot: a hidden window's screenshot and keys work without moving the focus, shown by the form's own events in a VM without an agent. Its pointer still goes through the user's pointer and focuses the window |
 | Pointer | The absolute uinput pointer: `/dev/uinput` for the user, through the `input` group, the udev rule its `install.sh` prints, and the module loaded | All three: the rule, alice in `input`, `uinput` loaded at boot | None |
 | Keys | A keyboard-capable RemoteDesktop portal, xdotool on X11, or ydotool 1.0.3+ with `ydotoold` as the user service its `install.sh` writes | ydotool 1.0.4 and that service, unchanged. xdg-desktop-portal-hyprland has no RemoteDesktop portal | alice gets a group of her own number, 1000: the service's `--socket-own=%U:%U` names it, as on the distributions `install.sh` supports, where each user has one, and NixOS's alice is in `users` |
 | Text | `wtype` on Hyprland | wtype 0.4 | None |
@@ -287,7 +420,7 @@ and copies each run's directory back into one results directory, laid out as `ru
 `source.json` and `report.md`. `report.py`, `analyze.py` and the tasks' scripts read it as they read `run.py`'s.
 
 ```sh
-python3 bench/dispatch.py --host local,lock=/tmp/vm.lock --host me@box --host me@nas,local-lock=/tmp/nas.lock \
+python3 bench/dispatch.py --host local,lock=/tmp/vm.lock --host me@box --host me@server,local-lock=/tmp/server.lock \
     --task forgejo --agent codex:gpt-6.1-sol --reps 6 --source ../hyprmasq-main --out bench/results/my-run
 python3 bench/dispatch.py --host ... --source ../hyprmasq-main --source ../hyprmasq-feature \
     --out bench/results/main --out bench/results/feature   # two builds, each into its own directory
@@ -343,10 +476,10 @@ Two more options apply to all hosts:
 
 `run.json` of a dispatched run records `dispatch`: its `slot`, `balance`, the limits that applied to its agent
 (`max_concurrent`) and `waited_seconds`, how long a full limit held its unit back from free slots before it started.
-For example, three slots here, three on a 12-thread NAS with one core each, and the API runs limited:
+For example, three slots here, three on a 12-thread server with one core each, and the API runs limited:
 
 ```sh
-python3 bench/dispatch.py --host local,slots=3,cores=2,lock=/tmp/vm.lock --host me@nas,slots=3,cores=1 --balance \
+python3 bench/dispatch.py --host local,slots=3,cores=2,lock=/tmp/vm.lock --host me@server,slots=3,cores=1 --balance \
     --max-concurrent codex=4,claude-api=3 --task form --reps 6 --source ../hyprmasq-main --out bench/results/my-run
 ```
 
@@ -451,6 +584,7 @@ memory:
 ```sh
 python3 bench/calibrate.py --vms 1,2,3 --cores 2 --lock /tmp/vm.lock    # the form task, 20 rounds a VM
 python3 bench/calibrate.py --vms 4 --cores 1 --task board --variant dnd --rounds 10
+python3 bench/calibrate.py --backend cua --desktop omarchy --vms 1,3 --cores 2 --source ../hyprland-0.56  # Cua's walks
 ```
 
 The counts run one after the other, holding `--lock` shared from the first to the last, as `run.py --lock` holds it
@@ -461,7 +595,97 @@ the VM's files. Compare the counts with the first one, a VM alone. The script ca
 at once, which is more than agents do: they think between calls, mostly while the other VMs wait too. Other load on
 the machine, which `load at start` shows, skews the numbers. A guest's peak in use, page cache aside, says how much
 of its 6 GiB the task needs. QEMU's resident memory, which the host gives a VM as the guest first touches it, keeps
-what the guest freed.
+what the guest freed. With `--backend cua`, the script reads the window with `get_window_state`, takes a shot without a
+walk, scrolls and presses a key, and the report adds the driver's own `walk_ms`, what the VM's cores change most. If it saw
+another QEMU on the machine while it ran, it says not to trust the numbers.
+
+## The capability check
+
+`capability.py` tries each route of each tool on each app with no model, in a fresh VM per tool, mode and fixture, and asks the
+app whether it took effect: the questionnaire's events, the folder, the saved drawing, Calc's cells through UNO, the mail
+server's log, the board's and the drawing's saved state, Forgejo's log. Between actions it reads them through the VM's shell
+(`HYPRMASQ_BENCH_SHELL`, vm.py). No result rests on a screenshot but a scroll's, which says so. A route that did not work runs
+again alone, in a VM of its own, as an earlier route's popup or drag can spoil it. `capability_host.py` runs the same routes
+on a real machine, in its session, with its own geometry ([capability-omarchy.json](capability-omarchy.json)).
+
+```sh
+python3 bench/capability.py --tool cua --source ../hyprland-0.56 --out bench/results/capability --lock /tmp/vm.lock
+python3 bench/capability.py --tool hyprmasq --case board-dnd-chromium --source ../hyprland-0.56 --out bench/results/capability
+python3 bench/capability.py --table bench/results/capability > table.md
+```
+
+A route is `works`, `refused` with the tool's codes, `dropped` where the tool said it delivered or could not tell and the app's
+state did not change, or `error`. A failed route is that route's: a case proves "this route works" or "these routes refuse
+on this build", not that an app cannot be automated. Cua's modes are `background`, `foreground`, `desktop` (the key bind and
+then global input), `browser` (its browser tools), `walks` (20 walks of the window, hidden and in view) and `environment` (what
+the desktop offers, to set beside the real machine's). `fresh`, for both tools, says whether a screenshot shows a background
+change in a hidden window: a terminal that prints the time, and in a browser's fixture a page of that browser that shows it,
+are moved to a hidden workspace, and the tool takes a screenshot and another 3 s later, which differ only if it shows the
+window as it is.
+
+`startcheck.py` checks the start of a run with no model: for each task of a series it boots the task's VM, asks the tool for its
+first screenshot of the task's window, then shows that window and captures it with `grim`, and compares the two at `grim`'s size.
+A window that a hidden workspace kept from drawing gives a blank frame or one at another size, and a large difference.
+
+```sh
+python3 bench/startcheck.py --tool cua --series main --source ../hyprland-0.56 --out bench/results/startcheck --lock /tmp/vm.lock
+```
+
+## The comparison series
+
+[comparison-series.json](comparison-series.json) holds the rules of a comparison, committed before any result exists: the
+tools with their versions and commits, the models and efforts, the prompt, the sets of tasks, the series with their machine and
+repetitions, the workers, the limits per subscription, the order of the rounds, and what allows a rerun. `series.py` carries them out. The rules give each machine's options; its SSH target, and where a series' results lie on the machine
+that runs `series.py` if not at their path, come from the untracked `bench/machines.local.json`, after
+[machines.example.json](machines.example.json).
+
+```sh
+python3 bench/series.py check main        # the source and the harnesses on the series' machine, against the rules
+python3 bench/series.py build main        # ships the commits and builds every driver
+python3 bench/series.py list main --round 1   # what would run, as commands
+python3 bench/series.py run main          # runs, and resumes where it stopped
+python3 bench/series.py status main       # what is done, passed and excluded
+python3 bench/series.py estimate main     # how many runs, and how long
+```
+
+The rules hold five series, each with a results directory of its own: `main`, Cua Driver and hyprmasq on every task and
+model, `cua-attach`, Cua Driver with the user's Chromium started with `--remote-debugging-port=0` (`run.py --chromium-options`)
+on the tasks in Chromium, a slice never pooled with `main`, `hyprmasq-machine-a`, one round of hyprmasq on Cua Driver's machine, machine A,
+`cross-check`, a few repetitions of the same on another machine, published as how much the machine moves the numbers
+and never pooled with `main`, and `others`, hypruse and computer-use-linux after `main`, on its machine. A machine moves the numbers
+in two ways. It sets how long everything takes, and it sets where a walk ends against Cua's default budget of 2 s for a first read
+and 1 s after. An agent whose first read was cut names a longer budget and pays for the whole tree on each read from there on,
+which `walk` in `summary.json` shows as `budget_named` and `first_partial`, and that is the agent's reaction and not the machine's speed.
+
+In `main` each tool has its machine, and both run at once, in the same period: Cua Driver on machine A (Ryzen 5 5600X), whose
+walks cost least, on `hyprland-0.56` at `89c988d`, and hyprmasq on machine B (a laptop with Omarchy, Ryzen 7 PRO 4750U), the slowest of the three, on `8935ac7`, the same branch with
+the fix of a defect that closed apps on a real Omarchy as their popups closed. `hyprmasq-machine-a` and `cross-check` measure how much
+the machine moves each tool, per call. `placement` in the rules records why and when, and the two sources differ in that fix
+alone. `--tool cua` selects one tool's half, which runs as a process of its own, and `pace` makes hyprmasq's round N wait until
+Cua Driver's has started. Before a tool's first round, a machine with a `gate` calibrates it on the gate's tasks with 1 VM and with
+its workers, and the series stops if the tool's median call is slower by more than the gate allows (`gate-MACHINE.json`). A
+subscription's limit never ends a round: its runs are excluded and run again once it reset, and such a pass does not count
+towards the passes a round may take. `amendments` in the rules lists every change with its date, and `analysis` how the results
+are read, fixed before the runs. The comparison runs Sonnet and Terra. `main` ran its rounds 1 and 2
+at `3a2f692`, `main-rest` runs rounds 3 to 6 at the fix commit (a series' `rounds`), and `forgejo-fix` Forgejo's rounds 1 and 2
+again, as v2's start step at `3a2f692` gave the focus to the terminal and not to the user's notes, where Forgejo's user types.
+The runs they replace, and Opus's and Sol's, stay on disk and out of the analysis. Opus's and Sol's runs of rounds 1 and 2 stay on disk, unpublished, and every claim is
+scoped to this VM setup, with the effects known to favour either tool as a short list (`analysis.scope` in the rules).
+`export.py --registered` marks a dataset of the
+series, and `render.py` then follows the rules' `analysis`: pass rates with Wilson intervals, a time only where a tool passed at
+least 3 runs, failed runs' times apart, and the runs that left the user's view as it was and kept the user's work.
+
+`review_failures.py` attributes the failed runs by `analysis.failure_attribution`. `bundle` writes a directory per failed run from
+a tree of the published runs, without images, host names, home directories or pass rates. `run` has one Claude and one Codex
+reviewer read each with read-only tools, in processes that load none of the user's settings, and it resumes. `collect` writes the
+one verdict per run that `docs/comparison/data/v2-failures.json` holds and `render.py` draws, any disagreement being `unclear`.
+
+A round is one repetition of the selected tools, their sets one after the other, in an order that rotates from round to round.
+`series.py` moves a run with no `summary.json`, a run
+whose harness stopped for a limit, a login or the provider's failure (`report.infrastructure_failure`), or a run that shared its
+host with work outside the series (`series.other_load`: another QEMU process, or the host's guard holding for another benchmark on the host, in
+`run.json`'s `host_load`), to `excluded/`, logs it in `exclusions.jsonl` with why, waits if a limit gave a time, and runs it again
+on the same machine. Nothing else runs again: a run whose debrief failed keeps its result, with `debrief_error` in `run.json`.
 
 ## What a run is
 
@@ -475,8 +699,10 @@ run.py ─ starts ─▶ nixos-test-driver ─ boots ──▶  Hyprland + hyprm
 
 1. `run.py` builds the test driver of `bench/default.nix` and starts it outside the Nix sandbox. The driver
    boots the VM and runs `bench/vm.py`, which starts Hyprland, a logger of its events, a `top` in a terminal
-   on the visible workspace (the user's own work), and the task's `setup.py`, then listens for MCP
-   connections on vsock port 5000 and writes `ready.json`.
+   on the visible workspace (the user's own work), and the task's `setup.py`. A window that the task moved to a hidden
+   workspace right after it mapped has not drawn at its size, so `vm.py` shows each such workspace until the screen stops
+   changing and then the user's again, with the focus back on the terminal, for every backend (`start_state` in
+   `ready.json`). It then listens for MCP connections on vsock port 5000 and writes `ready.json`.
 2. `run.py` starts the agent with the task's prompt and one MCP server, `mcp_tap.py`, which connects to the
    VM over vsock and logs every message with the host time. The agent has no other tools.
 3. When the agent exits, `run.py` writes `agent-done`. The VM grades the run with the task's checker,
@@ -512,8 +738,19 @@ any agent session around it (`CLAUDE*`, `CODEX*`, `T3CODE*`, …).
   `CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` and `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.
 - Codex: `--ignore-user-config --ignore-rules`, the shell, computer use, browser, apps, plugins, multi-agent,
   image generation, memories and web search disabled, a read-only sandbox, and only the tap as MCP server.
-- With Cua or computer-use-linux, Claude Code and Codex get its skill in an agent home of the run's own instead, as
-  [Cua Driver](#cua-driver) describes.
+- Every backend's run has an agent home of its own: for Claude Code a `CLAUDE_CONFIG_DIR` with a copy of the user's
+  login without its refresh token, so that a run cannot refresh it and spend the token, and for Codex a `HOME` and a
+  `CODEX_HOME` with a link to `auth.json`, which Codex writes a renewed login through. Without the user's skills, and without the harness's own: Codex has
+  `skills.bundled.enabled=false`, and Claude Code `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS` and `--settings` turning off the
+  skills and plugins that leaves. A transcript's init and first request list the backend's skill alone, or none.
+- With Cua or computer-use-linux, Claude Code and Codex get its skill in that home, as [Cua Driver](#cua-driver) describes,
+  with the tools that read a server's resources. A backend without a skill stays without one.
+- Harnesses do not update themselves during a run: Claude Code has `DISABLE_AUTOUPDATER`, and Codex
+  `check_for_update_on_startup=false`. A series also runs them from a directory it pinned, through `dispatch.py`'s `bin=`.
+- Before a run of the Claude subscription, `run.py` renews its login if it ends within an hour, more than a run can last,
+  one process at a time, as its refresh token works once. It has Claude Code refresh a private copy, puts that copy in
+  place of the user's file only if the expiry moved forward, and otherwise fails the run before its VM boots, with the
+  user's file as it was.
 - pi: an agent directory of the run's own (`PI_CODING_AGENT_DIR`), with links to the user's `auth.json` and
   `models.json` and nothing else of theirs: an `mcp.json` with only the tap, its tools declared to the model
   directly (`exposure: direct`, without codemode), and a `settings.json` that trusts no project. So none of the
@@ -573,12 +810,20 @@ the run's directory after the debrief, and pi's MCP log, if it wrote one, to `pi
 | `outside_tool_seconds` | The rest: the model's reasoning and output, and the harness. |
 | `first_call_seconds`, `longest_gap_seconds`, `median_gap_seconds` | Time before the first call, and the longest and the median stretch between calls: the model's and the harness's time per step. |
 | `calls`, `by_tool`, `actions` | Tool calls by tool, and the actions of all `act` calls, or Cua's action calls and the steps of its `run_steps`. |
+| `actions_requested`, `actions_attempted`, `actions_done` | The actions asked for, pauses aside, those the tool sent, and those it says it did: a batch stops at its first failure, and a script's log says each operation. |
 | `images`, `image_kib` | Images in results, and their size. |
 | `no_change`, `errors` | Results whose summary says `no change`, and tool errors. |
-| `refusals` | The tool's refusals by code or kind, such as Cua's `client_not_qualified` or `foreground_grab`, or hypruse's `background`: how many calls turned each up. |
+| `refused_calls`, `refused_kinds`, `script_refusals` | Cua's calls that did not deliver, by their result's status and not by what their text mentions, and what they were: `setup`, the browser tools asking for it, `stale`, `route`, `route_uncoded` (a route that said it did not deliver without a code) or `partial`. A failed call that is no refusal, such as an element that is not there, is an error. `script_refusals` counts the refusals that a `run_script` caught inside it. `refusals` counts each code in the calls it turned up in: one call can name several, so never sum those. `get_guide`'s text refuses nothing |
+| `walk` | Cua's walks of the accessibility tree in the run: their `seconds`, `count`, how many its time budget cut as `partial`, apart from those that stopped at its element budget (`partial_elements`) or at a container too large to list (`partial_container`), `median_ms`, how many had a budget the agent named as `budget_named` (a `run_script`'s own `timeout_ms` bounds the script and is none), and `first_ms` and `first_partial` of the first. A script's walks count once, from its log. This is the part of its time in tools that a VM makes slower than a desktop, by a ratio [capability-results.md](capability-results.md) gives. `null` for the other backends |
+| `frames` | Screenshots per window: `first_to_later`, the size of a window's first against the median of its later ones, `first_small` when it is under half, and `unchanged_after_input`, screenshots the same as the window's previous one although an input to it worked between them: a frame that may be stale, or an input with nothing to see. Flags, not failures. |
+| `focus_takes`, `first_focus_take_seconds` (in `user`) | How often the focus left the user's window, and when first. A tool that does not give it back counts as away until the run ends, and a comparison's prompt authorizes it, so these go beside the seconds away |
+| `final`, `error_texts`, `infrastructure`, `assignment` | What the failure analysis needs: the agent's last message, the first line of each call that failed, why the harness itself stopped (`rate_limit`, `auth` or `provider`), and the machine a series gave the run. The checker's `failures` are there already |
+| `refusals` | The tool's refusals by code or kind, such as Cua's `client_not_bound` or `foreground_grab`, or hypruse's `background`: how many calls turned each up. |
 | `phases` | The task's milestones from the VM's state, in seconds after the agent's start, such as `account verified` and `reply sent` for Thunderbird. |
 | `checks` | The checker's details, such as the user's notes for the Forgejo task. |
-| `user` | From Hyprland's events in the VM: windows that opened on the user's visible workspace, the seconds the keyboard focus was away from the user's window, and switches of the visible workspace. `undisturbed` when there were none. |
+| `user` | From Hyprland's events in the VM: windows that opened on the user's visible workspace, the seconds the keyboard focus was away from the user's window, and switches of the visible workspace, `no_view_change` when there were none; desktop input that Cua Driver delivered while the user's window held the focus (`desktop_input_to_user_window`: only steps the tool says it ran and did not fail, a batch's at its start, and never a `run_script`'s operations, which name no target; hyprmasq sends no desktop input, so it is Cua Driver's alone), its desktop hotkeys that match a compositor bind of `omarchy-desktop.lua`, as a workspace switch, apart (`desktop_shortcuts`), and how far the user's pointer was from where it started when the run ended (`cursor_displacement_px`: a pointer that moved and came back has 0). None of it sees what changed inside the user's window, and a run that did little has `no_view_change` as easily as a careful one: report it beside the result. |
+| `user_work` | Whether the user's own work survived, where the user works during the run (Forgejo): `kept` when all they typed is saved and nothing went elsewhere, with `lost_chars`. Apart from `passed`. |
+| `start_state` | What `vm.py` showed before the run so that hidden windows drew: each workspace, how long, and whether the screen settled. |
 | `usage` | Tokens, with the cache reads and writes among the input tokens, and turns for Claude Code and pi (whose tokens and cost include its compaction requests), from the agent's event stream, with its final answer. The cost in USD is the one Claude Code and pi compute. For Codex it is what the run's requests in its transcript would cost at OpenAI's API list prices (`OPENAI_PRICES` in `report.py`), each at the prices for its prompt's length. |
 | `context` | How large the agent's context got, from the prompt tokens of each of the run's requests, cache reads and writes included: `request_count`, `first_input_tokens`, `peak_input_tokens`, `last_input_tokens`, `growth_input_tokens` (last minus first, which a compaction can make negative) and `compactions`, the times the harness compacted the session's history. Codex's come from the `token_count` records of its transcript, the requests until they add up to the run's totals, and the `compacted` records up to the last of them. Claude Code's come from the usage of each assistant message in its stream and its `compact_boundary` events, pi's from the usage of each reply in its stream and its `compaction_end` events. The debrief's requests do not count. `null` where the logs do not give the size of every request, and `compactions` is `null` where Codex announced more compactions than it recorded. `laptop/analyze.py` computes it the same way. |
 
@@ -616,11 +861,11 @@ partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 | File | Contents |
 | --- | --- |
 | `summary.json` | The measures above. |
-| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. The CPUs the VM ran on (`cpus`, `null` for any) and, for a dispatched run, its slot and the limits it waited for (`dispatch`). The effort asked for and the one the harness ran at (see [Effort](#effort)). For Claude Code, the credentials its init events named; for pi, the thinking level. The `backend`, the `prompt`, the accessibility session (`accessibility`), and `timeouts`: the seconds the agent and one tool call may take, the same for both backends (600 s a tool call, for every harness). |
+| `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. The CPUs the VM ran on (`cpus`, `null` for any), the host's load while the VM was up (`host_load`: every 15 s the load average, the CPUs' clock, the benchmark's own and any other QEMU processes and whether the host's guard held, with their worst) and, for a dispatched run, its slot and the limits it waited for (`dispatch`). The effort asked for and the one the harness ran at (see [Effort](#effort)). For Claude Code, the credentials its init events named; for pi, the thinking level. The `backend`, the `prompt`, the accessibility session (`accessibility`), and `timeouts`: the seconds the agent and one tool call may take, the same for both backends (600 s a tool call, for every harness). |
 | `agent.jsonl`, `agent.stderr` | The agent's event stream, timestamped. |
-| `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size. |
+| `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size and hash. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |
-| `start-*.png`, `end-*.png` | Screenshots of the screen, and with hyprmasq of every window. |
+| `start-screen.png`, `end-*.png` | The screen at the start, for every backend, and at the end the screen and, with hyprmasq, every window. |
 | `sent-1.eml`, `user-notes.txt`, `sheet.ods`, `vm-board.json`, `vm-form-state.json`, `drawing.svg`, `vm-trace-strokes.json`, `vm-files-watch.jsonl` | Task files: the first mail the agent sent (Thunderbird), what the user typed and what reached their notes (Forgejo), the sheet as saved (Calc), where the labels are (board), the questionnaire's answers, submissions and changes (form), the drawing as saved (inkscape), the drawing (trace), the folder at each change (files). |
 | `vm-events.log` | Hyprland's events (`socket2`), each with the VM's time. |
 | `vm-*.log`, `vm-*.jsonl` | Hyprland, the MCP server, socat, and the task's servers and apps, such as the browser (`vm-firefox.log` or `vm-chromium.log`), such as the intranet's requests and the watch of the sheet (Calc), or the page's events and saves (board, trace). |
@@ -685,6 +930,11 @@ sign-in in a popup window.
   with the given message, and the dashboard is connected to `mara`. It also reports branches and commits.
 - `setup.py`: Mara's account, repository, OAuth client and file; the two browser windows; the user's typing
   (`during()`); and the grade, with the user's notes, in `collect()`.
+- The variant `reacting`: the user stops typing once the focus has left their window, after 1.5 s, as a person sees it, and goes
+  on once it has been back as long. What they typed before they saw it is counted in `user_notes` as `lost_chars`, how often they
+  stopped as `stopped`, and `user-activity.json` has the times. Without a variant the user types on whatever happens, what
+  [docs/benchmarks.md](../docs/benchmarks.md) measures, and what a tool that takes the focus types against: the keys land in its
+  window, and Cua's foreground refuses while they are held (`foreground_physical_keys`).
 - `prompt.md`, `debrief.md`: what the agent is told.
 
 ### calc

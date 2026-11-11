@@ -388,6 +388,137 @@ class Kinds(unittest.TestCase):
             self.assertRegex(svg, f'class="{cls}" rx="2"/>\n<text [^>]*>{model}</text>')
 
 
+def series_run(setup, task, model, rep, ok, wall, browser="firefox"):
+    """A run of a registered series, as export.py writes it and load marks its dataset."""
+    return {"run": f"main--{task}/{model}-{rep}", "dataset": f"v2-{setup}", "task": task, "backend": setup, "browser": browser,
+            "harness": "codex", "model": model, "passed": ok, "wall_s": wall, "tools_s": wall / 2, "calls": 10,
+            "input_tokens": 100, "cache_read_tokens": 10, "cost_usd": 0.1}
+
+
+def verdict(setup, task, model, rep, what, reason=None, browser="firefox"):
+    return {"setup": setup, "series": "main", "task": task, "run": f"{model}-{rep}", "browser": browser, "verdict": what,
+            "unclear_reason": reason}
+
+
+class Registered(unittest.TestCase):
+    """The headline numbers as bench/comparison-series.json fixes them."""
+    SOL, TERRA = "gpt-6.1-sol", "gpt-6.1-terra"
+
+    def row(self, table, *cells):
+        return next(line for line in table.splitlines() if all(f"| {c} |" in line for c in cells))
+
+    def test_the_mean_of_two_models_is_not_a_pool(self):
+        runs = [series_run("cua", "files", self.SOL, i, True, 30) for i in range(6)]
+        runs += [series_run("cua", "files", self.TERRA, i, False, 30) for i in range(2)]
+        table = render.headline_table({"runs": runs, "analysis": {"min_passes": 3}})
+        # Pooled, 6 of 8 would read 75 %.
+        self.assertIn("| 50 % |", self.row(table, "Mean of both"))
+        self.assertIn("6/6 (61–100 %)", table)
+
+    def test_the_headline_counts_only_the_tools_failures(self):
+        runs = [series_run("cua", "files", self.SOL, i, False, 30) for i in (1, 2)]
+        verdicts = [verdict("cua", "files", self.SOL, 1, "tool_problem"), verdict("cua", "files", self.SOL, 2, "model_mistake")]
+        table = render.headline_table({"runs": runs, "analysis": {"min_passes": 3}, "verdicts": verdicts})
+        self.assertIn("| 1 of 2 |", table)
+
+    def test_the_same_run_in_two_browsers_keeps_its_own_verdict(self):
+        runs = [series_run("cua", "files", self.SOL, 1, False, 30, browser) for browser in ("firefox", "chromium")]
+        verdicts = [verdict("cua", "files", self.SOL, 1, "tool_problem", browser="firefox"),
+                    verdict("cua", "files", self.SOL, 1, "model_mistake", browser="chromium")]
+        table = render.headline_table({"runs": runs, "analysis": {"min_passes": 3}, "verdicts": verdicts})
+        self.assertIn("| 1 of 2 |", table)
+
+    def test_a_failed_run_without_a_verdict_stops_the_page(self):
+        runs = [series_run("cua", "files", self.SOL, 1, False, 30), series_run("cua", "files", self.SOL, 2, False, 30)]
+        with self.assertRaises(SystemExit):
+            render.headline_table({"runs": runs, "verdicts": [verdict("cua", "files", self.SOL, 1, "tool_problem")]})
+
+    def test_the_time_ratio_is_a_geometric_mean_over_units_with_enough_passes(self):
+        runs = []
+        for rep in range(3):
+            runs += [series_run("hyprmasq", task, self.SOL, rep, True, 10) for task in ("inkscape", "files", "thunderbird")]
+            runs += [series_run("cua", "inkscape", self.SOL, rep, True, 20), series_run("cua", "files", self.SOL, rep, True, 80),
+                     series_run("cua", "thunderbird", self.SOL, rep, rep < 2, 500)]
+        row = self.row(render.headline_time_table({"runs": runs, "analysis": {"min_passes": 3}}), "Cua Driver")
+        # The geometric mean of 2 and 8 is 4, where the arithmetic one is 5, and Thunderbird's 2 passes leave it out.
+        self.assertIn("| 4.00 |", row)
+        self.assertIn("| 2 of 3 |", row)
+        self.assertIn("Add a mail account, answer a mail (passed: Cua Driver 2, hyprmasq 3)", row)
+
+    def test_the_cost_ratio_is_a_geometric_mean_that_counts_failed_runs(self):
+        def priced(setup, task, ok, cost):
+            return render.compared(dict(series_run(setup, task, self.SOL, 1, ok, 30), cost_usd=cost))
+        base = [priced("hyprmasq", "files", True, 0.1), priced("hyprmasq", "inkscape", True, 0.1)]
+        ours = [priced("cua", "files", False, 0.2), priced("cua", "inkscape", True, 0.8)]
+        self.assertAlmostEqual(render.cost_ratio(ours, base), 4.0)
+
+    def test_a_typical_time_takes_only_agents_with_enough_passes(self):
+        data = {"analysis": {"min_passes": 3}}
+        both = [render.compared(series_run("cua", "files", self.SOL, i, True, 20)) for i in range(3)]
+        both += [render.compared(series_run("cua", "files", self.TERRA, i, True, 80)) for i in range(3)]
+        value, used = render.typical_time(both, data)
+        self.assertAlmostEqual(value, 40.0)
+        self.assertEqual(used, 2)
+        # Two passes with Terra are too few to time, and its failed runs never count.
+        one = both[:3] + [render.compared(series_run("cua", "files", self.TERRA, i, i < 2, 900)) for i in range(3)]
+        value, used = render.typical_time(one, data)
+        self.assertAlmostEqual(value, 20.0)
+        self.assertEqual(used, 1)
+
+    def test_the_figures_keep_their_columns_apart(self):
+        runs, verdicts = [], []
+        for setup in ("hyprmasq", "cua", "hypruse", "computer-use-linux"):
+            for model in (self.SOL, self.TERRA):
+                runs += [dict(series_run(setup, "files", model, i, i > 0, 30), no_view_change=True) for i in range(3)]
+                verdicts.append(verdict(setup, "files", model, 0, "tool_problem"))
+        data = {"runs": runs, "verdicts": verdicts, "analysis": {"min_passes": 1}}
+        for figure in (render.scorecard_figure, render.unit_grid_figure, render.user_view_figure, render.attribution_figure,
+                       render.usage_figure):
+            svg, _ = figure(data)
+            self.assertEqual(overlaps(svg.render("light", "x")), [], figure.__name__)
+
+    def test_the_user_figure_counts_the_focus_of_passed_runs_and_the_typing_that_was_lost(self):
+        def run(rep, ok, away, kept):
+            return dict(series_run("cua", "forgejo", self.SOL, rep, ok, 30), focus_away_s=away, cursor_displacement_px=100 * rep,
+                        user_work={"kept": kept})
+        # The failed run took the focus too, and does not count: a run that did nothing would count as polite.
+        runs = [run(1, True, 40.0, True), run(2, True, 0.0, False), run(3, False, 90.0, False)]
+        svg = render.user_view_figure({"runs": runs})[0].render("light", "x")
+        for text in ("1 of 2", "20 s", "2 of 3", "200 px"):
+            self.assertIn(f">{text}</text>", svg)
+
+    def test_the_usage_figure_takes_medians_of_every_run_and_cuts_a_value_far_above_the_rest(self):
+        def run(setup, rep, ok, cost, requests):
+            return dict(series_run(setup, "files", self.SOL, rep, ok, 30), cost_usd=cost,
+                        context={"request_count": requests, "peak_input_tokens": 20000})
+        runs = [run("hyprmasq", i, True, 0.02, 6) for i in (1, 2, 3)]
+        # The failed run counts: a run that gave up is not cheap.
+        runs += [run("cua", 1, True, 0.10, 10), run("cua", 2, False, 0.30, 14), run("cua", 3, True, 0.20, 12)]
+        runs += [run("hypruse", i, True, 3.0, 8) for i in (1, 2, 3)]
+        svg = render.usage_figure({"runs": runs})[0].render("light", "x")
+        for text in ("$0.02", "$0.20", "$3.00", "12", "20k"):
+            self.assertIn(f">{text}</text>", svg)
+        # Only hypruse's cost runs off the scale, with the two strokes of a break.
+        self.assertEqual(svg.count('class="cut"'), 2)
+
+    def test_the_failures_figure_leaves_out_the_passed_runs_and_the_slices(self):
+        runs = [series_run("cua", "files", self.SOL, i, i > 2, 30) for i in (1, 2, 3)]
+        runs += [series_run("cua-attach", "files", self.SOL, 1, False, 30)]
+        verdicts = [verdict("cua", "files", self.SOL, 1, "tool_problem"), verdict("cua", "files", self.SOL, 2, "unclear", "x"),
+                    verdict("cua-attach", "files", self.SOL, 1, "model_mistake")]
+        svg = render.attribution_figure({"runs": runs, "verdicts": verdicts})[0].render("light", "x")
+        self.assertIn(">2 of 3 failed</text>", svg)
+        self.assertNotIn("debugging port", svg)
+
+    def test_each_failed_run_counts_once_with_the_reasons_for_unclear(self):
+        runs = [series_run("cua", "files", self.SOL, 1, True, 30)]
+        runs += [series_run("cua", "files", self.SOL, i, False, 30) for i in (2, 3, 4)]
+        verdicts = [verdict("cua", "files", self.SOL, 2, "tool_problem"), verdict("cua", "files", self.SOL, 3, "model_mistake"),
+                    verdict("cua", "files", self.SOL, 4, "unclear", "reviewers_disagree")]
+        table = render.attribution_table({"runs": runs, "verdicts": verdicts})
+        self.assertIn("| 1/4 | 1 | 1 | 1 | reviewers disagree 1 |", table)
+
+
 def tool_run(task, model, backend, rep, passed, wall, platform="hyprland", focus=0.0, popups=None, dialogs=0):
     """A run as bench/laptop/analyze.py writes it."""
     return {"harness": "codex", "model": model, "task": task, "toolkit": "gtk", "platform": platform,
@@ -470,6 +601,62 @@ class Comparison(unittest.TestCase):
             self.assertIn(">50%</text>", svg)
             self.assertIn(">1/2</text>", svg)
             main("--check", page)
+
+    def test_a_registered_dataset_follows_the_rules_analysis(self):
+        def vm_run(backend, rep, passed, wall, view=True, kept=None):
+            return dict(run("claude-sonnet-5-5", rep, passed, wall, wall / 2), task="forgejo", backend=backend,
+                        harness="claude", user_no_view_change=view, platform=None,
+                        **({"user_work": {"kept": kept, "lost_chars": 0 if kept else 5}} if kept is not None else {}))
+        runs = ([vm_run("hyprmasq", r, r != 4, 60 + r, kept=True) for r in (1, 2, 3, 4)]
+                + [vm_run("cua", r, r <= 2, 100 + r, view=r != 1, kept=r != 2) for r in (1, 2, 3, 4)])
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "comparison", "data"))
+            for name, analysis in (("plain", None), ("registered", {"min_passes": 3, "interval": "wilson-95"})):
+                with open(os.path.join(d, "comparison", "data", name + ".json"), "w") as f:
+                    json.dump({**({"analysis": analysis} if analysis else {}), "sources": [], "runs": runs}, f)
+            page = os.path.join(d, "comparison.md")
+            with open(page, "w") as f:
+                f.write("# C\n\n<!-- render registered comparison-table -->\n<!-- /render -->\n\n"
+                        "<!-- render plain comparison-table -->\n<!-- /render -->\n")
+            main(page)
+            with open(page) as f:
+                registered, plain = f.read().split("<!-- render plain")
+        # 3 of 4 passed: the Wilson interval, and the passed runs' time; their one failure's time apart.
+        self.assertIn("| hyprmasq | Hyprland VM | 3/4 (30–95 %) | 62 (61–63) | 31 (30–32) | 64 | 4/4 | 4/4 |", registered)
+        # 2 of 4 passed: no time for the passed runs, as fewer than 3 passed; the failed runs' times; the runs that left
+        # the user's view as it was, and those that kept the user's work.
+        self.assertIn("| Cua Driver | Hyprland VM | 2/4 (15–85 %) | – | – | 104 (103–104) | 3/4 | 3/4 |", registered)
+        # A dataset that registers no analysis keeps the table it had, with a time from any pass.
+        self.assertIn("| Cua Driver | Hyprland VM | 2/4 | 102 (101–102) |", plain)
+        self.assertNotIn("%)", plain)
+        self.assertEqual(render.wilson(0, 4)[0], 0.0)
+
+    def test_a_page_named_after_another_shares_its_directory(self):
+        """comparison-macos.md has no directory of its own, so it reads comparison/data and draws into comparison,
+        and neither page alone takes the other's figures for ones that no block draws."""
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "comparison", "data"))
+            with open(os.path.join(d, "comparison", "data", "a.json"), "w") as f:
+                json.dump([tool_run("files", "gpt-6.1-sol", "hyprmasq", 1, True, 40)], f)
+            page, other = os.path.join(d, "comparison.md"), os.path.join(d, "comparison-macos.md")
+            for path, view in ((page, "comparison"), (other, "comparison-time")):
+                with open(path, "w") as f:
+                    f.write(f"# C\n\n<!-- render a {view} -->\n<!-- /render -->\n")
+            main(page, other)
+            with open(other) as f:
+                self.assertIn('src="comparison/a-comparison-time.svg"', f.read())
+            stray = os.path.join(d, "comparison", "stray.svg")
+            with open(stray, "w") as f:
+                f.write("<svg/>")
+            # One page of the two cannot tell a stray figure from the other page's.
+            main(page)
+            main("--check", page)
+            self.assertTrue(os.path.exists(os.path.join(d, "comparison", "a-comparison-time.svg")))
+            self.assertTrue(os.path.exists(stray))
+            with self.assertRaises(SystemExit):
+                main("--check", page, other)
+            main(page, other)
+            self.assertFalse(os.path.exists(stray))
 
     def test_a_block_per_task(self):
         """With a task, a comparison block shows that task's rows alone, in figures named after it."""

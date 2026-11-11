@@ -10,3 +10,4 @@ __pycache__/
 # makepkg
 /*.pkg.tar*
 /hyprmasq-*.log
+/bench/machines.local.json

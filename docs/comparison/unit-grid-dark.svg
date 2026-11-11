@@ -1,0 +1,1041 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="688" viewBox="0 0 880 688" role="img" aria-label="Every task against every tool: a square per run, of 12 per tool, coloured as passed, failed by the agent&#x27;s mistake, failed by the tool&#x27;s fault or failed with the reviewers unable to settle why, and each tool&#x27;s typical time for the runs it passed on one axis.">
+<title>Every task against every tool: a square per run, of 12 per tool, coloured as passed, failed by the agent&#x27;s mistake, failed by the tool&#x27;s fault or failed with the reviewers unable to settle why, and each tool&#x27;s typical time for the runs it passed on one axis.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.tools{fill:#3987e5}.out{fill:#454c56}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.miss{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.pass{fill:#3fb950}.fail{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.cut{stroke:#0d1117;stroke-width:2}.ring0{fill:#0d1117;stroke:#3987e5;stroke-width:1.75}.ring1{fill:#0d1117;stroke:#d95926;stroke-width:1.75}.ring2{fill:#0d1117;stroke:#199e70;stroke-width:1.75}.ring3{fill:#0d1117;stroke:#c98500;stroke-width:1.75}.ring4{fill:#0d1117;stroke:#d55181;stroke-width:1.75}.ring5{fill:#0d1117;stroke:#008300;stroke-width:1.75}.ring6{fill:#0d1117;stroke:#9085e9;stroke-width:1.75}.ring7{fill:#0d1117;stroke:#e66767;stroke-width:1.75}.s0{fill:#3987e5}.s1{fill:#d95926}.s2{fill:#199e70}.s3{fill:#c98500}.s4{fill:#d55181}.s5{fill:#008300}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
+<rect x="0.5" y="0.5" width="879" height="687" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">How each task went, tool by tool</text>
+<text x="24" y="53" class="t2" font-size="12.5">Left: each square is one run, six per agent, coloured by how it ended. Right: each tool&#x27;s typical time for</text>
+<text x="24" y="72" class="t2" font-size="12.5">the runs it passed, further left is faster. A hollow dot means only one agent passed enough runs to time.</text>
+<rect x="24" y="89" width="12" height="10" class="pass" rx="2"/>
+<text x="42" y="98" class="t2" font-size="12">Passed</text>
+<rect x="104" y="89" width="12" height="10" class="s6" rx="2"/>
+<text x="122" y="98" class="t2" font-size="12">Failed: the agent&#x27;s mistake</text>
+<rect x="286.4" y="89" width="12" height="10" class="s7" rx="2"/>
+<text x="304.4" y="98" class="t2" font-size="12">Failed: the tool&#x27;s fault</text>
+<rect x="439.4" y="89" width="12" height="10" class="out" rx="2"/>
+<text x="457.4" y="98" class="t2" font-size="12">Failed: the reviewers could not settle why</text>
+<text x="270" y="114" class="t" font-size="11" font-weight="600"></text>
+<text x="270" y="127" class="t" font-size="11" font-weight="600">hyprmasq</text>
+<rect x="270" y="132" width="82.6" height="3" class="s0" rx="1.5"/>
+<text x="270" y="147" class="m" font-size="9.5">Terra</text>
+<text x="313.6" y="147" class="m" font-size="9.5">Sonnet</text>
+<text x="362" y="114" class="t" font-size="11" font-weight="600"></text>
+<text x="362" y="127" class="t" font-size="11" font-weight="600">Cua Driver</text>
+<rect x="362" y="132" width="82.6" height="3" class="s1" rx="1.5"/>
+<text x="362" y="147" class="m" font-size="9.5">Terra</text>
+<text x="405.6" y="147" class="m" font-size="9.5">Sonnet</text>
+<text x="454" y="114" class="t" font-size="11" font-weight="600"></text>
+<text x="454" y="127" class="t" font-size="11" font-weight="600">hypruse</text>
+<rect x="454" y="132" width="82.6" height="3" class="s3" rx="1.5"/>
+<text x="454" y="147" class="m" font-size="9.5">Terra</text>
+<text x="497.6" y="147" class="m" font-size="9.5">Sonnet</text>
+<text x="546" y="114" class="t" font-size="11" font-weight="600">computer-</text>
+<text x="546" y="127" class="t" font-size="11" font-weight="600">use-linux</text>
+<rect x="546" y="132" width="82.6" height="3" class="s4" rx="1.5"/>
+<text x="546" y="147" class="m" font-size="9.5">Terra</text>
+<text x="589.6" y="147" class="m" font-size="9.5">Sonnet</text>
+<text x="654" y="127" class="t2" font-size="11" font-weight="600">Typical time, passed runs</text>
+<text x="654" y="147" class="m" font-size="10.5" text-anchor="middle">10 s</text>
+<text x="709" y="147" class="m" font-size="10.5" text-anchor="middle">30 s</text>
+<text x="769.4" y="147" class="m" font-size="10.5" text-anchor="middle">100 s</text>
+<text x="824.4" y="147" class="m" font-size="10.5" text-anchor="middle">300 s</text>
+<line x1="654" y1="154" x2="654" y2="670" class="grid"/>
+<line x1="709" y1="154" x2="709" y2="670" class="grid"/>
+<line x1="769.4" y1="154" x2="769.4" y2="670" class="grid"/>
+<line x1="824.4" y1="154" x2="824.4" y2="670" class="grid"/>
+<text x="24" y="174" class="t" font-size="12" font-weight="600">Apps</text>
+<text x="270" y="174" class="t2" font-size="11.5" font-weight="600">118/120</text>
+<text x="362" y="174" class="t2" font-size="11.5" font-weight="600">101/120</text>
+<text x="454" y="174" class="t2" font-size="11.5" font-weight="600">110/120</text>
+<text x="546" y="174" class="t2" font-size="11.5" font-weight="600">116/120</text>
+<line x1="24" y1="183" x2="856" y2="183" class="grid"/>
+<text x="24" y="200" class="t" font-size="12">Form with dropdowns · GTK 4</text>
+<rect x="270" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="192.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="405.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="438.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="454" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="192.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="766.8" y1="195.5" x2="805.8" y2="195.5" class="axis"/>
+<circle cx="766.8" cy="187.2" r="3.4" class="s0"/>
+<circle cx="799.1" cy="192.8" r="3" class="s1"/>
+<circle cx="805.8" cy="198.2" r="3" class="s3"/>
+<circle cx="772.4" cy="203.8" r="3" class="s4"/>
+<line x1="24" y1="208" x2="856" y2="208" class="grid"/>
+<text x="24" y="225" class="t" font-size="12">Form with dropdowns · Qt</text>
+<rect x="270" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="217.5" width="6" height="6" class="out" rx="1"/>
+<rect x="388.4" y="217.5" width="6" height="6" class="out" rx="1"/>
+<rect x="395" y="217.5" width="6" height="6" class="out" rx="1"/>
+<rect x="405.6" y="217.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="412.2" y="217.5" width="6" height="6" class="out" rx="1"/>
+<rect x="418.8" y="217.5" width="6" height="6" class="out" rx="1"/>
+<rect x="425.4" y="217.5" width="6" height="6" class="out" rx="1"/>
+<rect x="432" y="217.5" width="6" height="6" class="out" rx="1"/>
+<rect x="438.6" y="217.5" width="6" height="6" class="out" rx="1"/>
+<rect x="454" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="217.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="217.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="616" y="217.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="622.6" y="217.5" width="6" height="6" class="s6" rx="1"/>
+<line x1="745.6" y1="220.5" x2="813.4" y2="220.5" class="axis"/>
+<circle cx="745.6" cy="212.2" r="3.4" class="s0"/>
+<circle cx="798.5" cy="217.8" r="3" class="ring1"/>
+<circle cx="813.4" cy="223.2" r="3" class="s3"/>
+<circle cx="766.3" cy="228.8" r="3" class="s4"/>
+<line x1="24" y1="233" x2="856" y2="233" class="grid"/>
+<text x="24" y="250" class="t" font-size="12">Form without dropdowns · GTK 4</text>
+<rect x="270" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="405.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="438.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="454" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="242.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="744.1" y1="245.5" x2="790.8" y2="245.5" class="axis"/>
+<circle cx="744.1" cy="237.2" r="3.4" class="s0"/>
+<circle cx="770.4" cy="242.8" r="3" class="s1"/>
+<circle cx="790.8" cy="248.2" r="3" class="s3"/>
+<circle cx="768.5" cy="253.8" r="3" class="s4"/>
+<line x1="24" y1="258" x2="856" y2="258" class="grid"/>
+<text x="24" y="275" class="t" font-size="12">Form without dropdowns · Qt</text>
+<rect x="270" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="267.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="362" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="405.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="438.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="454" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="267.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="720.8" y1="270.5" x2="810.4" y2="270.5" class="axis"/>
+<circle cx="736.2" cy="262.2" r="3.4" class="s0"/>
+<circle cx="720.9" cy="267.8" r="3" class="s1"/>
+<circle cx="810.4" cy="273.2" r="3" class="s3"/>
+<circle cx="720.8" cy="278.8" r="3" class="s4"/>
+<line x1="24" y1="283" x2="856" y2="283" class="grid"/>
+<text x="24" y="300" class="t" font-size="12">Rename and move a file</text>
+<rect x="270" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="405.6" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="438.6" y="292.5" width="6" height="6" class="out" rx="1"/>
+<rect x="454" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="292.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="292.5" width="6" height="6" class="s7" rx="1"/>
+<line x1="687.4" y1="295.5" x2="733.3" y2="295.5" class="axis"/>
+<circle cx="687.4" cy="287.2" r="3.4" class="s0"/>
+<circle cx="712.9" cy="292.8" r="3" class="s1"/>
+<circle cx="733.3" cy="298.2" r="3" class="s3"/>
+<circle cx="718" cy="303.8" r="3" class="s4"/>
+<line x1="24" y1="308" x2="856" y2="308" class="grid"/>
+<text x="24" y="325" class="t" font-size="12">Move a shape in Inkscape</text>
+<rect x="270" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="405.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="438.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="454" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="317.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="673.5" y1="320.5" x2="781" y2="320.5" class="axis"/>
+<circle cx="673.5" cy="312.2" r="3.4" class="s0"/>
+<circle cx="716.3" cy="317.8" r="3" class="s1"/>
+<circle cx="781" cy="323.2" r="3" class="s3"/>
+<circle cx="714.8" cy="328.8" r="3" class="s4"/>
+<line x1="24" y1="333" x2="856" y2="333" class="grid"/>
+<text x="24" y="350" class="t" font-size="12">Add a mail account, answer a mail</text>
+<rect x="270" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="342.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="362" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="342.5" width="6" height="6" class="out" rx="1"/>
+<rect x="405.6" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="342.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="425.4" y="342.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="432" y="342.5" width="6" height="6" class="out" rx="1"/>
+<rect x="438.6" y="342.5" width="6" height="6" class="out" rx="1"/>
+<rect x="454" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="342.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="761.9" y1="345.5" x2="796" y2="345.5" class="axis"/>
+<circle cx="761.9" cy="337.2" r="3.4" class="s0"/>
+<circle cx="796" cy="342.8" r="3" class="ring1"/>
+<circle cx="784.5" cy="348.2" r="3" class="s3"/>
+<circle cx="777.7" cy="353.8" r="3" class="s4"/>
+<line x1="24" y1="358" x2="856" y2="358" class="grid"/>
+<text x="24" y="375" class="t" font-size="12">Upload to Forgejo, connect a dashboard</text>
+<rect x="270" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="367.5" width="6" height="6" class="out" rx="1"/>
+<rect x="405.6" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="438.6" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="454" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="367.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="467.2" y="367.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="473.8" y="367.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="480.4" y="367.5" width="6" height="6" class="out" rx="1"/>
+<rect x="487" y="367.5" width="6" height="6" class="out" rx="1"/>
+<rect x="497.6" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="367.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="546" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="367.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="743.9" y1="370.5" x2="828.8" y2="370.5" class="axis"/>
+<circle cx="743.9" cy="362.2" r="3.4" class="s0"/>
+<circle cx="788.1" cy="367.8" r="3" class="s1"/>
+<circle cx="828.8" cy="373.2" r="3" class="ring3"/>
+<circle cx="778.1" cy="378.8" r="3" class="s4"/>
+<line x1="24" y1="383" x2="856" y2="383" class="grid"/>
+<text x="24" y="400" class="t" font-size="12">Copy reports into a sheet · Chromium</text>
+<rect x="270" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="405.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="438.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="454" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="392.5" width="6" height="6" class="out" rx="1"/>
+<rect x="497.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="392.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="739.4" y1="395.5" x2="781.7" y2="395.5" class="axis"/>
+<circle cx="739.4" cy="387.2" r="3.4" class="s0"/>
+<circle cx="780.3" cy="392.8" r="3" class="s1"/>
+<circle cx="781.7" cy="398.2" r="3" class="s3"/>
+<circle cx="767.8" cy="403.8" r="3" class="s4"/>
+<line x1="24" y1="408" x2="856" y2="408" class="grid"/>
+<text x="24" y="425" class="t" font-size="12">Copy reports into a sheet · Firefox</text>
+<rect x="270" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="417.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="395" y="417.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="405.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="438.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="454" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="417.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="480.4" y="417.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="487" y="417.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="497.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="417.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="739.4" y1="420.5" x2="799.3" y2="420.5" class="axis"/>
+<circle cx="739.4" cy="412.2" r="3.4" class="s0"/>
+<circle cx="776.9" cy="417.8" r="3" class="s1"/>
+<circle cx="799.3" cy="423.2" r="3" class="s3"/>
+<circle cx="765.2" cy="428.8" r="3" class="s4"/>
+<text x="24" y="461" class="t" font-size="12" font-weight="600">Reading a photo</text>
+<text x="270" y="461" class="t2" font-size="11.5" font-weight="600">69/96</text>
+<text x="362" y="461" class="t2" font-size="11.5" font-weight="600">40/96</text>
+<text x="454" y="461" class="t2" font-size="11.5" font-weight="600">69/96</text>
+<text x="546" y="461" class="t2" font-size="11.5" font-weight="600">77/96</text>
+<line x1="24" y1="470" x2="856" y2="470" class="grid"/>
+<text x="24" y="487" class="t" font-size="12">Label a photo, drag and drop · Chromium</text>
+<rect x="270" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="479.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="368.6" y="479.5" width="6" height="6" class="out" rx="1"/>
+<rect x="375.2" y="479.5" width="6" height="6" class="out" rx="1"/>
+<rect x="381.8" y="479.5" width="6" height="6" class="out" rx="1"/>
+<rect x="388.4" y="479.5" width="6" height="6" class="out" rx="1"/>
+<rect x="395" y="479.5" width="6" height="6" class="out" rx="1"/>
+<rect x="405.6" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="479.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="438.6" y="479.5" width="6" height="6" class="out" rx="1"/>
+<rect x="454" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="479.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="497.6" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="479.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="715.9" y1="482.5" x2="746.4" y2="482.5" class="axis"/>
+<circle cx="715.9" cy="474.2" r="3.4" class="s0"/>
+<circle cx="746.4" cy="479.8" r="3" class="ring1"/>
+<circle cx="728.4" cy="485.2" r="3" class="s3"/>
+<circle cx="728.1" cy="490.8" r="3" class="s4"/>
+<line x1="24" y1="495" x2="856" y2="495" class="grid"/>
+<text x="24" y="512" class="t" font-size="12">Label a photo, drag and drop · Firefox</text>
+<rect x="270" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="504.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="303" y="504.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="313.6" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="368.6" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="375.2" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="381.8" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="388.4" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="395" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="405.6" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="412.2" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="418.8" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="425.4" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="432" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="438.6" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="454" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="460.6" y="504.5" width="6" height="6" class="out" rx="1"/>
+<rect x="467.2" y="504.5" width="6" height="6" class="out" rx="1"/>
+<rect x="473.8" y="504.5" width="6" height="6" class="out" rx="1"/>
+<rect x="480.4" y="504.5" width="6" height="6" class="out" rx="1"/>
+<rect x="487" y="504.5" width="6" height="6" class="out" rx="1"/>
+<rect x="497.6" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="504.2" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="510.8" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="517.4" y="504.5" width="6" height="6" class="s7" rx="1"/>
+<rect x="524" y="504.5" width="6" height="6" class="out" rx="1"/>
+<rect x="530.6" y="504.5" width="6" height="6" class="out" rx="1"/>
+<rect x="546" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="504.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="589.6" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="504.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="718.4" y1="507.5" x2="731.4" y2="507.5" class="axis"/>
+<circle cx="718.4" cy="499.2" r="3.4" class="s0"/>
+<circle cx="731.4" cy="515.8" r="3" class="s4"/>
+<line x1="24" y1="520" x2="856" y2="520" class="grid"/>
+<text x="24" y="537" class="t" font-size="12">Label a photo, custom drag · Chromium</text>
+<rect x="270" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="313.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="405.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="438.6" y="529.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="454" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="529.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="711" y1="532.5" x2="744.4" y2="532.5" class="axis"/>
+<circle cx="711" cy="524.2" r="3.4" class="s0"/>
+<circle cx="744.4" cy="529.8" r="3" class="s1"/>
+<circle cx="734.1" cy="535.2" r="3" class="s3"/>
+<circle cx="728.6" cy="540.8" r="3" class="s4"/>
+<line x1="24" y1="545" x2="856" y2="545" class="grid"/>
+<text x="24" y="562" class="t" font-size="12">Label a photo, custom drag · Firefox</text>
+<rect x="270" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="554.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="283.2" y="554.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="289.8" y="554.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="296.4" y="554.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="303" y="554.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="313.6" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="362" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="554.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="395" y="554.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="405.6" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="554.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="438.6" y="554.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="454" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="546" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="554.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="710.4" y1="557.5" x2="737.5" y2="557.5" class="axis"/>
+<circle cx="710.4" cy="549.2" r="3.4" class="ring0"/>
+<circle cx="737.5" cy="554.8" r="3" class="s1"/>
+<circle cx="734.7" cy="560.2" r="3" class="s3"/>
+<circle cx="733.9" cy="565.8" r="3" class="s4"/>
+<line x1="24" y1="570" x2="856" y2="570" class="grid"/>
+<text x="24" y="587" class="t" font-size="12">Draw along a river bank · Chromium</text>
+<rect x="270" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="313.6" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="346.6" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="362" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="405.6" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="418.8" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="425.4" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="432" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="438.6" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="454" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="530.6" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="546" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="579.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="602.8" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="609.4" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="616" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="622.6" y="579.5" width="6" height="6" class="s6" rx="1"/>
+<line x1="690.7" y1="582.5" x2="734.6" y2="582.5" class="axis"/>
+<circle cx="690.7" cy="574.2" r="3.4" class="s0"/>
+<circle cx="731.2" cy="579.8" r="3" class="ring1"/>
+<circle cx="734.6" cy="585.2" r="3" class="s3"/>
+<circle cx="731.6" cy="590.8" r="3" class="ring4"/>
+<line x1="24" y1="595" x2="856" y2="595" class="grid"/>
+<text x="24" y="612" class="t" font-size="12">Draw along a river bank · Firefox</text>
+<rect x="270" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="296.4" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="303" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="313.6" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="333.4" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="340" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="346.6" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="362" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="368.6" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="375.2" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="381.8" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="388.4" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="395" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="405.6" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="418.8" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="425.4" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="432" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="438.6" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="454" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="497.6" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="524" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="530.6" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="546" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="559.2" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="565.8" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="572.4" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="579" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="589.6" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="604.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="622.6" y="604.5" width="6" height="6" class="s6" rx="1"/>
+<line x1="686.2" y1="607.5" x2="742.2" y2="607.5" class="axis"/>
+<circle cx="686.2" cy="599.2" r="3.4" class="s0"/>
+<circle cx="742" cy="604.8" r="3" class="ring1"/>
+<circle cx="742.2" cy="610.2" r="3" class="s3"/>
+<circle cx="719.4" cy="615.8" r="3" class="s4"/>
+<line x1="24" y1="620" x2="856" y2="620" class="grid"/>
+<text x="24" y="637" class="t" font-size="12">Draw along a rail · Chromium</text>
+<rect x="270" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="289.8" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="296.4" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="303" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="313.6" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="333.4" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="340" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="346.6" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="362" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="368.6" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="375.2" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="381.8" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="388.4" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="395" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="405.6" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="412.2" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="418.8" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="425.4" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="432" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="438.6" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="454" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="487" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="497.6" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="510.8" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="517.4" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="524" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="530.6" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="546" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="559.2" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="565.8" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="572.4" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="579" y="629.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="589.6" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="629.5" width="6" height="6" class="pass" rx="1"/>
+<line x1="716.4" y1="632.5" x2="743.4" y2="632.5" class="axis"/>
+<circle cx="737.7" cy="629.8" r="3" class="ring1"/>
+<circle cx="743.4" cy="635.2" r="3" class="ring3"/>
+<circle cx="716.4" cy="640.8" r="3" class="ring4"/>
+<line x1="24" y1="645" x2="856" y2="645" class="grid"/>
+<text x="24" y="662" class="t" font-size="12">Draw along a rail · Firefox</text>
+<rect x="270" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="276.6" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="283.2" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="289.8" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="296.4" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="303" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="313.6" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="320.2" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="326.8" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="333.4" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="340" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="346.6" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="362" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="368.6" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="375.2" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="381.8" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="388.4" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="395" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="405.6" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="412.2" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="418.8" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="425.4" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="432" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="438.6" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="454" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="460.6" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="467.2" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="473.8" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="480.4" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="487" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="497.6" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="504.2" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="510.8" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="517.4" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="524" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="530.6" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="546" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="552.6" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="559.2" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="565.8" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="572.4" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="579" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<rect x="589.6" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="596.2" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="602.8" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="609.4" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="616" y="654.5" width="6" height="6" class="pass" rx="1"/>
+<rect x="622.6" y="654.5" width="6" height="6" class="s6" rx="1"/>
+<line x1="691.9" y1="657.5" x2="760" y2="657.5" class="axis"/>
+<circle cx="691.9" cy="649.2" r="3.4" class="ring0"/>
+<circle cx="760" cy="660.2" r="3" class="s3"/>
+<circle cx="727.1" cy="665.8" r="3" class="ring4"/>
+</svg>

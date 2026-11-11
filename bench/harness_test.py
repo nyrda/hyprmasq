@@ -5,10 +5,13 @@ of a recorded pi stream and of each harness's usage and context.
 Fake `pi` and `claude` executables on PATH stand in for the real ones."""
 
 import argparse
+import concurrent.futures
+import contextlib
 import json
 import os
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import time
@@ -19,7 +22,10 @@ BENCH = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BENCH)
 import export  # noqa: E402
 import mcp_tap  # noqa: E402
+import capability  # noqa: E402
+import capability_host  # noqa: E402
 import report  # noqa: E402
+import review_failures  # noqa: E402
 import run  # noqa: E402
 
 KEY = "sk-ant-test-0123456789abcdefghijklmnopqrstuvwxyz"
@@ -99,8 +105,9 @@ class CuaBackend(unittest.TestCase):
         claude = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, backend="cua"))
         # The skill and the user settings of its fresh home, where Claude Code finds the skill.
         self.assertEqual((claude["--tools"], claude["slash commands"], claude["--setting-sources"]),
-                         ("Skill", True, "user"))
-        self.assertEqual(set(claude["--allowedTools"].split()), {"Skill", "mcp__cua-driver"})
+                         ("Skill,ListMcpResourcesTool,ReadMcpResourceTool", True, "user"))
+        self.assertEqual(set(claude["--allowedTools"].split()),
+                         {"Skill", "ListMcpResourcesTool", "ReadMcpResourceTool", "mcp__cua-driver"})
         self.assertEqual(json.loads(claude["--mcp-config"])["mcpServers"],
                          {"cua-driver": {"command": tap[0], "args": tap[1:]}})
         debrief = self.parse(run.agent_command("claude-api", "m", "Why?", None, resume="s", backend="cua"))
@@ -141,8 +148,9 @@ class CuaBackend(unittest.TestCase):
         # computer-use-linux: its server and its plugin's skill, named first in the prompt as Cua's is.
         claude = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, backend="computer-use-linux"))
         self.assertEqual((claude["--tools"], claude["slash commands"], claude["--setting-sources"]),
-                         ("Skill", True, "user"))
-        self.assertEqual(set(claude["--allowedTools"].split()), {"Skill", "mcp__computer-use-linux"})
+                         ("Skill,ListMcpResourcesTool,ReadMcpResourceTool", True, "user"))
+        self.assertEqual(set(claude["--allowedTools"].split()),
+                         {"Skill", "ListMcpResourcesTool", "ReadMcpResourceTool", "mcp__computer-use-linux"})
         codex = run.agent_command("codex", "m", "Do it.", tap, backend="computer-use-linux")
         settings = [codex[i + 1] for i, a in enumerate(codex[:-1]) if a == "-c"]
         self.assertNotIn("skills.include_instructions=false", settings)
@@ -156,26 +164,46 @@ class CuaBackend(unittest.TestCase):
     def test_the_agent_home_holds_the_skill_and_only_the_login_it_needs(self):
         with tempfile.TemporaryDirectory() as user, tempfile.TemporaryDirectory() as skill:
             os.makedirs(os.path.join(user, ".claude"))
-            open(os.path.join(user, ".claude", ".credentials.json"), "w").close()
+            with open(os.path.join(user, ".claude", ".credentials.json"), "w") as f:
+                json.dump({"claudeAiOauth": {}}, f)
             with mock.patch.dict(os.environ, {"HOME": user}):
-                homes = {h: run.skill_home(h, skill) for h in ("claude-api", "claude", "codex")}
+                homes = {h: run.agent_home(h, skill) for h in ("claude-api", "claude", "codex")}
+                bare = run.agent_home("codex")
+                bare_claude = run.agent_home("claude")
             try:
                 for harness in ("claude-api", "claude"):
                     home, env = homes[harness]
                     config = env["CLAUDE_CONFIG_DIR"]
                     self.assertEqual(list(env), ["CLAUDE_CONFIG_DIR"])
                     self.assertEqual(os.readlink(os.path.join(config, "skills", "cua-driver")), skill)
-                    # The subscription's login, linked; an API key needs none.
+                    # The subscription's login; an API key needs none.
                     expected = ["skills"] + ([".credentials.json"] if harness == "claude" else [])
                     self.assertEqual(sorted(os.listdir(config)), sorted(expected))
                 home, env = homes["codex"]
-                self.assertEqual(env, {"HOME": home, "CODEX_HOME": os.path.join(user, ".codex")})
+                self.assertEqual(env, {"HOME": home, "CODEX_HOME": os.path.join(home, ".codex")})
                 self.assertEqual(os.readlink(os.path.join(home, ".agents", "skills", "cua-driver")), skill)
-                self.assertEqual(os.listdir(home), [".agents"])
+                self.assertEqual(sorted(os.listdir(home)), [".agents", ".codex"])
+                # The login is linked into a CODEX_HOME of the run's own, with no skill for a backend without one.
+                self.assertEqual(os.readlink(os.path.join(home, ".codex", "auth.json")),
+                                 os.path.join(user, ".codex", "auth.json"))
+                self.assertEqual(os.listdir(bare[0]), [".codex"])
+                self.assertEqual(os.listdir(bare_claude[1]["CLAUDE_CONFIG_DIR"]), [".credentials.json"])
             finally:
-                for home, _ in homes.values():
+                for home, _ in [*homes.values(), bare, bare_claude]:
                     shutil.rmtree(home)
             self.assertEqual(os.listdir(skill), [])
+
+    def test_every_backend_runs_without_what_the_harnesses_bundle(self):
+        tap = ["python3", "mcp_tap.py", "4242", "5000", "log"]
+        for backend in run.BACKENDS:
+            claude = run.agent_command("claude", "m", "Do it.", tap, backend=backend)
+            settings = json.loads(claude[claude.index("--settings") + 1])
+            self.assertEqual(settings, run.CLAUDE_SETTINGS)
+            codex = run.agent_command("codex", "m", "Do it.", tap, backend=backend)
+            self.assertIn("skills.bundled.enabled=false", codex)
+            self.assertIn("check_for_update_on_startup=false", codex)
+        env = run.agent_env()
+        self.assertEqual((env["CLAUDE_CODE_DISABLE_BUNDLED_SKILLS"], env["DISABLE_AUTOUPDATER"]), ("1", "1"))
 
     def test_a_results_directory_keeps_one_backend_and_prompt(self):
         parser = argparse.ArgumentParser()
@@ -199,6 +227,10 @@ class CuaBackend(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "another browser"):
                 run.check_resume(out, {**config, "backend": "cua", "prompt": "comparison", "browser": "chromium"},
                                  parser, [])
+            # A browser started with remote debugging is another measurement, kept out of the plain runs' directory.
+            with self.assertRaisesRegex(ValueError, "another chromium_options"):
+                run.check_resume(out, {**config, "backend": "cua", "prompt": "comparison",
+                                       "chromium_options": "--remote-debugging-port=0"}, parser, [])
 
     def test_chromium_stands_in_for_firefox_only_in_the_tasks_that_list_it_and_the_prompt_names_it(self):
         parser = argparse.ArgumentParser()
@@ -247,8 +279,14 @@ class ExportBackends(unittest.TestCase):
             chromium = results("chromium", backend="cua", prompt="comparison", browser="chromium")
             self.assertEqual([(s["backend"], s["prompt"], s["browser"]) for s in export.export([old], {})["sources"]],
                              [("hyprmasq", "task", "firefox")])
+            omarchy = results("omarchy", desktop="omarchy")
+            port = results("port", chromium_options="--remote-debugging-port=0")
+            limit = results("limit", mcp_args="--max-image-size 1920")
+            for other in (omarchy, port, limit):
+                with self.assertRaisesRegex(SystemExit, "desktops or launch options of form"):
+                    export.export([old, other], {})
             for other in (cua, chromium):
-                with self.assertRaisesRegex(SystemExit, "backends, prompts or browsers of form"):
+                with self.assertRaisesRegex(SystemExit, "desktops or launch options of form"):
                     export.export([old if other is cua else cua, other], {})
 
 
@@ -653,6 +691,290 @@ class ClaudeReport(unittest.TestCase):
         # A stream that ended before the first reply.
         self.assertIsNone(report.context_usage("claude-api", stream[4:5], [], {}))
 
+
+
+# What Claude Code 2.1.319 did against a stand-in for the token endpoint: it refreshes only in the last minutes of a login
+# (and not with 8 minutes left), writes the result by replacing the file in its own directory, which turns a link into a
+# regular file, and logs out when the endpoint refuses the refresh token, which works once. Without a refresh token it
+# never tries. FAKE_CLAUDE_TOKEN is the endpoint: the one refresh token it would accept.
+FAKE_CLAUDE = """
+import json, os, sys, time
+path = os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"), ".credentials.json")
+with open(path) as f:
+    login = json.load(f)
+oauth = login["claudeAiOauth"]
+if oauth["expiresAt"] / 1000 - time.time() > 300 or not oauth.get("refreshToken"):
+    sys.exit(0)
+with open(os.environ["FAKE_CLAUDE_TOKEN"]) as f:
+    valid = f.read()
+if oauth["refreshToken"] == valid:
+    oauth.update(refreshToken=valid + "+", expiresAt=int((time.time() + 28800) * 1000))
+    with open(os.environ["FAKE_CLAUDE_TOKEN"], "w") as f:
+        f.write(oauth["refreshToken"])
+else:
+    login = {}
+with open(path + ".tmp", "w") as f:
+    json.dump(login, f)
+os.replace(path + ".tmp", path)
+"""
+
+
+class ClaudeLogin(unittest.TestCase):
+    """The user's login, in a fake home, against a fake Claude Code that behaves as the real one does."""
+
+    def setUp(self):
+        self.user = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.user, ignore_errors=True)
+        bin_dir = os.path.join(self.user, "bin")
+        os.makedirs(bin_dir)
+        os.makedirs(os.path.join(self.user, ".claude"))
+        with open(os.path.join(self.user, "claude.py"), "w") as f:
+            f.write(FAKE_CLAUDE)
+        executable(bin_dir, "claude", f'exec {sys.executable} {self.user}/claude.py "$@"\n')
+        self.path = os.path.join(self.user, ".claude", ".credentials.json")
+        self.token = os.path.join(self.user, "token")
+        patch = mock.patch.dict(os.environ, {"HOME": self.user, "PATH": bin_dir + os.pathsep + os.environ["PATH"],
+                                             "FAKE_CLAUDE_TOKEN": self.token})
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def login(self, ends_in, endpoint_accepts="r1"):
+        with open(self.token, "w") as f:
+            f.write(endpoint_accepts)
+        with open(self.path, "w") as f:
+            json.dump({"claudeAiOauth": {"accessToken": "a1", "refreshToken": "r1",
+                                         "expiresAt": int((time.time() + ends_in) * 1000)}}, f)
+        os.chmod(self.path, 0o600)
+
+    def read(self):
+        with open(self.path) as f:
+            return json.load(f)
+
+    def endpoint(self):
+        with open(self.token) as f:
+            return f.read()
+
+    def test_several_workers_renew_a_login_once_and_its_expiry_moves_forward(self):
+        # 20 minutes left: the harness itself would not refresh yet, and a run could outlive the login.
+        self.login(1200)
+        with concurrent.futures.ThreadPoolExecutor(4) as pool:
+            list(pool.map(lambda _: run.renew_claude_login(), range(4)))
+        oauth = self.read()["claudeAiOauth"]
+        self.assertGreater(oauth["expiresAt"] / 1000 - time.time(), run.LOGIN_MARGIN_SECONDS)
+        self.assertEqual(oauth["refreshToken"], "r1+")
+        self.assertEqual(self.endpoint(), "r1+", "one refresh, as the token works once")
+        self.assertFalse(os.path.islink(self.path))
+        self.assertEqual(sorted(os.listdir(os.path.dirname(self.path))), [".credentials.json", ".credentials.json.bench-lock"])
+
+    def test_a_run_with_an_expired_login_cannot_spend_the_users_refresh_token(self):
+        self.login(-60)
+        before = self.read()
+        home, env = run.agent_home("claude")
+        self.addCleanup(shutil.rmtree, home, ignore_errors=True)
+        subprocess.run(["claude", "-p", "Do it."], env=run.agent_env(env), check=True)
+        self.assertEqual(self.endpoint(), "r1", "the run spent the refresh token")
+        self.assertEqual(self.read(), before)
+
+    def test_a_renewal_the_endpoint_refuses_leaves_the_users_login_and_fails_the_run(self):
+        self.login(1200, endpoint_accepts="another")
+        before = self.read()
+        with self.assertRaisesRegex(RuntimeError, "could not be renewed"):
+            run.renew_claude_login()
+        self.assertEqual(self.read(), before)
+
+    def test_a_login_with_time_left_is_not_renewed(self):
+        self.login(run.LOGIN_MARGIN_SECONDS + 600)
+        before = self.read()
+        run.renew_claude_login()
+        self.assertEqual(self.read(), before)
+        self.assertEqual(self.endpoint(), "r1")
+
+
+class FailureReview(unittest.TestCase):
+    """The rule of comparison-series.json for one verdict from two reviewers, and what a bundle may hold."""
+
+    def verdict(self, what="tool_problem", file="mcp.jsonl", line=1, reason="none"):
+        return {"verdict": what, "unclear_reason": reason, "evidence": [{"file": file, "line": line, "what": "x"}]}
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        with open(os.path.join(self.dir.name, "mcp.jsonl"), "w") as f:
+            f.write("{}\n{}\n")
+
+    def test_the_same_verdict_stands_and_any_disagreement_is_unclear(self):
+        tool, model = ("tool_problem", None), ("model_mistake", None)
+        self.assertEqual(review_failures.resolve(tool, tool), tool)
+        self.assertEqual(review_failures.resolve(tool, model), ("unclear", "reviewers_disagree"))
+        self.assertEqual(review_failures.resolve(tool, ("unclear", "both_contributed")), ("unclear", "reviewers_disagree"))
+
+    def test_a_verdict_counts_only_with_evidence_that_is_in_the_bundle(self):
+        own = lambda v: review_failures.own_verdict(self.dir.name, v)
+        self.assertEqual(own(self.verdict()), ("tool_problem", None))
+        for cited in (self.verdict(line=3), self.verdict(file="absent.jsonl"), self.verdict(file="../mcp.jsonl"),
+                      dict(self.verdict(), evidence=[])):
+            self.assertEqual(own(cited), ("unclear", "evidence_insufficient"), cited)
+
+    def test_a_verdict_counts_only_for_the_evidence_it_was_made_from(self):
+        bundle = os.path.join(self.dir.name, "run")
+        os.makedirs(bundle)
+        with open(os.path.join(bundle, "mcp.jsonl"), "w") as f:
+            f.write("{}\n")
+        with open(review_failures.verdict_path(bundle, "codex"), "w") as f:
+            json.dump({"verdict": "model_mistake", "evidence_sha256": review_failures.evidence_hash(bundle)}, f)
+        self.assertTrue(review_failures.current_verdict(bundle, "codex"))
+        with open(os.path.join(bundle, "mcp.jsonl"), "a") as f:
+            f.write("{}\n")
+        self.assertIsNone(review_failures.current_verdict(bundle, "codex"))
+
+    def test_a_rebuild_removes_the_bundles_of_runs_that_no_longer_failed(self):
+        for name in ("kept", "passed now"):
+            os.makedirs(os.path.join(self.dir.name, name))
+            with open(os.path.join(self.dir.name, name, "meta.json"), "w") as f:
+                f.write("{}")
+            for reviewer in review_failures.REVIEWERS:
+                with open(review_failures.verdict_path(os.path.join(self.dir.name, name), reviewer), "w") as f:
+                    f.write("{}")
+        self.assertEqual(review_failures.prune(self.dir.name, {"kept"}), 1)
+        self.assertEqual([os.path.basename(b) for b in review_failures.bundles_of(self.dir.name)], ["kept"])
+        self.assertFalse(any(n.startswith("passed now") for n in os.listdir(self.dir.name)))
+
+    def test_codex_reviews_a_bundle_given_by_a_relative_path_in_place(self):
+        bundle = os.path.join(self.dir.name, "run")
+        os.makedirs(bundle)
+        seen = {}
+
+        def fake(command, **options):
+            seen.update(command=command, cwd=options["cwd"])
+            raise RuntimeError("stop")
+
+        with mock.patch.object(review_failures.subprocess, "run", fake), contextlib.chdir(self.dir.name):
+            with self.assertRaises(RuntimeError):
+                review_failures.codex_review("run")
+        self.assertEqual(seen["command"][seen["command"].index("-C") + 1], bundle)
+        self.assertEqual(seen["cwd"], bundle)
+
+    def test_a_bundle_holds_the_prompt_the_agent_got(self):
+        with open(os.path.join(self.dir.name, "run.json"), "w") as f:
+            json.dump({"task": "board", "variant": "pointer", "prompt": "comparison", "harness": "codex", "backend": "cua",
+                       "browser": "chromium"}, f)
+        text = review_failures.prompt_text(self.dir.name)
+        self.assertTrue(text.startswith("$cua-driver "))
+        self.assertIn("In Chromium", text)
+        self.assertNotIn("Firefox", text)
+
+    def test_a_bundle_holds_no_machine_home_address_or_image(self):
+        with mock.patch.object(review_failures, "hosts", return_value=["boxname"]):
+            scrub = review_failures.scrubber()
+        cleaned = json.dumps(scrub({"a": "ssh boxname", "b": os.path.expanduser("~/x"), "c": "A" * 3000,
+                                    "d": "The user's email address is me@example.org. Use it only."}))
+        for private in ("boxname", os.path.expanduser("~"), "me@example.org", "A" * 3000):
+            self.assertNotIn(private, cleaned)
+
+
+class CapabilityRoutes(unittest.TestCase):
+    """A scripted route counts only by what it changed, and on a real desktop never touches the user's windows."""
+
+    def routes(self):
+        tool = mock.Mock()
+        tool.name, tool.mode = "cua", "background"
+        return capability.Routes(tool, "form-gtk4", tempfile.mkdtemp())
+
+    def test_a_route_whose_check_already_held_is_unmeasured(self):
+        routes = self.routes()
+        state = {"slider": 37}
+        # An earlier route left the slider moved: a drag that does nothing would otherwise read as one that works.
+        routes.attempt("drag slider", "pixels", lambda: capability.Outcome(True), lambda: state["slider"] != 0, settle=0)
+        self.assertEqual(routes.results[-1]["result"], "unmeasured")
+        state["slider"] = 0
+        routes.attempt("drag slider", "pixels", lambda: (state.update(slider=50), capability.Outcome(True))[1],
+                       lambda: state["slider"] != 0, settle=0)
+        self.assertEqual(routes.results[-1]["result"], "works")
+
+    def test_a_label_drag_counts_by_the_label_it_placed(self):
+        """Every drag runs and is judged by what it placed, from a board where no label is placed yet."""
+        placed = {}
+        layout = {"type": "layout", "inner": [1000, 900], "photo": [0, 0, 500, 400],
+                  "labels": {"A": [[600, 10, 700, 30]], "B": [[600, 40, 700, 60]], "C": [[600, 70, 700, 90]]}}
+
+        def shell(command):
+            if "events.jsonl" in command:
+                return 0, json.dumps(layout)
+            return 0, json.dumps({"labels": placed})
+
+        vm = mock.Mock(paths={"guide": "/state"}, height=1000, shell=shell)
+        calls = []
+
+        def place(*_, **__):
+            calls.append(1)
+            placed[f"label {len(calls)}"] = [1, 1]
+            return capability.Outcome(True)
+
+        tool = mock.Mock()
+        tool.name, tool.mode, tool.drag, tool.path = "cua", "background", place, place
+        routes = capability.Routes(tool, "board-pointer-firefox", tempfile.mkdtemp())
+        with mock.patch.object(capability.time, "sleep", lambda _: None):
+            capability.board_case(routes, vm, tool)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual([r["result"] for r in routes.results], ["works"] * 3)
+
+    def test_a_browser_drag_run_alone_attaches_first_and_counts_its_own_label(self):
+        placed = {"Memory slots": [1, 1]}
+        layout = {"type": "layout", "inner": [1000, 900], "photo": [0, 0, 500, 400],
+                  "labels": {"A": [[600, 10, 700, 30]], "B": [[600, 40, 700, 60]]}}
+        vm = mock.Mock(paths={"guide": "/state"}, height=1000,
+                       shell=lambda c: (0, json.dumps(layout) if "events.jsonl" in c else json.dumps({"labels": placed})))
+        tool = mock.Mock(pid=1, window_id=2, target={})
+        tool.name, tool.mode = "cua", "browser"
+        tool.call.return_value = (capability.Outcome(True), {})
+        drags = []
+
+        def drag(*_):
+            drags.append(1)
+            placed[f"label {len(drags)}"] = [1, 1]
+            return capability.Outcome(True)
+
+        routes = capability.Routes(tool, "attach-debugging-board-pointer", tempfile.mkdtemp(),
+                                   only=("drag a label", "browser_pointer, background"))
+        with mock.patch.object(capability.Browser, "bind", lambda *_: (capability.Outcome(True), True)), \
+                mock.patch.object(capability.Browser, "drag", lambda self, *a: drag()), \
+                mock.patch.object(capability.time, "sleep", lambda _: None):
+            capability.attached_board(routes, vm, tool)
+        # A label placed before the drag began does not count for it.
+        self.assertEqual([(r["route"], r["result"]) for r in routes.results], [("browser_pointer, background", "works")])
+        self.assertEqual(len(drags), 1)
+
+    def test_the_desktop_curve_goes_to_the_desktop(self):
+        layout = {"type": "layout", "inner": [1000, 900], "photo": [0, 0, 500, 400]}
+        vm = mock.Mock(paths={"blog": "/state"}, height=1000,
+                       shell=lambda c: (0, json.dumps(layout) if "events.jsonl" in c else json.dumps({"strokes": []})))
+        sent = []
+        tool = mock.Mock(target={"pid": 1, "window_id": 2}, delivery={})
+        tool.name, tool.mode = "cua", "desktop"
+        tool.px = lambda p: p
+        tool.drag = tool.path = lambda *a, **k: capability.Outcome(True)
+        tool.call = lambda name, args: (sent.append((name, args)), (capability.Outcome(True), {}))[1]
+        routes = capability.Routes(tool, "trace-river-firefox", tempfile.mkdtemp())
+        with mock.patch.object(capability.time, "sleep", lambda _: None):
+            capability.trace_case(routes, vm, tool)
+        buttons = [args for name, args in sent if name.startswith("mouse_")]
+        self.assertEqual(len(buttons), 7)
+        self.assertTrue(all(args.get("target") == capability.DESKTOP and "pid" not in args for args in buttons))
+
+    def test_a_fixtures_window_is_never_one_the_user_had_open(self):
+        host = capability_host.Host.__new__(capability_host.Host)
+        clients = [{"address": "0x1", "class": "org.gnome.Nautilus"}]
+        host.clients = lambda: clients
+        clients_later = [{"address": "0x1", "class": "org.gnome.Nautilus"}, {"address": "0x2", "class": "org.gnome.Nautilus"}]
+        with mock.patch.object(capability_host.time, "sleep", lambda _: clients.__setitem__(slice(None), clients_later)):
+            found = host.wait_window(lambda c: c["class"] == "org.gnome.Nautilus", timeout=5, exclude={"0x1"})
+        self.assertEqual(found["address"], "0x2")
+
+
+class LoginMargin(unittest.TestCase):
+    def test_the_login_lasts_the_whole_run(self):
+        self.assertEqual(run.login_margin(1800), 3600)
+        self.assertEqual(run.login_margin(7200), 7200 + run.RUN_ALLOWANCE_SECONDS)
 
 
 class Pinning(unittest.TestCase):

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Checks a benchmark VM of the computer-use-linux backend without an agent: what its MCP server sees of the task's
-window.
+window, and in its Hyprland background mode what its keys do to it.
 
-    probe.py CID RUN-DIR
+    probe.py CID RUN-DIR [--type TEXT] [--tabs N]
 
 RUN-DIR is the directory that bench/smoke.sh booted the VM into, with its ready.json. Through mcp_tap.py, as an agent
 would reach it, this lists the windows, reads the task's window on its hidden workspace with get_app_state (its
@@ -10,9 +10,14 @@ accessibility tree and its screenshot), takes a screenshot of it with screenshot
 and asks for the focused window before and after. Writes RUN-DIR/probe.json with what each call gave,
 RUN-DIR/probe-state.png and probe-window.png, the session's MCP log in RUN-DIR/probe-mcp.jsonl, and prints the
 summary. Fails unless the task's window was listed, get_app_state read a tree with elements and screenshot gave an
-image. get_app_state takes a screenshot of a targeted window only while it is focused.
+image.
+
+--type presses Tab --tabs times in the window with press_key, to reach a field, types TEXT with type_text, and saves
+RUN-DIR/probe-typed.png, so that the app's own state, in vm-result.json after `agent-done` is written to RUN-DIR, can
+show that it took the keys. Fails if the user's focus moved. A VM is disposable: run this in a VM booted for it.
 """
 
+import argparse
 import base64
 import json
 import os
@@ -47,7 +52,7 @@ def focused(session):
     return w.get("title")
 
 
-def probe(cid, run_dir):
+def probe(cid, run_dir, text=None, tabs=1):
     with open(os.path.join(run_dir, "ready.json")) as f:
         ready = json.load(f)
     window_id = int(ready["task_window"], 16)
@@ -88,17 +93,33 @@ def probe(cid, run_dir):
         summary["action"] = {"call": "press_key Escape", "error": bool(key.get("isError")), "ok": sc.get("ok"),
                              "message": (sc.get("message") or sc.get("text") or "")[:400]}
         summary["focused_after_action"] = focused(session)
+
+        if text:
+            for _ in range(tabs):
+                tab = session.call("press_key", {"key": "Tab", "window_id": window_id})
+            typed = session.call("type_text", {"text": text, "window_id": window_id})
+            sc = parsed(typed)
+            summary["typed"] = {"tab_error": bool(tab.get("isError")), "error": bool(typed.get("isError")),
+                                "ok": sc.get("ok"), "message": (sc.get("message") or sc.get("text") or "")[:400]}
+            capture = session.call("screenshot", {"window_id": window_id})
+            summary["typed"]["image"] = save_image(capture, os.path.join(run_dir, "probe-typed.png"))
+            summary["focused_after_typing"] = focused(session)
     finally:
         session.close()
     with open(os.path.join(run_dir, "probe.json"), "w") as f:
         json.dump(summary, f, indent=2)
     print(json.dumps(summary, indent=2))
     read = summary["get_app_state"]
+    if text and summary["focused_after_typing"] != summary["focused_before"]:
+        return False
     return bool(summary.get("listed") and read["nodes"] and summary["screenshot"]["image"])
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--help"] or len(sys.argv) != 3:
-        print(__doc__)
-        sys.exit(0 if sys.argv[1:] == ["--help"] else 2)
-    sys.exit(0 if probe(sys.argv[1], sys.argv[2]) else 1)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("cid")
+    parser.add_argument("run_dir")
+    parser.add_argument("--type", dest="text")
+    parser.add_argument("--tabs", type=int, default=1)
+    args = parser.parse_args()
+    sys.exit(0 if probe(args.cid, args.run_dir, args.text, args.tabs) else 1)

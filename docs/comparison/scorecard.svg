@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="389" viewBox="0 0 880 389" role="img" aria-label="Per tool and agent: the pass rate as a dot on its 95 % interval, the runs that left the user&#x27;s view alone as a bar, the runs that failed because of the tool, and the time and cost as multiples of hyprmasq&#x27;s.">
+<title>Per tool and agent: the pass rate as a dot on its 95 % interval, the runs that left the user&#x27;s view alone as a bar, the runs that failed because of the tool, and the time and cost as multiples of hyprmasq&#x27;s.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#1f2328}.t2{fill:#59636e}.m{fill:#818b98}.bg{fill:#ffffff;stroke:#d1d9e0}.grid{stroke:#eff2f5;stroke-width:1}.axis{stroke:#d1d9e0;stroke-width:1}.tools{fill:#2a78d6}.out{fill:#c8d1da}.dot{fill:#424a53;stroke:#ffffff;stroke-width:1.5}.miss{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.pass{fill:#1a7f37}.fail{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.cut{stroke:#ffffff;stroke-width:2}.whisker{stroke:#1f2328;stroke-width:1.5}.s0{fill:#2a78d6}.s1{fill:#eb6834}.s2{fill:#1baf7a}.s3{fill:#eda100}.s4{fill:#e87ba4}.s5{fill:#008300}.s6{fill:#6250d6}.s7{fill:#e34948}</style>
+<rect x="0.5" y="0.5" width="879" height="388" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Four tools, the same 18 tasks</text>
+<text x="24" y="53" class="t2" font-size="12.5">Six runs per task and agent. The dot is the pass rate and the line its 95 % interval: where two lines</text>
+<text x="24" y="72" class="t2" font-size="12.5">overlap, the difference may be chance. Under each tool is where it is built to work. Time and cost are</text>
+<text x="24" y="91" class="t2" font-size="12.5">multiples of hyprmasq&#x27;s on the same task.</text>
+<text x="286" y="107" class="t2" font-size="12">Runs passed</text>
+<text x="286" y="122" class="m" font-size="10.5" text-anchor="middle">50 %</text>
+<text x="352" y="122" class="m" font-size="10.5" text-anchor="middle">75 %</text>
+<text x="418" y="122" class="m" font-size="10.5" text-anchor="middle">100 %</text>
+<text x="544" y="107" class="t2" font-size="12">User&#x27;s view left alone</text>
+<text x="544" y="122" class="m" font-size="10.5">runs, of all</text>
+<text x="722" y="107" class="t2" font-size="12" text-anchor="middle">Failed by</text>
+<text x="722" y="122" class="t2" font-size="12" text-anchor="middle">the tool</text>
+<text x="812" y="107" class="t2" font-size="12" text-anchor="middle">vs hyprmasq</text>
+<text x="786" y="122" class="t2" font-size="12" text-anchor="middle">Time</text>
+<text x="838" y="122" class="t2" font-size="12" text-anchor="middle">Cost</text>
+<line x1="286" y1="133" x2="286" y2="375" class="grid"/>
+<line x1="352" y1="133" x2="352" y2="375" class="grid"/>
+<line x1="418" y1="133" x2="418" y2="375" class="grid"/>
+<line x1="24" y1="133" x2="856" y2="133" class="grid"/>
+<rect x="24" y="141" width="4" height="44" class="s0" rx="2"/>
+<text x="36" y="157" class="t" font-size="13.5" font-weight="600">hyprmasq</text>
+<text x="36" y="173" class="m" font-size="10.5">background</text>
+<text x="182" y="155" class="t2" font-size="12">gpt-6.1-terra</text>
+<line x1="358" y1="151" x2="393.4" y2="151" class="whisker"/>
+<circle cx="378.9" cy="151" r="4.5" class="dot"/>
+<text x="432" y="155.5" class="t" font-size="13">85 %</text>
+<text x="469" y="155.5" class="m" font-size="11">92/108</text>
+<rect x="544" y="147" width="84" height="8" class="out" rx="2"/>
+<rect x="544" y="147" width="84" height="8" class="pass" rx="2"/>
+<text x="636" y="155.5" class="t" font-size="12.5">108/108</text>
+<text x="722" y="155.5" class="t" font-size="13" text-anchor="middle">0</text>
+<text x="786" y="155.5" class="m" font-size="13" text-anchor="middle">1×</text>
+<text x="838" y="155.5" class="m" font-size="13" text-anchor="middle">1×</text>
+<text x="182" y="180" class="t2" font-size="12">Sonnet 5.5</text>
+<line x1="366.5" y1="176" x2="399.1" y2="176" class="whisker"/>
+<circle cx="386.2" cy="176" r="4.5" class="dot"/>
+<text x="432" y="180.5" class="t" font-size="13">88 %</text>
+<text x="469" y="180.5" class="m" font-size="11">95/108</text>
+<rect x="544" y="172" width="84" height="8" class="out" rx="2"/>
+<rect x="544" y="172" width="84" height="8" class="pass" rx="2"/>
+<text x="636" y="180.5" class="t" font-size="12.5">108/108</text>
+<text x="722" y="180.5" class="t" font-size="13" text-anchor="middle">0</text>
+<text x="786" y="180.5" class="m" font-size="13" text-anchor="middle">1×</text>
+<text x="838" y="180.5" class="m" font-size="13" text-anchor="middle">1×</text>
+<line x1="24" y1="194" x2="856" y2="194" class="grid"/>
+<rect x="24" y="202" width="4" height="44" class="s1" rx="2"/>
+<text x="36" y="218" class="t" font-size="13.5" font-weight="600">Cua Driver</text>
+<text x="36" y="234" class="m" font-size="10.5">background first</text>
+<text x="182" y="216" class="t2" font-size="12">gpt-6.1-terra</text>
+<line x1="307.9" y1="212" x2="353.8" y2="212" class="whisker"/>
+<circle cx="332.4" cy="212" r="4.5" class="dot"/>
+<text x="432" y="216.5" class="t" font-size="13">68 %</text>
+<text x="469" y="216.5" class="m" font-size="11">73/108</text>
+<rect x="544" y="208" width="84" height="8" class="out" rx="2"/>
+<rect x="544" y="208" width="27.2" height="8" class="pass" rx="2"/>
+<text x="636" y="216.5" class="t" font-size="12.5">35/108</text>
+<text x="722" y="216.5" class="t" font-size="13" text-anchor="middle">6</text>
+<text x="786" y="216.5" class="t" font-size="13" text-anchor="middle">1.8×</text>
+<text x="838" y="216.5" class="t" font-size="13" text-anchor="middle">3.9×</text>
+<text x="182" y="241" class="t2" font-size="12">Sonnet 5.5</text>
+<line x1="295.4" y1="237" x2="342.7" y2="237" class="whisker"/>
+<circle cx="320.2" cy="237" r="4.5" class="dot"/>
+<text x="432" y="241.5" class="t" font-size="13">63 %</text>
+<text x="469" y="241.5" class="m" font-size="11">68/108</text>
+<rect x="544" y="233" width="84" height="8" class="out" rx="2"/>
+<rect x="544" y="233" width="38.1" height="8" class="pass" rx="2"/>
+<text x="636" y="241.5" class="t" font-size="12.5">49/108</text>
+<text x="722" y="241.5" class="t" font-size="13" text-anchor="middle">7</text>
+<text x="786" y="241.5" class="t" font-size="13" text-anchor="middle">2.0×</text>
+<text x="838" y="241.5" class="t" font-size="13" text-anchor="middle">5.5×</text>
+<line x1="24" y1="255" x2="856" y2="255" class="grid"/>
+<rect x="24" y="263" width="4" height="44" class="s3" rx="2"/>
+<text x="36" y="279" class="t" font-size="13.5" font-weight="600">hypruse</text>
+<text x="36" y="295" class="m" font-size="10.5">pointer in the foreground</text>
+<text x="182" y="277" class="t2" font-size="12">gpt-6.1-terra</text>
+<line x1="349.8" y1="273" x2="387.5" y2="273" class="whisker"/>
+<circle cx="371.6" cy="273" r="4.5" class="dot"/>
+<text x="432" y="277.5" class="t" font-size="13">82 %</text>
+<text x="469" y="277.5" class="m" font-size="11">89/108</text>
+<rect x="544" y="269" width="84" height="8" class="out" rx="2"/>
+<rect x="544" y="269" width="0" height="8" class="pass" rx="2"/>
+<text x="636" y="277.5" class="t" font-size="12.5">0/108</text>
+<text x="722" y="277.5" class="t" font-size="13" text-anchor="middle">7</text>
+<text x="786" y="277.5" class="t" font-size="13" text-anchor="middle">2.2×</text>
+<text x="838" y="277.5" class="t" font-size="13" text-anchor="middle">3.2×</text>
+<text x="182" y="302" class="t2" font-size="12">Sonnet 5.5</text>
+<line x1="352.5" y1="298" x2="389.5" y2="298" class="whisker"/>
+<circle cx="374" cy="298" r="4.5" class="dot"/>
+<text x="432" y="302.5" class="t" font-size="13">83 %</text>
+<text x="469" y="302.5" class="m" font-size="11">90/108</text>
+<rect x="544" y="294" width="84" height="8" class="out" rx="2"/>
+<rect x="544" y="294" width="0.8" height="8" class="pass" rx="2"/>
+<text x="636" y="302.5" class="t" font-size="12.5">1/108</text>
+<text x="722" y="302.5" class="t" font-size="13" text-anchor="middle">4</text>
+<text x="786" y="302.5" class="t" font-size="13" text-anchor="middle">3.4×</text>
+<text x="838" y="302.5" class="t" font-size="13" text-anchor="middle">48×</text>
+<line x1="24" y1="316" x2="856" y2="316" class="grid"/>
+<rect x="24" y="324" width="4" height="44" class="s4" rx="2"/>
+<text x="36" y="340" class="t" font-size="13.5" font-weight="600">computer-use-linux</text>
+<text x="36" y="356" class="m" font-size="10.5">pointer in the foreground</text>
+<text x="182" y="338" class="t2" font-size="12">gpt-6.1-terra</text>
+<line x1="372.3" y1="334" x2="402.7" y2="334" class="whisker"/>
+<circle cx="391.1" cy="334" r="4.5" class="dot"/>
+<text x="432" y="338.5" class="t" font-size="13">90 %</text>
+<text x="469" y="338.5" class="m" font-size="11">97/108</text>
+<rect x="544" y="330" width="84" height="8" class="out" rx="2"/>
+<rect x="544" y="330" width="3.1" height="8" class="pass" rx="2"/>
+<text x="636" y="338.5" class="t" font-size="12.5">4/108</text>
+<text x="722" y="338.5" class="t" font-size="13" text-anchor="middle">0</text>
+<text x="786" y="338.5" class="t" font-size="13" text-anchor="middle">1.6×</text>
+<text x="838" y="338.5" class="t" font-size="13" text-anchor="middle">3.9×</text>
+<text x="182" y="363" class="t2" font-size="12">Sonnet 5.5</text>
+<line x1="369.4" y1="359" x2="400.9" y2="359" class="whisker"/>
+<circle cx="388.7" cy="359" r="4.5" class="dot"/>
+<text x="432" y="363.5" class="t" font-size="13">89 %</text>
+<text x="469" y="363.5" class="m" font-size="11">96/108</text>
+<rect x="544" y="355" width="84" height="8" class="out" rx="2"/>
+<rect x="544" y="355" width="7.8" height="8" class="pass" rx="2"/>
+<text x="636" y="363.5" class="t" font-size="12.5">10/108</text>
+<text x="722" y="363.5" class="t" font-size="13" text-anchor="middle">1</text>
+<text x="786" y="363.5" class="t" font-size="13" text-anchor="middle">1.5×</text>
+<text x="838" y="363.5" class="t" font-size="13" text-anchor="middle">4.7×</text>
+</svg>

@@ -1,0 +1,9 @@
+{
+ "hosts": {
+  "machine-a": "user@machine-a",
+  "machine-b": "user@machine-b"
+ },
+ "results": {
+  "comparison-2026-11-v2/hyprmasq-machine-a": "comparison-2026-11-v2/hyprmasq-machine-a"
+ }
+}

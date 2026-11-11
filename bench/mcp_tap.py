@@ -12,6 +12,7 @@ With MAX_CALLS above 0, the tool calls after the first MAX_CALLS do not reach th
 an error, logs it with `dir` `budget`, and creates LOG.budget, from which run.py stops the agent.
 """
 
+import hashlib
 import json
 import socket
 import sys
@@ -20,12 +21,13 @@ import time
 
 
 def summarize(message):
-    """The message without image data."""
+    """The message without image data, but its size and its hash, which say whether two screenshots are the same."""
 
     def strip(value):
         if isinstance(value, dict):
             if value.get("type") == "image" and isinstance(value.get("data"), str):
-                return {"type": "image", "mimeType": value.get("mimeType"), "bytes": len(value["data"]) * 3 // 4}
+                return {"type": "image", "mimeType": value.get("mimeType"), "bytes": len(value["data"]) * 3 // 4,
+                        "sha256": hashlib.sha256(value["data"].encode()).hexdigest()}
             return {k: strip(v) for k, v in value.items()}
         if isinstance(value, list):
             return [strip(v) for v in value]

@@ -6,8 +6,8 @@
 # `pkgs` is the package set whose Hyprland the plugin is built against and loaded into, with Hyprland's compiler, as
 # bench/default.nix builds hyprmasq; by default the nixpkgs of this checkout's flake.lock, for the skill alone.
 # `input` selects the plugin's input build (-DCUA_HYPRLAND_INPUT=ON), which its release build kit and Omarchy's
-# package build; without it the plugin is the discovery-only default build. The input build accepts only the
-# Hyprland its release pins, 0.56.2 for 0.38.0: CMake refuses any other.
+# package build; without it the plugin is the discovery-only default build. Its CMake compile-checks the Hyprland
+# internals the input build reads and refuses headers it does not know, instead of pinning one Hyprland as 0.38.0 did.
 {
   pkgs ?
     let
@@ -22,13 +22,13 @@
 }:
 let
   inherit (pkgs) lib;
-  version = "0.38.0";
+  version = "0.42.1";
 
-  # The commit of the release tag cua-driver-rs-v0.38.0, and only the parts of the monorepo the builds read: the
+  # The commit of the release tag cua-driver-rs-v0.42.1, and only the parts of the monorepo the builds read: the
   # driver's workspace reaches libs/cua's telemetry crate and the files it embeds.
   src = pkgs.fetchgit {
     url = "https://github.com/trycua/cua.git";
-    rev = "85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19";
+    rev = "badaa6e0d59fb5add81474bc04efadb89f713eb9";
     sparseCheckout = [
       "libs/cua-driver/rust"
       "libs/cua-driver/wayland-helper"
@@ -38,7 +38,7 @@ let
       "libs/images"
       "nix/cua-driver"
     ];
-    hash = "sha256-Pru8WqK1DbsKDaBhyDgZf6b2tWYneYiXNSSXB7AQ2YI=";
+    hash = "sha256-Hz8HJrOz1wzeskUzQb0OWoRd0Jasl1ClIy0t06HHdPA=";
   };
 
   # Cua's package builds with the features portal-input and portal-capture. Its Linux release binary, the one its
@@ -59,16 +59,17 @@ let
       });
 
   hyprlandVersion = builtins.head (lib.splitString "+" pkgs.hyprland.version);
-  # The only Hyprland the release's input build takes (hyprland-plugin/CMakeLists.txt: "Input is pinned to Hyprland
-  # 0.56.2"); its driver does not see Hyprland 0.57.0's windows either. Said here, before a build fails in CMake.
+  # The only Hyprland on which this release's driver sees a window. Its plugin builds and loads on 0.57.1 too, but on
+  # 0.57 `j/monitors` and `j/clients` leave out the id of a named or absent workspace, which the driver's Workspace
+  # requires (wayland/hyprland.rs), so that list_windows finds none. Said here, before a series runs and fails every run.
   inputHyprland = "0.56.2";
   hyprland =
     if !input || hyprlandVersion == inputHyprland then
       pkgs.hyprland
     else
       throw (
-        "Cua ${version}'s input build needs Hyprland ${inputHyprland}, got ${hyprlandVersion}: run the Cua backend "
-        + "with --source at a checkout of the hyprland-0.56 branch"
+        "Cua ${version}'s driver sees no window of Hyprland ${hyprlandVersion}, only of ${inputHyprland}: run the Cua "
+        + "backend with --source at a checkout of the hyprland-0.56 branch"
       );
 
   # Same compiler as Hyprland, so the plugin shares its C++ runtime, as its README requires.

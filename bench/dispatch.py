@@ -2,12 +2,12 @@
 """Spreads benchmark runs over several machines, into the results directory that run.py would write.
 
     dispatch.py --host HOST[,slots=N][,cores=N][,lock=FILE][,local-lock=FILE][,cid=N][,dir=DIR][,agents=A+B]
-                       [,api-keys]...
+                       [,api-keys][,bin=DIR][,label=NAME]...
                 [--source DIR]... [--out DIR]... [--task TASK[:VARIANT]]... [--variant NAME] [--display WxH@S]
                 [--agent HARNESS:MODEL[@EFFORT]]... [--reps N | --rep N...] [--timeout SECONDS] [--no-debrief]
                 [--balance] [--max-concurrent PATTERN=N[,PATTERN=N]...]
                 [--backend hyprmasq|cua|hypruse|computer-use-linux] [--prompt task|comparison]
-                [--browser firefox|chromium]
+                [--browser firefox|chromium] [--desktop bare|omarchy]
 
 HOST is `local`, this machine, or an SSH destination such as user@machine, which this machine reaches with its
 keys. Each run, one agent's repetition, runs `run.py --rep N` on one host in a fresh VM there, and its directory is
@@ -19,8 +19,9 @@ the checkouts must be clean. Each --source is a build with its own results direc
 the runs of builds go to the same host one after the other. Several --task run in one queue, each into its own
 directory TASK[-VARIANT] under each --out. cores= runs each slot's VM on that many physical cores of its own.
 --balance gives each host an equal share of every task's and agent's runs, and --max-concurrent limits the runs at
-once of the agents that match a pattern, over all hosts and tasks. --backend, --prompt and --browser go to every run,
-as run.py takes them. See bench/README.md.
+once of the agents that match a pattern, over all hosts and tasks. --backend, --prompt, --browser and --desktop go to
+every run, as run.py takes them. bin= puts a directory first on the host's PATH, where a series keeps the harnesses it
+pinned, and label= names the machine in its runs' data. See bench/README.md.
 """
 
 import argparse
@@ -100,6 +101,8 @@ class Host:
         self.agents = None  # the patterns of the agents it takes, or None for all
         self.cores = None  # the physical cores of each slot's VM, or None to let the VMs run on any
         self.api_keys = False  # whether it gets this machine's key for the harnesses of SENDS_KEY
+        self.bin = None  # a directory first on its PATH, under its home unless absolute
+        self.label = None  # the machine's name in its runs' data, by default the target
         for option in options:
             if option == "api-keys":
                 self.api_keys = True
@@ -109,13 +112,13 @@ class Host:
                 raise ValueError(f"{option!r} in {spec!r} is not KEY=VALUE")
             if key in ("slots", "cid", "cores"):
                 setattr(self, key, int(value))
-            elif key in ("lock", "local-lock", "dir"):
+            elif key in ("lock", "local-lock", "dir", "bin", "label"):
                 setattr(self, key.replace("-", "_"), value)
             elif key == "agents":
                 self.agents = [p if ":" in p else f"{p}:*" for p in value.split("+") if p]
             else:
-                raise ValueError(f"unknown option {key} in {spec!r}: slots, cores, lock, local-lock, cid, dir, agents "
-                                 "or api-keys")
+                raise ValueError(f"unknown option {key} in {spec!r}: slots, cores, lock, local-lock, cid, dir, agents, "
+                                 "bin, label or api-keys")
         if self.slots < 1:
             raise ValueError(f"{spec!r} needs at least one slot")
         if self.cores is not None and self.cores < 1:
@@ -154,7 +157,8 @@ class Host:
     def sh(self, script, ctl, timeout=None, input=None):
         """Runs a shell script on the host in its home directory, with input, bytes, on its stdin; returns the
         CompletedProcess, output as bytes."""
-        script = f'export PATH="$PATH:{":".join(EXTRA_PATH)}"; cd || exit 1\n{script}'
+        first = (self.bin if self.bin.startswith("/") else f"$HOME/{self.bin}") + ":" if self.bin else ""
+        script = f'export PATH="{first}$PATH:{":".join(EXTRA_PATH)}"; cd || exit 1\n{script}'
         command = ["bash", "-c", script] if self.local else [*ssh_command(ctl), self.target, "bash -c " + shlex.quote(script)]
         stdin = {"stdin": subprocess.DEVNULL} if input is None else {"input": input}
         return subprocess.run(command, capture_output=True, timeout=timeout, env=None if self.local else ssh_env(),
@@ -436,7 +440,7 @@ class Remote:
 
     def driver_dir(self, host, build):
         name = (f"{self.harness['commit'][:12]}-{build.commit[:12]}-{build.task}-{build.variant or ''}-"
-                f"{self.args.display}-{self.args.backend}-{self.args.browser}")
+                f"{self.args.display}-{self.args.backend}-{self.args.browser}-{self.args.desktop}")
         return f"{host.base}/drivers/{name}"
 
     def prepare(self, host):
@@ -492,11 +496,21 @@ class Remote:
             say(f"[{host}] building the driver of {b.commit[:10]} for {run.results_name(b.task, b.variant)}")
             driver_dir = self.driver_dir(host, b)
             call = (f"run.build_driver({driver_dir!r}, {self.tree(host, b.commit)!r}, {b.task!r}, "
-                    f"{b.variant!r}, {self.args.display!r}, {self.args.backend!r}, {self.args.browser!r})")
-            self.sh(host, f"""
+                    f"{b.variant!r}, {self.args.display!r}, {self.args.backend!r}, {self.args.browser!r}, "
+                    f"{self.args.desktop!r})")
+            identity = (f"print(json.dumps(run.driver_identity({driver_dir + '/driver'!r}, {driver_dir!r}, "
+                        f"{self.args.backend!r})))")
+            built = self.sh(host, f"""
                 mkdir -p {shlex.quote(driver_dir)}
-                cd {shlex.quote(self.tree(host, self.harness['commit']))}/bench && python3 -c {shlex.quote('import run; ' + call)}
+                cd {shlex.quote(self.tree(host, self.harness['commit']))}/bench && python3 -c {shlex.quote('import json, run; ' + call + '; ' + identity)}
             """)
+            # A resume adds no run of another build to a directory, as check_resume does for the rest.
+            identity = json.loads(built.splitlines()[-1])
+            say(f"[{host}] {run.results_name(b.task, b.variant)}: {identity['driver']}")
+            differ = run.check_identity(b.out, identity)
+            if differ:
+                raise RuntimeError(f"[{host}] {b.out} has runs that another build ran: "
+                                   + ", ".join(f"{name} ({what})" for name, what in differ))
 
     def execute(self, host, slot, job):
         b = job.build
@@ -507,7 +521,10 @@ class Remote:
             "--timeout", str(self.args.timeout),
             "--out", f"{jobs}/out", "--cid", str(host.cid + slot), "--source", self.tree(host, b.commit),
             "--backend", self.args.backend, "--prompt", self.args.prompt, "--browser", self.args.browser,
+            "--desktop", self.args.desktop,
         ]
+        command += ["--chromium-options=" + self.args.chromium_options] if self.args.chromium_options else []
+        command += ["--mcp-args=" + self.args.mcp_args] if self.args.mcp_args else []
         command += ["--variant", b.variant] if b.variant else []
         command += ["--no-debrief"] if self.args.no_debrief else []
         command += ["--max-calls", str(self.args.max_calls)] if self.args.max_calls else []
@@ -516,7 +533,8 @@ class Remote:
         # What run.json records of the dispatch: the slot, the limits on the agent and how long it waited for them.
         limits = {p: n for p, n in self.queue.limits if agent_matches(p, job.harness, job.model, job.effort)}
         command += ["--dispatch", json.dumps({"slot": slot, "balance": self.queue.balance, "max_concurrent": limits,
-                                              "waited_seconds": round(job.waited, 1)})]
+                                              "waited_seconds": round(job.waited, 1),
+                                              "host": host.label or host.target})]
         q = shlex.quote
         # claude-api's key goes to a host with api-keys on the stdin of the run's start alone; local has its own.
         send = self.keys if job.harness in SENDS_KEY and not host.local else None
@@ -718,8 +736,7 @@ def main():
         if not out and len(tasks) > 1:
             out = run.results_dir(f"{len(tasks)}-tasks{suffix}")
         for task, variant in tasks:
-            config = {**state, "task": task, "variant": variant, "display": args.display, "backend": args.backend,
-                      "prompt": args.prompt, "browser": args.browser}
+            config = {**run.run_config(source, task, variant, args), "bench_commit": harness["commit"]}
             builds.append(Build(results_out(out, task, variant, len(tasks), suffix), config))
     if len({b.out for b in builds}) < len(builds):
         parser.error("two builds have the same --out")
