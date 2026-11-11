@@ -180,10 +180,9 @@ The default deadline of 4500 ms keeps the reply within `hyprctl`'s 5-second
 limit. A program that writes the request to Hyprland's socket,
 `$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock`, itself can
 wait up to 60 seconds: send `j/hyprmasq wait 0x… since 120 deadline 30000` in
-one write and read until Hyprland closes the connection. Hyprland reads
-requests in pieces of 1023 bytes, so add a space to a request whose length is
-a multiple of 1023. Waits never block Hyprland, and both work only through
-Hyprland's request socket, which `hyprctl` uses.
+one write and read until Hyprland closes the connection. Waits never block
+Hyprland, and both work only through Hyprland's request socket, which
+`hyprctl` uses.
 
 ## Focus lease
 

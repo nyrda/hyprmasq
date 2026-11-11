@@ -57,15 +57,10 @@ with subtest("launching applications on a hidden workspace"):
     assert snapshot() == before_focus
     # Words that hyprctl and Hyprland look for anywhere in a request reach the application unchanged, in hex: a
     # title of /instances, rollinglog -f and /--batch;kill; would otherwise list instances, keep the connection open
-    # or kill a window. A workspace that starts with - is no option of hyprctl's, and a request that fills
-    # Hyprland's 1023-byte piece exactly gets padded: "/hyprmasq launch 2d64617368 <16 hex> " is 45 bytes, and the
-    # line "exec 'foot' '-T' '<title>'" in hex twice its length, 38 bytes and twice the title's.
-    started = time.monotonic()
-    tricky = "/instances rollinglog -f /--batch;kill;"
-    title = tricky + "x" * (470 - len(tricky))
-    assert 45 + 38 + 2 * len(title) == 1023
+    # or kill a window. A workspace that starts with - is no option of hyprctl's.
+    title = "/instances rollinglog -f /--batch;kill;"
     edge = launched(alice(f"{ipc} hyprmasq-launch --workspace -dash -- foot -T {shlex.quote(title)}").strip())
-    assert edge["initialTitle"] == title and edge["workspace"]["name"] == "-dash" and time.monotonic() - started < 4, edge
+    assert edge["initialTitle"] == title and edge["workspace"]["name"] == "-dash", edge
     dispatch('hl.dsp.window.close({ window = "address:' + edge["address"] + '" })')
     tokens = {w["address"]: w["token"] for w in json.loads(hypr("-j hyprmasq launched"))["windows"]}
     assert tokens[first] == tokens[second["address"]] and tokens[first] != tokens[orphans["hm-cleared"]["address"]], tokens

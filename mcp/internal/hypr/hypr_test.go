@@ -10,31 +10,21 @@ import (
 	"time"
 )
 
-// serveLikeHyprland answers one connection after reading the request as Hyprland does: in chunks of 1023 bytes, until
-// the first short read.
+// serveLikeHyprland answers one connection after reading the request as Hyprland does: what has arrived when it reads
+// is the whole request.
 func serveLikeHyprland(t *testing.T, l net.Listener, got chan<- string) {
 	conn, err := l.Accept()
 	if err != nil {
 		return
 	}
 	defer conn.Close()
-	var request []byte
-	buf := make([]byte, readChunk)
-	for {
-		n, err := conn.Read(buf)
-		if n < 1 || err != nil {
-			break
-		}
-		request = append(request, buf[:n]...)
-		if n < readChunk {
-			break
-		}
-	}
-	got <- string(request)
+	buf := make([]byte, MaxRequest+1)
+	n, _ := conn.Read(buf)
+	got <- string(buf[:n])
 	conn.Write([]byte("ok"))
 }
 
-func TestRequestNeverFillsTheLastChunk(t *testing.T) {
+func TestRequestArrivesWholeAndUnchanged(t *testing.T) {
 	socket := filepath.Join(t.TempDir(), ".socket.sock")
 	l, err := net.Listen("unix", socket)
 	if err != nil {
@@ -42,7 +32,7 @@ func TestRequestNeverFillsTheLastChunk(t *testing.T) {
 	}
 	defer l.Close()
 	c := &Client{Socket: socket}
-	for _, size := range []int{10, readChunk - 1, readChunk, 3 * readChunk} {
+	for _, size := range []int{10, 1023, 4096, MaxRequest} {
 		got := make(chan string, 1)
 		go serveLikeHyprland(t, l, got)
 		request := strings.Repeat("x", size)
@@ -52,7 +42,7 @@ func TestRequestNeverFillsTheLastChunk(t *testing.T) {
 		if err != nil || string(reply) != "ok" {
 			t.Fatalf("%d bytes: %q %v", size, reply, err)
 		}
-		if r := <-got; r != request && r != request+" " {
+		if r := <-got; r != request {
 			t.Errorf("%d bytes arrived as %d", size, len(r))
 		}
 	}
@@ -161,7 +151,7 @@ func TestRequestEndedByItsDeadline(t *testing.T) {
 			// Hyprland is busy: it reads the request and answers nothing.
 			go func() {
 				defer conn.Close()
-				conn.Read(make([]byte, readChunk))
+				conn.Read(make([]byte, 4096))
 				<-done
 			}()
 		}
