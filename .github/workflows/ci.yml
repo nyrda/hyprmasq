@@ -43,7 +43,7 @@ jobs:
           tests=(bench/analyze_test.py bench/dispatch_test.py bench/harness_test.py bench/laptop/run_form_test.py
             bench/laptop/run_mac_test.py bench/tasks/board/check_test.py bench/tasks/files/check_test.py
             bench/tasks/form/check_test.py bench/tasks/inkscape/check_test.py bench/tasks/trace/check_test.py
-            bench/render_test.py)
+            bench/render_test.py bench/series_test.py bench/vm_test.py)
           # Several of them wait on real time, so they run side by side.
           logs=$(mktemp -d)
           pids=()

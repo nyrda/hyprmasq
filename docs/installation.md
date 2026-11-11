@@ -300,8 +300,7 @@ exec-once = hyprpm reload -n
 hyprpm installs only the plugin. From a clone, run `make` and copy
 `hyprmasq-input`, `hyprmasq-launch` and `hyprmasq-reaper` onto the `PATH`
 that Hyprland starts with, install `jq`, and build `hyprmasq-mcp` as in the
-manual build. Run `hyprpm update` after every Hyprland update. The repository
-has no compatibility pins for older Hyprland releases.
+manual build. Run `hyprpm update` after every Hyprland update.
 
 ## Loading the plugin
 

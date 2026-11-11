@@ -4,7 +4,7 @@ Run `./dev.sh` from the repository root.
 
 | Command | Purpose |
 | --- | --- |
-| `./dev.sh build` | Build `hyprmasq.so`, `hyprmasq-reaper` and `hyprmasq-input` inside the flake's dev shell. This is the default command. |
+| `./dev.sh build` | Build `hyprmasq.so`, `hyprmasq-input`, `hyprmasq-reaper` and `hyprmasq-launch` inside the flake's dev shell. This is the default command. |
 | `./dev.sh gate` | Run the test gate for PRs: the container test where the machine allows it, and otherwise the VM test. |
 | `./dev.sh vm-test` | Run the headless NixOS VM integration test. |
 | `./dev.sh container-test` | Run the same test in containers at once, in about a sixth of the time. It needs a GPU and [these Nix settings](vm-test.md#containers). |
@@ -20,7 +20,8 @@ with the Go tests that do not wait on real time. It builds the flake's checks
 with clang-format and Go formatting with gofmt, `vm-test-docs`, which checks the
 VM test's [subtest tables](vm-test.md#subtests) against its code, and
 `bench-calc`, the Calc checker with LibreOffice. It also runs the other
-[bench unit tests](#benchmarks). It runs on PRs and pushes to `main`, and keeps
+[bench unit tests](#benchmarks), and checks `docs/benchmarks.md` and
+`docs/comparison.md` against their data with `bench/render.py --check`. It runs on PRs and pushes to `main`, and keeps
 the Nix store between runs in the GitHub Actions cache. A package or check
 whose inputs did not change since the cached run is not built again, so a PR of
 docs alone builds no plugin and runs no Go tests. A branch runs CI once at a
@@ -33,8 +34,9 @@ The test gate, `./dev.sh gate`, is local, and CI does not run it. It runs the
 `uid-range` and `gpu` system features, and otherwise the VM test. It runs on a PR's head
 commit before the PR is opened, and again before merging whenever the head commit is no longer the one it passed on. A
 PR that changes how the test itself runs in the VM or the container passes both
-tests. A PR that changes only Markdown files skips it, since neither the test nor its
-Nix build reads them. The PR template asks for both runs.
+tests. A PR that changes none of the plugin, its tools, the MCP server, the NixOS
+module and the test, such as one of docs or `bench/` alone, skips it. The PR
+template asks for both runs.
 
 The flake's dev shell, `nix develop`, has the build inputs of the plugin and
 `hyprmasq-input`, Go for `hyprmasq-mcp`, and clang-format from `clang-tools`.
@@ -59,18 +61,20 @@ in `libexec`, where the plugin finds it relative to its own path.
 Contributions are welcome as pull requests against `main`.
 
 1. Build with `./dev.sh build`, or `nix develop -c make`.
-2. Run the checks that CI runs: `clang-format -i` on changed C and C++ files,
+2. Run the checks: `clang-format -i` on changed C and C++ files,
    `gofmt -w` on changed Go files, `go vet ./...` and `go test ./...` in `mcp/`
    (with `-race` when you change concurrency or process handling), the
-   [bench unit tests](#benchmarks), and
-   `nix build .#checks.x86_64-linux.vm-test-docs`.
+   [bench unit tests](#benchmarks), `python3 bench/render.py --check`, and
+   `nix build .#checks.x86_64-linux.vm-test-docs`. CI runs them too, apart
+   from `go vet` and the race detector.
 3. Run the test gate, `./dev.sh gate`, on the commit you push. It is the local
    gate that CI does not run: the container test with a GPU and
    [these Nix settings](vm-test.md#containers), and otherwise the VM test, which
    needs Nix and KVM and takes a while. Add a
    subtest for new behaviour and list it in the
    [subtest tables](vm-test.md#subtests).
-   A PR that changes only Markdown files skips it.
+   A PR that changes none of the plugin, its tools, the MCP server, the NixOS
+   module and the test skips it.
 4. Fill in `.github/pull_request_template.md`, including the commit the test
    passed on and which test ran.
 
@@ -91,25 +95,31 @@ gofmt -w path/to/changed.go
 Run the race check when changing concurrency or process handling. A plain
 `go build` reports version `dev`, and the Nix build injects the top-level `VERSION`.
 
-`cmd/hyprmasq-mcp` is the command, `internal/hypr` the client of Hyprland's
-socket and the plugin's commands, and `internal/delta` compares two images for
-the changes captures. `internal/server` has the tools, a file per area:
+`cmd/hyprmasq-mcp` is the command, `internal/config` reads its configuration
+file, `internal/hypr` is the client of Hyprland's socket and the plugin's
+commands, `internal/delta` compares two images for the changes captures, and
+`internal/record` turns the frames and the input of act calls into slides or a
+video. `internal/server` has the tools, a file per area:
 
 | File | What it has |
 | --- | --- |
 | `server.go` | The server, the tool descriptions and schemas, argument decoding, progress and the session's end. |
 | `windows.go`, `launch.go`, `close.go` | The `windows`, `launch` and `close` tools, and the listing of new windows. |
 | `capture.go`, `shots.go`, `pixels.go` | The `screenshot` tool and captures, the shots a session keeps, and their images. |
-| `changes.go`, `moved.go` | Changes captures and their zooms, and the check that the targets of a batch did not move since its shot. |
+| `changes.go`, `magnify.go`, `moved.go` | Changes captures and their zooms, how far a small zoom is enlarged, and the check that the targets of a batch did not move since its shot. |
 | `act.go` | The `act` tool: its arguments, the order of its steps, and the result it finishes with. |
 | `actions.go`, `batch.go` | Parsing actions, and checking a batch and turning it into `hyprmasq-input` steps. |
 | `path.go` | The steps of a `path`, and the sampling of its spline. |
+| `paste.go` | The `paste` action: its text on the agent clipboard, and the key that pastes it. |
+| `split.go` | A batch that ends with scrolling, run in two parts, so that the agent sees what its input did before the page moves. |
+| `page.go`, `scrollalign.go` | A page scroll, which measures how far the window scrolled by aligning its views before and after. |
 | `send.go`, `input.go` | Running `hyprmasq-input` under the send lock of the window's app and the clipboard lock of a paste, its pacing and locale, and mapping its failures. |
 | `wait.go` | The plugin's wait for a redraw, and its baselines. |
 | `lease.go` | Focus leases and the `release` tool. |
+| `recording.go` | Recordings of act calls: where one starts and stops, its frames, and finishing its files. |
 | `drag.go` | Reading how the app's drag-and-drop went. |
 | `newwindows.go`, `late.go` | Shots of the windows that input opened, of the window a closed one came from, and of windows that opened after their act. |
-| `result.go`, `summary.go`, `hints.go`, `errors.go` | What a result says: its structured content, its summary line, its hints, and its errors. |
+| `result.go`, `encode.go`, `summary.go`, `hints.go`, `errors.go` | What a result says: its structured content and how that is encoded, its summary line, its hints, and its errors. |
 | `locks.go` | The window, send and clipboard locks, shared with other servers. A send lock is shared by the windows of one process, or by all windows of Hyprland's XWayland. |
 
 The tests of an area are in the `_test.go` files named after it or a part of
@@ -182,6 +192,8 @@ python3 bench/harness_test.py
 python3 bench/laptop/run_form_test.py
 python3 bench/laptop/run_mac_test.py
 python3 bench/render_test.py
+python3 bench/series_test.py
+python3 bench/vm_test.py
 python3 bench/tasks/board/check_test.py
 python3 bench/tasks/files/check_test.py
 python3 bench/tasks/form/check_test.py
@@ -256,4 +268,6 @@ against a new release, but not what they do:
   Check that every member listed there still means the same.
 - Update the pin in `flake.nix`, run the whole VM test, and add a
   `commit_pins` entry in `hyprpm.toml` mapping the previous Hyprland release
-  commit to the last plugin commit that supports it.
+  commit to the plugin commit for it: the head of its branch, which moves with
+  every change to the branch, or for a patch release without a branch the last
+  commit of `main` that targets it.

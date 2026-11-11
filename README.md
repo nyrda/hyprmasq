@@ -137,4 +137,5 @@ workspace. See the [benchmarks](docs/benchmarks.md) and the
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The two photos of the benchmark's trace task have
+[their own licences](bench/README.md#trace).

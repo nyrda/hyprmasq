@@ -713,7 +713,7 @@ run.py ─ starts ─▶ nixos-test-driver ─ boots ──▶  Hyprland + hyprm
 The debrief is no evidence for or against a change. An agent knows only the run it had: it cannot compare with a
 run without a feature, or tell which result saved it a call, and asked for a loss it names one. Judge a change by
 what the agents did, before and after it; see
-[how the runs are read](../docs/benchmarks.md#how-the-runs-are-read).
+how the runs are read, under [Method](../docs/benchmarks.md#method).
 
 With `--backend cua`, Cua's plugin takes hyprmasq's place in Hyprland and `cua-driver mcp` that of `hyprmasq-mcp`
 (see [Cua Driver](#cua-driver)). With `--backend hypruse` or `computer-use-linux`, Hyprland runs without a plugin and
@@ -1176,6 +1176,16 @@ trace (`track.json`), the page's texts (`figure.json`) and its prompt (`prompt.m
   toothed rail between the running rails, from the bottom edge to where it leaves the photo at the top. Near the top
   the rack is a ridge 2 pixels wide a few pixels from a brighter rail, so the variant tests recognition as much as
   aim: agents slide onto the rail there.
+
+The two photos are not under the repository's MIT licence:
+
+- `river/photo.jpg` is cropped and scaled down from
+  [Loreleyblick Maria Ruh 2025](https://commons.wikimedia.org/wiki/File:Loreleyblick_Maria_Ruh_2025.jpg) by
+  Jörg Braukmann on Wikimedia Commons, and is licensed like it under
+  [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+- `rack/photo.png` is cropped from
+  [Beautiful view of the railway tracks](https://www.freepik.com/free-photo/beautiful-view-railway-tracks_13235764.htm),
+  an image by wirestock on Freepik, used under Freepik's free licence with this credit.
 
 The task exercises what board does not: precise input along a curve. On the river, one straight drag along the
 shadowed bank covers 30% of it and two chords pass, so the variant measures aim more than following a curve. On the
