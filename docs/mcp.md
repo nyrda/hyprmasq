@@ -240,7 +240,7 @@ page.
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `window` | required | Window address from `windows` or `launch`. |
+| `window` | required without `shot` | Window address from `windows` or `launch`. |
 | `shot` | required for coordinates | The shot the coordinates were read from. |
 | `next_page` | absent | After the visible edits, scroll a measured page at `{x,y,direction}`. See [Continuing through a scrollable window](#continuing-through-a-scrollable-window). |
 | `actions` | `[]` | Up to 1000 actions, run in order. An empty list waits for a change since the shot, then captures. |

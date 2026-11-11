@@ -291,11 +291,6 @@ hyprpm add https://github.com/nyrda/hyprmasq
 hyprpm enable hyprmasq
 ```
 
-`commit_pins` in `hyprpm.toml` give a Hyprland release that `main` no longer
-targets the head of its branch, so hyprpm on Hyprland 0.56.2 builds
-`hyprland-0.56`. A patch release that `main` moved past has no branch, so
-hyprpm on Hyprland 0.57.1 builds the last commit of `main` for it.
-
 and load enabled plugins at startup, in `hyprland.lua`:
 
 ```lua
@@ -314,6 +309,11 @@ hyprpm installs only the plugin. From a clone, run `make` and copy
 `hyprmasq-input`, `hyprmasq-launch` and `hyprmasq-reaper` onto the `PATH`
 that Hyprland starts with, install `jq`, and build `hyprmasq-mcp` as in the
 manual build. Run `hyprpm update` after every Hyprland update.
+
+`commit_pins` in `hyprpm.toml` give a Hyprland release that `main` no longer
+targets the head of its branch, so hyprpm on Hyprland 0.56.2 builds
+`hyprland-0.56`. A patch release that `main` moved past has no branch, so
+hyprpm on Hyprland 0.57.1 builds the last commit of `main` for it.
 
 ## Older Hyprland releases
 

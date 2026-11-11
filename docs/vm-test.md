@@ -23,7 +23,9 @@ The test's own Wayland clients are in `nix/` and share `nix/probe-common.h`:
 not take.
 `qt-probe.py`, a Qt 6 app in PySide6, logs the same way. `combo-probe.py` is a
 GTK 3 app on X11 with a combo box, or a scrolled column, which logs alike, and
-so does `slider-probe.py`, a slider in Qt 6, GTK 3 or Tk. Chromium opens
+so does `slider-probe.py`, a slider in Qt 6, GTK 3 or Tk. `scroll-probe.py`
+is a GTK 4 app with an entry above a scrolling page, which logs the positions
+of its viewport. Chromium opens
 `guest/select.html`, a page with a `<select>`, `guest/scroll.html`, a long
 page, and `guest/clip.html`, a textarea that logs its pastes, which log to its
 console.

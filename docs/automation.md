@@ -63,7 +63,7 @@ hyprctl hyprmasq eis close "$addr"
 
 All commands are `hyprctl hyprmasq …`. Keywords such as `since`, `max` and
 `release` are plain words, because `hyprctl` treats every argument that
-starts with a dash as its own flag. Arguments are split at whitespace, so
+starts with a dash, apart from a negative number, as its own flag. Arguments are split at whitespace, so
 paths and owners cannot contain any.
 
 A failed command prints `error: <message>` and `hyprctl` exits with status 7.
@@ -71,8 +71,8 @@ A failed command prints `error: <message>` and `hyprctl` exits with status 7.
 
 ### JSON output
 
-With `hyprctl -j`, every command replies with one JSON object, and errors are
-JSON too, with `hyprctl` exiting 0, so check `ok`:
+With `hyprctl -j`, every command but `help` replies with one JSON object, and
+errors are JSON too, with `hyprctl` exiting 0, so check `ok`:
 
 | Command | JSON reply |
 | --- | --- |
@@ -692,8 +692,9 @@ of it. hyprmasq hooks the functions of most of its features only while the
 feature is in use, so that other plugins can hook them in between. A feature
 whose function another plugin hooks is refused, with code `hook_held` and a
 message that names the function, and the rest of hyprmasq works on. hyprmasq
-also loads while another plugin holds one of its functions: only the build
-check fails a load. The hooks are in groups, which go in all or nothing. Uses
+also loads while another plugin holds one of its functions: a load fails on
+the build check and on a hooked function that the running Hyprland does not
+have, not on another plugin's hook. The hooks are in groups, which go in all or nothing. Uses
 of a group by several windows, senders and agents share one install, and the
 group goes once the last of them has ended.
 

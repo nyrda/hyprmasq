@@ -7,7 +7,7 @@ if [[ "${1:-}" == --help ]]; then
     exit 0
 fi
 cd "$(dirname "$0")/.."
-for test in bench/*_test.py bench/tasks/*/*_test.py; do
+for test in bench/*_test.py bench/laptop/*_test.py bench/tasks/*/*_test.py; do
     if [[ "$test" != bench/tasks/calc/check_test.py ]]; then
         python3 "$test"
     fi
