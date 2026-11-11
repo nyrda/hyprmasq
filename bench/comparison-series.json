@@ -1,0 +1,560 @@
+{
+ "about": "The rules of the comparison series, fixed before any result exists. series.py carries them out; see bench/README.md, The comparison series. Change nothing here once a run has started: a change is a new series, with a new results directory, and an entry in amendments.",
+ "prompt": "comparison",
+ "desktop": "omarchy",
+ "display": "1920x1080@1",
+ "agent_timeout_seconds": 1800,
+ "tool_timeout_seconds": 600,
+ "sources": {
+  "hyprland-0.56": {
+   "path": "../comparison-source-056",
+   "commit": "89c988d594ee00de821638857932696aaad5ed9b",
+   "hyprland": "0.56.2",
+   "note": "The head of hyprland-0.56 with #123, #125, #126 and #127, in a clean checkout of its own. The same package set, so the same browsers and toolkits, for every tool."
+  },
+  "hyprland-0.56-fix": {
+   "path": "../comparison-source-056-8935ac7",
+   "commit": "8935ac767f32dd34ec41699dde85a96f27851b60",
+   "hyprland": "0.56.2",
+   "note": "hyprmasq's source: the head of hyprland-0.56 on 8 November 2026, with the fix of the popup defect (#128, ported), in a clean checkout of its own. It is 89c988d and one commit, 8935ac7, which changes src/Hooks.hpp (a hook hands its replacement copies of the arguments and leaves Hyprland's as they came), adds a test plugin (nix/call-probe.*) and a VM subtest for it, and the docs. flake.nix and flake.lock are unchanged, so the package set, Hyprland, the browsers, the toolkits and the VM are the same as Cua's."
+  }
+ },
+ "harnesses": {
+  "claude": "2.1.319 (Claude Code)",
+  "codex": "codex-cli 0.167.0",
+  "where": "~/.cache/hyprmasq-bench/harness/bin on each machine, through dispatch.py's bin=: not the machine's own, which can update. Self-updating is off in the runs' environment and arguments."
+ },
+ "agents": [
+  "codex:gpt-6.1-terra@medium",
+  "claude:claude-sonnet-5-5@medium"
+ ],
+ "subscriptions": "The harness `claude` and `codex` with the user's logins, not API keys.",
+ "tools": {
+  "cua": {
+   "backend": "cua",
+   "source": "hyprland-0.56",
+   "version": "Cua Driver 0.42.1, tag cua-driver-rs-v0.42.1, commit badaa6e0d59fb5add81474bc04efadb89f713eb9, frozen on 7 November 2026, with --no-overlay and --grant existing-profile where the user's browser is Chromium",
+   "sets": {
+    "apps": {
+     "tasks": [
+      "form:25",
+      "form:25-no-dropdowns",
+      "form:qt-25",
+      "form:qt-25-no-dropdowns",
+      "files",
+      "inkscape",
+      "thunderbird",
+      "forgejo:reacting"
+     ]
+    },
+    "firefox": {
+     "browser": "firefox",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "trace:rack",
+      "calc"
+     ]
+    },
+    "chromium": {
+     "browser": "chromium",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "trace:rack",
+      "calc"
+     ]
+    }
+   }
+  },
+  "hyprmasq": {
+   "backend": "hyprmasq",
+   "source": "hyprland-0.56-fix",
+   "version": "hyprmasq at the source's commit",
+   "sets": {
+    "apps": {
+     "tasks": [
+      "form:25",
+      "form:25-no-dropdowns",
+      "form:qt-25",
+      "form:qt-25-no-dropdowns",
+      "files",
+      "inkscape",
+      "thunderbird",
+      "forgejo:reacting"
+     ]
+    },
+    "firefox": {
+     "browser": "firefox",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "trace:rack",
+      "calc"
+     ]
+    },
+    "chromium": {
+     "browser": "chromium",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "trace:rack",
+      "calc"
+     ]
+    }
+   }
+  },
+  "hypruse": {
+   "backend": "hypruse",
+   "source": "hyprland-0.56",
+   "version": "hypruse 0.13.0, its PyPI sdist",
+   "sets": {
+    "apps": {
+     "tasks": [
+      "form:25",
+      "form:25-no-dropdowns",
+      "form:qt-25",
+      "form:qt-25-no-dropdowns",
+      "files",
+      "inkscape",
+      "thunderbird",
+      "forgejo:reacting"
+     ]
+    },
+    "firefox": {
+     "browser": "firefox",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "trace:rack",
+      "calc"
+     ]
+    },
+    "chromium": {
+     "browser": "chromium",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "trace:rack",
+      "calc"
+     ]
+    }
+   }
+  },
+  "computer-use-linux": {
+   "backend": "computer-use-linux",
+   "source": "hyprland-0.56",
+   "version": "computer-use-linux 0.7.47, with COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1",
+   "sets": {
+    "apps": {
+     "tasks": [
+      "form:25",
+      "form:25-no-dropdowns",
+      "form:qt-25",
+      "form:qt-25-no-dropdowns",
+      "files",
+      "inkscape",
+      "thunderbird",
+      "forgejo:reacting"
+     ]
+    },
+    "firefox": {
+     "browser": "firefox",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "trace:rack",
+      "calc"
+     ]
+    },
+    "chromium": {
+     "browser": "chromium",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "trace:rack",
+      "calc"
+     ]
+    }
+   }
+  }
+ },
+ "machines": {
+  "machine-c": {
+   "name": "machine C (Ryzen 7 5800X3D)",
+   "target": "local",
+   "options": "slots=3,cores=2,lock=/tmp/vm.lock,bin=.cache/hyprmasq-bench/harness/bin,label=5800X3D",
+   "workers": 3,
+   "cores": 2,
+   "max_concurrent": {
+    "codex": 2,
+    "claude": 2
+   },
+   "time_factor": 1.0
+  },
+  "machine-a": {
+   "name": "machine A (Ryzen 5 5600X)",
+   "options": "slots=2,cores=2,lock=/tmp/vm.lock,local-lock=/tmp/hyprmasq-machine-a.lock,bin=.cache/hyprmasq-bench/harness/bin,label=5600X",
+   "workers": 2,
+   "cores": 2,
+   "max_concurrent": {
+    "codex": 1,
+    "claude": 1
+   },
+   "time_factor": 1.0,
+   "note": "Ryzen 5 5600X, 6 cores and 31 GiB. 2 VMs on 2 cores each leave 2 cores to the host. Its calibration of Cua Driver at 0.42.1 (capability-results.md, Workers on machine A): a second VM costs a walk 4 to 8 %, against 21 to 24 % unpinned. The gate's 5 % does not apply to it: the walk of Inkscape would allow 1 VM only, doubling the series' time, and the cost of the second VM is written down instead. Other load on the host sometimes takes most of a core, which the series leaves alone and run.json's host_load records."
+  },
+  "machine-b": {
+   "name": "machine B (laptop, Omarchy, Ryzen 7 PRO 4750U)",
+   "options": "slots=3,cores=2,lock=/tmp/vm.lock,bin=.cache/hyprmasq-bench/harness/bin,label=4750U",
+   "workers": 3,
+   "cores": 2,
+   "max_concurrent": {
+    "codex": 2,
+    "claude": 2
+   },
+   "time_factor": 1.1,
+   "note": "Ryzen 7 PRO 4750U, 8 cores and 31 GiB. 3 VMs on 2 cores each leave 2 cores to the host, and a VM peaks at about 2.3 GiB. Before hyprmasq's first round, series.py runs the calibration gate: hyprmasq's median call with 3 VMs at once against 1, on the GTK 4 form, the board in Chromium and Calc in Chromium, and stops if any is more than 5 % slower (gate-machine B.json in the results). The v1 calibration on the board gave 0.805, 0.814 and 0.818 s with 1, 2 and 3 VMs. Another benchmark sometimes runs on this host: while it runs, a guard on the machine holds /tmp/vm.lock exclusive and /tmp/hyprmasq-bench-guard exists, so that runs in flight end and none starts until it has been quiet for 10 minutes, and a run that overlapped it runs again (reruns). With the subscriptions' runs on machine A, at most 3 Codex and 3 Claude runs run at once.",
+   "gate": {
+    "backend": "hyprmasq",
+    "tasks": [
+     "form:25",
+     "board:dnd@chromium",
+     "calc@chromium"
+    ],
+    "rounds": 8,
+    "max_slowdown": 0.05
+   }
+  }
+ },
+ "not_used": {
+  "machine-b": "Not for Cua: its VMs cost the accessibility walks about 4 times what the same machine costs without a VM, against 3 on machine C and 2 on machine A, and a second VM slows them by another 18 to 20 %, so Cua's reads are cut at the budget where a real machine's are not. In the spike of the GTK 4 form with dropdowns, Cua took 226 to 322 s there against 120 to 228 s on machine A, while hyprmasq took about the same on both. It runs hyprmasq's half of main, and it is the real desktop that capability-results.md compares with.",
+  "machine-c": "Not for main: its walks are nearly twice machine A's and past Cua's 2 s budget for a first read in the GTK 4 form, which changes what agents do, and its memory is shared with other work. It runs cross-check, whose numbers are never pooled with main."
+ },
+ "concurrency": "Each tool of a series has one machine and one dispatch. max_concurrent bounds a subscription's runs at once on a machine, and workers the runs on the machine: 1 Codex and 1 Claude run on machine A and 2 of each on machine B, so at most 3 of each at once.",
+ "order": "One repetition round at a time, all selected tools in it. A tool's sets run together, one set after the other, the order of the tools rotates from round to round, and the next round starts when this one ended. Runs in a dispatch go round the tasks and the agents. main runs as two processes at once, Cua Driver's half on machine A and hyprmasq's on machine B, and hyprmasq's round N starts only once Cua Driver's has started (pace). cua-attach follows Cua Driver's half on machine A, then hyprmasq-machine-a. cross-check and others come after, each to a directory of its own, and no number is pooled across them.",
+ "reruns": "A run runs again only after a logged infrastructure failure, on the same machine, the same rule for every tool: a harness that stopped for a subscription's limit, a login or the provider's failure, as report.infrastructure_failure reads them from the harness's own events; a run with no summary.json, which is now only a run that the agent's part did not finish, as a failed debrief keeps the run's result and says so in run.json (debrief_error); or a run that shared its host with work outside the series: a QEMU process that is none of the benchmark's VMs, or the host's guard holding for another benchmark on the host, at any of the run's samples (run.json host_load, series.other_load). series.py moves the run to excluded/ and logs it in exclusions.jsonl with why. Every exclusion is listed with the results. A run that the agent failed stands, whatever the reason, and a tool's refusal or a timeout are the agent's run's, not a reason to rerun.",
+ "estimate": {
+  "overhead_seconds": 70,
+  "note": "Agent seconds per run: the means of the published series, hyprmasq's and Cua's on the tasks they had, and for Cua's Thunderbird a guess from the scripted route, as it failed fast before. Opus is taken as Sonnet. overhead_seconds is the VM's boot and the debrief.",
+  "agent_seconds": {
+   "cua": {
+    "board:dnd": 94,
+    "board:pointer": 78,
+    "calc": 188,
+    "files": 88,
+    "forgejo:reacting": 180,
+    "form:25": 220,
+    "form:25-no-dropdowns": 112,
+    "form:qt-25": 91,
+    "form:qt-25-no-dropdowns": 40,
+    "inkscape": 49,
+    "thunderbird": 180,
+    "trace:rack": 70,
+    "trace:river": 76
+   },
+   "hyprmasq": {
+    "board:dnd": 38,
+    "board:pointer": 38,
+    "calc": 64,
+    "files": 27,
+    "forgejo:reacting": 62,
+    "form:25": 88,
+    "form:25-no-dropdowns": 62,
+    "form:qt-25": 54,
+    "form:qt-25-no-dropdowns": 45,
+    "inkscape": 17,
+    "thunderbird": 99,
+    "trace:rack": 26,
+    "trace:river": 37
+   },
+   "hypruse": {
+    "board:dnd": 60,
+    "board:pointer": 43,
+    "calc": 114,
+    "files": 37,
+    "forgejo:reacting": 134,
+    "form:25": 141,
+    "form:25-no-dropdowns": 137,
+    "form:qt-25": 189,
+    "form:qt-25-no-dropdowns": 164,
+    "inkscape": 84,
+    "thunderbird": 110,
+    "trace:rack": 40,
+    "trace:river": 46
+   },
+   "computer-use-linux": {
+    "board:dnd": 46,
+    "board:pointer": 47,
+    "calc": 120,
+    "files": 37,
+    "forgejo:reacting": 72,
+    "form:25": 117,
+    "form:25-no-dropdowns": 101,
+    "form:qt-25": 86,
+    "form:qt-25-no-dropdowns": 38,
+    "inkscape": 37,
+    "thunderbird": 135,
+    "trace:rack": 40,
+    "trace:river": 38
+   },
+   "default": {}
+  }
+ },
+ "frozen": "Cua Driver's pin and the source were read on 7 November 2026: the newest tag of cua-driver-rs that was not a nightly, cua-driver-rs-v0.42.1. hyprmasq's source was set on 8 November 2026 to 8935ac7, the head of hyprland-0.56 with the popup fix. v2's rules were committed on 8 November 2026 before any run.",
+ "series": {
+  "main": {
+   "tools": [
+    "cua",
+    "hyprmasq"
+   ],
+   "machine": "machine-a",
+   "reps": 6,
+   "results": "comparison-2026-11-v2/main",
+   "about": "Cua Driver against hyprmasq: every task and model for both tools, Cua Driver on machine A and hyprmasq on machine B, started together and paced so that hyprmasq's round N never starts before Cua Driver's round N (placement). These are the results of the comparison. Rounds 1 and 2 ran at 3a2f692; main-rest runs rounds 3 to 6 and forgejo-fix Forgejo's rounds 1 and 2 (amendments, 2026-11-08, the second).",
+   "tool_machines": {
+    "hyprmasq": "machine-b"
+   },
+   "pace": {
+    "hyprmasq": "cua"
+   }
+  },
+  "main-rest": {
+   "tools": [
+    "cua",
+    "hyprmasq"
+   ],
+   "machine": "machine-a",
+   "tool_machines": {
+    "hyprmasq": "machine-b"
+   },
+   "pace": {
+    "hyprmasq": "cua"
+   },
+   "reps": 6,
+   "rounds": [
+    3,
+    4,
+    5,
+    6
+   ],
+   "results": "comparison-2026-11-v2/main-rest",
+   "about": "main's rounds 3 to 6, with Sonnet and Terra, at the fix commit, on main's machines and paced as main. Pooled with main's rounds 1 and 2 for Sonnet and Terra, but for Forgejo, whose rounds 1 and 2 are forgejo-fix's."
+  },
+  "forgejo-fix": {
+   "tools": [
+    "cua",
+    "hyprmasq"
+   ],
+   "machine": "machine-a",
+   "tool_machines": {
+    "hyprmasq": "machine-b"
+   },
+   "pace": {
+    "hyprmasq": "cua"
+   },
+   "reps": 6,
+   "rounds": [
+    1,
+    2
+   ],
+   "results": "comparison-2026-11-v2/forgejo-fix",
+   "sets": {
+    "cua": {
+     "forgejo": {
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     }
+    },
+    "hyprmasq": {
+     "forgejo": {
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     }
+    }
+   },
+   "about": "Forgejo's rounds 1 and 2 of main again, at the fix commit, as main's at 3a2f692 had the user typing into the terminal. With main-rest's rounds 3 to 6 they make Forgejo's 6."
+  },
+  "cua-attach": {
+   "tools": [
+    "cua"
+   ],
+   "machine": "machine-a",
+   "reps": 6,
+   "results": "comparison-2026-11-v2/cua-attach",
+   "chromium_options": "--remote-debugging-port=0",
+   "sets": {
+    "cua": {
+     "chromium": {
+      "browser": "chromium",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "trace:rack",
+       "calc"
+      ]
+     },
+     "forgejo": {
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     }
+    }
+   },
+   "about": "Cua Driver with the user's Chromium started with --remote-debugging-port=0, so that its browser tools can attach to it, on the tasks in Chromium where attaching applies: Forgejo, whose browser is always Chromium, the board, the traces and Calc. The same models and repetitions as main, after Cua's runs of main, on its machine. A slice of its own, labelled so and never pooled with main: a user rarely starts a browser so, and the owner wants to know whether it helps."
+  },
+  "hyprmasq-machine-a": {
+   "tools": [
+    "hyprmasq"
+   ],
+   "machine": "machine-a",
+   "reps": 1,
+   "results": "comparison-2026-11-v2/hyprmasq-machine-a",
+   "about": "One round of hyprmasq on Cua Driver's machine, after Cua's runs of main and cua-attach, on the same tasks and models: how much the machine moves hyprmasq. Published beside main, never pooled with it."
+  },
+  "cross-check": {
+   "tools": [
+    "cua",
+    "hyprmasq"
+   ],
+   "machine": "machine-c",
+   "reps": 2,
+   "results": "comparison-2026-11-v2/cross-check",
+   "about": "The same tasks and models on another machine, to publish how much the machine moves the numbers. Never pooled with main."
+  },
+  "others": {
+   "tools": [
+    "hypruse",
+    "computer-use-linux"
+   ],
+   "machine": "machine-a",
+   "reps": 6,
+   "results": "comparison-2026-11-v2/others",
+   "about": "hypruse and computer-use-linux, with Sonnet and Terra, on machine A after main, cua-attach and hyprmasq-machine-a, on its setup, so that they compare with main's Cua Driver without pooling machines. machine C was slower than machine A for both by more than 5 % (amendments, 2026-11-08, the second)."
+  }
+ },
+ "placement": {
+  "decided": "8 November 2026, by the owner: hyprmasq's half of main on machine B and Cua Driver's on machine A, started together and paced (pace), so that both run in the same period.",
+  "cua": "Cua Driver on machine A, on source hyprland-0.56 (89c988d).",
+  "hyprmasq": "hyprmasq on machine B, on source hyprland-0.56-fix (8935ac7), gated by machine B's calibration (machines.machine-b.gate).",
+  "why": "Cua Driver's time moves with the machine through its accessibility walks, so it keeps the machine where they cost least. hyprmasq's call took about the same with 1 to 3 VMs on each machine measured, and machine B is the slowest of the three, but that is not taken as a fact for every task and model: hyprmasq-machine-a and cross-check measure how much the machine moves each tool, per call, and the page says so.",
+  "measured": "hyprmasq-machine-a runs one round of hyprmasq on machine A, and cross-check both tools on machine C. Neither is pooled with main.",
+  "sources": "The two sources differ in hyprmasq's popup fix alone (sources.hyprland-0.56-fix.note): Cua Driver runs none of hyprmasq's code, so the fix cannot touch its runs. The VM does not trigger the defect it fixes."
+ },
+ "analysis": {
+  "fixed": "8 November 2026, before any run of v2, for every tool alike; the headline numbers, the categories and the use of export.py --fail on 8 November 2026 at 07:40 CET, while main-rest's round 3 ran and before its rounds 4 to 6 (amendments).",
+  "unit": "A task unit is a task, variant and browser as the rules' sets list them: 18 in main, 8 apps (the four forms, the file manager, Inkscape, Thunderbird, Forgejo), and in each of Firefox and Chromium the board's two variants, the trace's two figures and Calc. Results are per task unit, per tool and per model, Sonnet 5.5 and GPT-6.1 Terra, each task unit weighted once: browser and form variants are not pooled into one rate as if they were one task.",
+  "pass_rate": "Passes over runs per task unit, with a Wilson 95 % interval, for every pass rate shown. A difference between the tools on a task unit is stated only where the intervals do not overlap, and otherwise as within the noise.",
+  "time": "Wall time and time in tools over passed runs only, as medians with the range, per task unit, and only where a tool passed at least 3 runs of that unit with that model; otherwise its time is not shown. Failed runs' times are reported apart, as a run that gave up early is not fast.",
+  "user": "The task's result and the user's own work are reported apart: user_work.kept where the task has the user working (Forgejo), with lost characters. The view measure is named no_view_change, which says no window opened on the user's workspace, no switch of it and no focus away, and is reported only beside the result, never alone: a run that did nothing has it. desktop_input_to_user_window and cursor_moved_px are reported per tool beside it.",
+  "walks": "Cua Driver's walks are reported with the VM's cost against the real machine (capability-results.md), partial meaning cut by the time budget, apart from cuts at the element budget and at large containers.",
+  "frames": "frames.first_small and frames.unchanged_after_input are reported per tool and task. They are flags, not failures.",
+  "machines": "Times compare per machine. main sets Cua Driver on machine A beside hyprmasq on machine B, and hyprmasq-machine-a and cross-check say how much the machine moves each tool, per call. No correction factor is applied to main's times.",
+  "export_fail": "export.py --fail RUN=REASON may mark a run failed only for a requirement that its prompt states, that the task's checker does not grade, and that the run's own files show was not met, from this list fixed before rounds 4 to 6: Forgejo, 'Change nothing else': a commit, branch, file or repository setting changed beyond the requested upload and the dashboard's connection, by Forgejo's saved state; Thunderbird, 'Send only that one reply and change nothing else': a second sent mail, or a reply that also names a room other than the right one; the file manager, 'Leave every other file and folder as it is': another file or folder changed, by the folder's record; Calc, 'leave her other files as they are' and her tabs: a tab closed or moved off its report; the forms, the file manager and Inkscape, 'do not start other programs': a window of another app opened during the run, by Hyprland's events; the trace's river, 'down to the bottom of the photo': the drawing ending more than the checker's tolerance above the photo's bottom. Each requirement is checked over every run of its task for both tools, never run by run, it only fails runs, and every use is published with the run, the requirement and the evidence. Nothing else is overridden.",
+  "exclusions": "Every excluded run of Sonnet and Terra is listed with why, and every run of theirs that ran is published, failures included. Forgejo's runs at 3a2f692 are excluded by the amendment of 2026-11-08 (the second); main's results are main's rounds 1 and 2 with main-rest's rounds 3 to 6, and for Forgejo forgejo-fix's rounds 1 and 2 with main-rest's. Opus's and Sol's runs stay on disk, unpublished (other_models).",
+  "headline_pass_rate": "Each tool's overall pass rate is given per model: the unweighted mean over the 18 task units of their pass rates, which with 6 runs a unit is the passes over the 108 runs, with a Wilson 95 % interval on that count. Beside it, the same split by category: accessibility-friendly apps (the four forms, the file manager, Inkscape, Thunderbird, Forgejo and Calc in both browsers, 10 units), image tasks (the board's and the trace's 8 units, where an image has to be read), and per browser (Firefox's 5 units against Chromium's 5; Forgejo runs in Chromium and counts among the apps). Both models' rates are given, and a figure for the two together is their mean, never a pool that weights one model more.",
+  "headline_time": "The time ratio is the geometric mean, over task units, of Cua Driver's median wall time of passed runs over hyprmasq's, computed within each model, over the task units where both tools passed at least 3 of their 6 runs with that model. The task units that enter it are listed beside it for each model, and a unit that does not enter it is named with why. The same is given for the time in tools. Times compare per machine (machines), so the ratio of main is that of these two deployments; hyprmasq-machine-a's rounds give the same ratio on one machine.",
+  "scope": {
+   "claims": "Every claim is scoped to this VM setup and shows trends between the tools there. The page lists the following as a short list, not as prose.",
+   "against_cua": [
+    "The VM's accessibility walks are 1.4 to 2.4 times as slow as a real Omarchy machine's and are cut at Cua Driver's time budget.",
+    "8 of the 18 task units are image tasks.",
+    "5 task units run in Firefox, where Cua Driver's foreground is refused and its browser tools do not apply.",
+    "Cua Driver's guide calls Hyprland experimental.",
+    "main starts Chromium without remote debugging; cua-attach, with it, is shown next to main's Chromium units."
+   ],
+   "for_cua": [
+    "In the VM, Cua Driver's screenshots of a hidden Chromium window stay fresh, which they do not on the real machine.",
+    "In the VM, it types into Thunderbird in the background, which it does not on the real machine.",
+    "In the VM, its desktop route clicks a GTK 3 dropdown's item, which it does not on the real machine."
+   ],
+   "setup": [
+    "Each tool runs on its own machine, Cua Driver on machine A and hyprmasq on machine B; hyprmasq-machine-a is one round of hyprmasq on machine A.",
+    "Other load on the host of machine A sometimes takes most of a core; run.json's host_load records it."
+   ]
+  },
+  "other_models": "The comparison uses Sonnet 5.5 and GPT-6.1 Terra. The Opus and Sol runs of rounds 1 and 2 stay on disk, unpublished.",
+  "failure_attribution": {
+   "fixed": "2026-11-09 00:10 CET, before any reviewer read a run.",
+   "scope": "Each failed Sonnet or Terra run of every published series gets one verdict. A failed run is one with passed false that is not excluded. Excluded runs and Opus's and Sol's runs get none. Series are not pooled: each tool and setup has its own row.",
+   "q1": "Was the goal reachable with what this tool offers? A route counts as available only if the tool's tool list, its guide or its own messages offered it to the agent, and it works. The evidence is capability-results.md's scripted routes, what the tool returned in this run, and passes of the same task with the same tool.",
+   "q2": "Did the model use what the tool offered correctly?",
+   "verdicts": {
+    "tool_problem": "The tool refused, dropped or misreported a reasonable action and that caused the failure, including retry loops that follow from it. Or the tool lacked what the goal needed, even if every call was correct and the model's workaround was sensible. A sensible workaround that fails counts against the tool, not the model.",
+    "model_mistake": "A route to the goal was available, the tool carried out what was asked, and the failure comes from the model: wrong part, inaccurate line, ignoring what the tool said to do, stopping early.",
+    "unclear": "The two reviewers disagree, the evidence does not settle it, or both contributed and neither alone decides. The reason is recorded as reviewers_disagree, evidence_insufficient or both_contributed."
+   },
+   "tool_and_model": "Tool and model failure can go hand in hand, and a model can fail with correct calls because the tools were not enough to reach the goal. That case is tool_problem under the verdicts above, and it is not a model_mistake.",
+   "passes": "A pass that the tool made harder is not a failure. It shows in the time ratio only.",
+   "method": "Two independent reviewers per failed run, one Claude and one Codex, with the same prompt for every tool. Neither sees the other's verdict or any pass rate. Passes of the same task and tool are given as examples of a route, at most 3 runs and never their count. Each reviewer cites evidence: the file and line of the call, the tool's result or a screenshot. A verdict without evidence counts as evidence_insufficient. Any disagreement becomes unclear, with no tie-break. The reviewers' models are recorded with the verdicts.",
+   "published": "Every verdict is published in a data file with its evidence, as paths inside the run and without host names.",
+   "page": [
+    "The scripted capability table first.",
+    "Then a 100 % stacked bar per tool, of passed, model mistake, tool problem and unclear, split into apps and photo tasks, with unclear as one segment.",
+    "Then a collapsed per-task table, with the reasons for unclear.",
+    "Headline: failed because of the tool, X of N runs per tool, next to the pass rate."
+   ]
+  }
+ },
+ "amendments": [
+  {
+   "date": "2026-11-07",
+   "what": "v1's rules written and committed before any run: Cua Driver 0.42.1, the four models, every task, the machines."
+  },
+  {
+   "date": "2026-11-08 00:10 CET",
+   "what": "v1 started: Cua Driver's half of main on machine A."
+  },
+  {
+   "date": "2026-11-08 01:27 CET",
+   "what": "After about 50 of Cua Driver's runs, v1 moved hyprmasq's half to machine B, on 8935ac7 with the popup fix, and added hyprmasq-machine-a. It kept v1's results directory, which this file's own rule forbade."
+  },
+  {
+   "date": "2026-11-08 02:30 CET",
+   "what": "v1 stopped by the owner, with 87 runs of Cua Driver and 3 of hyprmasq, none published as the comparison. Review found that vm.py took hyprmasq's screenshot of every window before ready.json, for hyprmasq only, which lets hidden windows draw at their real size: Cua Driver's runs started with windows blank or at the size they had before they were moved, and its agents aimed at those frames. This was in vm.py since 649f320 (16 October 2026), so the published 0.38.0 comparison has it too."
+  },
+  {
+   "date": "2026-11-08",
+   "what": "v2, a new series in comparison-2026-11-v2: vm.py shows each task's workspace until its window stops changing before ready.json, for every tool, and takes no window screenshot then (startcheck.py checks each tool's first screenshot against grim); Chromium in every VM; the prompts say that screenshots come back in the tools' results and Forgejo's no longer names a workspace; measures of the user's work, of input to the user's window, of the cursor, of frames, walks split by why they stopped, refusals by status, actions requested, sent and done; host load per run with a rerun rule; a failed debrief keeps the run; both halves start together, paced; machine B's calibration gate in series.py; this analysis plan."
+  },
+  {
+   "date": "2026-11-08",
+   "what": "The owner limits the comparison to Sonnet 5.5 and GPT-6.1 Terra at medium effort, which are enough to compare the tools and take half the time: Opus and Sol leave every series, and their runs of main's rounds 1 and 2 stay on disk, excluded and not pooled. At the same time Forgejo's runs at 3a2f692 are replaced. v2's start step (vm.py at 3a2f692) gave the focus back to the terminal, the user's window in every task but Forgejo, whose user types in their browser's notes window: in every Forgejo run of v2 the user's keys went to the terminal and they typed nothing in their notes (typed_chars 0 in all 60, against 89 to 184 in v1), so the run measured neither the user's work nor the focus against their notes. Every Forgejo run of v2 at 3a2f692 is excluded and kept on disk. main stopped at the end of its round 2 for both tools. Its rounds 1 and 2 at 3a2f692 stand for Sonnet and Terra on every task but Forgejo: their user's window at the start is the terminal, as in v1, and startcheck.py at the fix commit gives every task but Forgejo the same start as at 3a2f692 (capability-results.md, The start of a run). main-rest runs rounds 3 to 6 and forgejo-fix Forgejo's rounds 1 and 2, both at the fix commit, on main's machines and paced as main. cua-attach and hyprmasq-machine-a had not started, and run whole at the fix commit. The fix commit is 3a2f692 with: the start step giving the focus back to the window that had it, frames counting only calls that name a window (a measure, which report.py recomputes from the logs), the rules' rounds for a series that continues another, the start check's record of the user's window and typing, calibrate.py's workloads for hypruse and computer-use-linux, and these rules. Nothing else that a run runs changed. others, hypruse 0.13.0 and computer-use-linux 0.7.47 with Sonnet and Terra and 6 repetitions, runs on machine A after main, cua-attach and hyprmasq-machine-a: calibrated on the GTK 4 form, machine C (Ryzen 7 5800X3D) was not within 5 % of machine A. hypruse's median call took 0.379 s on machine A with 1 VM and 0.386 s with 2, and on machine C 0.466 s with 1 VM and 0.526 s with 4 (its tree 0.588 s against 0.991 s and 1.410 s); computer-use-linux's 0.648 s and 0.666 s on machine A, and 0.711 s and 0.831 s on machine C (its app state 2.889 s against 4.565 s and 6.382 s). cross-check stays as planned, on machine C."
+  },
+  {
+   "date": "2026-11-08 07:40 CET",
+   "what": "The analysis is fixed further before main-rest's rounds 4 to 6, after two reviews of v2: while round 3 ran (35 of 36 runs of each tool done) and before any later round, analysis gets the headline pass rate (per model, unweighted over the 18 task units, with Wilson intervals, split by accessibility-friendly apps, image tasks and browser), the headline time ratio (the geometric mean of per-unit median ratios within each model, over units where both tools passed at least 3 runs, with the units listed), and the list of prompt requirements that export.py --fail may enforce; analysis.unit no longer names four models. render.py follows it for a dataset that export.py --registered marks. desktop_input_to_user_window counts only desktop input that Cua Driver says it delivered, and its hotkeys that match a compositor bind count apart as desktop_shortcuts; recomputed from the logs, the finished Sonnet and Terra runs that it flagged fall from 8 to 1, main/cua/firefox/trace-rack/claude-claude-sonnet-5-5-medium-2. cursor_moved_px is cursor_displacement_px, the pointer's distance from its start at the run's end. These change no run's conditions: report.py and render.py read the logs, and the rest are rules."
+  },
+  {
+   "date": "2026-11-08 07:51 CET",
+   "what": "The owner keeps the comparison to Sonnet and Terra, with hyprmasq-machine-a at one round and no run on a real desktop: it is to show fair trends, not to be a perfect benchmark. analysis.scope bounds every claim to this VM setup and lists, as a short list for the page, the known effects that favour either tool and the setup's limits. analysis.other_models: the comparison uses Sonnet 5.5 and GPT-6.1 Terra, and the Opus and Sol runs of rounds 1 and 2 stay on disk, unpublished."
+  },
+  {
+   "date": "2026-11-08 07:58 CET",
+   "what": "Nothing personal about the machines is published: they are machine A (Ryzen 5 5600X), machine B (laptop, Omarchy, Ryzen 7 PRO 4750U) and machine C (Ryzen 7 5800X3D), other work on a host is other load or another benchmark on the host, and the series of hyprmasq's round on machine A is hyprmasq-machine-a. The rules give each machine's options, and an untracked local file (machines.local.json, after machines.example.json) its SSH target and where a series' results lie on the machine that runs series.py. No run's conditions change."
+  },
+  {
+   "date": "2026-11-09 00:10 CET",
+   "what": "Failed runs are attributed by a rule fixed before any reviewer read a run (analysis.failure_attribution): one verdict per failed Sonnet or Terra run, tool_problem, model_mistake or unclear, from two independent reviewers, one Claude and one Codex, with any disagreement unclear. Tool and model failure can go hand in hand, and a model that fails with correct calls because the tools were not enough counts as a tool_problem."
+  },
+  {
+   "date": "2026-11-10",
+   "what": "The page shows the failure attribution differently from analysis.failure_attribution.page, after every verdict was in and with no verdict, count or pass rate changed: the figure counts the failed runs alone, split into the model's mistake, the tool's fault and unclear, in place of a 100 % bar with the passed runs, as the pass rates stand beside it in the scorecard. The main page's figure has the four tools of main, and the slices cua-attach and hyprmasq-machine-a keep their own rows in the per-task table of comparison-numbers.md. The scripted capability table stays first in that section."
+  },
+  {
+   "date": "2026-11-10",
+   "what": "The page gained a figure of what a run costs, added after the results were known and with no run or number changed: per tool and agent, the median over every run of the cost at list prices, of the requests to the model and of the peak context, the same medians as the page's tables. A value more than 2.5 times the next one runs off its column's scale with a break in its bar."
+  }
+ ]
+}

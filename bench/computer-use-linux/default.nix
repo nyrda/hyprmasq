@@ -1,7 +1,7 @@
 # computer-use-linux, for running the benchmark tasks with it instead of hyprmasq (bench/default.nix with
 # backend = "computer-use-linux"): the release's crate from crates.io, unchanged, built as `cargo install
 # computer-use-linux` builds it, with its three binaries in one directory, and its agent skill as its Claude Code and
-# Codex plugin ships it.
+# Codex plugin ships it, from the release's tag, as the crate no longer holds the plugin.
 #
 # `pkgs` is the package set of the VM; by default the nixpkgs of this checkout's flake.lock.
 {
@@ -18,20 +18,29 @@
 let
   inherit (pkgs) lib;
   pname = "computer-use-linux";
-  # The newest release, 0.7.32 (tag v0.7.32, commit 1f3b8a0). The crate's SHA-256 on crates.io is
-  # 6dafe72d37639380340ab0563f57886f5c93bdbf855c5d71bdc177f36225e985.
-  version = "0.7.32";
+  # The newest release, 0.7.47 (tag v0.7.47, commit 2f1e32d). The crate's SHA-256 on crates.io is
+  # 789c213a9aaa4f5996ee87af2826ba4174849bd9cc575a4ab06e8085955bd2ad.
+  version = "0.7.47";
+  tag = "2f1e32d249b75eae6d241c8b449bd9577bd131f5";
 
   src = pkgs.fetchCrate {
     inherit pname version;
-    hash = "sha256-0IS/0fwO9z+8EnzcNTl/UWpxIxzjsjZUNPRUneqqm14=";
+    hash = "sha256-38ZLfzEYjqx3DvKpCcB2BVFHKs9b8QpAZzguMsTX4qY=";
+  };
+
+  # The release's tag, for the plugin's skill, which the crate does not hold.
+  repository = pkgs.fetchFromGitHub {
+    owner = "agent-sh";
+    repo = pname;
+    rev = tag;
+    hash = "sha256-kB/VgKXOgC3wqbRtsbhW7RpKMvjaFoeSEmq0DeQaibo=";
   };
 
   # `cargo install`: the release profile, the crate's own Cargo.lock (--locked, as its CI builds), all three binaries
   # (the server, its COSMIC helper and its indicator overlay), and no tests.
   server = pkgs.rustPlatform.buildRustPackage {
     inherit pname version src;
-    cargoHash = "sha256-x52oG45S01YpocrW5IKoESrEZGxA7mol7chPOOZMlV4=";
+    cargoHash = "sha256-sJqy0Jwf8ewnFBDMBP6fMnZMieDRCojgFqfnxgxHT4M=";
     doCheck = false;
 
     meta = {
@@ -44,9 +53,9 @@ let
   };
 
   # The skill its Claude Code and Codex plugin ships, plugins/computer-use-linux/skills/computer-use-linux of the
-  # release (the same as its skills/computer-use-linux).
+  # release's tag (the same as its skills/computer-use-linux), with its references.
   skills = pkgs.runCommand "computer-use-linux-skill-${version}" { } ''
-    cp -r ${src}/plugins/computer-use-linux/skills/computer-use-linux $out
+    cp -r ${repository}/plugins/computer-use-linux/skills/computer-use-linux $out
   '';
 in
 {

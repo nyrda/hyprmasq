@@ -146,7 +146,7 @@ class Hosts(unittest.TestCase):
                 dispatch.Host(bad)
 
     def test_agents_a_host_takes(self):
-        local, box, codex_box = dispatch.Host("local"), dispatch.Host("me@box"), dispatch.Host("me@nas,agents=codex+claude:*opus*")
+        local, box, codex_box = dispatch.Host("local"), dispatch.Host("me@box"), dispatch.Host("me@store,agents=codex+claude:*opus*")
         self.assertTrue(local.takes("pi", "tensorx/deepseek/x") and local.takes("claude-api", "haiku"))
         # The harnesses that use this machine's API keys run only here, also on a host that takes every agent.
         self.assertFalse(box.takes("pi", "tensorx/deepseek/x") or box.takes("claude-api", "haiku"))
@@ -515,7 +515,7 @@ class ApiKeys(unittest.TestCase):
         host.base = self.base
         build = dispatch.Build(self.out, {"path": self.dir.name, "commit": "b" * 40, "task": "forgejo", "variant": None})
         args = argparse.Namespace(display="1920x1080@1", timeout=60, max_calls=0, no_debrief=True, backend=backend, prompt=prompt,
-                                  browser=browser)
+                                  browser=browser, desktop="bare", chromium_options="", mcp_args="")
         keys = {"ANTHROPIC_API_KEY": KEY, "ANTHROPIC_CUSTOM_HEADERS": HEADERS}
         remote = dispatch.Remote(self.harness, [build], [(harness, "m", None)], args, self.dir.name, dispatch.Queue([]), keys)
         printed = io.StringIO()

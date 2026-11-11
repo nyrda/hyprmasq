@@ -16,12 +16,13 @@ import sys
 
 
 class Session:
-    """An MCP session with hyprmasq-mcp in the VM on vsock CID cid, through mcp_tap.py, which logs it to log."""
+    """An MCP session with the server in the VM on vsock CID cid, through mcp_tap.py, which logs it to log; or with command,
+    a server of this machine, over its stdio."""
 
-    def __init__(self, cid, log, client="hyprmasq-bench-probe"):
+    def __init__(self, cid, log, client="hyprmasq-bench-probe", command=None, env=None):
         tap = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_tap.py")
-        self.proc = subprocess.Popen([sys.executable, tap, str(cid), "5000", log], stdin=subprocess.PIPE,
-                                     stdout=subprocess.PIPE)
+        self.proc = subprocess.Popen(command or [sys.executable, tap, str(cid), "5000", log], stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE, env=env)
         self.id = 1
         self.request("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
                                     "clientInfo": {"name": client, "version": "0"}})

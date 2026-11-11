@@ -19,9 +19,9 @@ and the security model; `docs/mcp.md` covers `hyprmasq-mcp`;
 `docs/vm-test.md` the VM test, its areas and every subtest;
 `docs/benchmarks.md` holds the release benchmark results, whose figures and
 tables `bench/render.py` generates from `docs/benchmarks/data`;
-`docs/comparison.md` compares hyprmasq with Cua Driver, computer-use-linux and hypruse, and in an addendum with
-OpenAI's and Claude's computer use and Cua Driver on macOS,
-its figures and tables generated the same way from `docs/comparison/data`. Keep them in step
+`docs/comparison.md` compares hyprmasq with Cua Driver, computer-use-linux and hypruse, with its tables in
+`docs/comparison-numbers.md`, and `docs/comparison-macos.md` with OpenAI's and Claude's computer use and Cua Driver on
+macOS, their figures and tables generated the same way from `docs/comparison/data`. Keep them in step
 with the code: a changed command, option, default or exit code updates the
 page that documents it. Agents use the MCP tools; there is no agent skill.
 
@@ -61,7 +61,7 @@ CI runs `nix flake check --no-build`, then builds `hyprmasq` and `hyprmasq-mcp`
 including the Go tests with `-short`, and the flake checks `mcp-tests` (all Go
 tests), `format` (clang-format and gofmt), `vm-test-docs` (the VM test's
 subtest tables) and `bench-calc` (the Calc checker). It runs the other bench
-unit tests above and checks `docs/benchmarks.md` and `docs/comparison.md`
+unit tests above and checks `docs/benchmarks.md`, `docs/comparison.md` and the comparison's two other pages
 against their data with `bench/render.py --check`. It caches the Nix store
 between runs, so a check whose inputs did not change is not built again. CI
 does not run `go test -race`. The test gate, `./dev.sh gate`, is local; CI does not run it. Before opening a PR, run it on the commit you push and fill

@@ -24,9 +24,17 @@ CHROMIUM = (
 # hyprmasq reads no accessibility, so its runs keep the browser as it was.
 if CHROMIUM_ACCESSIBILITY:
     CHROMIUM += " --force-renderer-accessibility"
+# A browser whose user had turned on remote debugging before the agent came (run.py --chromium-options).
+CHROMIUM += " " + os.environ.get("HYPRMASQ_BENCH_CHROMIUM_OPTIONS", "")
 
-# What the user typed, line by line, for collect().
+# What the user typed, line by line, for collect(), and in the variant `reacting` what went elsewhere as the focus had
+# left their window, and when they stopped and went on.
 TYPED = []
+LOST = []
+ACTIVITY = []
+# How long a person takes to see that their window lost the focus, and to see that it has it back.
+REACTION_SECONDS = 1.5
+user_window = None
 USER_LINES = [
     "Agenda: review of release 1.4",
     "Dark mode ships on Thursday.",
@@ -59,6 +67,7 @@ def chromium_windows():
 
 
 def prepare():
+    global user_window
     machine.wait_for_unit("forgejo.service")
     for port in (3000, 8080, 8081):
         machine.wait_for_open_port(port)
@@ -114,8 +123,47 @@ def prepare():
     return agent_window
 
 
+def reacting_user(stop):
+    """The variant `reacting`: the user types as during() does, but like a person stops typing once the focus has left
+    their window, after REACTION_SECONDS, and goes on once it has been back as long. What they typed before they
+    noticed goes wherever the focus went, is counted in LOST and logged with the times in ACTIVITY."""
+    stop.wait(3)
+    n, line, left_at, back_at, paused, next_line = 0, "", None, None, False, 0
+    while not stop.is_set():
+        now = time.monotonic()
+        with SHELL_LOCK:
+            focused = json.loads(hypr("-j activewindow")).get("address") == user_window
+        if focused:
+            left_at = None
+            back_at = back_at or now
+        else:
+            left_at = left_at or now
+            back_at = None
+        if paused and focused and now - back_at >= REACTION_SECONDS:
+            paused = False
+            ACTIVITY.append({"t": time.time(), "event": "goes on"})
+        elif not paused and not focused and now - left_at >= REACTION_SECONDS:
+            paused = True
+            ACTIVITY.append({"t": time.time(), "event": "stops"})
+        # Between lines the user reads their notes, and sees the focus leave as they do while typing.
+        if paused or (not line and now < next_line):
+            stop.wait(0.2)
+            continue
+        if not line:
+            line = USER_LINES[n % len(USER_LINES)] + "\n"
+            n += 1
+        chunk, line = line[:3], line[3:]
+        machine.send_chars(chunk, delay=0.05)
+        (TYPED if focused else LOST).append(chunk)
+        if not line:
+            next_line = time.monotonic() + 6
+
+
 def during(stop):
     """The user types a line of notes every few seconds, as real keyboard input."""
+    if VARIANT == "reacting":
+        reacting_user(stop)
+        return
     stop.wait(3)
     n = 0
     while not stop.is_set():
@@ -140,6 +188,10 @@ def collect():
         "saved_chars": len(notes),
         "first_difference": None if notes == typed else first_difference,
     }
+    if VARIANT == "reacting":
+        check["checks"]["user_notes"]["lost_chars"] = len("".join(LOST))
+        check["checks"]["user_notes"]["stopped"] = sum(a["event"] == "stops" for a in ACTIVITY)
+        write_json("user-activity.json", {"activity": ACTIVITY, "lost": LOST})
     with open(out_path("user-notes.txt"), "w") as f:
         f.write(f"typed:\n{typed}\n---\nsaved:\n{notes}\n")
     events = check.pop("events")
