@@ -4,7 +4,7 @@ This is the `hyprland-0.56` branch, which gets the fixes and MCP changes of
 `main` while people move to Hyprland 0.57. `main` targets the latest stable
 Hyprland. Every command below uses this branch.
 
-hyprmasq 0.1.0 is built and tested against **Hyprland 0.56.2** on x86_64
+hyprmasq 0.2.0 is built and tested against **Hyprland 0.56.2** on x86_64
 Linux. A Hyprland plugin must be compiled against the exact Hyprland build
 that loads it: hyprmasq compares the build hash when it loads and refuses to
 load into any other build. Rebuild the plugin whenever Hyprland changes.
@@ -54,9 +54,9 @@ repositories with `GOPROXY=direct makepkg -si`. makepkg builds in
 `build/makepkg` of the clone, or under `BUILDDIR` when you set one, and
 writes the package files to the clone's root.
 
-`pacman -Q hyprmasq` shows a version such as `0.1.0.r100.g5e0bb2a`: the
+`pacman -Q hyprmasq` shows a version such as `0.2.0.r100.g5e0bb2a`: the
 `VERSION` file, the number of commits and the commit. The programs report the
-`VERSION`, here `0.1.0`.
+`VERSION`, here `0.2.0`.
 
 ### What this installs
 

@@ -13,7 +13,7 @@ buildGoModule (finalAttrs: {
   ldflags = [ "-X github.com/nyrda/hyprmasq/mcp/internal/server.Version=${finalAttrs.version}" ];
 
   src = lib.cleanSource ../mcp;
-  vendorHash = "sha256-U8ji2eRfPS6QeT/lzwtTY9avPLzNcksO7VpBnzsF2kw=";
+  vendorHash = "sha256-8Ik3wgDoWphDnAI73L5V/xbYMQeT3Y7Vz/q+K47JqnI=";
   # Every package is built and tested; only the command is installed. The tests that wait on real time are left to
   # CI, which runs all of them.
   env.CGO_ENABLED = 0;
@@ -23,6 +23,7 @@ buildGoModule (finalAttrs: {
 
   meta = {
     description = "MCP server for driving Hyprland windows through the hyprmasq plugin";
+    homepage = "https://github.com/nyrda/hyprmasq";
     license = lib.licenses.mit;
     platforms = lib.platforms.linux;
     mainProgram = "hyprmasq-mcp";
