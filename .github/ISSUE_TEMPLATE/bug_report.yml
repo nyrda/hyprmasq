@@ -1,0 +1,60 @@
+name: Bug report
+description: Something hyprmasq does wrong, or a problem with Hyprland while it is loaded
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A plugin must be built against the exact Hyprland that loads it, so most reports depend on the two versions
+        below. A vulnerability does not belong here: report it privately, as
+        [SECURITY.md](https://github.com/nyrda/hyprmasq/blob/main/SECURITY.md) says.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead, with the commands or tool calls and their output.
+    validations:
+      required: true
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: The output of `hyprctl hyprmasq version` and `hyprctl version`. When the plugin does not load, say so and give `hyprctl version` alone.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How hyprmasq is installed
+      options:
+        - NixOS module
+        - Nix packages without the module
+        - Arch or Omarchy package (makepkg)
+        - Manual build
+        - hyprpm
+    validations:
+      required: true
+  - type: dropdown
+    id: part
+    attributes:
+      label: Part
+      multiple: true
+      options:
+        - Plugin (hyprctl hyprmasq)
+        - hyprmasq-input
+        - hyprmasq-launch
+        - hyprmasq-mcp
+        - Installation or packaging
+        - Docs
+  - type: input
+    id: application
+    attributes:
+      label: Application
+      description: The application and its version, and whether its window is a Wayland or an X11 window. For `hyprmasq-mcp`, also the agent and the model.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The lines with `hyprmasq` from Hyprland's log, and for a problem with one window the output of `hyprctl hyprmasq state <address>`. For input that the plugin refused, also `hyprctl hyprmasq hooks`.
+      render: text

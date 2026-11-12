@@ -58,7 +58,9 @@ in `libexec`, where the plugin finds it relative to its own path.
 
 ## Contributing
 
-Contributions are welcome as pull requests against `main`.
+Contributions are welcome as pull requests against `main`. Development needs
+Nix on x86_64 Linux with KVM: the build, the checks and the test gate all run
+through the flake, and there is no other supported setup.
 
 1. Build with `./dev.sh build`, or `nix develop -c make`.
 2. Run the checks: `clang-format -i` on changed C and C++ files,
@@ -271,3 +273,27 @@ against a new release, but not what they do:
   commit to the plugin commit for it: the head of its branch, which moves with
   every change to the branch, or for a patch release without a branch the last
   commit of `main` that targets it.
+
+## Releasing
+
+A release is a commit of `main` whose `VERSION` names it, with the tag
+`vX.Y.Z` and a GitHub release. The plugin, `hyprmasq-input`,
+`hyprmasq-launch` and the Nix and Arch builds of `hyprmasq-mcp` report
+`VERSION`, so a commit after a release reports that release until the next
+one. The branch of an older Hyprland release carries the same `VERSION` and
+gets no tag.
+
+1. In a PR of its own, set `VERSION` and the lines of the docs that quote it:
+   the first paragraph and the `pacman -Q` example of `docs/installation.md`,
+   and the two `version` rows of `docs/automation.md`. It changes what the
+   plugin and the tools report, so it passes the [test gate](#contributing).
+2. Tag the PR's commit on `main` and push the tag:
+   `git tag -a vX.Y.Z -m "hyprmasq X.Y.Z" <commit>`, then
+   `git push origin vX.Y.Z`. The tags are not signed yet, as
+   [Checking what you build](installation.md#checking-what-you-build) says.
+3. Publish a GitHub release for the tag. Its notes are the project's
+   changelog: what changed since the last release, what a user has to change,
+   the Hyprland release it needs and the branch for the older one. Their links
+   go to the docs at the tag, `blob/vX.Y.Z/docs/…`.
+4. Cherry-pick the PR's commit onto the branch of the older Hyprland release,
+   run the test gate there, and move the branch's pin in `hyprpm.toml`.
