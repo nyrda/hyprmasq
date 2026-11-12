@@ -58,7 +58,7 @@ hyprctl hyprmasq eis close "$addr"
 | `clipboard set <text-hex>` | `text N` | Make the text, written in hex, the agent's clipboard, which the plugin holds and pastes. `N` is its serial. See [Clipboard and selections](#clipboard-and-selections). |
 | `clipboard` | `text N: A pastes asked for it, E have ended, C with all of it` | How far the pastes of the last text that `clipboard set` made have read it, while it is still the agent's clipboard. |
 | `hooks` | `group mode, state` lines | The plugin's groups of function hooks, whether each is installed, and why its last install was refused. See [Other plugins](#other-plugins). |
-| `version` | `hyprmasq 0.1.0 interface 5` | Plugin version and command interface version. |
+| `version` | `hyprmasq 0.2.0 interface 5` | Plugin version and command interface version. |
 | `help` | usage | The command summary. |
 
 All commands are `hyprctl hyprmasq …`. Keywords such as `since`, `max` and
@@ -89,7 +89,7 @@ errors are JSON too, with `hyprctl` exiting 0, so check `ok`:
 | `launched` | `{"ok":true,"windows":[{"address":"0x…","stableId":"1a","token":"9c1f0e4ab27d3365"}]}` |
 | `clipboard set` | `{"ok":true,"serial":3}` |
 | `clipboard` | `{"ok":true,"serial":3,"held":true,"asked":1,"ended":1,"complete":1}` |
-| `version` | `{"ok":true,"version":"0.1.0","interface":5}` |
+| `version` | `{"ok":true,"version":"0.2.0","interface":5}` |
 | `hooks` | `{"ok":true,"groups":[{"name":"input","onDemand":true,"installed":false,"claims":0,"installs":3,"functions":["CSeatManager::setKeyboardFocus(…)"],"refused":null}]}` |
 | an error | `{"ok":false,"error":"no mapped window 0x1234","code":"window_gone"}` |
 

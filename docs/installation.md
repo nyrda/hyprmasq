@@ -1,6 +1,6 @@
 # Installation
 
-hyprmasq 0.1.0 is built and tested against **Hyprland v0.57.2** at the
+hyprmasq 0.2.0 is built and tested against **Hyprland v0.57.2** at the
 release commit `flake.lock` pins, on x86_64 Linux.
 A Hyprland plugin must be compiled against the exact Hyprland build
 that loads it: hyprmasq compares the build hash when it loads and refuses to
@@ -54,9 +54,9 @@ repositories with `GOPROXY=direct makepkg -si`. makepkg builds in
 `build/makepkg` of the clone, or under `BUILDDIR` when you set one, and
 writes the package files to the clone's root.
 
-`pacman -Q hyprmasq` shows a version such as `0.1.0.r100.g5e0bb2a`: the
+`pacman -Q hyprmasq` shows a version such as `0.2.0.r160.g5e0bb2a`: the
 `VERSION` file, the number of commits and the commit. The programs report the
-`VERSION`, here `0.1.0`.
+`VERSION`, here `0.2.0`.
 
 ### What this installs
 
