@@ -6,6 +6,7 @@ authors = ["nyrda"]
 # release that main moved past has no branch and gets the last commit of main that targets it.
 commit_pins = [
     ["acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9", "739922da42bae8b97c73c6982db15c913a876aca"], # v0.57.1: last commit of main for it
+    ["0aa6745f705f2c4b0a5004eb019ef76e5bbdb426", "100ef674df6438bfc044521b893df3155d47bf92"], # v0.57.0: last commit of main for it
     ["efb50993780079460b0cbed1363e2166a2de1d9f", "b0aaa68f2241c740f365caf15b185192ee1e8d83"], # v0.56.2: hyprland-0.56
 ]
 

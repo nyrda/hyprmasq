@@ -313,7 +313,7 @@ manual build. Run `hyprpm update` after every Hyprland update.
 `commit_pins` in `hyprpm.toml` give a Hyprland release that `main` no longer
 targets the head of its branch, so hyprpm on Hyprland 0.56.2 builds
 `hyprland-0.56`. A patch release that `main` moved past has no branch, so
-hyprpm on Hyprland 0.57.1 builds the last commit of `main` for it.
+hyprpm on Hyprland 0.57.0 or 0.57.1 builds the last commit of `main` for it.
 
 ## Older Hyprland releases
 
@@ -335,6 +335,11 @@ Install from the branch that matches your Hyprland:
 - hyprpm: nothing to change, its commit pins pick the branch.
 
 When you update Hyprland, move to the branch of the new release, or to `main`.
+
+The patch releases that `main` moved past, v0.57.0 and v0.57.1, have no
+branch and get no further changes. Update Hyprland to v0.57.2, or build the
+commit that `commit_pins` in `hyprpm.toml` names for your release, as hyprpm
+does on its own.
 
 ## Loading the plugin
 

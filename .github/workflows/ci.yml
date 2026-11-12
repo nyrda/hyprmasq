@@ -72,15 +72,19 @@ jobs:
       - name: Check the benchmark page against its data
         run: python3 bench/render.py --check
       # Keeps the flake's inputs, which no output refers to, from the garbage collection before the save, and names the
-      # cache after the outputs, so that a run that built nothing new saves nothing.
+      # cache after the outputs, so that a run that built nothing new saves nothing. A PR from a fork saves no cache:
+      # its token cannot delete the older ones, whatever the permissions above say, so they would pile up and push
+      # main's cache out of the repository's quota. It still restores the cache of main.
       - name: Name the cache
         id: cache
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           nix flake archive --json | jq -r '.inputs | .. | .path? // empty' |
             xargs nix-store --realise --add-root "$RUNNER_TEMP/roots/input" --indirect > /dev/null
           key=$(readlink "$RUNNER_TEMP"/roots/* | sort | sha256sum | cut -c1-32)
           echo "key=ci-$key" >> "$GITHUB_OUTPUT"
       - name: Save the Nix store
+        if: steps.cache.outcome == 'success'
         uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
           primary-key: ${{ steps.cache.outputs.key }}

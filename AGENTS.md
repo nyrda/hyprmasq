@@ -15,7 +15,9 @@ Docs: `README.md` is the landing page; `docs/installation.md` covers install,
 loading and MCP registration; `docs/automation.md` is the reference for
 `hyprctl hyprmasq`, `hyprmasq-input`, `hyprmasq-launch`, the plugin options
 and the security model; `docs/mcp.md` covers `hyprmasq-mcp`;
-`docs/development.md` covers builds, tests and contributing, and
+`docs/development.md` covers builds, tests, contributing and releasing, with
+`CONTRIBUTING.md` pointing to it and the bug report form in
+`.github/ISSUE_TEMPLATE/`, and
 `docs/vm-test.md` the VM test, its areas and every subtest;
 `docs/benchmarks.md` holds the release benchmark results, whose figures and
 tables `bench/render.py` generates from `docs/benchmarks/data`;
