@@ -6,7 +6,7 @@ hyprmasq lets AI agents and scripts see, click and type in Hyprland windows,
 also on hidden workspaces, while you keep working in yours. Your cursor,
 keyboard focus and workspace stay where they are.
 
-https://github.com/user-attachments/assets/4f07d0f6-b3c4-4176-a3c6-930452c4a4d6
+https://github.com/user-attachments/assets/5e0b7789-3a4a-4e3b-b8c7-dffae121fdf0
 
 - **Hidden windows.** Screenshots render a single window offscreen, with its
   popups and menus, whether or not its workspace is visible.
