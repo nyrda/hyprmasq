@@ -7,7 +7,7 @@ authors = ["nyrda"]
 commit_pins = [
     ["acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9", "739922da42bae8b97c73c6982db15c913a876aca"], # v0.57.1: last commit of main for it
     ["0aa6745f705f2c4b0a5004eb019ef76e5bbdb426", "100ef674df6438bfc044521b893df3155d47bf92"], # v0.57.0: last commit of main for it
-    ["efb50993780079460b0cbed1363e2166a2de1d9f", "7b2810339840f4e0a197950431b8beb3c8e94f89"], # v0.56.2: hyprland-0.56
+    ["efb50993780079460b0cbed1363e2166a2de1d9f", "e32d98e5cb100188d0cd5e427007988e2ab5a4e8"], # v0.56.2: hyprland-0.56
 ]
 
 [hyprmasq]
