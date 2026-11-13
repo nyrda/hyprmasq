@@ -799,8 +799,8 @@ Studies of a change against the build before it, and results that newer runs rep
 
 The trace runs of this study are of main at
 [9685fcf](https://github.com/nyrda/hyprmasq/commit/9685fcf), with `act`'s `path` action,
-which replaced `drag` ([#88](https://github.com/nyrda/hyprmasq/pull/88)), and zooms under
-768 pixels enlarged by a whole factor ([#90](https://github.com/nyrda/hyprmasq/pull/90)).
+which replaced `drag` ([d249957](https://github.com/nyrda/hyprmasq/commit/d249957)), and zooms under
+768 pixels enlarged by a whole factor, which that commit added.
 The same agents ran every task on the build before them too. Before the change, trace
 took a median of 20 clicks and strokes a run, and 8 s in tools instead of 3 s.
 The other tasks took about as long on both builds.
@@ -1096,7 +1096,7 @@ recovered.
 - **Each section lists its failed runs** and why they failed: the models' target
   errors, such as a label dropped on the wrong part, runs that ran out of their call budget, DeepSeek's runs in the
   release set that ended at its provider's limit of 64 images, and one Forgejo attempt whose cause
-  [#87](https://github.com/nyrda/hyprmasq/pull/87) fixed. In none did hyprmasq deliver
+  [05ce488](https://github.com/nyrda/hyprmasq/commit/05ce488) fixed. In none did hyprmasq deliver
   input elsewhere than the agent aimed it, apart from that attempt.
 - **Models:** Sol, Terra, Astra and Luna are OpenAI's `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-astra` and
   `gpt-6-luna` through Codex, Opus, Sonnet and Haiku Anthropic's Claude 5.5 models through Claude Code, and Kimi K3.1
