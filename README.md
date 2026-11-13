@@ -33,8 +33,8 @@ on one desktop, shown at double speed.
 
 ## Install
 
-hyprmasq is built for one Hyprland release: `main` for 0.57.2 and the
-`hyprland-0.56` branch for 0.56.2. `hyprctl version` shows yours.
+hyprmasq is built for one Hyprland release: this branch for Hyprland `main`
+after v0.57.0 and the `hyprland-0.56` branch for 0.56.2. `hyprctl version` shows yours.
 
 **Arch and Omarchy.** Build a pacman package from a clone:
 
