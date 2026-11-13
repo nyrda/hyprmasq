@@ -2,7 +2,7 @@
 
 hyprmasq beside three other tools that let an agent use a Linux desktop,
 [Cua Driver](https://github.com/trycua/cua), [computer-use-linux](https://github.com/agent-sh/computer-use-linux) and
-[hypruse](https://github.com/IlyasKhallouki/hypruse). Two agents, GPT-6.1 Terra and Claude Sonnet 5.5, ran the same 18
+[hypruse](https://github.com/IlyasKhallouki/hypruse). Two agents, GPT-6.1 Terra and Claude Sonnet 5.5, ran the same 16
 desktop tasks in a VM with each tool, while the user worked in their own window.
 
 <!-- render v2-hyprmasq,v2-hyprmasq-chromium,v2-cua,v2-cua-chromium,v2-hypruse,v2-hypruse-chromium,v2-computer-use-linux,v2-computer-use-linux-chromium,v2-failures scorecard -->
@@ -13,14 +13,14 @@ desktop tasks in a VM with each tool, while the user worked in their own window.
 <!-- /render -->
 
 - **The user:** hyprmasq is built to work in the background, pointer included, and left the user's view alone in all
-  216 runs. The other tools need the foreground for some or all pointer input, and took the focus in most of their
+  192 runs. The other tools need the foreground for some or all pointer input, and took the focus in most of their
   passed runs.
-- **Runs passed:** hyprmasq, computer-use-linux and hypruse are within the noise of each other, and hyprmasq passed more
-  than Cua Driver with both agents.
-- **Time and cost:** the other tools took 1.5 to 3.4 times as long and cost 3.2 to 48 times as much a run. The 48 is
+- **Runs passed:** hyprmasq is within the noise of computer-use-linux and of hypruse with both agents. It passed more
+  than Cua Driver with Sonnet, and with Terra their intervals just overlap.
+- **Time and cost:** the other tools took 1.5 to 3.4 times as long and cost 3.3 to 46 times as much a run. The 46 is
   hypruse with Sonnet, which gets each screenshot twice, as an image and as text.
-- **Photo tasks:** every tool failed most where a photo has to be read. hyprmasq passed 72 % of those runs, hypruse
-  72 % and computer-use-linux 80 %, a difference within the noise.
+- **Photo tasks:** every tool failed most where a photo has to be read. hyprmasq passed 83 % of those runs, hypruse
+  78 % and computer-use-linux 89 %, a difference within the noise.
 
 hyprmasq's author ran the series and developed hyprmasq against these tasks, so the results show its best case, in a
 VM setup with [known effects that favour either tool](#method). The [rules](../bench/comparison-series.json) were
@@ -60,12 +60,12 @@ in their own window meanwhile, and a run lost typing when not all of it arrived.
 </picture>
 <!-- /render -->
 
-- **Cost:** a run with hyprmasq cost 2 cents with Terra and 6 with Sonnet at the median. The others cost 7 to 30
-  cents, and hypruse with Sonnet $3.21.
-- **Fewer round trips:** one `act` call does several actions and returns what changed, so a run took 7 requests to
-  the model where the others took 9 to 20.
-- **Smaller context:** hyprmasq sends small screenshots of one window. Its peak context was 16k to 18k tokens, the
-  others' 38k to 97k, and hypruse's with Sonnet 642k. Its first request, 9k, is as small as any: the others' were 9k to
+- **Cost:** a run with hyprmasq cost 2 cents with Terra and 9 with Sonnet at the median. The others cost 7 to 33
+  cents, and hypruse with Sonnet $3.50.
+- **Round trips:** one `act` call does several actions and returns what changed. With Terra, a run took 8 requests to
+  the model where the others took 13 to 24. With Sonnet it took 10, computer-use-linux 9 and the other two 16 and 26.
+- **Smaller context:** hyprmasq sends small screenshots of one window. Its peak context was 19k to 22k tokens, the
+  others' 43k to 99k, and hypruse's with Sonnet 649k. Its first request, 9k, is as small as any: the others' were 9k to
   14k with Terra and 12k to 64k with Sonnet.
 - **hypruse with Sonnet** gets each screenshot twice, as an image and as text, which is what its cost and context
   show. With Terra it costs about what the others do.
@@ -81,7 +81,7 @@ These measures share causes, so they agree more than independent results would.
 </picture>
 <!-- /render -->
 
-- **Time:** hyprmasq was the fastest of the four on 16 of the 17 tasks it passed often enough to time, even from the
+- **Time:** hyprmasq was the fastest of the four on 15 of the 16 tasks, all of which it passed often enough to time, even from the
   slowest machine. On the Qt form without dropdowns, Cua Driver and computer-use-linux were faster, 38 s against
   hyprmasq's 52 s.
 - **Runs passed:** with 6 runs per agent, most differences between the tools are noise. The 95 % intervals do not
@@ -107,7 +107,7 @@ of the model, citing evidence from the run. Neither saw the other's verdict or a
 
 No failure of hyprmasq was traced to the tool, and nearly all of its failures are image misreads. Drags that
 moved nothing or were refused make up 12 of Cua Driver's 13 tool problems and 5 of hypruse's 11. The reviewers disagreed
-on 29 of 191 failed runs.
+on 29 of 121 failed runs.
 
 <details><summary>Each tool's failures</summary>
 
@@ -119,7 +119,7 @@ on 29 of 191 failed runs.
   nothing or were refused. The other is a Qt dropdown click that it reported as done but that changed nothing.
 - **hypruse:** 5 of its 11 are the same task, where it reported drags that moved nothing, and 6 are input that went
   astray, 3 in Forgejo and 3 in Calc.
-- **Unclear:** the reviewers disagreed on 29 of 191 failed runs, and 2 lacked evidence. 19 of those 31 are Cua
+- **Unclear:** the reviewers disagreed on 29 of 121 failed runs, and 2 lacked evidence. 19 of those 31 are Cua
   Driver's.
 
 </details>
@@ -130,9 +130,9 @@ One task went against hyprmasq. On labelling a photo by custom drag in Firefox, 
 all 6 with hypruse and with computer-use-linux, each failure a label on the same look-alike header. hyprmasq's first
 screenshot is also the smallest of the four, 1280×720 against up to 1920×1080.
 
-A probe outside the series tested that, with Terra and Sol on the eight photo tasks, 6 runs each at hyprmasq's limit of
-1280 and at 1920, on the same machine and build. Both limits passed 80 of 96 runs, and the agents moved in opposite
-directions: Terra 38 and 42, Sol 42 and 38. At 1280 Terra passed the Firefox task above in all 6 runs, so its 1 of 6 in
+A probe outside the series tested that, with Terra and Sol on the six photo tasks, 6 runs each at hyprmasq's limit of
+1280 and at 1920, on the same machine and build. The limits passed 63 and 60 of 72 runs, and the agents moved in opposite
+directions: Terra 33 and 34, Sol 30 and 26. At 1280 Terra passed the Firefox task above in all 6 runs, so its 1 of 6 in
 the series was most likely chance. What does stand out is the browser: the look-alike header took 16 of the probe's
 48 board runs in Firefox, at both limits, and 1 of 48 in Chromium. In the series it took 7 of hyprmasq's runs and 1 of
 computer-use-linux's, all in Firefox. It is not the drag: the agents aimed the label at the look-alike part itself. Nor
@@ -163,8 +163,8 @@ Against Cua Driver:
 
 - The VM's accessibility walks are 1.4 to 2.4 times as slow as a real Omarchy machine's, and are cut at Cua Driver's time
   budget.
-- 8 of the 18 task units are image tasks.
-- 5 task units run in Firefox, where Cua Driver's foreground is refused and its browser tools do not apply.
+- 6 of the 16 task units are image tasks.
+- 4 task units run in Firefox, where Cua Driver's foreground is refused and its browser tools do not apply.
 - Cua Driver's guide calls Hyprland experimental.
 - The main series starts Chromium without remote debugging. A slice with it is among the side checks below.
 
@@ -195,6 +195,11 @@ own workspace, the task's apps are on another, and the agent works through the t
 [bench/tasks](../bench/tasks) has each task's prompt, app and grading. The tasks were picked to stress hyprmasq's image-based
 approach, with common kinds of work on a desktop: forms with dropdowns, drags, files, copying data between apps, mail, a
 sign-in with a popup and drawing.
+
+The series ran 18 tasks. Two of them, a second figure to trace in each browser, were removed after the series, because
+the licence of that figure's photo does not allow redistributing it, so its runs cannot be repeated from this
+repository. Every number here is over the 16 tasks that remain, and the
+[rules' last amendment](../bench/comparison-series.json) records what the removed runs had shown.
 
 </details>
 
@@ -232,12 +237,12 @@ their lower price. Peak context is the largest single request.
 <details><summary>Excluded runs and overrides</summary>
 
 A run ran again only after a logged failure of the infrastructure, on the same machine, the same rule for every tool.
-[comparison/data/v2-exclusions.json](comparison/data/v2-exclusions.json) lists all 71 excluded runs of Sonnet and Terra
-with why: 61 stopped by a failed Claude login, 1 left without a summary, 1 cut when a series was stopped, and 8 of Forgejo
+[comparison/data/v2-exclusions.json](comparison/data/v2-exclusions.json) lists all 64 excluded runs of Sonnet and Terra
+with why: 54 stopped by a failed Claude login, 1 left without a summary, 1 cut when a series was stopped, and 8 of Forgejo
 replaced because the start step gave the focus to the terminal, so the user's keys never reached their notes. A run that
 the agent failed stands, whatever the reason.
 
-The rules allowed failing a passed run that broke a stated requirement the checker does not grade. All 781 passed runs were
+The rules allowed failing a passed run that broke a stated requirement the checker does not grade. All 739 passed runs were
 checked against that list: a second mail or a wrong room in Thunderbird, other commits or branches in Forgejo, other files
 in the file manager, other windows in the forms, the file manager and Inkscape, a river that stops short of the bottom of
 the photo. None did, so no run was overridden. Calc's tabs and files the checker grades itself. For Forgejo, the check reads
@@ -248,7 +253,7 @@ the commits and branches that the checker records, not each repository setting.
 <details><summary>Side checks: a debugging port for Cua Driver, and the machines</summary>
 
 - **Cua Driver with a debugging port.** Its browser tools attach only to a Chromium started with remote debugging,
-  which a user rarely has. With the port it passed 49 of 72 runs, the same as without it. The clear gain is labelling a
+  which a user rarely has. With the port it passed 47 of 60 runs, against 45 without it. The clear gain is labelling a
   photo by drag and drop in Chromium with Terra, from 0 to 6 of 6.
 - **The machines.** hyprmasq ran on machine B and the others on machine A, so a time ratio is that of these two
   deployments. One round of hyprmasq on machine A took about as long per call. A planned check of the tools on a third

@@ -9,20 +9,20 @@ tool's runs in one setup, run by hyprmasq's author.
 
 | File | Runs | What it holds | On the pages |
 | --- | --- | --- | --- |
-| `v2-hyprmasq.json`, `v2-hyprmasq-chromium.json` | 156, 60 | hyprmasq in the comparison series: the apps and Firefox, and Chromium. | The comparison and its numbers |
-| `v2-cua.json`, `v2-cua-chromium.json` | 156, 60 | Cua Driver in the series, as its documentation sets it up. | The comparison and its numbers |
-| `v2-hypruse.json`, `v2-hypruse-chromium.json` | 156, 60 | hypruse in the series. | The comparison and its numbers |
-| `v2-computer-use-linux.json`, `v2-computer-use-linux-chromium.json` | 156, 60 | computer-use-linux in the series. | The comparison and its numbers |
-| `v2-cua-attach.json` | 72 | Cua Driver with the user's Chromium started with a debugging port, on the units where that applies. Never pooled with the others. | The numbers' side checks and failed runs |
-| `v2-hyprmasq-machine-a.json`, `v2-hyprmasq-machine-a-chromium.json` | 26, 10 | One round of hyprmasq on Cua Driver's machine. Never pooled with the others. | The numbers' side checks and failed runs |
-| `v2-failures.json` | 191 | One verdict per failed run of the above, with both reviewers' answers and evidence, as paths inside the run's bundle. `bench/review_failures.py` writes it. | Why runs failed |
-| `v2-exclusions.json` | 71 | Every excluded run of Sonnet and Terra in the series, with why. | Method |
+| `v2-hyprmasq.json`, `v2-hyprmasq-chromium.json` | 144, 48 | hyprmasq in the comparison series: the apps and Firefox, and Chromium. | The comparison and its numbers |
+| `v2-cua.json`, `v2-cua-chromium.json` | 144, 48 | Cua Driver in the series, as its documentation sets it up. | The comparison and its numbers |
+| `v2-hypruse.json`, `v2-hypruse-chromium.json` | 144, 48 | hypruse in the series. | The comparison and its numbers |
+| `v2-computer-use-linux.json`, `v2-computer-use-linux-chromium.json` | 144, 48 | computer-use-linux in the series. | The comparison and its numbers |
+| `v2-cua-attach.json` | 60 | Cua Driver with the user's Chromium started with a debugging port, on the units where that applies. Never pooled with the others. | The numbers' side checks and failed runs |
+| `v2-hyprmasq-machine-a.json`, `v2-hyprmasq-machine-a-chromium.json` | 24, 8 | One round of hyprmasq on Cua Driver's machine. Never pooled with the others. | The numbers' side checks and failed runs |
+| `v2-failures.json` | 121 | One verdict per failed run of the above, with both reviewers' answers and evidence, as paths inside the run's bundle. `bench/review_failures.py` writes it. | Why runs failed |
+| `v2-exclusions.json` | 64 | Every excluded run of Sonnet and Terra in the series, with why. | Method |
 | `replay-board.json` | 395 trials | A replay outside the series: one of the probe's first screenshots of the board, or a variant of it moved or with the other browser's toolbar, given to Sol or Terra with the task's prompt, and where each would drop the CPU power headers label. No VM ran. | Why runs failed |
-| `probe-image-1280.json`, `probe-image-1280-chromium.json`, `probe-image-1920.json`, `probe-image-1920-chromium.json` | 48 each | A probe outside the series: hyprmasq on the eight photo tasks, in Firefox and in Chromium, with Terra and Sol, at its default `max-image-size` of 1280 and at 1920, the two limits taking turns each round on machine B. Never pooled with the series. | Why runs failed |
-| `vm-hyprmasq.json` | 198 | hyprmasq on the benchmark's eleven tasks in its NixOS VM, with Sol, Terra and Sonnet. The questionnaire is the GTK app, the web tasks run in Firefox. | macOS: the file manager and Inkscape |
+| `probe-image-1280.json`, `probe-image-1280-chromium.json`, `probe-image-1920.json`, `probe-image-1920-chromium.json` | 36 each | A probe outside the series: hyprmasq on the six photo tasks, in Firefox and in Chromium, with Terra and Sol, at its default `max-image-size` of 1280 and at 1920, the two limits taking turns each round on machine B. Never pooled with the series. | Why runs failed |
+| `vm-hyprmasq.json` | 180 | hyprmasq on the benchmark's ten tasks in its NixOS VM, with Sol, Terra and Sonnet. The questionnaire is the GTK app, the web tasks run in Firefox. | macOS: the file manager and Inkscape |
 | `vm-hyprmasq-qt.json` | 36 | hyprmasq on the questionnaire's Qt port in the VM, with and without dropdowns. | macOS: the two forms |
-| `vm-cua.json`, `vm-cua-qt.json`, `vm-cua-chromium.json`, `vm-cua-firefox.json` | 108, 36, 90, 90 | Superseded by the series: Cua Driver 0.38.0, before the start of a run was the same for every tool. | On no page |
-| `vm-computer-use-linux.json`, `vm-computer-use-linux-qt.json`, `vm-hypruse.json`, `vm-hypruse-qt.json`, `vm-hypruse-sonnet.json` | 132, 24, 66, 12, 7 | Superseded by the series. | On no page |
+| `vm-cua.json`, `vm-cua-qt.json`, `vm-cua-chromium.json`, `vm-cua-firefox.json` | 108, 36, 72, 72 | Superseded by the series: Cua Driver 0.38.0, before the start of a run was the same for every tool. | On no page |
+| `vm-computer-use-linux.json`, `vm-computer-use-linux-qt.json`, `vm-hypruse.json`, `vm-hypruse-qt.json`, `vm-hypruse-sonnet.json` | 120, 24, 60, 12, 7 | Superseded by the series. | On no page |
 | `omarchy-form-codex-cua-documented.json` | 1 | Cua Driver 0.38.0 on an Omarchy laptop with the plugin package it documents for Arch, which sends no input. | On no page |
 | `macos-tasks.json` | 144 | OpenAI's computer use, Claude's computer use and Cua Driver on a Mac: the forms, the file manager in Finder and Inkscape. Its `about` and `sources` give the setup. | macOS |
 | `macos-form-qt.json`, `macos-form-nodrop.json`, `macos-form-qt-openai.json` | 12, 12, 3 | Superseded: earlier runs of the form on the Mac, on older versions of the ChatGPT app and its Computer Use plugin. Cua Driver's screenshots failed in them, so its runs worked from the accessibility tree alone. `macos-tasks.json` replaces them. | On no page |

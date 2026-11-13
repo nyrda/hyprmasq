@@ -95,15 +95,15 @@ hyprctl hyprmasq eis close "$addr"
 
 ## Benchmarks
 
-Twelve models on eleven desktop tasks in an offline VM. Current Anthropic and
-OpenAI models passed 91 to 100% of their tasks' runs, all but the small
+Twelve models on ten desktop tasks in an offline VM. Current Anthropic and
+OpenAI models passed 90 to 100% of their tasks' runs, all but the small
 `gpt-6-luna`, and no run of any model changed the user's focus or
 workspace. See the [benchmarks](docs/benchmarks.md) and the
 [comparison](docs/comparison.md) with other computer use tools.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model on eleven desktop tasks, the most runs passed first." src="docs/benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model on ten desktop tasks, the most runs passed first." src="docs/benchmarks/glance.svg">
 </picture>
 
 ## Limits and trust
@@ -135,5 +135,5 @@ workspace. See the [benchmarks](docs/benchmarks.md) and the
 
 ## License
 
-[MIT](LICENSE). The two photos of the benchmark's trace task have
-[their own licences](bench/README.md#trace).
+[MIT](LICENSE). The photo of the benchmark's trace task has
+[its own licence](bench/README.md#trace).

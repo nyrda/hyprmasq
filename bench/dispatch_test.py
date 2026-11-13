@@ -82,8 +82,8 @@ class Runs(unittest.TestCase):
     def test_several_tasks_with_their_variants(self):
         self.assertEqual(self.tasks(), [("thunderbird", None)])
         self.assertEqual(self.tasks("--task", "board", "--variant", "pointer"), [("board", "pointer")])
-        self.assertEqual(self.tasks("--task", "forgejo", "--task", "board:dnd", "--task", "form", "--task", "trace:rack"),
-                         [("forgejo", None), ("board", "dnd"), ("form", "25"), ("trace", "rack")])
+        self.assertEqual(self.tasks("--task", "forgejo", "--task", "board:dnd", "--task", "form", "--task", "trace:river"),
+                         [("forgejo", None), ("board", "dnd"), ("form", "25"), ("trace", "river")])
         for bad in (["--task", "board:dnd", "--task", "forgejo", "--variant", "dnd"], ["--task", "board:dnd", "--variant", "dnd"],
                     ["--task", "form", "--task", "form:25"], ["--task", "forgejo:x"], ["--task", "board"], ["--task", "nope"]):
             with self.assertRaises(ValueError, msg=bad):

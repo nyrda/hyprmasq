@@ -106,14 +106,6 @@ On machine A (Ryzen 5 5600X, 6 cores, 31 GiB), the series' machine, with Cua's c
 | isolated-board-pointer | isolated browser | allow_launch, with pid |  | works |  |  |
 | thunderbird | add the account | pixels, type | works | works | refused `foreground_primary_binding` | works |
 | thunderbird | set the name field | set_value |  | dropped | dropped |  |
-| trace-rack-chromium | draw a curve | joined drags |  | refused `client_not_bound` | works | works |
-| trace-rack-chromium | draw a curve | mouse_button_down, drag, up |  | refused | refused | refused |
-| trace-rack-chromium | draw a curve | path of many points | works |  |  |  |
-| trace-rack-chromium | draw a stroke | drag | works | refused `client_not_bound` | works | works |
-| trace-rack-firefox | draw a curve | joined drags |  | works | refused `foreground_primary_binding` | works |
-| trace-rack-firefox | draw a curve | mouse_button_down, drag, up |  | refused | refused | refused |
-| trace-rack-firefox | draw a curve | path of many points | works |  |  |  |
-| trace-rack-firefox | draw a stroke | drag | works | works | refused `foreground_primary_binding` | works |
 | trace-river-chromium | draw a curve | joined drags |  | refused `client_not_bound` | works | works |
 | trace-river-chromium | draw a curve | mouse_button_down, drag, up |  | refused | refused | refused |
 | trace-river-chromium | draw a curve | path of many points | works |  |  |  |
@@ -200,14 +192,6 @@ Cua's columns are of 0.42.1, from a Hyprland of their own on another virtual ter
 | inkscape | move by X field, save | element token, set_value, Ctrl+S |  | works | works |  |
 | thunderbird | set the name field | set_value |  | dropped | dropped |  |
 | thunderbird | type in the name field | click, type | works | refused `background_unavailable` | refused `foreground_primary_binding` | works |
-| trace-rack-chromium | draw a curve | joined drags |  | refused `client_not_bound` | works | works |
-| trace-rack-chromium | draw a curve | mouse_button_down, drag, up |  | refused | refused | refused |
-| trace-rack-chromium | draw a curve | path of many points | works |  |  |  |
-| trace-rack-chromium | draw a stroke | drag | works | refused `client_not_bound` | works | works |
-| trace-rack-firefox | draw a curve | joined drags |  | works | refused `foreground_primary_binding` | works |
-| trace-rack-firefox | draw a curve | mouse_button_down, drag, up |  | refused | refused | refused |
-| trace-rack-firefox | draw a curve | path of many points | works |  |  |  |
-| trace-rack-firefox | draw a stroke | drag | works | works | refused `foreground_primary_binding` | works |
 | trace-river-chromium | draw a curve | joined drags |  | refused `client_not_bound` | works | works |
 | trace-river-chromium | draw a curve | mouse_button_down, drag, up |  | refused | refused | refused |
 | trace-river-chromium | draw a curve | path of many points | works |  |  |  |
@@ -236,15 +220,13 @@ Until v2, `vm.py` took hyprmasq's screenshot of every window before `ready.json`
 | form:qt-25-no-dropdowns | firefox | matches (1.49) | matches (1.49) | matches (1.45) |
 | inkscape | firefox | matches (4.74) | matches (2.04) | matches (2.71) |
 | thunderbird | firefox | differs (125.77) | matches (0.68) | matches (0.86) |
-| trace:rack | firefox | differs (117.66) | matches (0.87) | matches (1.56) |
 | trace:river | firefox | differs (152.78) | matches (1.19) | matches (2.02) |
 | board:dnd | chromium | differs (77.57) | matches (4.19) | matches (4.42) |
 | board:pointer | chromium | differs (77.57) | matches (4.19) | matches (4.42) |
 | calc | chromium | matches (7.74) | matches (1.32) | matches (1.32) |
-| trace:rack | chromium | matches (4.85) | matches (1.26) | matches (1.33) |
 | trace:river | chromium | differs (61.64) | matches (1.6) | matches (1.77) |
 
-Before v2, Cua Driver's first screenshot showed the board, the traces and Calc's report at half their width or blank, Thunderbird undrawn and Forgejo's window partly drawn, in Firefox and in Chromium but for two pages that drew in time. The forms, the file manager and Inkscape drew before they moved. In v2 every first screenshot matches the window as drawn, for both tools.
+Before v2, Cua Driver's first screenshot showed the board, the trace and Calc's report at half their width or blank, Thunderbird undrawn and Forgejo's window partly drawn, in Firefox and in Chromium but for two pages that drew in time. The forms, the file manager and Inkscape drew before they moved. In v2 every first screenshot matches the window as drawn, for both tools.
 
 v2's runs at `3a2f692` gave the focus back to the terminal after the start step, which in Forgejo is not the user's window: its user types in their browser's notes, and typed nothing there. The fix gives the focus back to the window that had it before the step. At the fix commit, `startcheck.py --hold 30` on Forgejo shows the notes window focused at the start and the user typing 124 characters into it in 30 s, for both tools, where every run at `3a2f692` had none. For the other tasks the start is the same as at `3a2f692`: the same workspaces shown, the user's window the terminal, every first screenshot matching, and Cua Driver's first screenshot the same bytes as in every run of v2's rounds 1 and 2 of that task, but for Thunderbird and Inkscape, whose first screenshots differ from run to run at `3a2f692` too.
 

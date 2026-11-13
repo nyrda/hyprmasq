@@ -9,20 +9,20 @@ A tool's pass rate with its 95 % interval, per agent and kind of task. The mean 
 <!-- render v2-hyprmasq,v2-hyprmasq-chromium,v2-cua,v2-cua-chromium,v2-hypruse,v2-hypruse-chromium,v2-computer-use-linux,v2-computer-use-linux-chromium,v2-failures headline -->
 <details><summary>Numbers: pass rates with their intervals, per agent and kind of task</summary>
 
-| Tool | Agent | All 18 units | Apps | Image tasks | Firefox | Chromium | Failed because of the tool |
+| Tool | Agent | All 16 units | Apps | Image tasks | Firefox | Chromium | Failed because of the tool |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| hyprmasq | gpt-6.1-terra | 92/108 (77–91 %) | 60/60 (94–100 %) | 32/48 (53–78 %) | 19/30 (46–78 %) | 25/30 (66–93 %) | 0 of 108 |
-| hyprmasq | Sonnet 5.5 | 95/108 (80–93 %) | 58/60 (89–99 %) | 37/48 (63–87 %) | 24/30 (63–90 %) | 25/30 (66–93 %) | 0 of 108 |
-| hyprmasq | Mean of both | 87 % | 98 % | 72 % | 72 % | 83 % | – |
-| Cua Driver | gpt-6.1-terra | 73/108 (58–76 %) | 52/60 (76–93 %) | 21/48 (31–58 %) | 13/30 (27–61 %) | 18/30 (42–75 %) | 6 of 108 |
-| Cua Driver | Sonnet 5.5 | 68/108 (54–71 %) | 49/60 (70–89 %) | 19/48 (27–54 %) | 11/30 (22–54 %) | 20/30 (49–81 %) | 7 of 108 |
-| Cua Driver | Mean of both | 65 % | 84 % | 42 % | 40 % | 63 % | – |
-| hypruse | gpt-6.1-terra | 89/108 (74–88 %) | 51/60 (74–92 %) | 38/48 (66–88 %) | 20/30 (49–81 %) | 26/30 (70–95 %) | 7 of 108 |
-| hypruse | Sonnet 5.5 | 90/108 (75–89 %) | 59/60 (91–100 %) | 31/48 (50–77 %) | 20/30 (49–81 %) | 23/30 (59–88 %) | 4 of 108 |
-| hypruse | Mean of both | 83 % | 92 % | 72 % | 67 % | 82 % | – |
-| computer-use-linux | gpt-6.1-terra | 97/108 (83–94 %) | 60/60 (94–100 %) | 37/48 (63–87 %) | 24/30 (63–90 %) | 25/30 (66–93 %) | 0 of 108 |
-| computer-use-linux | Sonnet 5.5 | 96/108 (82–94 %) | 56/60 (84–97 %) | 40/48 (70–91 %) | 27/30 (74–97 %) | 25/30 (66–93 %) | 1 of 108 |
-| computer-use-linux | Mean of both | 89 % | 97 % | 80 % | 85 % | 83 % | – |
+| hyprmasq | gpt-6.1-terra | 87/96 (83–95 %) | 60/60 (94–100 %) | 27/36 (59–86 %) | 16/24 (47–82 %) | 23/24 (80–99 %) | 0 of 96 |
+| hyprmasq | Sonnet 5.5 | 91/96 (88–98 %) | 58/60 (89–99 %) | 33/36 (78–97 %) | 22/24 (74–98 %) | 23/24 (80–99 %) | 0 of 96 |
+| hyprmasq | Mean of both | 93 % | 98 % | 83 % | 79 % | 96 % | – |
+| Cua Driver | gpt-6.1-terra | 73/96 (67–83 %) | 52/60 (76–93 %) | 21/36 (42–73 %) | 13/24 (35–72 %) | 18/24 (55–88 %) | 6 of 96 |
+| Cua Driver | Sonnet 5.5 | 64/96 (57–75 %) | 49/60 (70–89 %) | 15/36 (27–58 %) | 11/24 (28–65 %) | 16/24 (47–82 %) | 7 of 96 |
+| Cua Driver | Mean of both | 71 % | 84 % | 50 % | 50 % | 71 % | – |
+| hypruse | gpt-6.1-terra | 80/96 (75–89 %) | 51/60 (74–92 %) | 29/36 (65–90 %) | 15/24 (43–79 %) | 22/24 (74–98 %) | 7 of 96 |
+| hypruse | Sonnet 5.5 | 86/96 (82–94 %) | 59/60 (91–100 %) | 27/36 (59–86 %) | 17/24 (51–85 %) | 22/24 (74–98 %) | 4 of 96 |
+| hypruse | Mean of both | 86 % | 92 % | 78 % | 67 % | 92 % | – |
+| computer-use-linux | gpt-6.1-terra | 95/96 (94–100 %) | 60/60 (94–100 %) | 35/36 (86–100 %) | 23/24 (80–99 %) | 24/24 (86–100 %) | 0 of 96 |
+| computer-use-linux | Sonnet 5.5 | 85/96 (81–93 %) | 56/60 (84–97 %) | 29/36 (65–90 %) | 22/24 (74–98 %) | 19/24 (60–91 %) | 1 of 96 |
+| computer-use-linux | Mean of both | 94 % | 97 % | 89 % | 94 % | 90 % | – |
 
 </details>
 <!-- /render -->
@@ -37,12 +37,12 @@ where both passed at least 3 of 6 runs.
 
 | Tool | Agent | Time, times hyprmasq's | In tools, times hyprmasq's | Task units | Left out, too few passed runs |
 | --- | --- | --- | --- | --- | --- |
-| Cua Driver | gpt-6.1-terra | 1.78 | 1.54 | 13 of 18 | Label a photo, drag and drop · Firefox (passed: Cua Driver 0, hyprmasq 4); Label a photo, custom drag · Firefox (passed: Cua Driver 4, hyprmasq 1); Draw along a rail · Firefox (passed: Cua Driver 0, hyprmasq 3); Label a photo, drag and drop · Chromium (passed: Cua Driver 0, hyprmasq 6); Draw along a rail · Chromium (passed: Cua Driver 0, hyprmasq 2) |
-| Cua Driver | Sonnet 5.5 | 2.01 | 1.04 | 11 of 18 | Form with dropdowns · Qt (passed: Cua Driver 0, hyprmasq 6); Add a mail account, answer a mail (passed: Cua Driver 2, hyprmasq 5); Label a photo, drag and drop · Firefox (passed: Cua Driver 0, hyprmasq 6); Draw along a rail · Firefox (passed: Cua Driver 0, hyprmasq 2); Draw along a river bank · Firefox (passed: Cua Driver 1, hyprmasq 4); Draw along a rail · Chromium (passed: Cua Driver 4, hyprmasq 2); Draw along a river bank · Chromium (passed: Cua Driver 1, hyprmasq 5) |
-| hypruse | gpt-6.1-terra | 2.20 | 2.07 | 14 of 18 | Upload to Forgejo, connect a dashboard (passed: hypruse 1, hyprmasq 6); Label a photo, drag and drop · Firefox (passed: hypruse 0, hyprmasq 4); Label a photo, custom drag · Firefox (passed: hypruse 6, hyprmasq 1); Draw along a rail · Chromium (passed: hypruse 4, hyprmasq 2) |
-| hypruse | Sonnet 5.5 | 3.40 | 2.05 | 15 of 18 | Label a photo, drag and drop · Firefox (passed: hypruse 0, hyprmasq 6); Draw along a rail · Firefox (passed: hypruse 3, hyprmasq 2); Draw along a rail · Chromium (passed: hypruse 1, hyprmasq 2) |
-| computer-use-linux | gpt-6.1-terra | 1.58 | 1.66 | 15 of 18 | Label a photo, custom drag · Firefox (passed: computer-use-linux 6, hyprmasq 1); Draw along a rail · Firefox (passed: computer-use-linux 1, hyprmasq 3); Draw along a rail · Chromium (passed: computer-use-linux 1, hyprmasq 2) |
-| computer-use-linux | Sonnet 5.5 | 1.46 | 1.11 | 15 of 18 | Draw along a rail · Firefox (passed: computer-use-linux 5, hyprmasq 2); Draw along a rail · Chromium (passed: computer-use-linux 6, hyprmasq 2); Draw along a river bank · Chromium (passed: computer-use-linux 1, hyprmasq 5) |
+| Cua Driver | gpt-6.1-terra | 1.78 | 1.54 | 13 of 16 | Label a photo, drag and drop · Firefox (passed: Cua Driver 0, hyprmasq 4); Label a photo, custom drag · Firefox (passed: Cua Driver 4, hyprmasq 1); Label a photo, drag and drop · Chromium (passed: Cua Driver 0, hyprmasq 6) |
+| Cua Driver | Sonnet 5.5 | 2.01 | 1.04 | 11 of 16 | Form with dropdowns · Qt (passed: Cua Driver 0, hyprmasq 6); Add a mail account, answer a mail (passed: Cua Driver 2, hyprmasq 5); Label a photo, drag and drop · Firefox (passed: Cua Driver 0, hyprmasq 6); Draw along a river bank · Firefox (passed: Cua Driver 1, hyprmasq 4); Draw along a river bank · Chromium (passed: Cua Driver 1, hyprmasq 5) |
+| hypruse | gpt-6.1-terra | 2.11 | 1.91 | 13 of 16 | Upload to Forgejo, connect a dashboard (passed: hypruse 1, hyprmasq 6); Label a photo, drag and drop · Firefox (passed: hypruse 0, hyprmasq 4); Label a photo, custom drag · Firefox (passed: hypruse 6, hyprmasq 1) |
+| hypruse | Sonnet 5.5 | 3.40 | 2.05 | 15 of 16 | Label a photo, drag and drop · Firefox (passed: hypruse 0, hyprmasq 6) |
+| computer-use-linux | gpt-6.1-terra | 1.58 | 1.66 | 15 of 16 | Label a photo, custom drag · Firefox (passed: computer-use-linux 6, hyprmasq 1) |
+| computer-use-linux | Sonnet 5.5 | 1.46 | 1.11 | 15 of 16 | Draw along a river bank · Chromium (passed: computer-use-linux 1, hyprmasq 5) |
 
 </details>
 <!-- /render -->
@@ -57,14 +57,14 @@ never left the user's window. A run that did nothing leaves it alone too, so rea
 
 | Tool | Agent | Passed | No view change, all runs | No view change, passed runs | Runs with input to the user's window | Runs with compositor shortcuts | Cursor moved px, median | Forgejo: user's work kept | Forgejo: characters lost |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| hyprmasq | gpt-6.1-terra | 92/108 | 108/108 | 92/92 | 0 | 0 | 0 | 6/6 | 0 |
-| hyprmasq | Sonnet 5.5 | 95/108 | 108/108 | 95/95 | 0 | 0 | 0 | 6/6 | 0 |
-| Cua Driver | gpt-6.1-terra | 73/108 | 35/108 | 22/73 | 0 | 13 | 411 | 4/6 | 39 |
-| Cua Driver | Sonnet 5.5 | 68/108 | 49/108 | 25/68 | 1 | 0 | 0 | 4/6 | 24 |
-| hypruse | gpt-6.1-terra | 89/108 | 0/108 | 0/89 | 0 | 0 | 494 | 4/6 | 30 |
-| hypruse | Sonnet 5.5 | 90/108 | 1/108 | 1/90 | 0 | 0 | 526 | 1/6 | 51 |
-| computer-use-linux | gpt-6.1-terra | 97/108 | 4/108 | 4/97 | 0 | 0 | 533 | 1/6 | 31 |
-| computer-use-linux | Sonnet 5.5 | 96/108 | 10/108 | 7/96 | 0 | 0 | 497 | 5/6 | 11 |
+| hyprmasq | gpt-6.1-terra | 87/96 | 96/96 | 87/87 | 0 | 0 | 0 | 6/6 | 0 |
+| hyprmasq | Sonnet 5.5 | 91/96 | 96/96 | 91/91 | 0 | 0 | 0 | 6/6 | 0 |
+| Cua Driver | gpt-6.1-terra | 73/96 | 29/96 | 22/73 | 0 | 13 | 411 | 4/6 | 39 |
+| Cua Driver | Sonnet 5.5 | 64/96 | 44/96 | 25/64 | 0 | 0 | 0 | 4/6 | 24 |
+| hypruse | gpt-6.1-terra | 80/96 | 0/96 | 0/80 | 0 | 0 | 450 | 4/6 | 30 |
+| hypruse | Sonnet 5.5 | 86/96 | 1/96 | 1/86 | 0 | 0 | 497 | 1/6 | 51 |
+| computer-use-linux | gpt-6.1-terra | 95/96 | 4/96 | 4/95 | 0 | 0 | 533 | 1/6 | 31 |
+| computer-use-linux | Sonnet 5.5 | 85/96 | 10/96 | 7/85 | 0 | 0 | 495 | 5/6 | 11 |
 
 </details>
 <!-- /render -->
@@ -121,14 +121,10 @@ computer-use-linux have no such table.
 | Board-dnd, Chromium | drag a label | works | refused | refused | works |
 | Board-pointer, Firefox | drag a label | works | works | refused | works |
 | Board-pointer, Chromium | drag a label | works | refused | works | works |
-| Trace-rack, Firefox | draw a curve | works | works | refused | works |
-| Trace-rack, Firefox | draw a stroke | works | works | refused | works |
-| Trace-rack, Chromium | draw a curve | works | refused | works | works |
-| Trace-rack, Chromium | draw a stroke | works | refused | works | works |
-| Trace-river, Firefox | draw a curve | works | works | refused | works |
-| Trace-river, Firefox | draw a stroke | works | works | refused | works |
-| Trace-river, Chromium | draw a curve | works | refused | works | works |
-| Trace-river, Chromium | draw a stroke | works | refused | works | works |
+| Trace, Firefox | draw a curve | works | works | refused | works |
+| Trace, Firefox | draw a stroke | works | works | refused | works |
+| Trace, Chromium | draw a curve | works | refused | works | works |
+| Trace, Chromium | draw a stroke | works | refused | works | works |
 | Board-pointer, Chromium with a debugging port | attach to the user's browser |  | works |  |  |
 | Board-pointer, Chromium with a debugging port | drag a label |  | works |  |  |
 
@@ -147,12 +143,8 @@ machine's table.
 | Add a mail account, answer a mail | hyprmasq | Sonnet 5.5 | 5/6 | 1 | 0 | 0 | – |
 | Label a photo, drag and drop · Firefox | hyprmasq | gpt-6.1-terra | 4/6 | 2 | 0 | 0 | – |
 | Label a photo, custom drag · Firefox | hyprmasq | gpt-6.1-terra | 1/6 | 5 | 0 | 0 | – |
-| Draw along a rail · Firefox | hyprmasq | gpt-6.1-terra | 3/6 | 3 | 0 | 0 | – |
-| Draw along a rail · Firefox | hyprmasq | Sonnet 5.5 | 2/6 | 4 | 0 | 0 | – |
 | Draw along a river bank · Firefox | hyprmasq | gpt-6.1-terra | 5/6 | 1 | 0 | 0 | – |
 | Draw along a river bank · Firefox | hyprmasq | Sonnet 5.5 | 4/6 | 2 | 0 | 0 | – |
-| Draw along a rail · Chromium | hyprmasq | gpt-6.1-terra | 2/6 | 4 | 0 | 0 | – |
-| Draw along a rail · Chromium | hyprmasq | Sonnet 5.5 | 2/6 | 4 | 0 | 0 | – |
 | Draw along a river bank · Chromium | hyprmasq | gpt-6.1-terra | 5/6 | 1 | 0 | 0 | – |
 | Draw along a river bank · Chromium | hyprmasq | Sonnet 5.5 | 5/6 | 1 | 0 | 0 | – |
 | Upload to Forgejo, connect a dashboard | Cua Driver | gpt-6.1-terra | 5/6 | 0 | 0 | 1 | reviewers disagree 1 |
@@ -167,48 +159,32 @@ machine's table.
 | Label a photo, custom drag · Firefox | Cua Driver | gpt-6.1-terra | 4/6 | 2 | 0 | 0 | – |
 | Label a photo, custom drag · Firefox | Cua Driver | Sonnet 5.5 | 4/6 | 2 | 0 | 0 | – |
 | Copy reports into a sheet · Firefox | Cua Driver | gpt-6.1-terra | 4/6 | 2 | 0 | 0 | – |
-| Draw along a rail · Firefox | Cua Driver | gpt-6.1-terra | 0/6 | 6 | 0 | 0 | – |
-| Draw along a rail · Firefox | Cua Driver | Sonnet 5.5 | 0/6 | 6 | 0 | 0 | – |
 | Draw along a river bank · Firefox | Cua Driver | gpt-6.1-terra | 5/6 | 1 | 0 | 0 | – |
 | Draw along a river bank · Firefox | Cua Driver | Sonnet 5.5 | 1/6 | 5 | 0 | 0 | – |
 | Label a photo, drag and drop · Chromium | Cua Driver | gpt-6.1-terra | 0/6 | 1 | 0 | 5 | reviewers disagree 5 |
 | Label a photo, drag and drop · Chromium | Cua Driver | Sonnet 5.5 | 4/6 | 1 | 0 | 1 | reviewers disagree 1 |
 | Label a photo, custom drag · Chromium | Cua Driver | Sonnet 5.5 | 5/6 | 1 | 0 | 0 | – |
-| Draw along a rail · Chromium | Cua Driver | gpt-6.1-terra | 0/6 | 6 | 0 | 0 | – |
-| Draw along a rail · Chromium | Cua Driver | Sonnet 5.5 | 4/6 | 2 | 0 | 0 | – |
 | Draw along a river bank · Chromium | Cua Driver | Sonnet 5.5 | 1/6 | 5 | 0 | 0 | – |
 | Upload to Forgejo, connect a dashboard | hypruse | gpt-6.1-terra | 1/6 | 0 | 3 | 2 | reviewers disagree 2 |
 | Upload to Forgejo, connect a dashboard | hypruse | Sonnet 5.5 | 5/6 | 1 | 0 | 0 | – |
 | Label a photo, drag and drop · Firefox | hypruse | gpt-6.1-terra | 0/6 | 0 | 1 | 5 | evidence insufficient 2, reviewers disagree 3 |
 | Label a photo, drag and drop · Firefox | hypruse | Sonnet 5.5 | 0/6 | 0 | 4 | 2 | reviewers disagree 2 |
 | Copy reports into a sheet · Firefox | hypruse | gpt-6.1-terra | 3/6 | 0 | 3 | 0 | – |
-| Draw along a rail · Firefox | hypruse | gpt-6.1-terra | 5/6 | 1 | 0 | 0 | – |
-| Draw along a rail · Firefox | hypruse | Sonnet 5.5 | 3/6 | 3 | 0 | 0 | – |
 | Draw along a river bank · Firefox | hypruse | Sonnet 5.5 | 5/6 | 1 | 0 | 0 | – |
 | Label a photo, drag and drop · Chromium | hypruse | gpt-6.1-terra | 5/6 | 1 | 0 | 0 | – |
 | Copy reports into a sheet · Chromium | hypruse | gpt-6.1-terra | 5/6 | 0 | 0 | 1 | reviewers disagree 1 |
-| Draw along a rail · Chromium | hypruse | gpt-6.1-terra | 4/6 | 2 | 0 | 0 | – |
-| Draw along a rail · Chromium | hypruse | Sonnet 5.5 | 1/6 | 5 | 0 | 0 | – |
 | Draw along a river bank · Chromium | hypruse | Sonnet 5.5 | 4/6 | 2 | 0 | 0 | – |
 | Rename and move a file | computer-use-linux | Sonnet 5.5 | 5/6 | 0 | 1 | 0 | – |
 | Form with dropdowns · Qt | computer-use-linux | Sonnet 5.5 | 3/6 | 3 | 0 | 0 | – |
 | Label a photo, drag and drop · Firefox | computer-use-linux | gpt-6.1-terra | 5/6 | 1 | 0 | 0 | – |
-| Draw along a rail · Firefox | computer-use-linux | gpt-6.1-terra | 1/6 | 5 | 0 | 0 | – |
-| Draw along a rail · Firefox | computer-use-linux | Sonnet 5.5 | 5/6 | 1 | 0 | 0 | – |
 | Draw along a river bank · Firefox | computer-use-linux | Sonnet 5.5 | 4/6 | 2 | 0 | 0 | – |
-| Draw along a rail · Chromium | computer-use-linux | gpt-6.1-terra | 1/6 | 5 | 0 | 0 | – |
 | Draw along a river bank · Chromium | computer-use-linux | Sonnet 5.5 | 1/6 | 5 | 0 | 0 | – |
 | Label a photo, drag and drop · Chromium | Cua Driver, debugging port | Sonnet 5.5 | 5/6 | 1 | 0 | 0 | – |
 | Label a photo, custom drag · Chromium | Cua Driver, debugging port | gpt-6.1-terra | 5/6 | 1 | 0 | 0 | – |
 | Label a photo, custom drag · Chromium | Cua Driver, debugging port | Sonnet 5.5 | 2/6 | 4 | 0 | 0 | – |
 | Copy reports into a sheet · Chromium | Cua Driver, debugging port | gpt-6.1-terra | 4/6 | 0 | 0 | 2 | reviewers disagree 2 |
-| Draw along a rail · Chromium | Cua Driver, debugging port | gpt-6.1-terra | 1/6 | 5 | 0 | 0 | – |
-| Draw along a rail · Chromium | Cua Driver, debugging port | Sonnet 5.5 | 1/6 | 5 | 0 | 0 | – |
 | Draw along a river bank · Chromium | Cua Driver, debugging port | Sonnet 5.5 | 1/6 | 5 | 0 | 0 | – |
 | Form without dropdowns · Qt | hyprmasq, machine A | Sonnet 5.5 | 0/1 | 1 | 0 | 0 | – |
-| Draw along a rail · Firefox | hyprmasq, machine A | gpt-6.1-terra | 0/1 | 1 | 0 | 0 | – |
-| Draw along a rail · Firefox | hyprmasq, machine A | Sonnet 5.5 | 0/1 | 1 | 0 | 0 | – |
-| Draw along a rail · Chromium | hyprmasq, machine A | Sonnet 5.5 | 0/1 | 1 | 0 | 0 | – |
 
 </details>
 <!-- /render -->
@@ -334,22 +310,6 @@ machine's table.
 | Copy reports into a sheet | Sonnet 5.5 | hypruse | Hyprland VM · Firefox | 6/6 (61–100 %) | 228 (100–322) | 26 (18–39) | – | 0/6 | – | 60 (35–81) |
 | Copy reports into a sheet | Sonnet 5.5 | computer-use-linux | Hyprland VM · Chromium | 6/6 (61–100 %) | 84 (63–86) | 25 (19–34) | – | 1/6 | – | 34 (29–39) |
 | Copy reports into a sheet | Sonnet 5.5 | computer-use-linux | Hyprland VM · Firefox | 6/6 (61–100 %) | 86 (67–111) | 24 (13–37) | – | 0/6 | – | 36 (26–44) |
-| Draw along a rail | gpt-6.1-terra | hyprmasq | Hyprland VM · Chromium | 2/6 (10–70 %) | – | – | 20 (19–27) | 6/6 | – | 3 (3–3) |
-| Draw along a rail | gpt-6.1-terra | hyprmasq | Hyprland VM · Firefox | 3/6 (19–81 %) | 21 (20–22) | 3 (3–3) | 22 (21–24) | 6/6 | – | 3 (3–3) |
-| Draw along a rail | gpt-6.1-terra | Cua Driver | Hyprland VM · Chromium | 0/6 (0–39 %) | – | – | 57 (40–78) | 0/6 | – | 8 (5–11) |
-| Draw along a rail | gpt-6.1-terra | Cua Driver | Hyprland VM · Firefox | 0/6 (0–39 %) | – | – | 63 (43–93) | 6/6 | – | 10 (7–17) |
-| Draw along a rail | gpt-6.1-terra | hypruse | Hyprland VM · Chromium | 4/6 (30–90 %) | 60 (42–76) | 17 (9–25) | 47 (44–50) | 0/6 | – | 16 (7–30) |
-| Draw along a rail | gpt-6.1-terra | hypruse | Hyprland VM · Firefox | 5/6 (44–97 %) | 79 (39–92) | 17 (12–36) | 41 | 0/6 | – | 24 (4–49) |
-| Draw along a rail | gpt-6.1-terra | computer-use-linux | Hyprland VM · Chromium | 1/6 (3–56 %) | – | – | 47 (39–70) | 0/6 | – | 14 (12–25) |
-| Draw along a rail | gpt-6.1-terra | computer-use-linux | Hyprland VM · Firefox | 1/6 (3–56 %) | – | – | 58 (39–61) | 0/6 | – | 14 (10–29) |
-| Draw along a rail | Sonnet 5.5 | hyprmasq | Hyprland VM · Chromium | 2/6 (10–70 %) | – | – | 15 (14–16) | 6/6 | – | 3 (3–4) |
-| Draw along a rail | Sonnet 5.5 | hyprmasq | Hyprland VM · Firefox | 2/6 (10–70 %) | – | – | 14 (14–17) | 6/6 | – | 3 (3–4) |
-| Draw along a rail | Sonnet 5.5 | Cua Driver | Hyprland VM · Chromium | 4/6 (30–90 %) | 53 (46–61) | 6 (6–7) | 57 (41–74) | 0/6 | – | 17 (9–20) |
-| Draw along a rail | Sonnet 5.5 | Cua Driver | Hyprland VM · Firefox | 0/6 (0–39 %) | – | – | 57 (47–80) | 5/6 | – | 21 (10–31) |
-| Draw along a rail | Sonnet 5.5 | hypruse | Hyprland VM · Chromium | 1/6 (3–56 %) | – | – | 60 (38–87) | 0/6 | – | 14 (7–16) |
-| Draw along a rail | Sonnet 5.5 | hypruse | Hyprland VM · Firefox | 3/6 (19–81 %) | 87 (60–94) | 15 (10–23) | 62 (45–115) | 0/6 | – | 13 (10–28) |
-| Draw along a rail | Sonnet 5.5 | computer-use-linux | Hyprland VM · Chromium | 6/6 (61–100 %) | 35 (26–42) | 9 (7–10) | – | 0/6 | – | 9 (7–10) |
-| Draw along a rail | Sonnet 5.5 | computer-use-linux | Hyprland VM · Firefox | 5/6 (44–97 %) | 43 (40–47) | 12 (12–15) | 47 | 0/6 | – | 10 (9–12) |
 | Draw along a river bank | gpt-6.1-terra | hyprmasq | Hyprland VM · Chromium | 5/6 (44–97 %) | 23 (21–42) | 3 (2–8) | 22 | 6/6 | – | 3 (3–5) |
 | Draw along a river bank | gpt-6.1-terra | hyprmasq | Hyprland VM · Firefox | 5/6 (44–97 %) | 24 (16–28) | 3 (3–4) | 25 | 6/6 | – | 3 (2–3) |
 | Draw along a river bank | gpt-6.1-terra | Cua Driver | Hyprland VM · Chromium | 6/6 (61–100 %) | 47 (46–54) | 10 (8–11) | – | 0/6 | – | 7 (5–8) |
@@ -483,22 +443,6 @@ machine's table.
 | Copy reports into a sheet | Sonnet 5.5 | hypruse | Hyprland VM · Firefox | 9.33 (4.82–11.67) |
 | Copy reports into a sheet | Sonnet 5.5 | computer-use-linux | Hyprland VM · Chromium | 0.61 (0.36–0.70) |
 | Copy reports into a sheet | Sonnet 5.5 | computer-use-linux | Hyprland VM · Firefox | 0.79 (0.64–0.96) |
-| Draw along a rail | gpt-6.1-terra | hyprmasq | Hyprland VM · Chromium | 0.01 (0.01–0.01) |
-| Draw along a rail | gpt-6.1-terra | hyprmasq | Hyprland VM · Firefox | 0.01 (0.01–0.02) |
-| Draw along a rail | gpt-6.1-terra | Cua Driver | Hyprland VM · Chromium | 0.06 (0.05–0.07) |
-| Draw along a rail | gpt-6.1-terra | Cua Driver | Hyprland VM · Firefox | 0.06 (0.05–0.09) |
-| Draw along a rail | gpt-6.1-terra | hypruse | Hyprland VM · Chromium | 0.04 (0.03–0.07) |
-| Draw along a rail | gpt-6.1-terra | hypruse | Hyprland VM · Firefox | 0.05 (0.03–0.06) |
-| Draw along a rail | gpt-6.1-terra | computer-use-linux | Hyprland VM · Chromium | 0.06 (0.05–0.09) |
-| Draw along a rail | gpt-6.1-terra | computer-use-linux | Hyprland VM · Firefox | 0.06 (0.04–0.08) |
-| Draw along a rail | Sonnet 5.5 | hyprmasq | Hyprland VM · Chromium | 0.03 (0.03–0.04) |
-| Draw along a rail | Sonnet 5.5 | hyprmasq | Hyprland VM · Firefox | 0.03 (0.03–0.04) |
-| Draw along a rail | Sonnet 5.5 | Cua Driver | Hyprland VM · Chromium | 0.21 (0.18–0.26) |
-| Draw along a rail | Sonnet 5.5 | Cua Driver | Hyprland VM · Firefox | 0.26 (0.20–0.34) |
-| Draw along a rail | Sonnet 5.5 | hypruse | Hyprland VM · Chromium | 2.24 (1.52–3.20) |
-| Draw along a rail | Sonnet 5.5 | hypruse | Hyprland VM · Firefox | 2.41 (2.07–3.05) |
-| Draw along a rail | Sonnet 5.5 | computer-use-linux | Hyprland VM · Chromium | 0.18 (0.15–0.26) |
-| Draw along a rail | Sonnet 5.5 | computer-use-linux | Hyprland VM · Firefox | 0.27 (0.18–0.30) |
 | Draw along a river bank | gpt-6.1-terra | hyprmasq | Hyprland VM · Chromium | 0.01 (0.01–0.02) |
 | Draw along a river bank | gpt-6.1-terra | hyprmasq | Hyprland VM · Firefox | 0.01 (0.01–0.02) |
 | Draw along a river bank | gpt-6.1-terra | Cua Driver | Hyprland VM · Chromium | 0.05 (0.05–0.06) |
@@ -536,8 +480,6 @@ Cua Driver with the user's Chromium started with a debugging port, and one round
 | Label a photo, custom drag · Chromium | Sonnet 5.5 | 5/6 (44–97 %) | 71 (41–90) | 2/6 (10–70 %) | – |
 | Copy reports into a sheet · Chromium | gpt-6.1-terra | 6/6 (61–100 %) | 118 (106–171) | 4/6 (30–90 %) | 148 (121–212) |
 | Copy reports into a sheet · Chromium | Sonnet 5.5 | 6/6 (61–100 %) | 132 (92–176) | 6/6 (61–100 %) | 96 (82–148) |
-| Draw along a rail · Chromium | gpt-6.1-terra | 0/6 (0–39 %) | – | 1/6 (3–56 %) | – |
-| Draw along a rail · Chromium | Sonnet 5.5 | 4/6 (30–90 %) | 53 (46–61) | 1/6 (3–56 %) | – |
 | Draw along a river bank · Chromium | gpt-6.1-terra | 6/6 (61–100 %) | 47 (46–54) | 6/6 (61–100 %) | 58 (51–67) |
 | Draw along a river bank · Chromium | Sonnet 5.5 | 1/6 (3–56 %) | – | 1/6 (3–56 %) | – |
 
@@ -549,8 +491,8 @@ Cua Driver with the user's Chromium started with a debugging port, and one round
 
 | Agent | Machine B, s a call (runs) | Machine A, s a call (runs) | A over B |
 | --- | --- | --- | --- |
-| gpt-6.1-terra | 1.57 (108) | 1.75 (18) | 1.12 |
-| Sonnet 5.5 | 1.71 (108) | 1.72 (18) | 1.01 |
+| gpt-6.1-terra | 1.96 (96) | 2.17 (16) | 1.11 |
+| Sonnet 5.5 | 1.89 (96) | 2.03 (16) | 1.07 |
 
 </details>
 <!-- /render -->
@@ -568,8 +510,8 @@ unchanged after input.
 
 | Tool | Agent | Walks | Cut by time | Cut at elements | Cut at containers | Median ms | Runs whose first walk was cut | Runs that named a budget | Runs |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Cua Driver | gpt-6.1-terra | 1134 | 270 | 31 | 91 | 1008 | 7 | 37 | 108 |
-| Cua Driver | Sonnet 5.5 | 1038 | 138 | 332 | 52 | 593 | 3 | 22 | 108 |
+| Cua Driver | gpt-6.1-terra | 1081 | 247 | 31 | 91 | 1008 | 7 | 37 | 96 |
+| Cua Driver | Sonnet 5.5 | 1000 | 137 | 309 | 52 | 622 | 3 | 22 | 96 |
 
 </details>
 <!-- /render -->
@@ -590,12 +532,10 @@ unchanged after input.
 | Label a photo, drag and drop · Firefox | 0/12, 0 | 0/12, 2 | 0/12, 0 | 0/12, 0 |
 | Label a photo, custom drag · Firefox | 0/12, 0 | 0/12, 5 | 0/12, 0 | 0/12, 0 |
 | Copy reports into a sheet · Firefox | 0/12, 0 | 0/12, 16 | 2/12, 0 | 2/12, 1 |
-| Draw along a rail · Firefox | 0/12, 0 | 0/12, 9 | 0/12, 0 | 0/12, 0 |
 | Draw along a river bank · Firefox | 0/12, 0 | 0/12, 7 | 0/12, 0 | 0/12, 0 |
 | Label a photo, drag and drop · Chromium | 0/12, 0 | 0/12, 0 | 0/12, 0 | 0/12, 0 |
 | Label a photo, custom drag · Chromium | 0/12, 0 | 0/12, 0 | 0/12, 0 | 0/12, 0 |
 | Copy reports into a sheet · Chromium | 0/12, 0 | 0/12, 13 | 4/12, 1 | 1/12, 0 |
-| Draw along a rail · Chromium | 0/12, 0 | 0/12, 0 | 0/12, 0 | 0/12, 0 |
 | Draw along a river bank · Chromium | 0/12, 0 | 0/12, 0 | 0/12, 0 | 0/12, 0 |
 
 </details>

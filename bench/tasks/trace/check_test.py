@@ -12,16 +12,19 @@ import check  # noqa: E402
 import figure  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# The grade and the attribution are tested on the rack variant, whose geometry the cases below are written for.
-check.load(os.path.join(HERE, "rack"))
+# The grade and the attribution are tested on a line of their own, testdata/line: a narrow line that curves and
+# narrows towards the top of a 239×476 photo, measured for a figure that the task no longer has. The cases below are
+# written for its geometry.
+LINE = os.path.join(HERE, "testdata", "line")
+check.load(LINE)
 figure.WIDTH, figure.HEIGHT = check.TRACK["size"]
 
-# The rack's centre line from the bottom edge up, as a drawing would follow it.
+# The line's centre from the bottom edge up, as a drawing would follow it.
 CENTRE = [[x, y] for x, y, _ in reversed(check.LINE)]
 
 
 def chords(n):
-    """The rack's centre line cut into n straight strokes, end to start, as chained drags draw it."""
+    """The line's centre cut into n straight strokes, end to start, as chained drags draw it."""
     idx = [round(i * (len(CENTRE) - 1) / n) for i in range(n + 1)]
     return [{"kind": "brush", "points": [CENTRE[a], CENTRE[b]]} for a, b in zip(idx, idx[1:])]
 
@@ -31,7 +34,7 @@ class River(unittest.TestCase):
 
     def setUp(self):
         check.load(os.path.join(HERE, "river"))
-        self.addCleanup(check.load, os.path.join(HERE, "rack"))
+        self.addCleanup(check.load, LINE)
 
     def test_the_waterline_passes_and_so_does_more_of_it(self):
         line = [[x, y] for x, y, _ in check.LINE]
@@ -63,15 +66,15 @@ class Grade(unittest.TestCase):
     def test_one_straight_line_fails(self):
         result = check.grade([{"kind": "brush", "points": [CENTRE[0], CENTRE[-1]]}])
         self.assertFalse(result["passed"])
-        self.assertTrue(result["failures"][0].startswith("the drawing covers 14% of the rack"))
-        self.assertIn("lie off the rack", result["failures"][1])
+        self.assertTrue(result["failures"][0].startswith("the drawing covers 14% of the line"))
+        self.assertIn("lie off the line", result["failures"][1])
 
     def test_enough_chords_follow_the_curve(self):
         self.assertFalse(check.grade(chords(5))["passed"])
         self.assertTrue(check.grade(chords(12))["passed"])
 
-    def test_a_line_beside_the_rack_fails(self):
-        # 6 photo pixels to the right: on the rack where it is wide, beside it where it is far away.
+    def test_a_line_beside_it_fails(self):
+        # 6 photo pixels to the right: on the line where it is wide, beside it where it is narrow.
         result = check.grade([{"kind": "brush", "points": [[x + 6, y] for x, y in CENTRE]}])
         self.assertFalse(result["passed"])
         self.assertEqual(result["checks"]["missed"][0][0], 0)
@@ -89,11 +92,11 @@ class Grade(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertEqual(result["checks"]["coverage"], 1)
         self.assertEqual(len(result["failures"]), 1)
-        # 20 and 30 px off the rack.
-        self.assertTrue(result["failures"][0].startswith("50 px of the drawing lie off the rack"))
+        # 20 and 30 px off the line.
+        self.assertTrue(result["failures"][0].startswith("50 px of the drawing lie off the line"))
 
     def test_a_dense_stroke_counts_its_length_once(self):
-        # A stroke off the rack with a point every half pixel, as close as Firefox records them, is 20 px long.
+        # A stroke off the line with a point every half pixel, as close as Firefox records them, is 20 px long.
         dense = [[20 + i / 2, 300] for i in range(41)]
         self.assertEqual(check.grade([{"kind": "brush", "points": CENTRE}, {"kind": "brush", "points": dense}])["checks"]["off_line_px"], 20)
 
@@ -240,7 +243,7 @@ class Run:
             with open(os.path.join(d, "vm-trace-strokes.json"), "w") as f:
                 json.dump({"strokes": final}, f)
         with open(os.path.join(d, "run.json"), "w") as f:
-            json.dump({"variant": "rack"}, f)
+            json.dump({"variant": os.path.join("testdata", "line")}, f)
         with open(os.path.join(d, "ready.json"), "w") as f:
             json.dump({"task_window": WINDOW, "vm_time": 1000.0, "host_time": 1000.0 + VM_TO_HOST}, f)
         for name, lines in (("mcp.jsonl", self.tap), (attribute.EVENTS, self.page)):
@@ -419,7 +422,7 @@ class Attribute(unittest.TestCase):
         self.assertEqual([s["outcome"] for s in out["strokes"]], ["not sent"] * 4)
 
     def test_drags_with_results_of_only_text(self):
-        windows = (f'{WINDOW} · firefox "Figure 2: The rack · Up the mountain by rack railway — Mozilla Firefox" · '
+        windows = (f'{WINDOW} · firefox "Figure 2: The line · A figure for the tests — Mozilla Firefox" · '
                    f"workspace web (hidden) · 1920×1080 · lease 60 s (this session)\nshot s1 1280×720 of window "
                    f"{WINDOW}")
         out = self.run_of(lambda r: r.drags(segments_of(12), text="12/12 delivered · redraw observed · quiet 200 ms · "

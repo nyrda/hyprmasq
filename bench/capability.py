@@ -832,8 +832,7 @@ def trace_case(routes, vm, tool):
 for browser in ("firefox", "chromium"):
     for variant in ("dnd", "pointer"):
         FIXTURES[f"board-{variant}-{browser}"] = {"task": "board", "variant": variant, "browser": browser, "run": lambda r, v, t: board_case(r, v, t)}
-    for variant in ("river", "rack"):
-        FIXTURES[f"trace-{variant}-{browser}"] = {"task": "trace", "variant": variant, "browser": browser, "run": lambda r, v, t: trace_case(r, v, t)}
+    FIXTURES[f"trace-river-{browser}"] = {"task": "trace", "variant": "river", "browser": browser, "run": lambda r, v, t: trace_case(r, v, t)}
 
 
 class Browser:

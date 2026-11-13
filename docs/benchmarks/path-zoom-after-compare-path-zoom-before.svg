@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="610" viewBox="0 0 880 610" role="img" aria-label="Wall time per run of each task before the change and after it: the median over all agents, with the median time in hyprmasq&#x27;s tools inside it, a dot per run, and the runs passed.">
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="554" viewBox="0 0 880 554" role="img" aria-label="Wall time per run of each task before the change and after it: the median over all agents, with the median time in hyprmasq&#x27;s tools inside it, a dot per run, and the runs passed.">
 <title>Wall time per run of each task before the change and after it: the median over all agents, with the median time in hyprmasq&#x27;s tools inside it, a dot per run, and the runs passed.</title>
 <style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#1f2328}.t2{fill:#59636e}.m{fill:#818b98}.bg{fill:#ffffff;stroke:#d1d9e0}.grid{stroke:#eff2f5;stroke-width:1}.axis{stroke:#d1d9e0;stroke-width:1}.tools{fill:#2a78d6}.out{fill:#c8d1da}.dot{fill:#424a53;stroke:#ffffff;stroke-width:1.5}.miss{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.pass{fill:#1a7f37}.fail{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.cut{stroke:#ffffff;stroke-width:2}.s0{fill:#2a78d6}.s1{fill:#eb6834}.s2{fill:#1baf7a}.s3{fill:#eda100}.s4{fill:#e87ba4}.s5{fill:#008300}.s6{fill:#6250d6}.s7{fill:#e34948}</style>
-<rect x="0.5" y="0.5" width="879" height="609" rx="6" class="bg"/>
+<rect x="0.5" y="0.5" width="879" height="553" rx="6" class="bg"/>
 <text x="24" y="34" class="t" font-size="15" font-weight="600">Wall time per run, before the change and after it</text>
 <text x="24" y="53" class="t2" font-size="12.5">Each bar is the median wall time of a task&#x27;s runs over all agents, written at the right with the runs</text>
 <text x="24" y="72" class="t2" font-size="12.5">passed. Its blue part is the median time in hyprmasq&#x27;s MCP tools. Each dot is one run.</text>
@@ -15,12 +15,12 @@
 <text x="487.8" y="98" class="t2" font-size="12">failed run</text>
 <text x="800" y="128" class="t2" font-size="12" text-anchor="end" font-weight="600">Median</text>
 <text x="856" y="128" class="t2" font-size="12" text-anchor="end" font-weight="600">Passed</text>
-<line x1="220.7" y1="136" x2="220.7" y2="576" class="axis"/>
-<text x="220.7" y="591" class="m" font-size="11">0</text>
-<line x1="456.7" y1="136" x2="456.7" y2="576" class="grid"/>
-<text x="456.7" y="591" class="m" font-size="11" text-anchor="middle">50</text>
-<line x1="692.7" y1="136" x2="692.7" y2="576" class="grid"/>
-<text x="692.7" y="591" class="m" font-size="11" text-anchor="middle">100 s</text>
+<line x1="220.7" y1="136" x2="220.7" y2="520" class="axis"/>
+<text x="220.7" y="535" class="m" font-size="11">0</text>
+<line x1="456.7" y1="136" x2="456.7" y2="520" class="grid"/>
+<text x="456.7" y="535" class="m" font-size="11" text-anchor="middle">50</text>
+<line x1="692.7" y1="136" x2="692.7" y2="520" class="grid"/>
+<text x="692.7" y="535" class="m" font-size="11" text-anchor="middle">100 s</text>
 <text x="24" y="151.5" class="t" font-size="12.5" font-weight="600">Board-dnd</text>
 <text x="208.7" y="151.5" class="t2" font-size="12" text-anchor="end">before</text>
 <rect x="220.7" y="141" width="62.6" height="12" class="tools"/>
@@ -207,7 +207,7 @@
 <circle cx="725.8" cy="449" r="3.5" class="dot"/>
 <text x="800" y="453.5" class="t2" font-size="12" text-anchor="end">83 s</text>
 <text x="856" y="453.5" class="t2" font-size="12" text-anchor="end">8/8</text>
-<text x="24" y="487.5" class="t" font-size="12.5" font-weight="600">Trace-river</text>
+<text x="24" y="487.5" class="t" font-size="12.5" font-weight="600">Trace</text>
 <text x="208.7" y="487.5" class="t2" font-size="12" text-anchor="end">before</text>
 <rect x="220.7" y="477" width="36.1" height="12" class="tools"/>
 <path d="M258.8 477H376.5Q379.5 477 379.5 480V486Q379.5 489 376.5 489H258.8Z" class="out"/>
@@ -242,39 +242,4 @@
 <circle cx="485" cy="505" r="3.5" class="dot"/>
 <text x="800" y="509.5" class="t2" font-size="12" text-anchor="end">25 s</text>
 <text x="856" y="509.5" class="t2" font-size="12" text-anchor="end">11/12</text>
-<text x="24" y="543.5" class="t" font-size="12.5" font-weight="600">Trace-rack</text>
-<text x="208.7" y="543.5" class="t2" font-size="12" text-anchor="end">before</text>
-<rect x="220.7" y="533" width="22.4" height="12" class="tools"/>
-<path d="M245.1 533H361.9Q364.9 533 364.9 536V542Q364.9 545 361.9 545H245.1Z" class="out"/>
-<circle cx="293.4" cy="539" r="3.5" class="dot"/>
-<circle cx="294.3" cy="539" r="3.5" class="dot"/>
-<circle cx="300.4" cy="539" r="3.5" class="dot"/>
-<circle cx="318.9" cy="539" r="3" class="miss"/>
-<circle cx="324.1" cy="539" r="3" class="miss"/>
-<circle cx="361.3" cy="539" r="3.5" class="dot"/>
-<circle cx="368.4" cy="539" r="3.5" class="dot"/>
-<circle cx="373.1" cy="539" r="3.5" class="dot"/>
-<circle cx="411.4" cy="539" r="3" class="miss"/>
-<circle cx="413.3" cy="539" r="3.5" class="dot"/>
-<circle cx="418.9" cy="539" r="3.5" class="dot"/>
-<circle cx="424.6" cy="539" r="3" class="miss"/>
-<text x="800" y="543.5" class="t2" font-size="12" text-anchor="end">31 s</text>
-<text x="856" y="543.5" class="t2" font-size="12" text-anchor="end">8/12</text>
-<text x="208.7" y="565.5" class="t2" font-size="12" text-anchor="end">after</text>
-<rect x="220.7" y="555" width="12.5" height="12" class="tools"/>
-<path d="M235.2 555H344.4Q347.4 555 347.4 558V564Q347.4 567 344.4 567H235.2Z" class="out"/>
-<circle cx="278.7" cy="561" r="3.5" class="dot"/>
-<circle cx="286.3" cy="561" r="3.5" class="dot"/>
-<circle cx="300.4" cy="561" r="3.5" class="dot"/>
-<circle cx="303.8" cy="561" r="3.5" class="dot"/>
-<circle cx="313.2" cy="561" r="3" class="miss"/>
-<circle cx="344.8" cy="561" r="3.5" class="dot"/>
-<circle cx="350" cy="561" r="3.5" class="dot"/>
-<circle cx="350.5" cy="561" r="3.5" class="dot"/>
-<circle cx="351.9" cy="561" r="3" class="miss"/>
-<circle cx="403.8" cy="561" r="3.5" class="dot"/>
-<circle cx="421.8" cy="561" r="3.5" class="dot"/>
-<circle cx="612.5" cy="561" r="3.5" class="dot"/>
-<text x="800" y="565.5" class="t2" font-size="12" text-anchor="end">27 s</text>
-<text x="856" y="565.5" class="t2" font-size="12" text-anchor="end">10/12</text>
 </svg>
