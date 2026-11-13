@@ -1,8 +1,8 @@
 """Grades the trace task from the figure's saved drawing, run as root in the VM. Prints one JSON object with passed,
 failures, checks and events.
 
-The drawing is measured against the target's line in the variant's track.json, in photo pixels: the rack of a rack
-railway, or the waterline of a river bank. A point is on the target when it lies within the line's half-width there
+The drawing is measured against the target's line in the variant's track.json, in photo pixels: the waterline of a river
+bank. A point is on the target when it lies within the line's half-width there
 plus the variant's slack of it (figure.json). The task passes when the drawing covers at least COVERAGE of the line's required rows, a point of
 the line counting as covered when a stroke passes within that distance of it, and at most OFF_LINE of the drawing's
 length, relative to the required part's length, lies off the line. Drawing along the line outside the required rows

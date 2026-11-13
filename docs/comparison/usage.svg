@@ -14,70 +14,70 @@
 <text x="182" y="130" class="t2" font-size="12">gpt-6.1-terra</text>
 <path d="M292 121H295.4Q298.4 121 298.4 124V128Q298.4 131 295.4 131H292Z" class="s0"/>
 <text x="306.4" y="130.5" class="t" font-size="12.5">$0.02</text>
-<path d="M480 121H514.3Q517.3 121 517.3 124V128Q517.3 131 514.3 131H480Z" class="s0"/>
-<text x="525.3" y="130.5" class="t" font-size="12.5">7</text>
-<path d="M668 121H680.2Q683.2 121 683.2 124V128Q683.2 131 680.2 131H668Z" class="s0"/>
-<text x="691.2" y="130.5" class="t" font-size="12.5">16k</text>
+<path d="M480 121H509.6Q512.6 121 512.6 124V128Q512.6 131 509.6 131H480Z" class="s0"/>
+<text x="520.6" y="130.5" class="t" font-size="12.5">8</text>
+<path d="M668 121H682.3Q685.3 121 685.3 124V128Q685.3 131 682.3 131H668Z" class="s0"/>
+<text x="693.3" y="130.5" class="t" font-size="12.5">19k</text>
 <text x="182" y="155" class="t2" font-size="12">Sonnet 5.5</text>
-<path d="M292 146H307.8Q310.8 146 310.8 149V153Q310.8 156 307.8 156H292Z" class="s0"/>
-<text x="318.8" y="155.5" class="t" font-size="12.5">$0.06</text>
-<path d="M480 146H514.3Q517.3 146 517.3 149V153Q517.3 156 514.3 156H480Z" class="s0"/>
-<text x="525.3" y="155.5" class="t" font-size="12.5">7</text>
-<path d="M668 146H681.7Q684.7 146 684.7 149V153Q684.7 156 681.7 156H668Z" class="s0"/>
-<text x="692.7" y="155.5" class="t" font-size="12.5">18k</text>
+<path d="M292 146H312.2Q315.2 146 315.2 149V153Q315.2 156 312.2 156H292Z" class="s0"/>
+<text x="323.2" y="155.5" class="t" font-size="12.5">$0.09</text>
+<path d="M480 146H517.8Q520.8 146 520.8 149V153Q520.8 156 517.8 156H480Z" class="s0"/>
+<text x="528.8" y="155.5" class="t" font-size="12.5">10</text>
+<path d="M668 146H685.3Q688.3 146 688.3 149V153Q688.3 156 685.3 156H668Z" class="s0"/>
+<text x="696.3" y="155.5" class="t" font-size="12.5">22k</text>
 <line x1="24" y1="169" x2="856" y2="169" class="grid"/>
 <rect x="24" y="177" width="4" height="44" class="s1" rx="2"/>
 <text x="36" y="200" class="t" font-size="13.5" font-weight="600">Cua Driver</text>
 <text x="182" y="191" class="t2" font-size="12">gpt-6.1-terra</text>
-<path d="M292 182H309.5Q312.5 182 312.5 185V189Q312.5 192 309.5 192H292Z" class="s1"/>
-<text x="320.5" y="191.5" class="t" font-size="12.5">$0.07</text>
-<path d="M480 182H551.7Q554.7 182 554.7 185V189Q554.7 192 551.7 192H480Z" class="s1"/>
-<text x="562.7" y="191.5" class="t" font-size="12.5">14</text>
-<path d="M668 182H706.5Q709.5 182 709.5 185V189Q709.5 192 706.5 192H668Z" class="s1"/>
-<text x="717.5" y="191.5" class="t" font-size="12.5">44k</text>
+<path d="M292 182H309Q312 182 312 185V189Q312 192 309 192H292Z" class="s1"/>
+<text x="320" y="191.5" class="t" font-size="12.5">$0.07</text>
+<path d="M480 182H536.1Q539.1 182 539.1 185V189Q539.1 192 536.1 192H480Z" class="s1"/>
+<text x="547.1" y="191.5" class="t" font-size="12.5">14</text>
+<path d="M668 182H708.8Q711.8 182 711.8 185V189Q711.8 192 708.8 192H668Z" class="s1"/>
+<text x="719.8" y="191.5" class="t" font-size="12.5">48k</text>
 <text x="182" y="216" class="t2" font-size="12">Sonnet 5.5</text>
 <path d="M292 207H379.4Q382.4 207 382.4 210V214Q382.4 217 379.4 217H292Z" class="s1"/>
-<text x="390.4" y="216.5" class="t" font-size="12.5">$0.30</text>
-<path d="M480 207H551.7Q554.7 207 554.7 210V214Q554.7 217 551.7 217H480Z" class="s1"/>
-<text x="562.7" y="216.5" class="t" font-size="12.5">14</text>
+<text x="390.4" y="216.5" class="t" font-size="12.5">$0.33</text>
+<path d="M480 207H540.2Q543.2 207 543.2 210V214Q543.2 217 540.2 217H480Z" class="s1"/>
+<text x="551.2" y="216.5" class="t" font-size="12.5">16</text>
 <path d="M668 207H755.4Q758.4 207 758.4 210V214Q758.4 217 755.4 217H668Z" class="s1"/>
-<text x="766.4" y="216.5" class="t" font-size="12.5">97k</text>
+<text x="766.4" y="216.5" class="t" font-size="12.5">99k</text>
 <line x1="24" y1="230" x2="856" y2="230" class="grid"/>
 <rect x="24" y="238" width="4" height="44" class="s3" rx="2"/>
 <text x="36" y="261" class="t" font-size="13.5" font-weight="600">hypruse</text>
 <text x="182" y="252" class="t2" font-size="12">gpt-6.1-terra</text>
-<path d="M292 243H311.7Q314.7 243 314.7 246V250Q314.7 253 311.7 253H292Z" class="s3"/>
-<text x="322.7" y="252.5" class="t" font-size="12.5">$0.08</text>
-<path d="M480 243H581Q584 243 584 246V250Q584 253 581 253H480Z" class="s3"/>
-<text x="592" y="252.5" class="t" font-size="12.5">20</text>
-<path d="M668 243H700.3Q703.3 243 703.3 246V250Q703.3 253 700.3 253H668Z" class="s3"/>
-<text x="711.3" y="252.5" class="t" font-size="12.5">38k</text>
+<path d="M292 243H313.5Q316.5 243 316.5 246V250Q316.5 253 313.5 253H292Z" class="s3"/>
+<text x="324.5" y="252.5" class="t" font-size="12.5">$0.09</text>
+<path d="M480 243H576.9Q579.9 243 579.9 246V250Q579.9 253 576.9 253H480Z" class="s3"/>
+<text x="587.9" y="252.5" class="t" font-size="12.5">24</text>
+<path d="M668 243H703.9Q706.9 243 706.9 246V250Q706.9 253 703.9 253H668Z" class="s3"/>
+<text x="714.9" y="252.5" class="t" font-size="12.5">43k</text>
 <text x="182" y="277" class="t2" font-size="12">Sonnet 5.5</text>
 <rect x="292" y="268" width="104" height="10" class="s3"/>
 <line x1="384" y1="280" x2="388" y2="266" class="cut"/>
 <line x1="389" y1="280" x2="393" y2="266" class="cut"/>
-<text x="404" y="277.5" class="t" font-size="12.5">$3.21</text>
-<path d="M480 268H559.7Q562.7 268 562.7 271V275Q562.7 278 559.7 278H480Z" class="s3"/>
-<text x="570.7" y="277.5" class="t" font-size="12.5">16</text>
+<text x="404" y="277.5" class="t" font-size="12.5">$3.50</text>
+<path d="M480 268H581Q584 268 584 271V275Q584 278 581 278H480Z" class="s3"/>
+<text x="592" y="277.5" class="t" font-size="12.5">26</text>
 <rect x="668" y="268" width="104" height="10" class="s3"/>
 <line x1="760" y1="280" x2="764" y2="266" class="cut"/>
 <line x1="765" y1="280" x2="769" y2="266" class="cut"/>
-<text x="780" y="277.5" class="t" font-size="12.5">642k</text>
+<text x="780" y="277.5" class="t" font-size="12.5">649k</text>
 <line x1="24" y1="291" x2="856" y2="291" class="grid"/>
 <rect x="24" y="299" width="4" height="44" class="s4" rx="2"/>
 <text x="36" y="322" class="t" font-size="13.5" font-weight="600">computer-use-linux</text>
 <text x="182" y="313" class="t2" font-size="12">gpt-6.1-terra</text>
-<path d="M292 304H312.2Q315.2 304 315.2 307V311Q315.2 314 312.2 314H292Z" class="s4"/>
-<text x="323.2" y="313.5" class="t" font-size="12.5">$0.08</text>
-<path d="M480 304H541Q544 304 544 307V311Q544 314 541 314H480Z" class="s4"/>
-<text x="552" y="313.5" class="t" font-size="12.5">12</text>
-<path d="M668 304H712.6Q715.6 304 715.6 307V311Q715.6 314 712.6 314H668Z" class="s4"/>
-<text x="723.6" y="313.5" class="t" font-size="12.5">51k</text>
+<path d="M292 304H310.7Q313.7 304 313.7 307V311Q313.7 314 310.7 314H292Z" class="s4"/>
+<text x="321.7" y="313.5" class="t" font-size="12.5">$0.08</text>
+<path d="M480 304H530Q533 304 533 307V311Q533 314 530 314H480Z" class="s4"/>
+<text x="541" y="313.5" class="t" font-size="12.5">13</text>
+<path d="M668 304H718.5Q721.5 304 721.5 307V311Q721.5 314 718.5 314H668Z" class="s4"/>
+<text x="729.5" y="313.5" class="t" font-size="12.5">58k</text>
 <text x="182" y="338" class="t2" font-size="12">Sonnet 5.5</text>
-<path d="M292 329H370.1Q373.1 329 373.1 332V336Q373.1 339 370.1 339H292Z" class="s4"/>
-<text x="381.1" y="338.5" class="t" font-size="12.5">$0.27</text>
-<path d="M480 329H525Q528 329 528 332V336Q528 339 525 339H480Z" class="s4"/>
-<text x="536" y="338.5" class="t" font-size="12.5">9</text>
-<path d="M668 329H734.2Q737.2 329 737.2 332V336Q737.2 339 734.2 339H668Z" class="s4"/>
-<text x="745.2" y="338.5" class="t" font-size="12.5">74k</text>
+<path d="M292 329H372.8Q375.8 329 375.8 332V336Q375.8 339 372.8 339H292Z" class="s4"/>
+<text x="383.8" y="338.5" class="t" font-size="12.5">$0.31</text>
+<path d="M480 329H513.7Q516.7 329 516.7 332V336Q516.7 339 513.7 339H480Z" class="s4"/>
+<text x="524.7" y="338.5" class="t" font-size="12.5">9</text>
+<path d="M668 329H734.7Q737.7 329 737.7 332V336Q737.7 339 734.7 339H668Z" class="s4"/>
+<text x="745.7" y="338.5" class="t" font-size="12.5">76k</text>
 </svg>

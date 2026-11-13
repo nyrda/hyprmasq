@@ -58,7 +58,7 @@ To build a VM driver without running an agent:
 ```sh
 nix-build bench/default.nix -A driver
 # For another task, add --argstr task calc, files, forgejo, board, form, inkscape or trace. Board also needs --argstr variant dnd or
-# pointer, form its number of questions, such as --argstr variant 25, and trace its figure, river or rack.
+# pointer, form its number of questions, such as --argstr variant 25, and trace its figure, river.
 ```
 
 See [By hand](#by-hand) to boot that driver and probe MCP without an agent.
@@ -487,7 +487,7 @@ Run [the calibration](#calibration) on a machine before giving it more than one 
 
 ### Several tasks
 
-`--task TASK[:VARIANT]` is repeatable, such as `--task forgejo --task board:dnd --task trace:rack`. A task without a
+`--task TASK[:VARIANT]` is repeatable, such as `--task forgejo --task board:dnd --task trace:river`. A task without a
 variant takes its default, as in `run.py`, and `--variant` goes only with a single `--task`. The runs of all tasks go
 into one queue, so that no slot waits for the other tasks' last runs before the next task starts. Repetitions go
 round the tasks and each task's round goes round the agents, so that an agent's runs, and a provider's, spread over
@@ -1165,31 +1165,24 @@ SIGUSR1. The engine does not inherit the state's file descriptor.
 Mara is writing a blog post and marks up its figure, a photo, with a brush in her Firefox 157: the prompt asks the
 agent to draw a line along a line of the photo, and nothing else. It names no tools and gives no coordinates. Firefox
 is started like a user would, on the visible workspace, and moved to the hidden workspace `web`. The user stays on
-workspace 1 with the terminal. With `--browser chromium`, Chromium shows the figure instead. The task's variants are
-the figures, each a directory with its photo, the line to
+workspace 1 with the terminal. With `--browser chromium`, Chromium shows the figure instead. The task has one figure,
+its variant `river`, a directory with its photo, the line to
 trace (`track.json`), the page's texts (`figure.json`) and its prompt (`prompt.md`):
 
-- `river`, the default: a river from above, where it bends through a gorge, 731×600 pixels. The agent draws along
+- `river`: a river from above, where it bends through a gorge, 731×600 pixels. The agent draws along
   the left bank where it lies in the shadow of the hill, where the water meets the shore. The waterline is a sharp
   edge between the water and the stones, and the page shows the photo at about 1.5 times its size at 1920×1080.
-- `rack`: a rack railway, 239×476 pixels, which the page scales up about twice. The agent draws over the rack, the
-  toothed rail between the running rails, from the bottom edge to where it leaves the photo at the top. Near the top
-  the rack is a ridge 2 pixels wide a few pixels from a brighter rail, so the variant tests recognition as much as
-  aim: agents slide onto the rail there.
 
-The two photos are not under the repository's MIT licence:
+The photo is not under the repository's MIT licence. `river/photo.jpg` is cropped and scaled down from
+[Loreleyblick Maria Ruh 2025](https://commons.wikimedia.org/wiki/File:Loreleyblick_Maria_Ruh_2025.jpg) by
+Jörg Braukmann on Wikimedia Commons, and is licensed like it under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 
-- `river/photo.jpg` is cropped and scaled down from
-  [Loreleyblick Maria Ruh 2025](https://commons.wikimedia.org/wiki/File:Loreleyblick_Maria_Ruh_2025.jpg) by
-  Jörg Braukmann on Wikimedia Commons, and is licensed like it under
-  [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
-- `rack/photo.png` is cropped from
-  [Beautiful view of the railway tracks](https://www.freepik.com/free-photo/beautiful-view-railway-tracks_13235764.htm),
-  an image by wirestock on Freepik, used under Freepik's free licence with this credit.
+The task had a second figure, a rack railway, until its photo's licence turned out not to allow redistributing it.
+The figure and its published runs were removed.
 
 The task exercises what board does not: precise input along a curve. On the river, one straight drag along the
-shadowed bank covers 30% of it and two chords pass, so the variant measures aim more than following a curve. On the
-rack, one straight drag covers 14%, five chords 90%, and eight pass. `act`'s `path` action presses once and moves
+shadowed bank covers 30% of it and two chords pass, so the task measures aim more than following a curve. `act`'s `path` action presses once and moves
 through a line or a spline of points, so one action can draw the whole line. The agent may also draw it otherwise,
 with chained paths, Shift+click lines or dots, and the attribution counts how. The photo is scaled to fit the window,
 the same on every load, and the page does not scroll.
@@ -1212,9 +1205,9 @@ stays within a tenth of a photo pixel of the pointer's path.
   `devicePixelRatio` and `mozInnerScreenX/Y`), and each stroke it draws, with its start and end in client pixels and
   its points in photo pixels, in `events.jsonl`.
 - `VARIANT/track.json`: the line every second row of the photo, in photo pixels, with its half-width, and the rows
-  that the drawing must cover, `required`. The line is measured, not drawn by eye: by eye, the rack's top and the
-  river's waterline are easily placed on a neighbouring, brighter edge.
-- `river/trace.py PHOTO`: the waterline, scanned in each row from the open water to the first pixels that differ
+  that the drawing must cover, `required`. The line is measured, not drawn by eye: by eye, the
+  river's waterline is easily placed on a neighbouring, brighter edge.
+- `river/trace.py PHOTO`, which needs Pillow and NumPy: the waterline, scanned in each row from the open water to the first pixels that differ
   from the water, smoothed with a median over 31 rows, which the few rows where piles of stones or a jetty pull the
   scan inland cannot move, and a mean over as many: the bank is a smooth curve at this scale. The line is a band
   from 10 pixels inland, over the strip of stones between the water and the path, to 2 pixels into the water: a
@@ -1222,13 +1215,10 @@ stays within a tenth of a photo pixel of the pointer's path.
   colour lies in front of the stones, which some agents read as the waterline, so the band reaches 30 pixels into
   the water there. The rows required are 230 to 480, where the shadow lies on the bank. The line above them, in the
   sun, may be drawn but need not be.
-- `rack/trace.py PHOTO [--start X0,X1] [--end Y] [--overlay OUT.png]`: the rack, following its two edges row by row
-  from the bottom up, from where `--start` says they are in the bottom row, to row `--end`, and smoothed. Its overlay
-  shows the trace on the photo enlarged, to check by eye before committing. Both scripts need Pillow and NumPy.
 - `check.py [--target DIR]`: measures the drawing against the variant's line. A point is on the line within its
   half-width there plus the variant's slack, in `figure.json`: 5 pixels of the agent's 1280×720 screenshot at the
   default display, 1920×1080, where the page scales the photo to fit, since an agent aims in the screenshot's
-  pixels. That is 4.9 photo pixels on the river and 3.9 on the rack. It passes when the strokes cover at least 95%
+  pixels. That is 4.9 photo pixels on the river. It passes when the strokes cover at least 95%
   of the required rows and at most 10% of the drawing's length, relative to the required part's, lies off the line.
   Drawing along the line outside the required rows is neither required nor off it. A failure names the rows left
   uncovered or how much lies off the line and where: `the drawing covers 30% of the waterline; it leaves the
@@ -1246,8 +1236,9 @@ stays within a tenth of a photo pixel of the pointer's path.
   call, the actions of each kind, undos and clears, the largest distance of a stroke from where it was aimed, and
   which strokes did not last to the end, the work the agent took back or redid. It prints a table per run and writes
   `attribution.json`.
-- `check_test.py`: `python3 bench/tasks/trace/check_test.py` checks the grade on constructed drawings of the rack
-  (the centre line, one straight line, five and twelve chords, a line beside the rack, one that stops short, a
+- `check_test.py`: `python3 bench/tasks/trace/check_test.py` checks the grade on constructed drawings of a line of
+  its own, `testdata/line`, the narrow curve measured for the rack railway's figure that the task had
+  (the centre line, one straight line, five and twelve chords, a line beside it, one that stops short, a
   scribble beside a complete line, lines and dots, nothing) and of the river (the waterline, the part in the sun
   alone, a line on the stones and one on the path), the milestones and the server's check of a saved drawing, and
   the attribution on constructed logs: chained drags in one call, a chord across the bend, a stroke that ends far
@@ -1258,7 +1249,7 @@ stays within a tenth of a photo pixel of the pointer's path.
   With `HYPRMASQ_BENCH_WAYLAND_DEBUG` set in the driver's environment, Firefox logs its Wayland protocol to
   `vm-firefox.log`.
 - `user.js`: no first-run pages, tips or telemetry in Firefox.
-- `variants`, `debrief.md`: the figures, `river` the default, and the debrief, which also asks how the agent drew
+- `variants`, `debrief.md`: the figure, `river`, and the debrief, which also asks how the agent drew
   along the curve.
 
 ### files

@@ -9,7 +9,6 @@
   {"commit": "495eff47f317b59e7956eae382c3ea5a1d087110", "dirty": false, "task": "form", "variant": "25-no-dropdowns", "display": "1920x1080@1", "backend": "hypruse", "prompt": "comparison", "browser": "firefox"},
   {"commit": "495eff47f317b59e7956eae382c3ea5a1d087110", "dirty": false, "task": "inkscape", "variant": null, "display": "1920x1080@1", "backend": "hypruse", "prompt": "comparison", "browser": "firefox"},
   {"commit": "495eff47f317b59e7956eae382c3ea5a1d087110", "dirty": false, "task": "thunderbird", "variant": null, "display": "1920x1080@1", "backend": "hypruse", "prompt": "comparison", "browser": "firefox"},
-  {"commit": "495eff47f317b59e7956eae382c3ea5a1d087110", "dirty": false, "task": "trace", "variant": "rack", "display": "1920x1080@1", "backend": "hypruse", "prompt": "comparison", "browser": "firefox"},
   {"commit": "495eff47f317b59e7956eae382c3ea5a1d087110", "dirty": false, "task": "trace", "variant": "river", "display": "1920x1080@1", "backend": "hypruse", "prompt": "comparison", "browser": "firefox"}
  ],
  "runs": [

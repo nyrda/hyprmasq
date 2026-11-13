@@ -14,7 +14,7 @@ times as long. No run disturbed the user, and every failure was the model's own.
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash glance -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model. 514 of 629 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run." src="benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model. 477 of 576 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run." src="benchmarks/glance.svg">
 </picture>
 
 <sub>Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026. gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026. Builds and machines differ, so times compare roughly. Qwen 3.8 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. GLM 5.3 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026.</sub>
@@ -31,18 +31,18 @@ times as long. No run disturbed the user, and every failure was the model's own.
 
 | Model | Runs passed | What to expect |
 | --- | --- | --- |
-| Opus 5.5 | 44/44 | Passed every run. |
-| gpt-6-astra | 42/44 | Passes every task. Its two misses were Sol's and Terra's lookalike label on board. |
-| Sonnet 5.5 | 62/66 | Misses a few runs of the form with dropdowns and of trace-rack. |
-| gpt-6.1-terra | 77/90, 41/44 at `high` | Passes every task but board, where it labels a lookalike part in about a third of its runs, at `high` as at `medium`. |
-| gpt-6.1-sol | 74/90, 40/44 at `high` | As Terra. `high` helped it on board in the first set of reruns, not in the later one. |
-| Haiku 5.5 | 40/44 | Close to the frontier models, fast and cheap. It missed half its board-pointer runs. |
-| Kimi K3.1 Pro | 8/11 | Passes the long form, mail and web tasks, but slowly, and draws imprecisely. |
-| Gemini 4 Argon | 7/11 | The most precise of these at drawing and placing, and the slowest. It ran out of calls on files, Forgejo and Thunderbird. |
-| Qwen 3.8 Flash | 21/33 | Passed every run of files, Forgejo, Inkscape, Thunderbird and both forms, at about two cents a run, but slowly. It passed one board run and no trace run, most of them ending at the call budget. |
-| gpt-6-luna | 26/44 | Reliable on calc, files, Inkscape, the form with dropdowns and Thunderbird. It misses most board and trace runs, and misread a code in three of four runs of the form without dropdowns. |
-| DeepSeek v4.1 Flash | 17/31 | Keyboard and form work, slowly. It passed no board or trace run. |
-| GLM 5.3 Flash | 15/33 | Passed every run of files, Forgejo, Inkscape and Thunderbird, within a minute or so on the short ones, at about three cents a run. It is less exact on the forms and calc, and passed no board or trace run. |
+| Opus 5.5 | 40/40 | Passed every run. |
+| Sonnet 5.5 | 59/60 | Missed one run of the form with dropdowns. |
+| gpt-6-astra | 38/40 | Passes every task. Its two misses were Sol's and Terra's lookalike label on board. |
+| gpt-6.1-terra | 71/84, 37/40 at `high` | Passes every task but board, where it labels a lookalike part in about a third of its runs, at `high` as at `medium`. |
+| gpt-6.1-sol | 68/84, 36/40 at `high` | As Terra. `high` helped it on board in the first set of reruns, not in the later one. |
+| Haiku 5.5 | 36/40 | Close to the frontier models, fast and cheap. It missed half its board-pointer runs. |
+| Kimi K3.1 Pro | 8/10 | Passes the long form, mail and web tasks, but slowly, and draws imprecisely. |
+| Qwen 3.8 Flash | 21/30 | Passed every run of files, Forgejo, Inkscape, Thunderbird and both forms, at about two cents a run, but slowly. It passed one board run and no trace run, most of them ending at the call budget. |
+| gpt-6-luna | 25/40 | Reliable on calc, files, Inkscape, the form with dropdowns and Thunderbird. It misses most board and trace runs, and misread a code in three of four runs of the form without dropdowns. |
+| Gemini 4 Argon | 6/10 | The most precise of these at drawing and placing, and the slowest. It ran out of calls on files, Forgejo and Thunderbird. |
+| DeepSeek v4.1 Flash | 17/28 | Keyboard and form work, slowly. It passed no board or trace run. |
+| GLM 5.3 Flash | 15/30 | Passed every run of files, Forgejo, Inkscape and Thunderbird, within a minute or so on the short ones, at about three cents a run. It is less exact on the forms and calc, and passed no board or trace run. |
 
 </details>
 
@@ -57,32 +57,31 @@ that hyprmasq caused was fixed. Tasks it was not developed against may still fin
 | gpt-6.1-sol | Board | 9 `dnd`, 5 `pointer` | Put the CPU power headers' label on the 5-pin header beside the memory slots, a part the task names as a lookalike. One `pointer` run also put the M.2 slots' label beside its part. |
 | gpt-6.1-sol | Board | 2 `dnd` | Put the M.2 slots' label beside its part, and in the other run the CPU power headers' label on the fan headers and the SATA ports' label beside their part. |
 | gpt-6.1-terra | Board | 8 `dnd`, 5 `pointer` | Put the CPU power headers' label on the lookalike. One `dnd` run also put the BMC chip's label beside its part. |
-| Sonnet 5.5 | Trace-rack | 3 | Drew the rack in one path, which left part of its upper end uncovered and ran beside it there. |
 | Sonnet 5.5 | Form with dropdowns | 1 | Ticked Anvil instead of Kettle in question 9. |
 | gpt-6.1-sol | Board | 2 `dnd`, 1 `pointer` at `high` | Put the CPU power headers' label on the lookalike. |
-| gpt-6.1-sol | Trace-river | 1 at `high` | Covered 90.5% of the bank. |
+| gpt-6.1-sol | Trace | 1 at `high` | Covered 90.5% of the bank. |
 | gpt-6.1-terra | Board | 2 `dnd`, 1 `pointer` at `high` | Put the CPU power headers' label on the lookalike. |
 | gpt-6-astra | Board | 1 `dnd`, 1 `pointer` | Put the CPU power headers' label on the lookalike. |
 | Haiku 5.5 | Board-pointer | 2 | Left the BMC chip's label on no part, and in the other run put the SATA ports' label on the memory slots. |
 | Haiku 5.5 | Calc | 1 | Averaged the wrong range and left out the growth formula. |
-| Haiku 5.5 | Trace-river | 1 | Covered 92% of the bank. |
+| Haiku 5.5 | Trace | 1 | Covered 92% of the bank. |
 | gpt-6-luna | Board | 4 `dnd`, 3 `pointer` | Stopped after three to eight calls with one to three labels on no part or the wrong one, in two runs the CPU power headers' on the lookalike. |
-| gpt-6-luna | Trace | 4 `river`, 3 `rack` | Drew one stroke after three to six calls, which covered at most 56% of the bank and 86% of the rack. |
+| gpt-6-luna | Trace | 4 | Drew one stroke after three to six calls, which covered at most 56% of the bank. |
 | gpt-6-luna | Forgejo | 1 | Left the dashboard unconnected. |
 | gpt-6-luna | Form without dropdowns | 3 | Typed the code QX-7731-B as 0X or OX, and in one run also missed a checkbox. |
-| Kimi K3.1 Pro | Trace | 1 `river`, 1 `rack` | Covered 79% and 80% of the line. |
+| Kimi K3.1 Pro | Trace | 1 | Covered 79% of the bank. |
 | Kimi K3.1 Pro | Calc | 1 | Entered Lisbon's figures for Hamburg. |
 | Gemini 4 Argon | Files, Forgejo, Thunderbird | 1 each | Ran out of calls before it finished. |
 | Gemini 4 Argon | Calc | 1 | Did not save the sheet, and closed one of the report tabs it was to leave open. |
 | Qwen 3.8 Flash | Board | 1 `dnd`, 1 `pointer` | Put the M.2 slots' label on no part, on a connector or chips it took for the slots. |
 | Qwen 3.8 Flash | Board | 2 `dnd`, 1 `pointer` | Ran out of calls with five to nine labels still in the tray. |
-| Qwen 3.8 Flash | Trace | 3 `river`, 3 `rack` | Covered at most 39% of the bank and 83% of the rack, and in one rack run drew nothing. Four of the six ran out of calls. |
+| Qwen 3.8 Flash | Trace | 3 | Covered at most 39% of the bank. |
 | Qwen 3.8 Flash | Calc | 1 | Ran out of calls with the sheet unsaved. |
-| DeepSeek v4.1 Flash | Board, Trace | 10 | Ran out of calls with few labels placed and at most one stroke drawn. |
+| DeepSeek v4.1 Flash | Board, Trace | 7 | Ran out of calls with few labels placed and at most one stroke drawn. |
 | DeepSeek v4.1 Flash | Calc, Inkscape, Form without dropdowns | 1 each | Ran out of calls before it finished. |
 | DeepSeek v4.1 Flash | Form with dropdowns | 1 | Ticked the wrong days in question 13. |
 | GLM 5.3 Flash | Board | 3 `dnd`, 3 `pointer` | Ran out of calls in five of the six, every `pointer` run with eight labels still in the tray. The `dnd` runs put labels on the wrong part or none, one of them the CPU power headers' on the lookalike. |
-| GLM 5.3 Flash | Trace | 3 `river`, 3 `rack` | Drew nothing in two rack runs and covered 59% of the rack in the third, all three out of calls. Covered 79% and 71% of the bank in two river runs. The third covered all of it and ran out of calls before it finished. |
+| GLM 5.3 Flash | Trace | 3 | Covered 79% and 71% of the bank in two runs. The third covered all of it and ran out of calls before it finished. |
 | GLM 5.3 Flash | Form with dropdowns | 2 | Typed Ada Lovelace with two spaces, and in the other run misread the code QX-7731-B as 0X-7731-B. |
 | GLM 5.3 Flash | Form without dropdowns | 2 | Clicked beside the checkbox of 7 in question 4 and did not look again, and in the other run ran out of calls before Submit. |
 | GLM 5.3 Flash | Calc | 2 | Ran out of calls with the sheet unsaved, and in the other run retyped the sheet's note in other words. |
@@ -482,51 +481,8 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table trace-rack -->
-<details><summary>Numbers: Trace-rack</summary>
-
-**Outcome and time**
-
-| Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 6/6 | 38 (29–54) | 3 (2–6) | 3.9 (3.1–5.0) | 6 (5–8) | 1 (1–3) | 5 (4–7) |
-| gpt-6.1-sol | high | 4/4 | 45 (41–54) | 3 (3–6) | 5.3 (3.8–7.2) | 6 (6–7) | 1 (1–2) | 6 (5–8) |
-| gpt-6.1-terra | medium | 6/6 | 21 (20–31) | 3 (2–5) | 4.3 (3.9–5.2) | 3 (3–5) | 1 (1–3) | 6 (4–6) |
-| gpt-6.1-terra | high | 4/4 | 19 (17–20) | 3 (2–3) | 3.8 (3.5–3.9) | 3 (3–3) | 1 (1–1) | 3 (3–6) |
-| gpt-6-astra | medium | 4/4 | 37 (31–70) | 4 (2–8) | 5.5 (3.7–7.3) | 5 (3–7) | 2 (1–4) | 6 (4–8) |
-| Opus 5.5 | medium | 4/4 | 28 (23–35) | 3 (3–5) | 3.4 (2.9–3.9) | 6 (4–6) | 1 (1–3) | 8 (7–12) |
-| Sonnet 5.5 | medium | 3/6 | 17 (15–19) | 2 (2–3) | 3.2 (2.8–3.6) | 4 (3–4) | 1 (1–1) | 6 (6–7) |
-| Haiku 5.5 | high | 4/4 | 34 (23–40) | 3 (3–4) | 3.0 (2.1–3.7) | 6 (5–8) | 1 (1–1) | 6 (5–8) |
-| gpt-6-luna | high | 1/4 | 35 (31–40) | 3 (3–5) | 5.2 (4.5–8.1) | 5 (4–6) | 2 (1–3) | 7 (7–8) |
-| Kimi K3.1 Pro | high, ran max | 0/1 | 397 | 6 | 33.7 | 11 | 3 | 12 |
-| Gemini 4 Argon | medium | 1/1 | 274 | 6 | 16.8 | 5 | 3 | 12 |
-| DeepSeek v4.1 Flash | high | 0/3 | 302 (146–518) | 3 (2–7) | 11.2 (4.8–16.7) | 20 (20–20) | 0 (0–6) | 20 (19–20) |
-| Qwen 3.8 Flash | high | 0/3 | 606 (420–634) | 10 (8–14) | 23.9 (23.7–24.4) | 20 (18–20) | 5 (3–8) | 24 (23–27) |
-| GLM 5.3 Flash | high | 0/3 | 344 (299–388) | 6 (3–19) | 9.9 (8.9–13.3) | 20 (20–20) | 1 (1–18) | 21 (18–21) |
-
-**Tokens and cost**
-
-| Agent | Effort | Input k | Cached % | Output k | Cost $ |
-| --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 107 (98–158) | 88 (79–91) | 1 (1–1) | 0.045 (0.033–0.074) |
-| gpt-6.1-sol | high | 127 (117–136) | 84 (84–85) | 1 (1–1) | 0.062 (0.056–0.068) |
-| gpt-6.1-terra | medium | 66 (64–100) | 73 (68–83) | 1 (1–1) | 0.025 (0.019–0.032) |
-| gpt-6.1-terra | high | 65 (65–65) | 87 (67–88) | 1 (1–1) | 0.015 (0.014–0.026) |
-| gpt-6-astra | medium | 98 (64–134) | 85 (81–89) | 1 (0–1) | 0.282 (0.153–0.361) |
-| Opus 5.5 | medium | 82 (59–90) | 90 (88–91) | 2 (1–2) | 0.112 (0.094–0.122) |
-| Sonnet 5.5 | medium | 47 (41–54) | 88 (88–90) | 1 (1–1) | 0.025 (0.021–0.029) |
-| Haiku 5.5 | high | 117 (83–145) | 89 (88–91) | 5 (3–6) | 0.006 (0.004–0.007) |
-| gpt-6-luna | high | 95 (78–114) | 80 (73–88) | 2 (1–2) | 0.003 (0.003–0.005) |
-| Kimi K3.1 Pro | high, ran max | 151 | 89 | 8 | 0.164 |
-| Gemini 4 Argon | medium | 68 | 25 | 3 | 0.131 |
-| DeepSeek v4.1 Flash | high | 363 (144–420) | 75 (73–76) | 22 (13–25) | 0.027 (0.014–0.032) |
-| Qwen 3.8 Flash | high | 547 (359–549) | 90 (88–90) | 33 (23–36) | 0.035 (0.025–0.036) |
-| GLM 5.3 Flash | high | 385 (372–440) | 87 (86–90) | 19 (18–26) | 0.028 (0.026–0.031) |
-
-</details>
-<!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table trace-river -->
-<details><summary>Numbers: Trace-river</summary>
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table trace -->
+<details><summary>Numbers: Trace</summary>
 
 **Outcome and time**
 
@@ -573,20 +529,20 @@ close call.
 
 | Agent | Effort | Passed | Input M | Cached % | Output k | Cost $ | Cost per passed run $ |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 74/90 | 17.48 | 89 | 102 | 6.39 | 0.09 |
-| gpt-6.1-sol | high | 40/44 | 10.15 | 90 | 62 | 3.61 | 0.09 |
-| gpt-6.1-terra | medium | 77/90 | 13.72 | 86 | 82 | 2.93 | 0.04 |
-| gpt-6.1-terra | high | 41/44 | 8.34 | 89 | 47 | 1.56 | 0.04 |
-| gpt-6-astra | medium | 42/44 | 8.57 | 90 | 42 | 18.37 | 0.44 |
-| Opus 5.5 | medium | 44/44 | 9.19 | 92 | 101 | 9.29 | 0.21 |
-| Sonnet 5.5 | medium | 62/66 | 10.89 | 92 | 106 | 4.26 | 0.07 |
-| Haiku 5.5 | high | 40/44 | 13.39 | 92 | 261 | 0.46 | 0.01 |
-| gpt-6-luna | high | 26/44 | 13.45 | 89 | 146 | 0.34 | 0.01 |
-| Kimi K3.1 Pro | high, ran max | 8/11 | 2.78 | 92 | 61 | 1.70 | 0.21 |
-| Gemini 4 Argon | medium | 7/11 | 5.48 | 82 | 48 | 2.92 | 0.42 |
-| DeepSeek v4.1 Flash | high | 17/31 | 14.06 | 89 | 419 | 0.52 | 0.03 |
-| Qwen 3.8 Flash | high | 21/33 | 13.78 | 91 | 452 | 0.66 | 0.03 |
-| GLM 5.3 Flash | high | 15/33 | 14.85 | 90 | 445 | 0.85 | 0.06 |
+| gpt-6.1-sol | medium | 68/84 | 16.79 | 89 | 97 | 6.09 | 0.09 |
+| gpt-6.1-sol | high | 36/40 | 9.64 | 90 | 58 | 3.36 | 0.09 |
+| gpt-6.1-terra | medium | 71/84 | 13.28 | 86 | 78 | 2.78 | 0.04 |
+| gpt-6.1-terra | high | 37/40 | 8.08 | 89 | 44 | 1.49 | 0.04 |
+| gpt-6-astra | medium | 38/40 | 8.17 | 90 | 39 | 17.29 | 0.46 |
+| Opus 5.5 | medium | 40/40 | 8.88 | 92 | 94 | 8.85 | 0.22 |
+| Sonnet 5.5 | medium | 59/60 | 10.60 | 92 | 101 | 4.11 | 0.07 |
+| Haiku 5.5 | high | 36/40 | 12.93 | 93 | 241 | 0.43 | 0.01 |
+| gpt-6-luna | high | 25/40 | 13.07 | 89 | 138 | 0.32 | 0.01 |
+| Kimi K3.1 Pro | high, ran max | 8/10 | 2.62 | 92 | 53 | 1.53 | 0.19 |
+| Gemini 4 Argon | medium | 6/10 | 5.41 | 83 | 45 | 2.79 | 0.46 |
+| DeepSeek v4.1 Flash | high | 17/28 | 13.13 | 90 | 360 | 0.45 | 0.03 |
+| Qwen 3.8 Flash | high | 21/30 | 12.33 | 91 | 360 | 0.56 | 0.03 |
+| GLM 5.3 Flash | high | 15/30 | 13.65 | 90 | 382 | 0.76 | 0.05 |
 
 </details>
 <!-- /render -->
@@ -616,7 +572,7 @@ The time of `act`, hyprmasq's tool that sends input and returns what changed, ov
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash act -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/act-dark.svg">
-  <img alt="Time in finished act calls: Input pacing 3844 s, Settle wait 2100 s, Redraw watch 2361 s, Pauses 525 s, Rest 2379 s" src="benchmarks/act.svg">
+  <img alt="Time in finished act calls: Input pacing 3768 s, Settle wait 2081 s, Redraw watch 2318 s, Pauses 523 s, Rest 2344 s" src="benchmarks/act.svg">
 </picture>
 <!-- /render -->
 
@@ -624,8 +580,8 @@ The time of `act`, hyprmasq's tool that sends input and returns what changed, ov
 
 ### More reasoning
 
-Where Sol, Terra or Sonnet failed runs, it ran the task six more times at `high` effort. Opus ran Sonnet's two such
-tasks, form and trace-rack, at `medium` on the same build. The figure's Trace is trace-rack. Sol and Terra later ran
+Where Sol, Terra or Sonnet failed runs, it ran the task six more times at `high` effort. Opus ran the form,
+where Sonnet had failed a run, at `medium` on the same build. Sol and Terra later ran
 every task at `high` on main's 6c09d56, in [Models](#models), and put the lookalike label on board in three of eight
 runs each there.
 
@@ -639,8 +595,7 @@ runs each there.
 <details><summary>Notes and numbers</summary>
 
 Terra still put the CPU power headers' label on the lookalike in three `dnd` runs at `high`, and the SATA ports'
-label on the M.2 slots in one. Sonnet's two failed trace-rack runs at `high` left the rack's upper end uncovered, as
-at `medium`. hyprmasq delivered every input where the agent aimed it.
+label on the M.2 slots in one. hyprmasq delivered every input where the agent aimed it.
 
 <!-- render escalation-0.57.0 table board-dnd -->
 <details><summary>Numbers: Board-dnd</summary>
@@ -717,31 +672,6 @@ at `medium`. hyprmasq delivered every input where the agent aimed it.
 
 </details>
 <!-- /render -->
-<!-- render escalation-0.57.0 table trace -->
-<details><summary>Numbers: Trace</summary>
-
-**Outcome and time**
-
-| Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 6/6 | 38 (29–54) | 3 (2–6) | 3.9 (3.1–5.0) | 6 (5–8) | 1 (1–3) | 5 (4–7) |
-| gpt-6.1-terra | medium | 6/6 | 21 (20–31) | 3 (2–5) | 4.3 (3.9–5.2) | 3 (3–5) | 1 (1–3) | 6 (4–6) |
-| Opus 5.5 | medium | 6/6 | 37 (30–62) | 3 (2–8) | 4.6 (3.1–6.1) | 7 (5–9) | 1 (1–5) | 10 (8–18) |
-| Sonnet 5.5 | medium | 3/6 | 17 (15–19) | 2 (2–3) | 3.2 (2.8–3.6) | 4 (3–4) | 1 (1–1) | 6 (6–7) |
-| Sonnet 5.5 | high | 4/6 | 24 (18–30) | 2 (2–3) | 3.3 (2.6–4.5) | 5 (4–5) | 1 (1–1) | 8 (7–8) |
-
-**Tokens and cost**
-
-| Agent | Effort | Input k | Cached % | Output k | Cost $ |
-| --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 107 (98–158) | 88 (79–91) | 1 (1–1) | 0.045 (0.033–0.074) |
-| gpt-6.1-terra | medium | 66 (64–100) | 73 (68–83) | 1 (1–1) | 0.025 (0.019–0.032) |
-| Opus 5.5 | medium | 103 (69–147) | 91 (78–91) | 2 (1–3) | 0.113 (0.082–0.152) |
-| Sonnet 5.5 | medium | 47 (41–54) | 88 (88–90) | 1 (1–1) | 0.025 (0.021–0.029) |
-| Sonnet 5.5 | high | 69 (54–70) | 89 (78–90) | 1 (1–1) | 0.036 (0.028–0.054) |
-
-</details>
-<!-- /render -->
 
 </details>
 
@@ -756,7 +686,7 @@ at `medium`. hyprmasq delivered every input where the agent aimed it.
 | Form | Answers a 25-question GTK 4 questionnaire and submits it, with dropdowns among its questions or without them. |
 | Inkscape | Moves a rectangle exactly 2 px to the right and saves the drawing. |
 | Thunderbird | Sets up the mail account, finds the answer in the inbox and replies in the right thread. |
-| Trace | Draws along a line of a photo in Firefox: a river's bank (`river`) or the rack of a rack railway (`rack`). |
+| Trace | Draws along the bank of a river in a photo in Firefox. |
 
 ## Toolkits
 
@@ -872,7 +802,7 @@ The trace runs of this study are of main at
 which replaced `drag` ([#88](https://github.com/nyrda/hyprmasq/pull/88)), and zooms under
 768 pixels enlarged by a whole factor ([#90](https://github.com/nyrda/hyprmasq/pull/90)).
 The same agents ran every task on the build before them too. Before the change, trace
-took a median of 11 to 20 clicks and strokes a run, and 5–8 s in tools instead of 3 s.
+took a median of 20 clicks and strokes a run, and 8 s in tools instead of 3 s.
 The other tasks took about as long on both builds.
 
 <!-- render path-zoom-after compare path-zoom-before -->
@@ -884,8 +814,7 @@ The other tasks took about as long on both builds.
 
 | Task | Build | What happened in the failed runs |
 | --- | --- | --- |
-| trace-rack | both | Every failure left part of the rack's upper half uncovered. |
-| trace-river | after | Sonnet covered 92% of the waterline and left its lowest 19 rows uncovered. |
+| trace | after | Sonnet covered 92% of the waterline and left its lowest 19 rows uncovered. |
 | board | both | Every failure, in both variants, was the same model error: gpt-6.1-sol or gpt-6.1-terra aimed the CPU power headers' label at the 5-pin header beside the memory slots. After the change, the agents moved every label with `path`. |
 | thunderbird | before | A reply left out the room. |
 
@@ -900,8 +829,7 @@ The other tasks took about as long on both builds.
 | Forgejo | 8/8 → 8/8 | 53 → 52 | 20 → 21 | 1.8 → 1.8 | 15 → 15 | 22 → 22 | 20 → 20 |
 | Form with dropdowns | 12/12 → 12/12 | 78 → 79 | 37 → 35 | 1.9 → 2.1 | 18 → 18 | 62 → 62 | 36 → 26 |
 | Thunderbird | 7/8 → 8/8 | 80 → 83 | 33 → 31 | 2.0 → 2.1 | 18 → 20 | 26 → 28 | 22 → 24 |
-| Trace-river | 12/12 → 11/12 | 34 → 25 | 8 → 3 | 4.2 → 4.0 | 4 → 4 | 20 → 1 | 6 → 6 |
-| Trace-rack | 8/12 → 10/12 | 31 → 27 | 5 → 3 | 3.8 → 3.0 | 4 → 5 | 11 → 1 | 7 → 6 |
+| Trace | 12/12 → 11/12 | 34 → 25 | 8 → 3 | 4.2 → 4.0 | 4 → 4 | 20 → 1 | 6 → 6 |
 
 </details>
 <!-- /render -->
@@ -1228,13 +1156,13 @@ directory. The runs took place on 2026-10-29 in offline VMs at `1920x1080@1`.
 on an AMD Ryzen 7 5800X3D, three on a Ryzen 7 PRO 4750U and two on a Ryzen 5 5600X. `bench/calibrate.py` measured no
 slower tool calls with that many VMs at once on each. Each machine took an equal share of each agent's runs of each
 task, so that times compare between agents. 18 Codex runs failed at the start on one machine, whose login had
-expired, before any call. They were removed and ran again on any of the three, so the machines ran 91, 82 and 73 of
-the 246 runs at `medium`. Sol and Terra's twelve more runs of each board variant ran last, the same day.
+expired, before any call. They were removed and ran again on any of the three, so the machines ran 85, 76 and 67 of
+the 228 runs at `medium`. Sol and Terra's twelve more runs of each board variant ran last, the same day.
 
 - Codex CLI 0.165.0 with a ChatGPT login: `gpt-6.1-sol` and `gpt-6.1-terra`.
 - Claude Code 2.1.312 with an Anthropic API key: `claude-sonnet-5-5` and `claude-opus-5-5`.
 
-The 246 runs at `medium` cost an estimated $13.58 at API list prices, and the 48 at `high` and with Opus $4.18.
+The 228 runs at `medium` cost an estimated $12.98 at API list prices, and the 36 at `high` and with Opus $3.25.
 
 </details>
 
@@ -1257,7 +1185,7 @@ run.
 - pi 1.4.0: `kimi-k3.1-pro` at `high`, which pi ran at `max`, `deepseek-v4.1-flash` at `high` and
   `gemini-4-argon` at `medium`.
 
-The 317 runs cost an estimated $38.76 at API list prices, Astra's $18.37 and Opus's $9.29 of it.
+The 288 runs cost an estimated $36.52 at API list prices, Astra's $17.29 and Opus's $8.85 of it.
 
 </details>
 
@@ -1274,7 +1202,7 @@ its own, two physical cores on the first two and one on the 5600X. The call budg
 An Inkscape run that the provider ended with an error after four calls, with the drawing unsaved, ran again on the
 same machine and counts in its place.
 
-The 33 runs cost $0.66 at the provider's prices.
+The 30 runs cost $0.56 at the provider's prices.
 
 </details>
 
@@ -1287,7 +1215,7 @@ once on each, on the same cores as Qwen's. The call budgets are those of the set
 
 - pi 1.5.0 on the 5800X3D and 1.4.0 on the others: `opencode-go/glm-5.3-flash` at `high`.
 
-The 33 runs cost $0.85 at the provider's prices.
+The 30 runs cost $0.76 at the provider's prices.
 
 </details>
 
@@ -1346,7 +1274,7 @@ totalled 125.2 minutes, 46.6 of them in tools, and its GTK 4 runs are separate f
 
 The runs are of `5102b23`, a local merge of #88 and #90 whose code is that of main at
 [9685fcf](https://github.com/nyrda/hyprmasq/commit/9685fcf), where they landed: only docs
-and tests differ. Four agents ran each trace variant three times on 2026-10-28, in offline
+and tests differ. Four agents ran the trace task three times on 2026-10-28, in offline
 VMs at `1920x1080@1`, and every other task too, two or three times, for the comparison
 with the build before, [41ae05e](https://github.com/nyrda/hyprmasq/commit/41ae05e).
 `bench/dispatch.py` spread the runs over an AMD Ryzen 7 5800X3D, a Ryzen 5 5600X and a

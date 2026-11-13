@@ -235,7 +235,7 @@ class CuaBackend(unittest.TestCase):
     def test_chromium_stands_in_for_firefox_only_in_the_tasks_that_list_it_and_the_prompt_names_it(self):
         parser = argparse.ArgumentParser()
         parser.error = lambda message: (_ for _ in ()).throw(ValueError(message))
-        for task, variant in (("board", "dnd"), ("trace", "rack"), ("calc", None)):
+        for task, variant in (("board", "dnd"), ("trace", "river"), ("calc", None)):
             run.check_task(task, variant, parser, "comparison", "chromium")
         for task, variant in (("form", "25"), ("forgejo", None), ("thunderbird", None)):
             with self.assertRaisesRegex(ValueError, f"task {task} has no browser chromium"):

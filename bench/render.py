@@ -1456,7 +1456,7 @@ PLAIN_TASKS = {"form": "Form with dropdowns", "form-no-dropdowns": "Form without
                "inkscape": "Move a shape in Inkscape", "thunderbird": "Add a mail account, answer a mail",
                "forgejo": "Upload to Forgejo, connect a dashboard", "calc": "Copy reports into a sheet",
                "board-dnd": "Label a photo, drag and drop", "board-pointer": "Label a photo, custom drag",
-               "trace-river": "Draw along a river bank", "trace-rack": "Draw along a rail"}
+               "trace": "Draw along a river bank"}
 
 
 def plain_task(task):
@@ -1517,7 +1517,7 @@ def headline_table(data):
         rows.append([SETUPS[setup], "Mean of both"]
                     + [f"{100 * sum(c) / len(c):.0f} %" if None not in c else "–" for c in zip(*means)]
                     + (["–"] if verdicts else []))
-    return markdown_table(["Tool", "Agent", "All 18 units", "Apps", "Image tasks", "Firefox", "Chromium"]
+    return markdown_table(["Tool", "Agent", "All 16 units", "Apps", "Image tasks", "Firefox", "Chromium"]
                           + (["Failed because of the tool"] if verdicts else []), rows)
 
 
@@ -1666,7 +1666,7 @@ def scorecard_figure(data):
     runs, verdicts = of_task(data, None), verdict_of(data)
     groups = dict(setups(runs))
     svg = Svg()
-    top = header(svg, "Four tools, the same 18 tasks",
+    top = header(svg, "Four tools, the same 16 tasks",
                  ["Six runs per task and agent. The dot is the pass rate and the line its 95 % interval: where two lines",
                   "overlap, the difference may be chance. Under each tool is where it is built to work. Time and cost are",
                   "multiples of hyprmasq's on the same task."])
@@ -1840,7 +1840,7 @@ def usage_figure(data):
     return svg, alt
 
 
-UNIT_ORDER = ("form", "files", "inkscape", "thunderbird", "forgejo", "calc", "board-dnd", "board-pointer", "trace-river", "trace-rack")
+UNIT_ORDER = ("form", "files", "inkscape", "thunderbird", "forgejo", "calc", "board-dnd", "board-pointer", "trace")
 
 
 def unit_sort(unit):

@@ -53,7 +53,6 @@
       "board:dnd",
       "board:pointer",
       "trace:river",
-      "trace:rack",
       "calc"
      ]
     },
@@ -63,7 +62,6 @@
       "board:dnd",
       "board:pointer",
       "trace:river",
-      "trace:rack",
       "calc"
      ]
     }
@@ -92,7 +90,6 @@
       "board:dnd",
       "board:pointer",
       "trace:river",
-      "trace:rack",
       "calc"
      ]
     },
@@ -102,7 +99,6 @@
       "board:dnd",
       "board:pointer",
       "trace:river",
-      "trace:rack",
       "calc"
      ]
     }
@@ -131,7 +127,6 @@
       "board:dnd",
       "board:pointer",
       "trace:river",
-      "trace:rack",
       "calc"
      ]
     },
@@ -141,7 +136,6 @@
       "board:dnd",
       "board:pointer",
       "trace:river",
-      "trace:rack",
       "calc"
      ]
     }
@@ -170,7 +164,6 @@
       "board:dnd",
       "board:pointer",
       "trace:river",
-      "trace:rack",
       "calc"
      ]
     },
@@ -180,7 +173,6 @@
       "board:dnd",
       "board:pointer",
       "trace:river",
-      "trace:rack",
       "calc"
      ]
     }
@@ -258,7 +250,6 @@
     "form:qt-25-no-dropdowns": 40,
     "inkscape": 49,
     "thunderbird": 180,
-    "trace:rack": 70,
     "trace:river": 76
    },
    "hyprmasq": {
@@ -273,7 +264,6 @@
     "form:qt-25-no-dropdowns": 45,
     "inkscape": 17,
     "thunderbird": 99,
-    "trace:rack": 26,
     "trace:river": 37
    },
    "hypruse": {
@@ -288,7 +278,6 @@
     "form:qt-25-no-dropdowns": 164,
     "inkscape": 84,
     "thunderbird": 110,
-    "trace:rack": 40,
     "trace:river": 46
    },
    "computer-use-linux": {
@@ -303,7 +292,6 @@
     "form:qt-25-no-dropdowns": 38,
     "inkscape": 37,
     "thunderbird": 135,
-    "trace:rack": 40,
     "trace:river": 38
    },
    "default": {}
@@ -401,7 +389,6 @@
        "board:dnd",
        "board:pointer",
        "trace:river",
-       "trace:rack",
        "calc"
       ]
      },
@@ -412,7 +399,7 @@
      }
     }
    },
-   "about": "Cua Driver with the user's Chromium started with --remote-debugging-port=0, so that its browser tools can attach to it, on the tasks in Chromium where attaching applies: Forgejo, whose browser is always Chromium, the board, the traces and Calc. The same models and repetitions as main, after Cua's runs of main, on its machine. A slice of its own, labelled so and never pooled with main: a user rarely starts a browser so, and the owner wants to know whether it helps."
+   "about": "Cua Driver with the user's Chromium started with --remote-debugging-port=0, so that its browser tools can attach to it, on the tasks in Chromium where attaching applies: Forgejo, whose browser is always Chromium, the board, the trace and Calc. The same models and repetitions as main, after Cua's runs of main, on its machine. A slice of its own, labelled so and never pooled with main: a user rarely starts a browser so, and the owner wants to know whether it helps."
   },
   "hyprmasq-machine-a": {
    "tools": [
@@ -454,7 +441,7 @@
  },
  "analysis": {
   "fixed": "8 November 2026, before any run of v2, for every tool alike; the headline numbers, the categories and the use of export.py --fail on 8 November 2026 at 07:40 CET, while main-rest's round 3 ran and before its rounds 4 to 6 (amendments).",
-  "unit": "A task unit is a task, variant and browser as the rules' sets list them: 18 in main, 8 apps (the four forms, the file manager, Inkscape, Thunderbird, Forgejo), and in each of Firefox and Chromium the board's two variants, the trace's two figures and Calc. Results are per task unit, per tool and per model, Sonnet 5.5 and GPT-6.1 Terra, each task unit weighted once: browser and form variants are not pooled into one rate as if they were one task.",
+  "unit": "A task unit is a task, variant and browser as the rules' sets list them: 16 in main, 8 apps (the four forms, the file manager, Inkscape, Thunderbird, Forgejo), and in each of Firefox and Chromium the board's two variants, the trace's figure and Calc. Results are per task unit, per tool and per model, Sonnet 5.5 and GPT-6.1 Terra, each task unit weighted once: browser and form variants are not pooled into one rate as if they were one task.",
   "pass_rate": "Passes over runs per task unit, with a Wilson 95 % interval, for every pass rate shown. A difference between the tools on a task unit is stated only where the intervals do not overlap, and otherwise as within the noise.",
   "time": "Wall time and time in tools over passed runs only, as medians with the range, per task unit, and only where a tool passed at least 3 runs of that unit with that model; otherwise its time is not shown. Failed runs' times are reported apart, as a run that gave up early is not fast.",
   "user": "The task's result and the user's own work are reported apart: user_work.kept where the task has the user working (Forgejo), with lost characters. The view measure is named no_view_change, which says no window opened on the user's workspace, no switch of it and no focus away, and is reported only beside the result, never alone: a run that did nothing has it. desktop_input_to_user_window and cursor_moved_px are reported per tool beside it.",
@@ -463,14 +450,14 @@
   "machines": "Times compare per machine. main sets Cua Driver on machine A beside hyprmasq on machine B, and hyprmasq-machine-a and cross-check say how much the machine moves each tool, per call. No correction factor is applied to main's times.",
   "export_fail": "export.py --fail RUN=REASON may mark a run failed only for a requirement that its prompt states, that the task's checker does not grade, and that the run's own files show was not met, from this list fixed before rounds 4 to 6: Forgejo, 'Change nothing else': a commit, branch, file or repository setting changed beyond the requested upload and the dashboard's connection, by Forgejo's saved state; Thunderbird, 'Send only that one reply and change nothing else': a second sent mail, or a reply that also names a room other than the right one; the file manager, 'Leave every other file and folder as it is': another file or folder changed, by the folder's record; Calc, 'leave her other files as they are' and her tabs: a tab closed or moved off its report; the forms, the file manager and Inkscape, 'do not start other programs': a window of another app opened during the run, by Hyprland's events; the trace's river, 'down to the bottom of the photo': the drawing ending more than the checker's tolerance above the photo's bottom. Each requirement is checked over every run of its task for both tools, never run by run, it only fails runs, and every use is published with the run, the requirement and the evidence. Nothing else is overridden.",
   "exclusions": "Every excluded run of Sonnet and Terra is listed with why, and every run of theirs that ran is published, failures included. Forgejo's runs at 3a2f692 are excluded by the amendment of 2026-11-08 (the second); main's results are main's rounds 1 and 2 with main-rest's rounds 3 to 6, and for Forgejo forgejo-fix's rounds 1 and 2 with main-rest's. Opus's and Sol's runs stay on disk, unpublished (other_models).",
-  "headline_pass_rate": "Each tool's overall pass rate is given per model: the unweighted mean over the 18 task units of their pass rates, which with 6 runs a unit is the passes over the 108 runs, with a Wilson 95 % interval on that count. Beside it, the same split by category: accessibility-friendly apps (the four forms, the file manager, Inkscape, Thunderbird, Forgejo and Calc in both browsers, 10 units), image tasks (the board's and the trace's 8 units, where an image has to be read), and per browser (Firefox's 5 units against Chromium's 5; Forgejo runs in Chromium and counts among the apps). Both models' rates are given, and a figure for the two together is their mean, never a pool that weights one model more.",
+  "headline_pass_rate": "Each tool's overall pass rate is given per model: the unweighted mean over the 16 task units of their pass rates, which with 6 runs a unit is the passes over the 96 runs, with a Wilson 95 % interval on that count. Beside it, the same split by category: accessibility-friendly apps (the four forms, the file manager, Inkscape, Thunderbird, Forgejo and Calc in both browsers, 10 units), image tasks (the board's and the trace's 6 units, where an image has to be read), and per browser (Firefox's 4 units against Chromium's 4; Forgejo runs in Chromium and counts among the apps). Both models' rates are given, and a figure for the two together is their mean, never a pool that weights one model more.",
   "headline_time": "The time ratio is the geometric mean, over task units, of Cua Driver's median wall time of passed runs over hyprmasq's, computed within each model, over the task units where both tools passed at least 3 of their 6 runs with that model. The task units that enter it are listed beside it for each model, and a unit that does not enter it is named with why. The same is given for the time in tools. Times compare per machine (machines), so the ratio of main is that of these two deployments; hyprmasq-machine-a's rounds give the same ratio on one machine.",
   "scope": {
    "claims": "Every claim is scoped to this VM setup and shows trends between the tools there. The page lists the following as a short list, not as prose.",
    "against_cua": [
     "The VM's accessibility walks are 1.4 to 2.4 times as slow as a real Omarchy machine's and are cut at Cua Driver's time budget.",
-    "8 of the 18 task units are image tasks.",
-    "5 task units run in Firefox, where Cua Driver's foreground is refused and its browser tools do not apply.",
+    "6 of the 16 task units are image tasks.",
+    "4 task units run in Firefox, where Cua Driver's foreground is refused and its browser tools do not apply.",
     "Cua Driver's guide calls Hyprland experimental.",
     "main starts Chromium without remote debugging; cua-attach, with it, is shown next to main's Chromium units."
    ],
@@ -555,6 +542,10 @@
   {
    "date": "2026-11-10",
    "what": "The page gained a figure of what a run costs, added after the results were known and with no run or number changed: per tool and agent, the median over every run of the cost at list prices, of the requests to the model and of the peak context, the same medians as the page's tables. A value more than 2.5 times the next one runs off its column's scale with a break in its bar."
+  },
+  {
+   "date": "2026-11-12",
+   "what": "The trace task's second figure, a rack railway (trace:rack), is removed from the series after every run and verdict was in, with its 2 task units and their runs, verdicts and excluded runs: 24 runs of each tool in main, 12 of cua-attach and 4 of hyprmasq-machine-a. The licence of its photo does not allow redistributing it, so the figure cannot be published and its runs cannot be repeated from this repository. The reason has nothing to do with its results, which this entry keeps so that the removal can be judged: of the 24 runs, hyprmasq had passed 9, Cua Driver 4, hypruse 13 and computer-use-linux 13, and both reviewers judged every failed one a mistake of the model. The rules above now name 16 task units and 96 runs a model, 6 units of image tasks and 4 a browser, where they named 18, 108, 8 and 5, and every number of the pages is computed over the 16. The earlier amendments stand as they were written, with the counts of their time."
   }
  ]
 }

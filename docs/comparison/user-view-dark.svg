@@ -18,7 +18,7 @@
 <text x="36" y="132.5" class="t" font-size="13" font-weight="600">hyprmasq</text>
 <text x="36" y="146.5" class="m" font-size="10.5">background</text>
 <rect x="186" y="129" width="74" height="10" class="out" rx="2"/>
-<text x="268" y="138.5" class="t" font-size="12.5">0 of 187</text>
+<text x="268" y="138.5" class="t" font-size="12.5">0 of 178</text>
 <rect x="353.5" y="129" width="74" height="10" class="out" rx="2"/>
 <text x="435.5" y="138.5" class="t" font-size="12.5">0 s</text>
 <rect x="521" y="129" width="74" height="10" class="out" rx="2"/>
@@ -30,47 +30,47 @@
 <text x="36" y="172.5" class="t" font-size="13" font-weight="600">Cua Driver</text>
 <text x="36" y="186.5" class="m" font-size="10.5">background first</text>
 <rect x="186" y="169" width="74" height="10" class="out" rx="2"/>
-<path d="M186 169H232.3Q235.3 169 235.3 172V176Q235.3 179 232.3 179H186Z" class="s1"/>
-<text x="268" y="178.5" class="t" font-size="12.5">94 of 141</text>
+<path d="M186 169H231.6Q234.6 169 234.6 172V176Q234.6 179 231.6 179H186Z" class="s1"/>
+<text x="268" y="178.5" class="t" font-size="12.5">90 of 137</text>
 <rect x="353.5" y="169" width="74" height="10" class="out" rx="2"/>
-<path d="M353.5 169H367Q370 169 370 172V176Q370 179 367 179H353.5Z" class="s1"/>
+<path d="M353.5 169H365.6Q368.6 169 368.6 172V176Q368.6 179 365.6 179H353.5Z" class="s1"/>
 <text x="435.5" y="178.5" class="t" font-size="12.5">18 s</text>
 <rect x="521" y="169" width="74" height="10" class="out" rx="2"/>
 <path d="M521 169H542.7Q545.7 169 545.7 172V176Q545.7 179 542.7 179H521Z" class="s1"/>
 <text x="603" y="178.5" class="t" font-size="12.5">4 of 12</text>
 <rect x="688.5" y="169" width="74" height="10" class="out" rx="2"/>
-<path d="M688.5 169H737Q740 169 740 172V176Q740 179 737 179H688.5Z" class="s1"/>
-<text x="770.5" y="178.5" class="t" font-size="12.5">368 px</text>
+<path d="M688.5 169H739.9Q742.9 169 742.9 172V176Q742.9 179 739.9 179H688.5Z" class="s1"/>
+<text x="770.5" y="178.5" class="t" font-size="12.5">366 px</text>
 <line x1="24" y1="194" x2="856" y2="194" class="grid"/>
 <rect x="24" y="201" width="4" height="26" class="s3" rx="2"/>
 <text x="36" y="212.5" class="t" font-size="13" font-weight="600">hypruse</text>
 <text x="36" y="226.5" class="m" font-size="10.5">pointer in the foreground</text>
 <rect x="186" y="209" width="74" height="10" class="out" rx="2"/>
 <path d="M186 209H256.6Q259.6 209 259.6 212V216Q259.6 219 256.6 219H186Z" class="s3"/>
-<text x="268" y="218.5" class="t" font-size="12.5">178 of 179</text>
+<text x="268" y="218.5" class="t" font-size="12.5">165 of 166</text>
 <rect x="353.5" y="209" width="74" height="10" class="out" rx="2"/>
 <path d="M353.5 209H424.5Q427.5 209 427.5 212V216Q427.5 219 424.5 219H353.5Z" class="s3"/>
-<text x="435.5" y="218.5" class="t" font-size="12.5">82 s</text>
+<text x="435.5" y="218.5" class="t" font-size="12.5">90 s</text>
 <rect x="521" y="209" width="74" height="10" class="out" rx="2"/>
 <path d="M521 209H561.2Q564.2 209 564.2 212V216Q564.2 219 561.2 219H521Z" class="s3"/>
 <text x="603" y="218.5" class="t" font-size="12.5">7 of 12</text>
 <rect x="688.5" y="209" width="74" height="10" class="out" rx="2"/>
-<path d="M688.5 209H754.8Q757.8 209 757.8 212V216Q757.8 219 754.8 219H688.5Z" class="s3"/>
-<text x="770.5" y="218.5" class="t" font-size="12.5">496 px</text>
+<path d="M688.5 209H759Q762 209 762 212V216Q762 219 759 219H688.5Z" class="s3"/>
+<text x="770.5" y="218.5" class="t" font-size="12.5">495 px</text>
 <line x1="24" y1="234" x2="856" y2="234" class="grid"/>
 <rect x="24" y="241" width="4" height="26" class="s4" rx="2"/>
 <text x="36" y="252.5" class="t" font-size="13" font-weight="600">computer-use-linux</text>
 <text x="36" y="266.5" class="m" font-size="10.5">pointer in the foreground</text>
 <rect x="186" y="249" width="74" height="10" class="out" rx="2"/>
-<path d="M186 249H252.8Q255.8 249 255.8 252V256Q255.8 259 252.8 259H186Z" class="s4"/>
-<text x="268" y="258.5" class="t" font-size="12.5">182 of 193</text>
+<path d="M186 249H252.5Q255.5 249 255.5 252V256Q255.5 259 252.5 259H186Z" class="s4"/>
+<text x="268" y="258.5" class="t" font-size="12.5">169 of 180</text>
 <rect x="353.5" y="249" width="74" height="10" class="out" rx="2"/>
-<path d="M353.5 249H384Q387 249 387 252V256Q387 259 384 259H353.5Z" class="s4"/>
-<text x="435.5" y="258.5" class="t" font-size="12.5">37 s</text>
+<path d="M353.5 249H382.4Q385.4 249 385.4 252V256Q385.4 259 382.4 259H353.5Z" class="s4"/>
+<text x="435.5" y="258.5" class="t" font-size="12.5">39 s</text>
 <rect x="521" y="249" width="74" height="10" class="out" rx="2"/>
 <path d="M521 249H555Q558 249 558 252V256Q558 259 555 259H521Z" class="s4"/>
 <text x="603" y="258.5" class="t" font-size="12.5">6 of 12</text>
 <rect x="688.5" y="249" width="74" height="10" class="out" rx="2"/>
 <path d="M688.5 249H759.5Q762.5 249 762.5 252V256Q762.5 259 759.5 259H688.5Z" class="s4"/>
-<text x="770.5" y="258.5" class="t" font-size="12.5">530 px</text>
+<text x="770.5" y="258.5" class="t" font-size="12.5">498 px</text>
 </svg>
