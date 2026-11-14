@@ -35,36 +35,145 @@ After installing, [load the plugin](#loading-the-plugin) and
 
 hyprmasq is in the AUR as two packages:
 
-| Package | Contents | Built from |
-| --- | --- | --- |
-| `hyprmasq-plugin-git` | The plugin and `hyprmasq-reaper`, which launched commands run under. | The commit of hyprmasq for the installed Hyprland, against that Hyprland. |
-| `hyprmasq` | `hyprmasq-mcp`, `hyprmasq-input` and `hyprmasq-launch`. | The latest release. |
+| Package | Contents | Built from | Rebuild after a Hyprland update |
+| --- | --- | --- | --- |
+| `hyprmasq-plugin-git` | The plugin and `hyprmasq-reaper`, which launched commands run under. | The commit of hyprmasq for the installed Hyprland, against that Hyprland. | Yes |
+| `hyprmasq` | `hyprmasq-mcp`, `hyprmasq-input` and `hyprmasq-launch`. | The latest release. | No |
 
-Install `hyprmasq` with an AUR helper, which installs `hyprmasq-plugin-git`
-with it:
+### Setting up
+
+1. Install `hyprmasq` with an AUR helper, which installs
+   `hyprmasq-plugin-git` with it:
+
+   ```sh
+   yay -S hyprmasq                 # or: paru -S hyprmasq
+   ```
+
+2. Tell Hyprland to load the plugin. The packages do not change your
+   configuration, so add one line. In `~/.config/hypr/hyprland.lua`, which
+   Omarchy uses:
+
+   ```lua
+   dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
+   ```
+
+   With `hyprland.conf`, add this line instead:
+
+   ```ini
+   plugin = /usr/lib/hyprmasq/hyprmasq.so
+   ```
+
+3. Load it into the running session, or restart Hyprland:
+
+   ```sh
+   hyprctl plugin load /usr/lib/hyprmasq/hyprmasq.so
+   hyprctl hyprmasq version        # hyprmasq 0.2.0 interface 5
+   ```
+
+4. [Register the MCP server](#mcp-server) with your agents.
+
+### How the plugin loads
+
+The line from step 2 loads the plugin at every start of Hyprland.
+`/etc/xdg/hypr/hyprmasq_plugin.lua` holds one line,
+`hl.plugin.load("/usr/lib/hyprmasq/hyprmasq.so")`, so the `dofile` line and
+the `plugin` line do the same.
+
+A plugin runs inside Hyprland and must be built against the exact Hyprland
+build that loads it. Hyprland itself checks only its plugin API version,
+which rarely changes, so it would load a plugin built for another Hyprland.
+hyprmasq checks the build when it loads: the commit that Hyprland was built
+from, and the major and minor versions of aquamarine, hyprutils,
+hyprgraphics, hyprcursor and hyprlang. When they differ, it refuses to load,
+before it hooks anything. Hyprland then shows "[hyprmasq] Not loaded: it was
+built for another Hyprland build" and runs normally without it. A Hyprland
+update never breaks your session: it turns hyprmasq off until you rebuild it.
+
+`hyprctl plugin list` shows whether the plugin is loaded, and
+`hyprctl hyprmasq version` its version and interface. `hyprmasq-mcp` loads
+nothing itself: each agent session starts it, and it talks to the loaded
+plugin through Hyprland's socket. Without the plugin, its tools fail with
+`plugin_missing`.
+
+`hyprmasq-mcp` runs `hyprmasq-input` from `PATH`. Remove copies from an
+earlier manual install, for example in `/usr/local/bin` or `~/.local/bin`,
+which come before `/usr/bin` on `PATH`, or pass
+`--input /usr/bin/hyprmasq-input`.
+
+### Updating
+
+| What changed | What you run | Then |
+| --- | --- | --- |
+| Hyprland, through `yay -Syu` | `yay -S --rebuild hyprmasq-plugin-git` | Restart Hyprland. |
+| A hyprmasq release | `yay -Syu` updates `hyprmasq` | Start new agent sessions. |
+| New commits of hyprmasq | `yay -Syu --devel` rebuilds `hyprmasq-plugin-git` | Restart Hyprland. |
+
+**After every update of the `hyprland` package**, rebuild the plugin and
+restart Hyprland:
 
 ```sh
-paru -S hyprmasq                # or: yay -S hyprmasq
+yay -S --rebuild hyprmasq-plugin-git    # or: paru -S --rebuild hyprmasq-plugin-git
 ```
 
+Until then, Hyprland runs without the plugin, as
+[How the plugin loads](#how-the-plugin-loads) describes. `--rebuild` builds
+again when the version did not change. Without it, the helper can install the
+package that it built before, against the old Hyprland. The rebuild picks the
+commit for the new Hyprland, see
+[How the plugin package picks its commit](#how-the-plugin-package-picks-its-commit).
+When hyprmasq does not support the new Hyprland yet, the rebuild stops and
+names it, and Hyprland runs without the plugin until a hyprmasq update
+supports it.
+
+**hyprmasq releases** update the package `hyprmasq` with the rest of the
+system. It depends on Hyprland only through the plugin, so a Hyprland update
+needs no rebuild of it.
+
+**New commits of the plugin** come only when you ask for them. An AUR helper
+checks `-git` packages for new commits with `--devel`, as in
+`yay -Syu --devel`, and `yay -Y --devel --save` makes that the default. yay
+compares with the head of `main`. On a Hyprland whose plugin comes from the
+branch of an older release, a new commit on `main` rebuilds the same commit
+of that branch, which costs a build and changes nothing.
+
+**An update takes effect** when Hyprland loads the plugin again. The running
+Hyprland keeps the plugin that it loaded. Restart Hyprland, or unload and
+load the plugin, which closes every input socket that it opened:
+
+```sh
+hyprctl plugin unload /usr/lib/hyprmasq/hyprmasq.so
+hyprctl plugin load /usr/lib/hyprmasq/hyprmasq.so
+```
+
+An updated `hyprmasq-mcp` takes effect in the next agent session, which
+starts the server again.
+
+The plugin and the server of one release always speak the same interface.
+The plugin can be built from a later commit than the release of the package
+`hyprmasq`. When that commit changed the interface, `hyprmasq-mcp` answers
+`plugin_version` until the next release updates `hyprmasq`.
+
+The packages depend on `hyprland` without pinning its version. A pin would
+keep `pacman -Syu` from updating Hyprland until you removed hyprmasq, and the
+plugin can be built against a new Hyprland only once it is installed.
+
+### How the plugin package picks its commit
+
 `hyprmasq-plugin-git` picks the commit of hyprmasq that targets the installed
-Hyprland, as hyprpm does: the head of `main` for Hyprland 0.57.2, and for an
-older release the commit that `commit_pins` in `hyprpm.toml` names, such as the
-head of `hyprland-0.56` for 0.56.2. So the same package builds on Arch and on
-Omarchy, whose Hyprland can be an older release than Arch's. It reads the
-commit of the installed Hyprland from its headers, the commit that the plugin
-compares when it loads. When hyprmasq has no commit for it, as for
-`hyprland-git` or a Hyprland release that hyprmasq does not support yet, the
-build stops and names the installed Hyprland.
+Hyprland, as hyprpm does. It reads the commit of the installed Hyprland from
+its headers, the same commit that the plugin compares when it loads, and
+builds:
 
-The package `hyprmasq` depends on Hyprland only through the plugin, so it
-needs no rebuild when Hyprland changes. It updates with the system when
-hyprmasq releases.
+- the head of `main` for the Hyprland that `main` targets, 0.57.2
+- for an older release, the commit that `commit_pins` in `hyprpm.toml` names,
+  such as the head of `hyprland-0.56` for 0.56.2.
 
-Neither package has an install script or a pacman hook. The builds download
-hyprmasq from GitHub and the Go modules of `hyprmasq-mcp`, whose hashes
-`mcp/go.sum` pins. The repository's CI publishes both packages to the AUR from
-`packaging/aur`.
+So the same package builds on Arch and on Omarchy, whose Hyprland can be an
+older release than Arch's. When hyprmasq has no commit for the installed
+Hyprland, as for `hyprland-git` or a Hyprland release that hyprmasq does not
+support yet, the build stops and names it. The build prints the commit that
+it picked, and the package's version ends in it, such as
+`0.2.0.r160.g5e0bb2a`.
 
 ### What this installs
 
@@ -89,80 +198,21 @@ plugin links: `libei`, `libxkbcommon`, `libpng`, `libxcb`, `libglvnd`,
 `jq` and `sh` for `hyprmasq-launch`, on `ffmpeg` for the recordings of
 `hyprmasq-mcp`, and on `libei`, `libxkbcommon` and `glibc`.
 
+Neither package has an install script or a pacman hook. The builds download
+hyprmasq from GitHub and the Go modules of `hyprmasq-mcp`, whose hashes
+`mcp/go.sum` pins. The repository's CI publishes both packages to the AUR from
+`packaging/aur`.
+
 ### Checking what you build
 
 - Read the PKGBUILDs before you build them. Your AUR helper shows them, and
   `packaging/aur` in the repository holds the same files. They are short, and
   their `package()` installs exactly the files above.
-- `hyprmasq-plugin-git` prints the commit that it builds, and its version ends
-  in that commit, such as `0.2.0.r160.g5e0bb2a`.
 - The project does not sign its releases yet, so `hyprmasq` checks the
   release's archive by its hash alone, and `hyprmasq-plugin-git` builds the
   commit that GitHub serves.
 - `go` refuses a module whose download does not match its hash in
   `mcp/go.sum`.
-
-### Loading on Arch
-
-Add the loader to `~/.config/hypr/hyprland.lua`, which Omarchy uses:
-
-```lua
-dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
-```
-
-With `hyprland.conf`, add this line instead:
-
-```ini
-plugin = /usr/lib/hyprmasq/hyprmasq.so
-```
-
-To load the plugin into the running session at once, run
-`hyprctl plugin load /usr/lib/hyprmasq/hyprmasq.so`. Then
-[register the MCP server](#mcp-server) with your agents.
-
-`hyprmasq-mcp` runs `hyprmasq-input` from `PATH`. Remove copies from an
-earlier manual install, for example in `/usr/local/bin` or `~/.local/bin`,
-which come before `/usr/bin` on `PATH`, or pass
-`--input /usr/bin/hyprmasq-input`.
-
-### Hyprland updates
-
-The plugin must be built against the exact Hyprland build that loads it, and
-pacman updates Hyprland with the rest of the system. After every update of the
-`hyprland` package, rebuild the plugin and restart Hyprland:
-
-```sh
-paru -S --rebuild hyprmasq-plugin-git     # or: yay -S --rebuild hyprmasq-plugin-git
-```
-
-`--rebuild` builds again when the version did not change. Without it, the
-helper can install the package that it built before, against the old
-Hyprland. The rebuild picks the commit for the new Hyprland, so it also moves
-the plugin from a branch of an older release to `main`.
-
-Hyprland itself checks only its plugin API version, which rarely changes, so
-it would load a plugin built for another Hyprland. hyprmasq checks the build
-when it loads: the commit that Hyprland was built from, and the major and
-minor versions of aquamarine, hyprutils, hyprgraphics, hyprcursor and
-hyprlang. When they differ, it refuses to load, before it hooks anything, and
-Hyprland shows "[hyprmasq] Not loaded: it was built for another Hyprland
-build" and runs without it. Rebuild, then restart Hyprland or load the plugin again.
-
-The packages depend on `hyprland` without pinning its version. A pin would
-keep `pacman -Syu` from updating Hyprland until you removed hyprmasq, and the
-plugin can be built against a new Hyprland only once it is installed.
-
-hyprmasq supports one Hyprland at a time on `main`, here v0.57.2, and the
-releases in `hyprpm.toml`. When Arch's Hyprland moves to a newer release, the
-rebuild stops until a hyprmasq update supports it, and Hyprland runs without
-the plugin until then.
-
-An AUR helper updates a `-git` package with the system only when you ask it
-to check them, as `paru -Syu --devel` does. The plugin and the server of one
-release always speak the same interface. When the plugin is built from a
-later commit than the release of the package `hyprmasq`, and that commit
-changed the interface, `hyprmasq-mcp` answers `plugin_version` until the next
-release.
 
 ### Building from a clone
 
@@ -521,7 +571,7 @@ instructions, but the tool descriptions carry every rule, so nothing is lost.
 
 | Symptom | Check |
 | --- | --- |
-| The plugin fails to load with "built for another Hyprland build" | It was compiled against another Hyprland build. Rebuild it against the running one. `hyprctl version` shows that build. On Arch, after a Hyprland update, run `paru -S --rebuild hyprmasq-plugin-git`, or `makepkg -sif` in your clone, and restart Hyprland. |
+| The plugin fails to load with "built for another Hyprland build" | It was compiled against another Hyprland build. Rebuild it against the running one. `hyprctl version` shows that build. On Arch, after a Hyprland update, run `yay -S --rebuild hyprmasq-plugin-git`, or `makepkg -sif` in your clone, and restart Hyprland. See [Updating](#updating). |
 | Building `hyprmasq-plugin-git` stops with "hyprmasq has no commit for the installed Hyprland" | hyprmasq does not support that Hyprland, such as `hyprland-git` or a release newer than `main` targets. `hyprctl version` shows it. Wait for a hyprmasq update that supports it, and Hyprland runs without the plugin until then. |
 | Loading fails with a hook error | The plugin was built against a Hyprland other than the pinned commit, whose functions differ. |
 | `the plugin refused input to the window: another plugin hooks …` | Another Hyprland plugin hooks a function that hyprmasq needs for input to windows, which the message names. Screenshots keep working. Input works again once that plugin no longer holds it. `hyprctl hyprmasq hooks` lists what hyprmasq hooks and what was refused. See [Other plugins](automation.md#other-plugins). |

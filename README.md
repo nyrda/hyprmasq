@@ -47,7 +47,8 @@ yay -S hyprmasq
 The plugin must be built against the exact Hyprland that loads it, and
 refuses to load into any other. So after each Hyprland update, run
 `yay -S --rebuild hyprmasq-plugin-git` and restart Hyprland. Until then,
-Hyprland runs without the plugin.
+Hyprland runs without the plugin. [Updating](docs/installation.md#updating)
+covers updates of hyprmasq itself.
 
 **NixOS.** Add the flake input, pass `inputs` through `specialArgs`, and
 enable the module. It installs the plugin, the tools and the Hyprland build
