@@ -30,7 +30,8 @@ body:
       options:
         - NixOS module
         - Nix packages without the module
-        - Arch or Omarchy package (makepkg)
+        - Arch or Omarchy, AUR packages
+        - Arch or Omarchy, makepkg from a clone
         - Manual build
         - hyprpm
     validations:

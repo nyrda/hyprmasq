@@ -29,6 +29,11 @@ time: on `main`, a new commit waits for the running run, and on a PR, a new
 push cancels the run it replaces. CI does not run the race
 detector, which slows the tests of screenshots and pixels a hundredfold.
 
+A second workflow, `.github/workflows/aur.yml`, builds the
+[AUR packages](#aur-packages) and the repository's `PKGBUILD` on Arch, against
+the Hyprland that Arch ships. It runs on PRs and pushes to `main` that change
+them, on release tags and every week.
+
 The test gate, `./dev.sh gate`, is local, and CI does not run it. It runs the
 [container test](vm-test.md#containers) on a machine with a render node and the
 `uid-range` and `gpu` system features, and otherwise the VM test. It runs on a PR's head
@@ -213,7 +218,8 @@ nix-build bench/tasks/calc/check-test.nix
 | `mcp/` | `hyprmasq-mcp`, see [above](#hyprmasq-mcp). |
 | `nix/` | The package, the NixOS module, the [VM test](vm-test.md) and its probe clients. |
 | `bench/` | The [benchmark](#benchmarks). |
-| `PKGBUILD` | The Arch package. Its `package()` and the list in [What this installs](installation.md#what-this-installs) name the same files. |
+| `PKGBUILD` | The Arch packages `hyprmasq-plugin` and `hyprmasq`, built from a clone. Its `package_*()` functions install the same files, with the same dependencies, as the AUR packages. |
+| `packaging/aur/` | The [AUR packages](#aur-packages) and the script that publishes them. Their `package()` and the list in [What this installs](installation.md#what-this-installs) name the same files. |
 
 The C and C++ code follows Hyprland's `.clang-format`. Go code is `gofmt`ed.
 
@@ -272,7 +278,10 @@ against a new release, but not what they do:
   `commit_pins` entry in `hyprpm.toml` mapping the previous Hyprland release
   commit to the plugin commit for it: the head of its branch, which moves with
   every change to the branch, or for a patch release without a branch the last
-  commit of `main` that targets it.
+  commit of `main` that targets it. The AUR package `hyprmasq-plugin` reads
+  both from the release that it builds, so Arch gets the new Hyprland with the
+  next release. Release soon after, since the weekly AUR run fails once Arch
+  ships a Hyprland that the latest release does not support.
 
 ## Releasing
 
@@ -287,13 +296,47 @@ gets no tag.
    the first paragraph and the `pacman -Q` example of `docs/installation.md`,
    and the two `version` rows of `docs/automation.md`. It changes what the
    plugin and the tools report, so it passes the [test gate](#contributing).
-2. Tag the PR's commit on `main` and push the tag:
+2. Cherry-pick the PR's commit onto the branch of the older Hyprland release,
+   run the test gate there, and move the branch's pin in `hyprpm.toml` on
+   `main`. The AUR package `hyprmasq-plugin` builds the commit that the tag's
+   `hyprpm.toml` pins for the older Hyprland, so the pin comes before the tag.
+3. Tag that commit of `main` and push the tag:
    `git tag -a vX.Y.Z -m "hyprmasq X.Y.Z" <commit>`, then
    `git push origin vX.Y.Z`. The tags are not signed yet, as
    [Checking what you build](installation.md#checking-what-you-build) says.
-3. Publish a GitHub release for the tag. Its notes are the project's
+   The tag's push publishes the packages `hyprmasq-plugin` and `hyprmasq` of
+   the release to the [AUR](#aur-packages).
+4. Publish a GitHub release for the tag. Its notes are the project's
    changelog: what changed since the last release, what a user has to change,
    the Hyprland release it needs and the branch for the older one. Their links
    go to the docs at the tag, `blob/vX.Y.Z/docs/…`.
-4. Cherry-pick the PR's commit onto the branch of the older Hyprland release,
-   run the test gate there, and move the branch's pin in `hyprpm.toml`.
+
+## AUR packages
+
+`packaging/aur` holds the PKGBUILDs of the two AUR packages, which build the
+same release:
+
+- `hyprmasq-plugin` builds the plugin and `hyprmasq-reaper` against the
+  installed Hyprland, from a clone of the release's tag. It reads the commit
+  of that Hyprland from `src/version.h` in its headers, and builds the tag
+  when it is the commit that the tag's `flake.lock` pins, and otherwise the
+  commit that `commit_pins` in the tag's `hyprpm.toml` names for it, as hyprpm
+  does. It refuses a pinned commit whose `INTERFACE` in `src/Commands.hpp`
+  differs from the tag's.
+- `hyprmasq` builds `hyprmasq-mcp`, `hyprmasq-input` and
+  `hyprmasq-launch` of the release, from GitHub's archive of its tag. It
+  depends on `hyprmasq-plugin` of the same version.
+
+`.github/workflows/aur.yml` builds both, and the repository's `PKGBUILD`, on
+Arch. On a push to `main` or of a release tag, it publishes them with
+`packaging/aur/publish.sh`, through the SSH key of the AUR account in the
+repository secret `AUR_SSH_PRIVATE_KEY`. It sets `pkgver` of both to the
+latest release tag and their `sha256sums` to that release, the files of the
+tag for `hyprmasq-plugin` and the archive for `hyprmasq`, so the files in the
+repository need no change for a release. A package is published when its
+PKGBUILD differs from the AUR's in more than `pkgrel`. Its `pkgrel` is 1 for
+a new `pkgver`, and one more than the AUR's otherwise. `workflow_dispatch` on
+`main` or a tag publishes again.
+
+The weekly run builds the packages against Arch's current Hyprland, and fails
+when Arch moves to a Hyprland that the latest release does not support.

@@ -1,0 +1,77 @@
+name: AUR
+
+# Builds the AUR packages hyprmasq-plugin and hyprmasq of the latest release from packaging/aur, and the PKGBUILD that
+# builds both from a clone, on Arch against the Hyprland that Arch ships. On a push to main or of a release tag, it
+# publishes the AUR packages whose PKGBUILD changed. Every week it builds them again, so that the run fails, and
+# GitHub sends a mail, when Arch's Hyprland moves to a release that the latest hyprmasq release does not support.
+
+on:
+  pull_request:
+    paths: [PKGBUILD, packaging/aur/**, .github/workflows/aur.yml]
+  # Path filters do not apply to tags: every release tag runs it, and publishes hyprmasq.
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths: [PKGBUILD, packaging/aur/**, .github/workflows/aur.yml]
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A PR's push cancels the run of the commit it replaces. Other runs take turns, so that two never push to the AUR at
+# once.
+concurrency:
+  group: aur-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  aur:
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    steps:
+      - name: Install the build tools
+        run: pacman -Syu --noconfirm --needed git go jq openssh pacman-contrib
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tags, for the latest release, and the history, for the number of commits in pkgver.
+          fetch-depth: 0
+      # makepkg refuses to run as root.
+      - name: Add a user that builds
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          cp -r packaging/aur "$RUNNER_TEMP/aur"
+          chown -R builder . "$RUNNER_TEMP/aur"
+          sudo -u builder git config --global --add safe.directory '*'
+      # The latest release tag in the history of the commit: on a release tag, that release. In a container,
+      # runner.temp names the host's path, so the steps change to $RUNNER_TEMP themselves.
+      - name: Set the AUR packages to the latest release
+        run: |
+          tag=$(sudo -u builder git describe --tags --abbrev=0 --match 'v[0-9]*')
+          for pkg in hyprmasq-plugin hyprmasq; do
+            cd "$RUNNER_TEMP/aur/$pkg"
+            sed -i "s/^pkgver=.*/pkgver=${tag#v}/" PKGBUILD
+            sudo -u builder updpkgsums
+          done
+      # hyprmasq depends on hyprmasq-plugin, which is not in a repository.
+      - name: Build hyprmasq-plugin
+        run: |
+          cd "$RUNNER_TEMP/aur/hyprmasq-plugin"
+          sudo -u builder makepkg -si --noconfirm
+      - name: Build hyprmasq
+        run: |
+          cd "$RUNNER_TEMP/aur/hyprmasq"
+          sudo -u builder makepkg -s --noconfirm
+      - name: Build the PKGBUILD of the repository
+        run: sudo -u builder makepkg -s --noconfirm
+      - name: Publish to the AUR
+        if: >-
+          github.repository == 'nyrda/hyprmasq' && (github.event_name == 'push' ||
+          (github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))))
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: >-
+          sudo -u builder --preserve-env=AUR_SSH_PRIVATE_KEY,GITHUB_SERVER_URL,GITHUB_REPOSITORY,GITHUB_SHA
+          bash packaging/aur/publish.sh "$RUNNER_TEMP/aur/hyprmasq-plugin" "$RUNNER_TEMP/aur/hyprmasq"
