@@ -4,7 +4,7 @@
   # Hyprland's own flake at a commit of its main branch after v0.57.0, which hyprland.cachix.org has prebuilt. Everything else, including
   # nixpkgs for the test VM, comes from its package set (nix/pkgs.nix). Do not make it follow another nixpkgs:
   # that changes the derivation, and nothing has it prebuilt.
-  inputs.hyprland.url = "github:hyprwm/Hyprland/53f36f3b210705185fed67f15191c3f2ed936a11";
+  inputs.hyprland.url = "github:hyprwm/Hyprland/0767f6347a69607638a4f93b3cd613af15a121e0";
 
   # Only for Go: hyprmasq-mcp talks to Hyprland through its socket, so it does not have to share Hyprland's
   # package set, and mcp/go.mod needs a newer Go than some Hyprland tags pin.
