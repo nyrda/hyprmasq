@@ -16,7 +16,7 @@ license=(MIT)
 depends=(glibc hyprland libei libgcc libglvnd libpng libstdc++ libxcb libxkbcommon)
 makedepends=(git jq)
 provides=(hyprmasq-plugin)
-conflicts=(hyprmasq hyprmasq-plugin)
+conflicts=(hyprmasq-plugin)
 source=("hyprmasq::git+$url.git")
 sha256sums=(SKIP)
 

@@ -38,13 +38,13 @@ hyprmasq is in the AUR as two packages:
 | Package | Contents | Built from |
 | --- | --- | --- |
 | `hyprmasq-plugin-git` | The plugin and `hyprmasq-reaper`, which launched commands run under. | The commit of hyprmasq for the installed Hyprland, against that Hyprland. |
-| `hyprmasq-mcp` | `hyprmasq-mcp`, `hyprmasq-input` and `hyprmasq-launch`. | The latest release. |
+| `hyprmasq` | `hyprmasq-mcp`, `hyprmasq-input` and `hyprmasq-launch`. | The latest release. |
 
-Install `hyprmasq-mcp` with an AUR helper, which installs
-`hyprmasq-plugin-git` with it:
+Install `hyprmasq` with an AUR helper, which installs `hyprmasq-plugin-git`
+with it:
 
 ```sh
-paru -S hyprmasq-mcp            # or: yay -S hyprmasq-mcp
+paru -S hyprmasq                # or: yay -S hyprmasq
 ```
 
 `hyprmasq-plugin-git` picks the commit of hyprmasq that targets the installed
@@ -57,9 +57,9 @@ compares when it loads. When hyprmasq has no commit for it, as for
 `hyprland-git` or a Hyprland release that hyprmasq does not support yet, the
 build stops and names the installed Hyprland.
 
-`hyprmasq-mcp` depends on Hyprland only through the plugin, so it needs no
-rebuild when Hyprland changes. It updates with the system when hyprmasq
-releases.
+The package `hyprmasq` depends on Hyprland only through the plugin, so it
+needs no rebuild when Hyprland changes. It updates with the system when
+hyprmasq releases.
 
 Neither package has an install script or a pacman hook. The builds download
 hyprmasq from GitHub and the Go modules of `hyprmasq-mcp`, whose hashes
@@ -73,19 +73,19 @@ hyprmasq from GitHub and the Go modules of `hyprmasq-mcp`, whose hashes
 | `/usr/lib/hyprmasq/hyprmasq.so` | `hyprmasq-plugin-git` | The plugin. |
 | `/usr/lib/hyprmasq/hyprmasq-reaper` | `hyprmasq-plugin-git` | The helper that launched commands run under. The plugin finds it next to itself. |
 | `/etc/xdg/hypr/hyprmasq_plugin.lua` | `hyprmasq-plugin-git` | The loader, one line: `hl.plugin.load("/usr/lib/hyprmasq/hyprmasq.so")`. |
-| `/usr/bin/hyprmasq-mcp` | `hyprmasq-mcp` | The [MCP server](mcp.md). |
-| `/usr/bin/hyprmasq-input` | `hyprmasq-mcp` | The libei sender for scripts. |
-| `/usr/bin/hyprmasq-launch` | `hyprmasq-mcp` | Starts an application on a hidden workspace. |
+| `/usr/bin/hyprmasq-mcp` | `hyprmasq` | The [MCP server](mcp.md). |
+| `/usr/bin/hyprmasq-input` | `hyprmasq` | The libei sender for scripts. |
+| `/usr/bin/hyprmasq-launch` | `hyprmasq` | Starts an application on a hidden workspace. |
 | `/usr/share/licenses/<package>/LICENSE` | both | The MIT license. |
 
 With makepkg's `debug` option, which Arch's `makepkg.conf` enables, makepkg
-also builds `hyprmasq-plugin-git-debug` and `hyprmasq-mcp-debug` with the
-debug symbols. `pacman -Ql hyprmasq-plugin-git hyprmasq-mcp` lists the
+also builds `hyprmasq-plugin-git-debug` and `hyprmasq-debug` with the
+debug symbols. `pacman -Ql hyprmasq-plugin-git hyprmasq` lists the
 installed files.
 
 `hyprmasq-plugin-git` depends on `hyprland` and on the libraries that the
 plugin links: `libei`, `libxkbcommon`, `libpng`, `libxcb`, `libglvnd`,
-`libstdc++`, `libgcc` and `glibc`. `hyprmasq-mcp` depends on the plugin, on
+`libstdc++`, `libgcc` and `glibc`. `hyprmasq` depends on the plugin, on
 `jq` and `sh` for `hyprmasq-launch`, on `ffmpeg` for the recordings of
 `hyprmasq-mcp`, and on `libei`, `libxkbcommon` and `glibc`.
 
@@ -96,7 +96,7 @@ plugin links: `libei`, `libxkbcommon`, `libpng`, `libxcb`, `libglvnd`,
   their `package()` installs exactly the files above.
 - `hyprmasq-plugin-git` prints the commit that it builds, and its version ends
   in that commit, such as `0.2.0.r160.g5e0bb2a`.
-- The project does not sign its releases yet, so `hyprmasq-mcp` checks the
+- The project does not sign its releases yet, so `hyprmasq` checks the
   release's archive by its hash alone, and `hyprmasq-plugin-git` builds the
   commit that GitHub serves.
 - `go` refuses a module whose download does not match its hash in
@@ -160,13 +160,14 @@ the plugin until then.
 An AUR helper updates a `-git` package with the system only when you ask it
 to check them, as `paru -Syu --devel` does. The plugin and the server of one
 release always speak the same interface. When the plugin is built from a
-later commit than the release of `hyprmasq-mcp`, and that commit changed the
-interface, `hyprmasq-mcp` answers `plugin_version` until the next release.
+later commit than the release of the package `hyprmasq`, and that commit
+changed the interface, `hyprmasq-mcp` answers `plugin_version` until the next
+release.
 
 ### Building from a clone
 
 The repository's `PKGBUILD` builds the same two packages, named
-`hyprmasq-plugin` and `hyprmasq-mcp`, from a clone, against the Hyprland that
+`hyprmasq-plugin` and `hyprmasq`, from a clone, against the Hyprland that
 pacman installed. Use it for a commit or a branch that is not released, or
 without an AUR helper:
 
@@ -190,7 +191,7 @@ are the Go modules of `hyprmasq-mcp`. Go fetches them through
 or under `BUILDDIR` when you set one, and writes the package files to the
 clone's root.
 
-`pacman -Q hyprmasq-plugin hyprmasq-mcp` shows a version such as
+`pacman -Q hyprmasq-plugin hyprmasq` shows a version such as
 `0.2.0.r160.g5e0bb2a`: the `VERSION` file, the number of commits and the
 commit. The programs report the `VERSION`, here `0.2.0`.
 
@@ -208,7 +209,7 @@ installs the packages that it built before, against the old Hyprland.
 
 Remove the `dofile` or `plugin` line first: `dofile` of a missing file is an
 error in `hyprland.lua`. Then run
-`sudo pacman -R hyprmasq-mcp hyprmasq-plugin-git`, or `hyprmasq-plugin` when
+`sudo pacman -R hyprmasq hyprmasq-plugin-git`, or `hyprmasq-plugin` when
 you built it from a clone, with the `-debug` packages that are installed.
 
 ## NixOS module

@@ -36,12 +36,12 @@ on one desktop, shown at double speed.
 hyprmasq is built for one Hyprland release: `main` for 0.57.2 and the
 `hyprland-0.56` branch for 0.56.2. `hyprctl version` shows yours.
 
-**Arch and Omarchy.** Install `hyprmasq-mcp` from the AUR with a helper
+**Arch and Omarchy.** Install `hyprmasq` from the AUR with a helper
 such as yay. It brings the plugin, `hyprmasq-plugin-git`, which builds
 the commit of hyprmasq for the installed Hyprland:
 
 ```sh
-yay -S hyprmasq-mcp
+yay -S hyprmasq
 ```
 
 The plugin must be built against the exact Hyprland that loads it, and

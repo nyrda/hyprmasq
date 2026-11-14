@@ -1,11 +1,11 @@
 # Maintainer: nyrda <nyrda@keymasq.tools>
 
-# Builds hyprmasq from this clone: the commit that is checked out, without uncommitted changes. It makes the same two
-# packages as the AUR, hyprmasq-plugin and hyprmasq-mcp, from packaging/aur, and replaces them when installed.
+# Builds hyprmasq from this clone: the commit that is checked out, without uncommitted changes. It makes the two
+# packages of packaging/aur, as hyprmasq-plugin and hyprmasq, and they replace the AUR packages when installed.
 # Only Go modules are downloaded, and go.sum verifies them. Run makepkg -sif after every Hyprland update.
 
 pkgbase=hyprmasq
-pkgname=(hyprmasq-plugin hyprmasq-mcp)
+pkgname=(hyprmasq-plugin hyprmasq)
 # VERSION, the number of commits and the commit. Set here rather than in pkgver(), which would rewrite this file.
 pkgver=$(git show HEAD:VERSION).r$(git rev-list --count HEAD).g$(git rev-parse --short=7 HEAD)
 pkgrel=1
@@ -53,22 +53,20 @@ check() {
 }
 
 # The files and dependencies of the two packages are those of packaging/aur/hyprmasq-plugin-git and
-# packaging/aur/hyprmasq-mcp. A change to one changes the other.
+# packaging/aur/hyprmasq. A change to one changes the other.
 package_hyprmasq-plugin() {
   pkgdesc='Hyprland plugin of hyprmasq: per-window screenshots and input'
   depends=(glibc hyprland libei libgcc libglvnd libpng libstdc++ libxcb libxkbcommon)
-  # hyprmasq is the single package that this PKGBUILD built before.
-  conflicts=(hyprmasq hyprmasq-plugin-git)
+  conflicts=(hyprmasq-plugin-git)
   cd "$pkgbase"
   install -Dm755 hyprmasq.so hyprmasq-reaper -t "$pkgdir/usr/lib/hyprmasq"
   install -Dm644 /dev/stdin "$pkgdir/etc/xdg/hypr/hyprmasq_plugin.lua" <<<'hl.plugin.load("/usr/lib/hyprmasq/hyprmasq.so")'
   install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
 }
 
-package_hyprmasq-mcp() {
+package_hyprmasq() {
   pkgdesc='MCP server and tools of hyprmasq: computer use for Hyprland'
   depends=(ffmpeg glibc hyprmasq-plugin jq libei libxkbcommon sh)
-  conflicts=(hyprmasq)
   cd "$pkgbase"
   install -Dm755 hyprmasq-input hyprmasq-launch mcp/hyprmasq-mcp -t "$pkgdir/usr/bin"
   install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"

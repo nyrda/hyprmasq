@@ -218,7 +218,7 @@ nix-build bench/tasks/calc/check-test.nix
 | `mcp/` | `hyprmasq-mcp`, see [above](#hyprmasq-mcp). |
 | `nix/` | The package, the NixOS module, the [VM test](vm-test.md) and its probe clients. |
 | `bench/` | The [benchmark](#benchmarks). |
-| `PKGBUILD` | The Arch packages `hyprmasq-plugin` and `hyprmasq-mcp`, built from a clone. Its `package_*()` functions install the same files, with the same dependencies, as the AUR packages. |
+| `PKGBUILD` | The Arch packages `hyprmasq-plugin` and `hyprmasq`, built from a clone. Its `package_*()` functions install the same files, with the same dependencies, as the AUR packages. |
 | `packaging/aur/` | The [AUR packages](#aur-packages) and the script that publishes them. Their `package()` and the list in [What this installs](installation.md#what-this-installs) name the same files. |
 
 The C and C++ code follows Hyprland's `.clang-format`. Go code is `gofmt`ed.
@@ -298,7 +298,7 @@ gets no tag.
    `git tag -a vX.Y.Z -m "hyprmasq X.Y.Z" <commit>`, then
    `git push origin vX.Y.Z`. The tags are not signed yet, as
    [Checking what you build](installation.md#checking-what-you-build) says.
-   The tag's push publishes `hyprmasq-mcp` of the release to the
+   The tag's push publishes the package `hyprmasq` of the release to the
    [AUR](#aur-packages).
 3. Publish a GitHub release for the tag. Its notes are the project's
    changelog: what changed since the last release, what a user has to change,
@@ -316,13 +316,13 @@ gets no tag.
   `src/version.h` in its headers, and builds the head of `main` when it is the
   commit that `flake.lock` pins, and otherwise the commit that `commit_pins` in
   `hyprpm.toml` on `main` names for it, as hyprpm does.
-- `hyprmasq-mcp` builds `hyprmasq-mcp`, `hyprmasq-input` and
+- `hyprmasq` builds `hyprmasq-mcp`, `hyprmasq-input` and
   `hyprmasq-launch` of a release, from GitHub's archive of its tag.
 
 `.github/workflows/aur.yml` builds both, and the repository's `PKGBUILD`, on
 Arch. On a push to `main` or of a release tag, it publishes them with
 `packaging/aur/publish.sh`, through the SSH key of the AUR account in the
-repository secret `AUR_SSH_PRIVATE_KEY`. It sets `pkgver` of `hyprmasq-mcp` to
+repository secret `AUR_SSH_PRIVATE_KEY`. It sets `pkgver` of `hyprmasq` to
 the latest release tag and its `sha256sums` to that release's archive, so the
 files in the repository need no change for a release. A package is published
 when its PKGBUILD differs from the AUR's in more than `pkgrel`, and for

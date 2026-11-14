@@ -8,7 +8,7 @@ user's focus. `tools/hyprmasq-input.c` is the libei sender,
 `tools/hyprmasq-launch` is the shell launcher. `mcp/` is the Go MCP server;
 `bench/` has the benchmark runner and task checkers, and `bench/laptop/` the
 runner for real machines. `packaging/aur/` holds the AUR packages
-`hyprmasq-plugin-git` and `hyprmasq-mcp`, which `.github/workflows/aur.yml`
+`hyprmasq-plugin-git` and `hyprmasq`, which `.github/workflows/aur.yml`
 builds and publishes, and `PKGBUILD` builds the same two from a clone. A change
 to the files they install updates their `package()` functions and the list in
 `docs/installation.md`.
