@@ -9,5 +9,7 @@ __pycache__/
 /mcp/hyprmasq-mcp
 # makepkg
 /*.pkg.tar*
+/packaging/aur/*/*
+!/packaging/aur/*/PKGBUILD
 /hyprmasq-*.log
 /bench/machines.local.json

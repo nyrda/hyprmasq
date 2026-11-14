@@ -1,0 +1,49 @@
+# Maintainer: nyrda <nyrda@keymasq.tools>
+
+# Builds the MCP server and the tools of a hyprmasq release. None of them depends on Hyprland's internals, so a
+# Hyprland update needs no rebuild of this package: only of the plugin, hyprmasq-plugin-git.
+# Only Go modules are downloaded besides the release, and go.sum verifies them.
+# The CI of github.com/nyrda/hyprmasq publishes this file from packaging/aur. It sets pkgver to the latest release,
+# sha256sums to its archive, and pkgrel.
+
+pkgname=hyprmasq-mcp
+pkgver=0.2.0
+pkgrel=1
+pkgdesc='MCP server and tools of hyprmasq: computer use for Hyprland'
+arch=(x86_64)
+url='https://github.com/nyrda/hyprmasq'
+license=(MIT)
+depends=(ffmpeg glibc hyprmasq-plugin jq libei libxkbcommon sh)
+makedepends=(go)
+conflicts=(hyprmasq)
+source=("hyprmasq-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('68818ee569c36e9eb60e22560c546da5a3751a0bddb0ee6dc8beb0066039a3ef')
+
+# Keeps the modules in $srcdir, uses the installed Go only, and passes makepkg's flags.
+_go() {
+  GOPATH=$srcdir GOTOOLCHAIN=local GOFLAGS='-buildmode=pie -trimpath -buildvcs=false -mod=readonly -modcacherw' \
+    CGO_CPPFLAGS=$CPPFLAGS CGO_CFLAGS=$CFLAGS CGO_CXXFLAGS=$CXXFLAGS CGO_LDFLAGS=$LDFLAGS go "$@"
+}
+
+prepare() {
+  cd "hyprmasq-$pkgver/mcp"
+  _go mod download
+}
+
+build() {
+  cd "hyprmasq-$pkgver"
+  make hyprmasq-input hyprmasq-launch
+  cd mcp
+  _go build -ldflags "-linkmode=external -X github.com/nyrda/hyprmasq/mcp/internal/server.Version=$(<../VERSION)" ./cmd/hyprmasq-mcp
+}
+
+check() {
+  cd "hyprmasq-$pkgver/mcp"
+  _go test -short ./...
+}
+
+package() {
+  cd "hyprmasq-$pkgver"
+  install -Dm755 hyprmasq-input hyprmasq-launch mcp/hyprmasq-mcp -t "$pkgdir/usr/bin"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+}

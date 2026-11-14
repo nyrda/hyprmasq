@@ -7,8 +7,10 @@ user's focus. `tools/hyprmasq-input.c` is the libei sender,
 `tools/hyprmasq-reaper.c` supervises launched processes, and
 `tools/hyprmasq-launch` is the shell launcher. `mcp/` is the Go MCP server;
 `bench/` has the benchmark runner and task checkers, and `bench/laptop/` the
-runner for real machines. `PKGBUILD` builds the Arch package from a clone. A
-change to the files it installs updates its `package()` and the list in
+runner for real machines. `packaging/aur/` holds the AUR packages
+`hyprmasq-plugin-git` and `hyprmasq-mcp`, which `.github/workflows/aur.yml`
+builds and publishes, and `PKGBUILD` builds the same two from a clone. A change
+to the files they install updates their `package()` functions and the list in
 `docs/installation.md`.
 
 Docs: `README.md` is the landing page; `docs/installation.md` covers install,
@@ -69,7 +71,9 @@ subtest tables) and `bench-calc` (the Calc checker). It runs the other bench
 unit tests above and checks `docs/benchmarks.md`, `docs/comparison.md` and the comparison's two other pages
 against their data with `bench/render.py --check`. It caches the Nix store
 between runs, so a check whose inputs did not change is not built again. CI
-does not run `go test -race`. The test gate, `./dev.sh gate`, is local; CI does not run it. Before opening a PR, run it on the commit you push and fill
+does not run `go test -race`. `.github/workflows/aur.yml` builds the AUR
+packages and `PKGBUILD` on Arch, on PRs that change them, and publishes the AUR
+packages from `main` and release tags. The test gate, `./dev.sh gate`, is local; CI does not run it. Before opening a PR, run it on the commit you push and fill
 in the test gate section of
 `.github/pull_request_template.md` with that commit and which test ran. Before merging, compare
 the PR's head commit with the one it passed on: after new commits, an amend, a
