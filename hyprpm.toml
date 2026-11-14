@@ -1,7 +1,7 @@
 [repository]
 name = "hyprmasq"
 authors = ["nyrda"]
-# Hyprland commit to matching plugin commit. main targets Hyprland v0.57.2 at the commit flake.lock pins. Older
+# Hyprland commit to matching plugin commit. This branch targets Hyprland main after v0.57.0 at the commit flake.lock pins. Older
 # releases get the head of their branch, hyprland-0.56 for v0.56.2. Move a pin with every change to its branch. A patch
 # release that main moved past has no branch and gets the last commit of main that targets it.
 commit_pins = [

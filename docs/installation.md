@@ -1,7 +1,8 @@
 # Installation
 
-hyprmasq 0.2.0 is built and tested against **Hyprland v0.57.2** at the
-release commit `flake.lock` pins, on x86_64 Linux.
+hyprmasq 0.2.0 is built and tested against **Hyprland `main`** after v0.57.0,
+at the commit `flake.lock` pins, on x86_64 Linux. It still reports version
+0.57.0.
 A Hyprland plugin must be compiled against the exact Hyprland build
 that loads it: hyprmasq compares the build hash when it loads and refuses to
 load into any other build. Rebuild the plugin whenever Hyprland changes.
@@ -43,8 +44,9 @@ git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
 `-s` installs the missing dependencies, such as `go` for the build, and `-i`
 installs the package, both through pacman. Nothing else runs as root: the
 package has no install script and no pacman hook. The installed Hyprland must
-be version 0.57.2. Older releases have other internals, and the build stops
-on their version. Use a package built from the v0.57.2 release commit.
+be version 0.57.0. Older releases have other internals, and the build stops
+on their version. Use a package built from Hyprland `main` near the commit
+`flake.lock` pins, such as the AUR's `hyprland-git`.
 
 makepkg builds the commit that is checked out, `HEAD`. It leaves out
 uncommitted changes and warns when there are any, so commit a change to build
@@ -129,8 +131,8 @@ installs the package that it built before, against the old Hyprland.
 Hyprland itself checks only its plugin API version, which rarely changes, so
 it would load a plugin built for another Hyprland. hyprmasq checks the build
 when it loads: the commit that Hyprland was built from, and the major and
-minor versions of aquamarine, hyprutils, hyprgraphics, hyprcursor and
-hyprlang. When they differ, it refuses to load, before it hooks anything, and
+minor versions of aquamarine, hyprutils, hyprgraphics and hyprcursor. When
+they differ, it refuses to load, before it hooks anything, and
 Hyprland shows "[hyprmasq] Not loaded: it was built for another Hyprland
 build" and runs without it. Rebuild, then restart Hyprland or load the plugin again.
 
@@ -138,7 +140,7 @@ The package depends on `hyprland` without pinning its version. A pin would
 keep `pacman -Syu` from updating Hyprland until you removed hyprmasq, and
 makepkg can build against a new Hyprland only once it is installed.
 
-hyprmasq supports one Hyprland at a time, here v0.57.2. When
+hyprmasq supports one Hyprland at a time, here `main` after v0.57.0. When
 `hyprland-git` moves past what hyprmasq supports, the build or the plugin's
 hooks fail until a hyprmasq update supports it.
 
@@ -323,7 +325,7 @@ a while after the release, while people move to the new one.
 
 | Hyprland | Branch |
 | --- | --- |
-| v0.57.2 | `main` |
+| `main` after v0.57.0 | `main` |
 | v0.56.2 | `hyprland-0.56` |
 
 Install from the branch that matches your Hyprland:
