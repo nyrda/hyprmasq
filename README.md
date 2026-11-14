@@ -37,8 +37,8 @@ hyprmasq is built for one Hyprland release: `main` for 0.57.2 and the
 `hyprland-0.56` branch for 0.56.2. `hyprctl version` shows yours.
 
 **Arch and Omarchy.** Install `hyprmasq` from the AUR with a helper
-such as yay. It brings the plugin, `hyprmasq-plugin-git`, which builds
-the commit of hyprmasq for the installed Hyprland:
+such as yay. It brings the plugin of the same release, `hyprmasq-plugin`,
+which builds for the installed Hyprland:
 
 ```sh
 yay -S hyprmasq
@@ -46,7 +46,7 @@ yay -S hyprmasq
 
 The plugin must be built against the exact Hyprland that loads it, and
 refuses to load into any other. So after each Hyprland update, run
-`yay -S --rebuild hyprmasq-plugin-git` and restart Hyprland. Until then,
+`yay -S --rebuild hyprmasq-plugin` and restart Hyprland. Until then,
 Hyprland runs without the plugin. [Updating](docs/installation.md#updating)
 covers updates of hyprmasq itself.
 

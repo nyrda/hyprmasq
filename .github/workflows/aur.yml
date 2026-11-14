@@ -1,10 +1,9 @@
 name: AUR
 
-# Builds the AUR packages hyprmasq-plugin-git and hyprmasq from packaging/aur, and the PKGBUILD that builds both
-# from a clone, on Arch against the Hyprland that Arch ships. hyprmasq-plugin-git builds the commit of main, or of
-# hyprpm.toml, that targets that Hyprland, and hyprmasq the latest release. On a push to main or of a release tag,
-# it publishes the AUR packages whose PKGBUILD changed. Every week it builds them again, so that the run fails, and
-# GitHub sends a mail, when Arch's Hyprland moves to a release that hyprmasq does not support yet.
+# Builds the AUR packages hyprmasq-plugin and hyprmasq of the latest release from packaging/aur, and the PKGBUILD that
+# builds both from a clone, on Arch against the Hyprland that Arch ships. On a push to main or of a release tag, it
+# publishes the AUR packages whose PKGBUILD changed. Every week it builds them again, so that the run fails, and
+# GitHub sends a mail, when Arch's Hyprland moves to a release that the latest hyprmasq release does not support.
 
 on:
   pull_request:
@@ -46,18 +45,24 @@ jobs:
           cp -r packaging/aur "$RUNNER_TEMP/aur"
           chown -R builder . "$RUNNER_TEMP/aur"
           sudo -u builder git config --global --add safe.directory '*'
-      # In a container, runner.temp names the host's path, so the steps change to $RUNNER_TEMP themselves.
-      - name: Build hyprmasq-plugin-git
-        run: |
-          cd "$RUNNER_TEMP/aur/hyprmasq-plugin-git"
-          sudo -u builder makepkg -si --noconfirm
-      # The latest release tag in the history of the commit: on a release tag, that release.
-      - name: Build hyprmasq of the latest release
+      # The latest release tag in the history of the commit: on a release tag, that release. In a container,
+      # runner.temp names the host's path, so the steps change to $RUNNER_TEMP themselves.
+      - name: Set the AUR packages to the latest release
         run: |
           tag=$(sudo -u builder git describe --tags --abbrev=0 --match 'v[0-9]*')
+          for pkg in hyprmasq-plugin hyprmasq; do
+            cd "$RUNNER_TEMP/aur/$pkg"
+            sed -i "s/^pkgver=.*/pkgver=${tag#v}/" PKGBUILD
+            sudo -u builder updpkgsums
+          done
+      # hyprmasq depends on hyprmasq-plugin, which is not in a repository.
+      - name: Build hyprmasq-plugin
+        run: |
+          cd "$RUNNER_TEMP/aur/hyprmasq-plugin"
+          sudo -u builder makepkg -si --noconfirm
+      - name: Build hyprmasq
+        run: |
           cd "$RUNNER_TEMP/aur/hyprmasq"
-          sed -i "s/^pkgver=.*/pkgver=${tag#v}/" PKGBUILD
-          sudo -u builder updpkgsums
           sudo -u builder makepkg -s --noconfirm
       - name: Build the PKGBUILD of the repository
         run: sudo -u builder makepkg -s --noconfirm
@@ -69,4 +74,4 @@ jobs:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: >-
           sudo -u builder --preserve-env=AUR_SSH_PRIVATE_KEY,GITHUB_SERVER_URL,GITHUB_REPOSITORY,GITHUB_SHA
-          bash packaging/aur/publish.sh "$RUNNER_TEMP/aur/hyprmasq-plugin-git" "$RUNNER_TEMP/aur/hyprmasq"
+          bash packaging/aur/publish.sh "$RUNNER_TEMP/aur/hyprmasq-plugin" "$RUNNER_TEMP/aur/hyprmasq"

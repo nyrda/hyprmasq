@@ -1,13 +1,14 @@
 # Maintainer: nyrda <nyrda@keymasq.tools>
 
-# Builds the hyprmasq plugin for the Hyprland that is installed. A plugin must be built against the exact Hyprland
-# build that loads it, and refuses to load into any other, so rebuild this package after every Hyprland update.
-# It picks the commit of hyprmasq that targets the installed Hyprland, as hyprpm does: the head of main for the
-# Hyprland that main targets, and otherwise the commit that commit_pins in main's hyprpm.toml names for it.
-# The CI of github.com/nyrda/hyprmasq publishes this file from packaging/aur and sets pkgver and pkgrel.
+# Builds the hyprmasq plugin of a release for the Hyprland that is installed. A plugin must be built against the
+# exact Hyprland build that loads it, and refuses to load into any other, so rebuild this package after every
+# Hyprland update. It picks the commit that targets the installed Hyprland, as hyprpm does: the release's own for
+# the Hyprland that the release targets, and otherwise the commit that commit_pins in the release's hyprpm.toml
+# names for it.
+# The CI of github.com/nyrda/hyprmasq publishes this file from packaging/aur and sets pkgver, sha256sums and pkgrel.
 
-pkgname=hyprmasq-plugin-git
-pkgver=0.2.0.r165.g310eb69
+pkgname=hyprmasq-plugin
+pkgver=0.2.0
 pkgrel=1
 pkgdesc='Hyprland plugin of hyprmasq: per-window screenshots and input, built for the installed Hyprland'
 arch=(x86_64)
@@ -15,9 +16,7 @@ url='https://github.com/nyrda/hyprmasq'
 license=(MIT)
 depends=(glibc hyprland libei libgcc libglvnd libpng libstdc++ libxcb libxkbcommon)
 makedepends=(git jq)
-provides=(hyprmasq-plugin)
-conflicts=(hyprmasq-plugin)
-source=("hyprmasq::git+$url.git")
+source=("hyprmasq::git+$url.git#tag=v$pkgver")
 sha256sums=(SKIP)
 
 prepare() {
@@ -39,24 +38,26 @@ prepare() {
   tag=$(sed -n 's/^#define GIT_TAG *"\(.*\)".*/\1/p' "$header")
 
   local commit
-  if [[ -n $hyprland && $hyprland == "$(git show origin/HEAD:flake.lock | jq -r .nodes.hyprland.locked.rev)" ]]; then
-    commit=$(git rev-parse origin/HEAD)
+  if [[ -n $hyprland && $hyprland == "$(jq -r .nodes.hyprland.locked.rev flake.lock)" ]]; then
+    commit=$(git rev-parse HEAD)
   elif [[ -n $hyprland ]]; then
-    commit=$(git show origin/HEAD:hyprpm.toml | sed -n "s/^ *\[\"$hyprland\", *\"\([0-9a-f]*\)\"\].*/\1/p")
+    commit=$(sed -n "s/^ *\[\"$hyprland\", *\"\([0-9a-f]*\)\"\].*/\1/p" hyprpm.toml)
   fi
   if [[ -z $commit ]]; then
-    echo "==> ERROR: hyprmasq has no commit for the installed Hyprland, $tag at commit ${hyprland:-unknown}." >&2
-    echo "    It supports Hyprland $(git show origin/HEAD:HYPRLAND_VERSION) and the releases in hyprpm.toml." >&2
+    echo "==> ERROR: hyprmasq $pkgver has no commit for the installed Hyprland, $tag at commit ${hyprland:-unknown}." >&2
+    echo "    It supports Hyprland $(<HYPRLAND_VERSION) and the releases in its hyprpm.toml." >&2
     echo '    See https://github.com/nyrda/hyprmasq/blob/main/docs/installation.md#older-hyprland-releases' >&2
+    return 1
+  fi
+  # The MCP server of the release talks only to a plugin with its interface.
+  local interface='s/.*INTERFACE = \([0-9]*\);.*/\1/p'
+  if [[ $(git show "$commit:src/Commands.hpp" | sed -n "$interface") != $(sed -n "$interface" src/Commands.hpp) ]]; then
+    echo "==> ERROR: hyprmasq $pkgver pins commit $commit for the installed Hyprland, $tag, with another interface than" >&2
+    echo '    its MCP server. Wait for a release that supports this Hyprland.' >&2
     return 1
   fi
   echo "==> Building hyprmasq $commit for Hyprland $tag"
   git checkout --quiet --detach "$commit"
-}
-
-pkgver() {
-  cd hyprmasq
-  printf '%s.r%s.g%s' "$(git show HEAD:VERSION)" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
 }
 
 build() {

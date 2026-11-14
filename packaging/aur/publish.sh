@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Publishes AUR packages: publish.sh DIR..., where each DIR holds a PKGBUILD that makepkg already built, so that the
-# pkgver of a -git package is the one it built. Run it on Arch, with makepkg, git and ssh.
+# Publishes AUR packages: publish.sh DIR..., where each DIR holds a PKGBUILD. Run it on Arch, with makepkg, git and ssh.
 #
-# A package is published when its PKGBUILD differs from the AUR's in more than pkgrel, and for a -git package pkgver,
-# which follows the upstream commits by itself. pkgrel is 1 for a new pkgver and one more than the AUR's for the same.
+# A package is published when its PKGBUILD differs from the AUR's in more than pkgrel. pkgrel is 1 for a new pkgver
+# and one more than the AUR's for the same.
 #
 # AUR_SSH_PRIVATE_KEY is the private key of the AUR account that maintains the packages.
 set -euo pipefail
@@ -31,9 +30,7 @@ for dir in "$@"; do
     aur=$work/$pkg
     git clone --quiet "ssh://aur@aur.archlinux.org/$pkg.git" "$aur" 2> >(grep -v 'empty repository' >&2)
 
-    ignore='^pkgrel='
-    [[ $pkg == *-git ]] && ignore='^(pkgver|pkgrel)='
-    if [[ -f $aur/PKGBUILD ]] && diff -q <(grep -Ev "$ignore" PKGBUILD) <(grep -Ev "$ignore" "$aur/PKGBUILD") > /dev/null; then
+    if [[ -f $aur/PKGBUILD ]] && diff -q <(grep -v '^pkgrel=' PKGBUILD) <(grep -v '^pkgrel=' "$aur/PKGBUILD") > /dev/null; then
       echo "$pkg: the AUR has this PKGBUILD"
       exit 0
     fi
