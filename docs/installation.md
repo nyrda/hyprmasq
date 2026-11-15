@@ -51,8 +51,11 @@ Either installs two packages of the same release:
 Nothing compiles the plugin on your machine, so a Hyprland update needs no
 rebuild. `hyprmasq` builds the programs once for each hyprmasq release,
 which takes about a minute and installs `go` for the build.
-`hyprmasq-bin` skips that. Install one of the two. Each replaces the other. Then add the loader to `~/.config/hypr/hyprland.lua`, which Omarchy
-uses:
+`hyprmasq-bin` skips that. Install one of the two. Each replaces the other,
+and both replace a [build from a clone](#building-from-a-clone): pacman
+offers to remove it.
+
+Then add the loader to `~/.config/hypr/hyprland.lua`, which Omarchy uses:
 
 ```lua
 pcall(dofile, "/etc/xdg/hypr/hyprmasq_plugin.lua")

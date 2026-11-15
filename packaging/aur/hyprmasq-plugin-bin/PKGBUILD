@@ -19,7 +19,9 @@ url='https://github.com/nyrda/hyprmasq'
 license=(MIT)
 depends=(glibc hyprland libei libgcc libglvnd libpng libstdc++ libxcb libxkbcommon)
 provides=("hyprmasq-plugin=$pkgver")
-conflicts=(hyprmasq-plugin)
+# A build of hyprmasq from a clone installs the plugin and the loader too: from 0.3.0 on it provides hyprmasq-plugin,
+# and before that it did not, so pacman offers to remove it rather than stopping at the loader that both have.
+conflicts=(hyprmasq-plugin 'hyprmasq<0.3.0')
 options=(!debug !strip)
 # The Hyprland version of the build that each plugin was compiled against.
 _plugins=(0.57.2 0.56.2)
