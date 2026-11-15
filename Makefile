@@ -21,7 +21,7 @@ CFLAGS ?= -O2 -g
 CFLAGS += -std=gnu17 -Wall -Wextra
 CPPFLAGS += $(VERSION_CPPFLAGS) -DWLR_USE_UNSTABLE $(shell pkg-config --cflags $(PLUGIN_PKGS))
 
-.PHONY: all install clean check-hyprland
+.PHONY: all install clean check-hyprland FORCE
 
 # The plugin targets the Hyprland releases that HYPRLAND_VERSION names, one per line: the one flake.lock pins and the
 # one before it. Headers of another version can compile and still misbehave, so the build stops unless
@@ -29,6 +29,10 @@ CPPFLAGS += $(VERSION_CPPFLAGS) -DWLR_USE_UNSTABLE $(shell pkg-config --cflags $
 # main from that release.
 HYPRLAND_TARGETS := $(shell cat HYPRLAND_VERSION)
 HYPRLAND_FOUND := $(shell pkg-config --modversion hyprland 2>/dev/null)
+# The Hyprland that the objects were compiled against, rewritten only when pkg-config finds another, as in another dev
+# shell: then the plugin builds anew instead of keeping objects of the other release.
+HYPRLAND_STAMP := $(BUILD_DIR)/hyprland
+HYPRLAND_BUILT := $(HYPRLAND_FOUND) $(shell pkg-config --variable=prefix hyprland 2>/dev/null)
 
 all: $(PLUGIN) $(TOOL) $(REAPER) $(LAUNCHER)
 
@@ -46,7 +50,11 @@ endif
 $(PLUGIN): $(OBJ)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -shared -fPIC -o $@ $(OBJ) $(shell pkg-config --libs egl glesv2 libpng libeis-1.0 xkbcommon xcb)
 
-$(BUILD_DIR)/%.o: src/%.cpp VERSION | check-hyprland
+$(HYPRLAND_STAMP): FORCE
+	@mkdir -p $(dir $@)
+	@echo '$(HYPRLAND_BUILT)' | cmp -s - $@ || echo '$(HYPRLAND_BUILT)' > $@
+
+$(BUILD_DIR)/%.o: src/%.cpp VERSION $(HYPRLAND_STAMP) | check-hyprland
 	@mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 

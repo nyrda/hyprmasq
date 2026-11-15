@@ -77,9 +77,10 @@ namespace hyprmasq::deferred {
                 [](void*) {
                     if (!active)
                         restoreBatch();
-                    // dlclose can unmap this library, so libwayland calls it directly instead of code in here.
-                    wl_event_loop_add_idle(g_pCompositor->m_wlEventLoop, reinterpret_cast<wl_event_loop_idle_func_t>(reinterpret_cast<void (*)()>(&dlclose)),
-                                           std::exchange(pinned, nullptr));
+                    // dlclose can unmap this library, so libwayland calls it directly instead of code in here. Frames that end
+                    // before this runs schedule it again, and only the first releases the library.
+                    if (auto* library = std::exchange(pinned, nullptr))
+                        wl_event_loop_add_idle(g_pCompositor->m_wlEventLoop, reinterpret_cast<wl_event_loop_idle_func_t>(reinterpret_cast<void (*)()>(&dlclose)), library);
                 },
                 nullptr);
         }
