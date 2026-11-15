@@ -243,13 +243,16 @@ def compile_plugin(source, build, version_h_from, out):
 
 
 def hooked(binary):
-    """The functions the plugin hooks: the mangled names it looks up, which it keeps as string literals in .rodata. The
-    symbol table's names are elsewhere."""
+    """The functions the plugin hooks: the symbols it looks up, which it keeps as string literals in .rodata, where the
+    symbol table's names are not. C++ functions by their mangled names, and functions with C linkage, such as
+    HyprlandAPI::invokeHyprctlCommand, by the names that defineHook() gets in src/."""
     with tempfile.TemporaryDirectory() as tmp:
         rodata = Path(tmp) / "rodata"
         run("objcopy", "-O", "binary", "--only-section=.rodata", binary, rodata)
-        strings = run("strings", "-n", "8", rodata, capture_output=True).stdout.split()
-    return sorted({s for s in strings if re.fullmatch(r"_ZN[0-9A-Za-z_]+", s)})
+        strings = set(run("strings", "-n", "8", rodata, capture_output=True).stdout.split())
+    sources = "".join(p.read_text() for p in (REPO / "src").glob("*.cpp"))
+    c_linkage = {n for n in re.findall(r'defineHook<[^;]*?\(\s*\w+\s*,\s*"(\w+)"', sources, re.S) if not n.startswith("_Z")}
+    return sorted({s for s in strings if re.fullmatch(r"_ZN[0-9A-Za-z_]+", s)} | (c_linkage & strings))
 
 
 def missing_symbols(binary, build):
