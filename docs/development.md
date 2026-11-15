@@ -33,6 +33,11 @@ time: on `main`, a new commit waits for the running run, and on a PR, a new
 push cancels the run it replaces. CI does not run the race
 detector, which slows the tests of screenshots and pixels a hundredfold.
 
+A second workflow, `.github/workflows/aur.yml`, builds and publishes the
+[AUR packages](#aur-packages). On a PR that changes the plugin or the
+packaging, it builds the prebuilt plugins and both packages, and verifies the
+Hyprland builds of Arch and Omarchy, without publishing.
+
 The test gate, `./dev.sh gate`, is local, and CI does not run it. It runs the
 [container test](vm-test.md#containers) on a machine with a render node and the
 `uid-range` and `gpu` system features, and otherwise the VM test. It runs on a PR's head
@@ -220,7 +225,8 @@ nix-build bench/tasks/calc/check-test.nix
 | `mcp/` | `hyprmasq-mcp`, see [above](#hyprmasq-mcp). |
 | `nix/` | The package, the NixOS module, the [VM test](vm-test.md) and its probe clients. |
 | `bench/` | The [benchmark](#benchmarks). |
-| `PKGBUILD` | The Arch package. Its `package()` and the list in [What this installs](installation.md#what-this-installs) name the same files. |
+| `PKGBUILD` | The Arch package built from a clone. Its `package()` and the clone's part of [Arch and Omarchy](installation.md#building-from-a-clone) name the same files. |
+| `packaging/aur/` | The [AUR packages](#aur-packages) and the scripts that build, verify and publish them. |
 
 The C and C++ code follows Hyprland's `.clang-format`. Go code is `gofmt`ed.
 
@@ -347,7 +353,63 @@ one.
    `git tag -a vX.Y.Z -m "hyprmasq X.Y.Z" <commit>`, then
    `git push origin vX.Y.Z`. The tags are not signed yet, as
    [Checking what you build](installation.md#checking-what-you-build) says.
-3. Publish a GitHub release for the tag. Its notes are the project's
-   changelog: what changed since the last release, what a user has to change,
-   and the Hyprland releases it builds against. Their links go to the docs at
-   the tag, `blob/vX.Y.Z/docs/…`.
+3. The tag's push runs `.github/workflows/aur.yml`: it builds the prebuilt
+   plugins, creates the GitHub release with them attached, and publishes both
+   [AUR packages](#aur-packages) of the release. Check that the run passed.
+4. Write the GitHub release's notes. They are the project's changelog: what
+   changed since the last release, what a user has to change, and the Hyprland
+   releases it builds against. Their links go to the docs at the tag,
+   `blob/vX.Y.Z/docs/…`.
+
+## AUR packages
+
+`packaging/aur` holds the two AUR packages that `yay -S hyprmasq` installs:
+
+- `hyprmasq` builds `hyprmasq-mcp`, `hyprmasq-input`, `hyprmasq-launch` and
+  `hyprmasq-reaper` from the release's archive, and depends on
+  `hyprmasq-plugin` of its version.
+- `hyprmasq-plugin-bin` provides it: one prebuilt plugin for each Hyprland
+  release that `HYPRLAND_VERSION` names and Arch or Omarchy's stable channel
+  serve, `hyprland-builds` with the Hyprland builds that each plugin runs, and
+  `hyprmasq_plugin.lua`, which loads `/usr/lib/hyprmasq/<hl.version()>/hyprmasq.so`.
+
+The plugin loads into the build it was compiled against, as everywhere, and
+into a build that the `hyprland-builds` beside it names. Without that file, as
+in every other install, only the first.
+
+`packaging/aur/builds.py` decides what goes in the list. A release's plugin for
+a Hyprland release is compiled against a reference build: the one that the
+oldest userland serves, Omarchy's stable channel before Arch.
+`build-plugin.sh` builds it on the Arch archive's snapshot of the day that
+build entered Arch, starting from the `archlinux/archlinux` image from before
+it, so that it needs no newer glibc or libstdc++ than any userland that runs
+it, and `check-userland.sh` loads its libraries on each of those userlands.
+Another served build goes in the list when:
+
+1. the plugin compiled against its headers and those of the libraries that its
+   `version.h` names is byte for byte the plugin compiled against the
+   reference's, with the same toolchain, the reference's `version.h` and no
+   build id,
+2. its Hyprland and libraries export every symbol that the shipped plugin
+   imports or hooks, and
+3. its Hyprland commit is the reference's, or the source files of every hooked
+   function, and of every class whose private members `src/PrivateAccess.cpp`
+   reads, did not change since. A function that it cannot find, or that moved
+   to another file, counts as a change.
+
+`.github/workflows/aur.yml` runs every hour. When Arch's `extra`,
+`extra-testing` or `extra-staging`, or Omarchy's stable mirror, serve a
+Hyprland build that the AUR's `hyprland-builds` lacks, it verifies it against
+the released plugins, and publishes the list with a new `pkgrel` through
+`packaging/aur/publish.sh`, which accepts only lines of hashes and versions. It
+also checks every hour that the plugins still load their libraries. A build
+that fails a check is held: it opens one issue for it, with the reasons, and
+the plugin refuses that build. When only the Hyprland sources changed, read the
+change, and run the workflow by hand with `accept` set to the build's version,
+which skips that one check. Otherwise the build needs a new plugin, which comes
+with the next release.
+
+The verification and the issues run without secrets. Only the step that
+publishes has the AUR key, in the repository secret `AUR_SSH_PRIVATE_KEY`.
+GitHub turns off a scheduled workflow after 60 days without a commit to the
+repository, so look at its runs after a quiet spell.

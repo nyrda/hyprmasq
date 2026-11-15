@@ -69,13 +69,14 @@ namespace hyprmasq::launch {
             return path.is_absolute() && access(path.c_str(), X_OK) == 0;
         }
 
-        // Next to the plugin, as make builds both, in ../libexec of the plugin's directory, as the Nix package installs
+        // Next to the plugin, as make builds both, in the plugin's parent directory, as the Arch package installs it
+        // beside the plugin of each Hyprland release, in ../libexec of the plugin's directory, as the Nix package installs
         // it, or on PATH.
         std::string findReaper() {
             Dl_info info;
             if (dladdr(reinterpret_cast<void*>(&findReaper), &info) && info.dli_fname) {
                 const auto dir = std::filesystem::path(info.dli_fname).parent_path();
-                for (const auto& candidate : {dir / "hyprmasq-reaper", dir.parent_path() / "libexec" / "hyprmasq-reaper"})
+                for (const auto& candidate : {dir / "hyprmasq-reaper", dir.parent_path() / "hyprmasq-reaper", dir.parent_path() / "libexec" / "hyprmasq-reaper"})
                     if (executable(candidate))
                         return candidate.string();
             }

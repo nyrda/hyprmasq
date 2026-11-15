@@ -1,0 +1,357 @@
+name: AUR
+
+# The AUR packages hyprmasq-plugin-bin, the plugin prebuilt for the Hyprland builds of Arch and Omarchy, and hyprmasq,
+# the MCP server and tools built from source. See "AUR packages" in docs/development.md.
+#
+# - A release tag builds one plugin per Hyprland release that hyprmasq targets, on the oldest userland that runs it,
+#   checks that it loads its libraries there, verifies the Hyprland builds it runs with packaging/aur/builds.py,
+#   attaches the plugins to the GitHub release and publishes both packages.
+# - Every hour it looks for Hyprland builds that Arch or Omarchy's stable channel serve and the AUR's hyprland-builds
+#   does not list, verifies them against the released plugins, and publishes the list with a new pkgrel. It also checks
+#   that the plugins still load their libraries. A build that fails gets one issue, not a failed run every hour.
+# - workflow_dispatch with accept adds a held build whose Hyprland sources changed, once someone read the change.
+# - A PR that changes the packaging, the plugin or this file builds the plugins and both packages without publishing.
+
+on:
+  pull_request:
+    paths: [PKGBUILD, HYPRLAND_VERSION, Makefile, src/**, packaging/aur/**, .github/workflows/aur.yml]
+  push:
+    tags: ['v*']
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      accept:
+        description: A held Hyprland build, as 0.57.3-1, whose changed sources you read and accept
+        required: false
+
+permissions:
+  contents: read
+
+# A PR's push cancels the run of the commit it replaces. Other runs take turns, so that two never publish at once.
+concurrency:
+  group: aur-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The repository that publishes. Forks build and verify only.
+  PUBLISHER: nyrda/hyprmasq
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      version: ${{ steps.plan.outputs.version }}
+      plugins: ${{ steps.plan.outputs.plugins }}
+      userlands: ${{ steps.plan.outputs.userlands }}
+    steps:
+      - run: pacman -Syu --noconfirm --needed git jq python
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # release: a tag. test: a PR. refresh: the hourly run or workflow_dispatch, with new builds or an accept.
+      # userlands: the same without either, which checks the libraries only. none: nothing is published yet.
+      - id: plan
+        env:
+          ACCEPT: ${{ inputs.accept }}
+        run: |
+          git config --global --add safe.directory '*'
+          list=()
+          case $GITHUB_EVENT_NAME in
+            push) mode=release version=${GITHUB_REF_NAME#v} ;;
+            pull_request) mode=test version=$(cat VERSION) ;;
+            *)
+              mode=refresh
+              if ! git clone -q https://aur.archlinux.org/hyprmasq-plugin-bin.git /tmp/aur || [[ ! -f /tmp/aur/.SRCINFO ]]; then
+                echo mode=none >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              version=$(sed -n 's/^\tpkgver = //p' /tmp/aur/.SRCINFO)
+              list=(--list /tmp/aur/hyprland-builds)
+              ;;
+          esac
+          python3 packaging/aur/builds.py plan "${list[@]}" > /tmp/plan.json
+          cat /tmp/plan.json
+          if [[ $mode == refresh && $(jq '.new | length' /tmp/plan.json) == 0 && -z $ACCEPT ]]; then
+            mode=userlands
+          fi
+          {
+            echo "mode=$mode"
+            echo "version=$version"
+            echo "plugins=$(jq -c .plugins /tmp/plan.json)"
+            echo "userlands=$(jq -c '[.plugins[] as $p | $p.userlands[] | {label: $p.label, image: (if . == "arch" then "base-devel" else $p.image end), userland: .}]' /tmp/plan.json)"
+          } >> "$GITHUB_OUTPUT"
+
+  # Each plugin on the dated image from before its snapshot, which build-plugin.sh moves to that snapshot.
+  build:
+    needs: plan
+    if: needs.plan.outputs.mode == 'release' || needs.plan.outputs.mode == 'test'
+    runs-on: ubuntu-24.04
+    container: archlinux/archlinux:${{ matrix.plugin.image }}
+    strategy:
+      matrix:
+        plugin: ${{ fromJSON(needs.plan.outputs.plugins) }}
+    steps:
+      - run: |
+          # shellcheck disable=SC2016 # pacman expands $repo and $arch.
+          echo 'Server = https://archive.archlinux.org/repos/${{ matrix.plugin.day }}/$repo/os/$arch' > /etc/pacman.d/mirrorlist
+          pacman -Syyuu --noconfirm git
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: |
+          git config --global --add safe.directory '*'
+          packaging/aur/build-plugin.sh ${{ matrix.plugin.version }} ${{ matrix.plugin.day }} \
+            "/tmp/plugins/hyprmasq-${{ needs.plan.outputs.version }}-hyprland-${{ matrix.plugin.label }}.so"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: plugin-${{ matrix.plugin.label }}
+          path: /tmp/plugins/*.so
+          if-no-files-found: error
+
+  # The plugins load their libraries on each userland that runs them.
+  userlands:
+    needs: [plan, build]
+    if: >-
+      !cancelled() && needs.plan.outputs.mode != 'none' && needs.plan.outputs.userlands != '[]' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-24.04
+    container: archlinux/archlinux:${{ matrix.check.image }}
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.plan.outputs.userlands) }}
+    steps:
+      - run: pacman -Syu --noconfirm --needed git github-cli
+        if: matrix.check.userland == 'arch'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.build.result == 'success'
+        with:
+          name: plugin-${{ matrix.check.label }}
+          path: /tmp/plugins
+      - name: Download the released plugin
+        if: needs.build.result == 'skipped'
+        run: |
+          mkdir -p /tmp/plugins
+          name=hyprmasq-${{ needs.plan.outputs.version }}-hyprland-${{ matrix.check.label }}.so
+          curl -fsSL --retry 3 -o "/tmp/plugins/$name" "https://github.com/$GITHUB_REPOSITORY/releases/download/v${{ needs.plan.outputs.version }}/$name"
+      - id: check
+        continue-on-error: ${{ github.event_name == 'schedule' }}
+        run: packaging/aur/check-userland.sh ${{ matrix.check.userland }} /tmp/plugins/*.so
+      - name: Open an issue
+        if: steps.check.outcome == 'failure' && github.repository == env.PUBLISHER
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pacman -S --noconfirm --needed github-cli
+          title="hyprmasq-plugin-bin ${{ needs.plan.outputs.version }}: the plugin for Hyprland ${{ matrix.check.label }} does not load its libraries on ${{ matrix.check.userland }}"
+          if [[ -z $(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number -q '.[].number') ]]; then
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "The hourly run of $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID found it. Build the plugin again for that userland in a new release, see \"AUR packages\" in docs/development.md."
+          fi
+
+  # Which served Hyprland builds the plugins run. Holds no secret.
+  verify:
+    needs: [plan, build]
+    if: >-
+      !cancelled() && (needs.plan.outputs.mode == 'release' || needs.plan.outputs.mode == 'test' || needs.plan.outputs.mode == 'refresh') &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - run: pacman -Syu --noconfirm --needed base-devel binutils git github-cli hyprland jq libei libglvnd libpng libxcb libxkbcommon python
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.mode == 'refresh' && format('v{0}', needs.plan.outputs.version) || '' }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.build.result == 'success'
+        with:
+          pattern: plugin-*
+          merge-multiple: true
+          path: /tmp/plugins
+      - name: Download the released plugins and the AUR's list
+        if: needs.build.result == 'skipped'
+        env:
+          PLUGINS: ${{ needs.plan.outputs.plugins }}
+        run: |
+          mkdir -p /tmp/plugins
+          for label in $(jq -r '.[].label' <<<"$PLUGINS"); do
+            name=hyprmasq-${{ needs.plan.outputs.version }}-hyprland-$label.so
+            curl -fsSL --retry 3 -o "/tmp/plugins/$name" "https://github.com/$GITHUB_REPOSITORY/releases/download/v${{ needs.plan.outputs.version }}/$name"
+          done
+          git clone -q https://aur.archlinux.org/hyprmasq-plugin-bin.git /tmp/aur
+      # Network errors at the archive or GitHub are retried. A build that fails a check is held, not an error.
+      - name: Verify the served Hyprland builds
+        env:
+          PLUGINS: ${{ needs.plan.outputs.plugins }}
+          ACCEPT: ${{ inputs.accept }}
+        run: |
+          git config --global --add safe.directory '*'
+          args=(--source . --out /tmp/list/hyprland-builds --held /tmp/list/held.json)
+          for label in $(jq -r '.[].label' <<<"$PLUGINS"); do
+            args+=(--binary "$label=/tmp/plugins/hyprmasq-${{ needs.plan.outputs.version }}-hyprland-$label.so")
+          done
+          [[ -f /tmp/aur/hyprland-builds ]] && args+=(--list /tmp/aur/hyprland-builds)
+          [[ -n $ACCEPT ]] && args+=(--accept "$ACCEPT")
+          mkdir -p /tmp/list
+          for attempt in 1 2 3; do
+            python3 packaging/aur/builds.py verify "${args[@]}" && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep 60
+          done
+          cat /tmp/list/hyprland-builds /tmp/list/held.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: list
+          path: /tmp/list
+      - name: Open an issue for each held build
+        if: github.event_name != 'pull_request' && github.repository == env.PUBLISHER
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jq -c '.[]' /tmp/list/held.json | while read -r held; do
+            version=$(jq -r .version <<<"$held")
+            title="Hyprland $version is held from hyprmasq-plugin-bin"
+            if [[ -n $(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number -q '.[].number') ]]; then
+              continue
+            fi
+            {
+              echo "Arch or Omarchy serve Hyprland $version ($(jq -r '.sources | join(", ")' <<<"$held")), and the plugin for Hyprland $(jq -r .label <<<"$held") does not run it yet:"
+              echo
+              jq -r '.reasons[] | "- " + .' <<<"$held"
+              echo
+              echo "Users of that build see the plugin refuse to load until it is resolved. When only Hyprland's sources changed, read the change and run this workflow with accept $version. Otherwise build a new plugin, see \"AUR packages\" in docs/development.md."
+              echo
+              echo "Found by $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID."
+            } > /tmp/body
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body-file /tmp/body
+          done
+
+  # The plugins of a release go on its GitHub release, which the tag's push creates when it does not exist. An asset is
+  # never replaced: the AUR pins it by its hash.
+  release:
+    needs: [plan, build, userlands, verify]
+    if: needs.plan.outputs.mode == 'release' && github.repository == 'nyrda/hyprmasq'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: plugin-*
+          merge-multiple: true
+          path: plugins
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.plan.outputs.version }}
+        run: |
+          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --verify-tag --title "hyprmasq ${TAG#v}" \
+              --notes "The notes follow. See docs/development.md, Releasing."
+          fi
+          existing=$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          for plugin in plugins/*.so; do
+            if grep -qx "$(basename "$plugin")" <<<"$existing"; then
+              echo "$(basename "$plugin") is attached already, and stays"
+            else
+              gh release upload "$TAG" "$plugin" -R "$GITHUB_REPOSITORY"
+            fi
+          done
+
+  # Builds and installs both packages as the AUR has them: a PR from the plugins it built, a release and the hourly run
+  # from the GitHub release, which then publish to the AUR.
+  packages:
+    needs: [plan, build, userlands, verify, release]
+    if: >-
+      !cancelled() && needs.verify.result == 'success' &&
+      (needs.plan.outputs.mode == 'test' || needs.plan.outputs.mode == 'refresh' || needs.release.result == 'success')
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    steps:
+      - run: pacman -Syu --noconfirm --needed git go jq openssh pacman-contrib
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.mode == 'refresh' && format('v{0}', needs.plan.outputs.version) || '' }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: list
+          path: /tmp/list
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.plan.outputs.mode == 'test'
+        with:
+          pattern: plugin-*
+          merge-multiple: true
+          path: /tmp/plugins
+      # makepkg refuses to run as root. The packages are filled in where the AUR's would be: the release, its plugins
+      # and the verified list. A PR has no release yet, so its files are put beside the PKGBUILDs, where makepkg finds
+      # them instead of downloading.
+      - name: Fill in the packages
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          PLUGINS: ${{ needs.plan.outputs.plugins }}
+          MODE: ${{ needs.plan.outputs.mode }}
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          git config --global --add safe.directory '*'
+          sudo -u builder git config --global --add safe.directory '*'
+          mkdir -p /tmp/aur
+          cp -r packaging/aur/hyprmasq packaging/aur/hyprmasq-plugin-bin /tmp/aur/
+          labels=$(jq -r '[.[].label] | join(" ")' <<<"$PLUGINS")
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" /tmp/aur/hyprmasq/PKGBUILD /tmp/aur/hyprmasq-plugin-bin/PKGBUILD
+          sed -i "s/^_plugins=.*/_plugins=($labels)/" /tmp/aur/hyprmasq-plugin-bin/PKGBUILD
+          cp /tmp/list/hyprland-builds /tmp/aur/hyprmasq-plugin-bin/
+          # One per source: hyprland-builds, the loader, the license and each plugin. updpkgsums fills them in.
+          sums=$(yes SKIP | head -n $((3 + $(wc -w <<<"$labels"))) | paste -sd' ')
+          sed -i "s/^sha256sums=.*/sha256sums=($sums)/" /tmp/aur/hyprmasq-plugin-bin/PKGBUILD
+          if [[ $MODE == test ]]; then
+            cp /tmp/plugins/*.so LICENSE /tmp/aur/hyprmasq-plugin-bin/ && mv /tmp/aur/hyprmasq-plugin-bin/LICENSE "/tmp/aur/hyprmasq-plugin-bin/LICENSE-$VERSION"
+            git archive --prefix="hyprmasq-$VERSION/" HEAD | gzip -n > "/tmp/aur/hyprmasq/hyprmasq-$VERSION.tar.gz"
+          fi
+          chown -R builder /tmp/aur
+          for dir in /tmp/aur/hyprmasq-plugin-bin /tmp/aur/hyprmasq; do
+            (cd "$dir" && sudo -u builder updpkgsums)
+          done
+          cat /tmp/aur/hyprmasq-plugin-bin/PKGBUILD
+      - name: Build and install hyprmasq-plugin-bin
+        run: cd /tmp/aur/hyprmasq-plugin-bin && sudo -u builder makepkg -si --noconfirm
+      - name: Build and install hyprmasq
+        if: needs.plan.outputs.mode != 'refresh'
+        run: cd /tmp/aur/hyprmasq && sudo -u builder makepkg -si --noconfirm
+      - name: Check what they install
+        env:
+          PLUGINS: ${{ needs.plan.outputs.plugins }}
+        run: |
+          for label in $(jq -r '.[].label' <<<"$PLUGINS"); do
+            test -x "/usr/lib/hyprmasq/$label/hyprmasq.so"
+            test -s "/usr/lib/hyprmasq/$label/hyprland-builds"
+          done
+          # Each listed Hyprland version leads to its plugin.
+          grep -v '^#' /tmp/list/hyprland-builds | while read -r _ label version _; do
+            test "$(readlink -f "/usr/lib/hyprmasq/${version%-*}")" = "/usr/lib/hyprmasq/$label"
+          done
+          test -f /etc/xdg/hypr/hyprmasq_plugin.lua
+          if [[ ${{ needs.plan.outputs.mode }} != refresh ]]; then
+            test -x /usr/lib/hyprmasq/hyprmasq-reaper
+            hyprmasq-mcp --version
+          fi
+          pacman -Ql hyprmasq-plugin-bin
+      - name: Build the PKGBUILD of the repository
+        if: needs.plan.outputs.mode == 'test'
+        run: |
+          chown -R builder .
+          sudo -u builder makepkg -s --noconfirm
+      - name: Publish to the AUR
+        if: github.repository == env.PUBLISHER && needs.plan.outputs.mode != 'test'
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          dirs=(/tmp/aur/hyprmasq-plugin-bin)
+          [[ ${{ needs.plan.outputs.mode }} == release ]] && dirs+=(/tmp/aur/hyprmasq)
+          sudo -u builder --preserve-env=AUR_SSH_PRIVATE_KEY,GITHUB_SERVER_URL,GITHUB_REPOSITORY,GITHUB_SHA \
+            bash packaging/aur/publish.sh "${dirs[@]}"
