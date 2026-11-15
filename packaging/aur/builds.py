@@ -263,11 +263,14 @@ def missing_symbols(binary, build):
 @functools.cache
 def hyprland_tree(commit):
     root = WORK / "hyprland-src" / commit
-    if not root.exists():
+    # A download or extraction that failed leaves no marker, so a retry starts over.
+    if not (root / ".done").exists():
+        shutil.rmtree(root, ignore_errors=True)
         root.mkdir(parents=True)
         archive = WORK / "hyprland-src" / f"{commit}.tar.gz"
         archive.write_bytes(fetch(f"https://github.com/hyprwm/Hyprland/archive/{commit}.tar.gz"))
         run("tar", "-xzf", archive, "-C", root, "--strip-components=1")
+        (root / ".done").touch()
     return root
 
 
@@ -287,6 +290,17 @@ def class_source(tree, qualified):
         if pattern.search(header.read_text(errors="replace")):
             cpp = header.with_suffix(".cpp")
             return header.relative_to(tree), cpp.relative_to(tree) if cpp.exists() else None
+    return None
+
+
+def protocol_header(build, qualified):
+    """The generated protocol header of the build's package that defines the class, as hyprwayland-scanner writes
+    those for Wayland protocols at build time, or None."""
+    name = qualified.split("::")[-1]
+    pattern = re.compile(rf"^\s*(class|struct)\s+{re.escape(name)}\b[^;]*$", re.M)
+    for header in sorted((build.root / "usr/include/hyprland/protocols").glob("*.hpp")):
+        if pattern.search(header.read_text(errors="replace")):
+            return header.relative_to(build.root)
     return None
 
 
@@ -324,7 +338,14 @@ def source_changes(source, binary, reference, build):
     for qualified in private_classes(source, build):
         log(f"private members of {qualified}")
         before, after = class_source(old, qualified), class_source(new, qualified)
-        if not before or before != after:
+        if not before and not after:
+            # A protocol class has no source under src/: compare what was generated for each build instead.
+            before, after = protocol_header(reference, qualified), protocol_header(build, qualified)
+            if not before or before != after:
+                changed.append(f"{qualified}: generated in {before} for the reference and {after} now")
+            elif (reference.root / before).read_bytes() != (build.root / after).read_bytes():
+                changed.append(f"{after} changed")
+        elif not before or before != after:
             changed.append(f"{qualified}: defined in {before} at the reference and {after} now")
         elif before[1]:
             files.add(before[1])
