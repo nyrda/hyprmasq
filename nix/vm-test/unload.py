@@ -146,3 +146,32 @@ with subtest("a screenshot whose pixels the GPU still reads back when the plugin
     assert "hyprmasq" not in hypr("plugin list")
     assert_png("/tmp/hm-unload-inflight.png", (0, 255, 0))
     assert hypr(f"plugin load {plugin}") == "ok"
+
+with subtest("a plugin built for another Hyprland build refuses to load and says why, unless its list names the running build"):
+    # The same plugin with another commit in the hash it was compiled against: the code is the same, so it is safe to
+    # load once the list next to it names the running build.
+    commit = json.loads(hypr("-j version"))["commit"]
+    abi = re.search(r"^Version ABI string: (\S+)$", hypr("systeminfo"), re.M)
+    assert abi, hypr("systeminfo")
+    running = abi.group(1)
+    assert running.startswith(commit), (running, commit)
+    other = "/tmp/hm-other/hyprmasq.so"
+    refusal = f"{runtime}/hypr/{instance}/hyprmasq-refused"
+    machine.succeed(f"mkdir -p /tmp/hm-other && perl -pe 's/{commit}/{'0' * len(commit)}/g' {plugin} > {other} && chmod 755 {other}")
+    assert commit not in machine.succeed(f"strings {other}")
+    assert hypr(f"plugin unload {plugin}") == "ok"
+    assert hypr(f"plugin load {other}") != "ok"
+    assert "hyprmasq" not in hypr("plugin list")
+    assert "Rebuild it against the running Hyprland" in machine.succeed(f"cat {refusal}")
+    # A list that names other builds only: a package that has no plugin for this build yet.
+    machine.succeed("printf '0000_aq_0.1_hu_0.1_hg_0.1_hc_0.1_hlg_0.1 another build\\n' > /tmp/hm-other/hyprland-builds")
+    assert hypr(f"plugin load {other}") != "ok"
+    assert f"no plugin for the running Hyprland build {commit[:12]} yet" in machine.succeed(f"cat {refusal}")
+    # Named in the list, it loads, works and takes the note away.
+    machine.succeed(f"printf '# verified\\n{running} this build\\n' >> /tmp/hm-other/hyprland-builds")
+    assert hypr(f"plugin load {other}") == "ok"
+    assert hypr("hyprmasq version").startswith("hyprmasq "), hypr("hyprmasq version")
+    assert_png(screenshot(green, "listed-build"), (0, 255, 0))
+    machine.succeed(f"test ! -e {refusal}")
+    assert hypr(f"plugin unload {other}") == "ok"
+    assert hypr(f"plugin load {plugin}") == "ok"

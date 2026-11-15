@@ -11,3 +11,8 @@ __pycache__/
 /*.pkg.tar*
 /hyprmasq-*.log
 /bench/machines.local.json
+# What makepkg leaves beside the AUR packages' files.
+/packaging/aur/*/*
+!/packaging/aur/*/PKGBUILD
+!/packaging/aur/*/hyprland-builds
+!/packaging/aur/*/hyprmasq_plugin.lua

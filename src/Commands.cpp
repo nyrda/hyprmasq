@@ -41,7 +41,7 @@ namespace hyprmasq {
             "  hyprctl hyprmasq eis list\n"
             "  hyprctl hyprmasq clipboard\n"
             "  hyprctl hyprmasq clipboard set <text-hex>\n"
-            "  hyprctl hyprmasq hooks\n"
+            "  hyprctl hyprmasq hooks [check]\n"
             "  hyprctl hyprmasq version\n";
 
         std::string jsonString(std::string_view in) {
@@ -554,6 +554,35 @@ namespace hyprmasq {
                 return R"({"ok":true,"groups":[)" + out + "]}";
             return out;
         }
+
+        // Installs each group that is not installed and removes it again, all within this call on the main thread, so
+        // that no hook runs in between: whether the running Hyprland takes every hook, as a package's test asks. A group
+        // that is installed stays as it is. A refused install says why, as hooks does after it.
+        std::string hooksCheck(eOutputFormat format) {
+            std::string out;
+            bool        all = true;
+            for (auto* group : hooks::all()) {
+                std::string           state;
+                std::optional<SError> refused;
+                if (group->installed())
+                    state = "installed";
+                else if (auto claim = group->claim())
+                    state = "installs";
+                else {
+                    state   = "refused";
+                    refused = claim.error();
+                    all     = false;
+                }
+                if (format == FORMAT_JSON)
+                    out += std::format(R"({}{{"name":{},"state":"{}","refused":{}}})", out.empty() ? "" : ",", jsonString(group->name()), state,
+                                       refused ? std::format(R"({{"code":"{}","message":{}}})", codeName(refused->code), jsonString(refused->message)) : "null");
+                else
+                    out += std::format("{} {}{}\n", group->name(), state, refused ? ": " + refused->message : "");
+            }
+            if (format == FORMAT_JSON)
+                return std::format(R"({{"ok":true,"all":{},"groups":[{}]}})", all, out);
+            return out;
+        }
     }
 
     SResponse handleCommand(eOutputFormat format, std::string request) {
@@ -592,6 +621,8 @@ namespace hyprmasq {
         }
 
         if (words[1] == "hooks") {
+            if (args.size() == 1 && args[0] == "check")
+                return hooksCheck(format);
             if (!args.empty())
                 return usage(format);
             return hooksCommand(format);

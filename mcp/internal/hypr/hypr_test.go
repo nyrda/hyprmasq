@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -58,6 +59,39 @@ func TestRequestNeverFillsTheLastChunk(t *testing.T) {
 	}
 	if _, err := c.Request(context.Background(), strings.Repeat("x", MaxRequest+1)); err == nil {
 		t.Error("an overlong request was sent")
+	}
+}
+
+// A plugin that refused to load leaves why next to Hyprland's socket, and the missing plugin's error says it.
+func TestPluginMissingSaysWhyItDidNotLoad(t *testing.T) {
+	dir := t.TempDir()
+	socket := filepath.Join(dir, ".socket.sock")
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			conn.Read(make([]byte, readChunk))
+			conn.Write([]byte("unknown request"))
+			conn.Close()
+		}
+	}()
+	c := &Client{Socket: socket}
+	if err := c.Plugin(context.Background(), "version", nil); !errors.Is(err, ErrPluginMissing) || strings.Contains(err.Error(), "did not load") {
+		t.Fatalf("without a note: %v", err)
+	}
+	why := "this hyprmasq package has no plugin for the running Hyprland build 11cbc6c577b8 yet. Update it, as with yay -Syu, and restart Hyprland."
+	if err := os.WriteFile(filepath.Join(dir, "hyprmasq-refused"), []byte(why+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Plugin(context.Background(), "version", nil); !errors.Is(err, ErrPluginMissing) || !strings.HasSuffix(err.Error(), why) {
+		t.Fatalf("with a note: %v", err)
 	}
 }
 

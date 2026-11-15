@@ -506,7 +506,7 @@ input is not an error.
 | `cancelled` | The server is shutting down, or the call was cancelled. |
 | `unconfirmed`, `connect_failed`, `no_devices` | The sender could not deliver or confirm the input. |
 | `hook_held` | Another Hyprland plugin hooks a function that hyprmasq needs for the input or the launch, which the message names. Nothing was sent or started, and screenshots still work. See [Other plugins](automation.md#other-plugins). |
-| `plugin_missing`, `plugin_version` | The plugin is not loaded in this Hyprland, or has another interface version than the server. |
+| `plugin_missing`, `plugin_version` | The plugin is not loaded in this Hyprland, or has another interface version than the server. When the plugin refused to load into this Hyprland's build, `plugin_missing` says why, from the note `hyprmasq-refused` that it leaves next to Hyprland's socket. |
 | `recording_failed` | A recording could not start: ffmpeg cannot be run, or the directory cannot be created. Nothing was sent. |
 | `internal` | Anything else. |
 

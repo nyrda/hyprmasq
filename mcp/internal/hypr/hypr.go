@@ -116,7 +116,27 @@ func (c *Client) Plugin(ctx context.Context, args string, out any) error {
 	if err != nil {
 		return err
 	}
-	return decodePluginReply(reply, firstWord(args), out)
+	err = decodePluginReply(reply, firstWord(args), out)
+	if errors.Is(err, ErrPluginMissing) {
+		if why := c.refusal(); why != "" {
+			return fmt.Errorf("%w: it did not load, as %s", ErrPluginMissing, why)
+		}
+	}
+	return err
+}
+
+// refusal is why the plugin last refused to load into this Hyprland, which it writes next to Hyprland's socket, or
+// empty.
+func (c *Client) refusal() string {
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(c.Socket), "hyprmasq-refused"))
+	if err != nil {
+		return ""
+	}
+	why := strings.TrimSpace(string(data))
+	if len(why) > 400 {
+		why = why[:400]
+	}
+	return why
 }
 
 func firstWord(s string) string {

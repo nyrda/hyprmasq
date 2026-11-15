@@ -13,6 +13,9 @@ url='https://github.com/nyrda/hyprmasq'
 license=(MIT)
 depends=(ffmpeg glibc hyprland jq libei libgcc libglvnd libpng libstdc++ libxcb libxkbcommon sh)
 makedepends=(git go)
+# It replaces the AUR's hyprmasq and hyprmasq-plugin-bin, the plugin prebuilt for Arch and Omarchy, with this clone's.
+provides=(hyprmasq-plugin)
+conflicts=(hyprmasq-plugin-bin)
 
 # makepkg works in $BUILDDIR/src, or $BUILDDIR/$pkgname/src when BUILDDIR is set elsewhere. When that is this clone's
 # src, which holds the plugin's sources and which makepkg -c or -C would delete, it works in build/makepkg instead.

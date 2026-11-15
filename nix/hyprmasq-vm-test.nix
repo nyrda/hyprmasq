@@ -214,6 +214,9 @@ let
         # An idle client, as the user's that turns the monitors off and on again.
         pkgs.hypridle
         pkgs.jq
+        # strings, and perl, which patch a copy of the plugin in the unload area.
+        pkgs.binutils
+        pkgs.perl
         pkgs.procps
         # Over the questionnaire module's python3, which has no Pillow.
         (lib.hiPrio python)

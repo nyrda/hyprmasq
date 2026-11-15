@@ -36,16 +36,21 @@ on one desktop, shown at double speed.
 hyprmasq builds against Hyprland 0.57.2 and 0.56.2 from the same source.
 `hyprctl version` shows yours.
 
-**Arch and Omarchy.** Build a pacman package from a clone:
+**Arch and Omarchy.** Install from the AUR, and load the plugin from
+`~/.config/hypr/hyprland.lua`:
 
 ```sh
-git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
+yay -S hyprmasq                 # or hyprmasq-bin, which builds nothing on your machine
 ```
 
-The plugin must be built against the exact Hyprland that loads it, and
-refuses to load into any other. So after each Hyprland update, run
-`git pull && makepkg -sif` and restart Hyprland. Until then, Hyprland runs
-without the plugin.
+```lua
+pcall(dofile, "/etc/xdg/hypr/hyprmasq_plugin.lua")
+```
+
+The plugin comes prebuilt for the Hyprland that Arch and Omarchy ship, so
+Hyprland updates need nothing from you: `yay -Syu` keeps both in step. See
+[Arch and Omarchy](docs/installation.md#arch-and-omarchy), also for a build
+from a clone.
 
 **NixOS.** Add the flake input, pass `inputs` through `specialArgs`, and
 enable the module. It installs the plugin, the tools and the Hyprland build

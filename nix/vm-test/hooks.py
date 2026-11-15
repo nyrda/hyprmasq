@@ -206,6 +206,15 @@ with subtest("the input hooks go in and out a hundred times without taking memor
     machine.log(f"Hyprland's hook pages: {hk_before} bytes before, {hk_after} after")
     assert hk_after - hk_before < 8192, (hk_before, hk_after)
 
+with subtest("hooks check installs every group and removes those not in use again"):
+    hk_before = {name: group["installed"] for name, group in hk_groups().items()}
+    hk_check = json.loads(hypr("-j hyprmasq hooks check"))
+    assert hk_check["ok"] and hk_check["all"], hk_check
+    hk_states = {group["name"]: group["state"] for group in hk_check["groups"]}
+    assert hk_states == {name: "installed" if installed else "installs" for name, installed in hk_before.items()}, (hk_states, hk_before)
+    assert {name: group["installed"] for name, group in hk_groups().items()} == hk_before
+    assert "installs" in hypr("hyprmasq hooks check")
+
 with subtest("a hook that another plugin holds at load turns off only its own feature"):
     assert hypr(f"plugin unload {plugin}") == "ok"
     assert hk_load(hk_taker("idle")) == "ok"
@@ -213,6 +222,8 @@ with subtest("a hook that another plugin holds at load turns off only its own fe
     idle_hooks = hk_groups()["idle"]
     assert not idle_hooks["installed"] and idle_hooks["refused"]["code"] == "hook_held", idle_hooks
     assert "CIdleNotifyProtocol::setInhibit" in idle_hooks["refused"]["message"], idle_hooks
+    hk_check = {group["name"]: group for group in json.loads(hypr("-j hyprmasq hooks check"))["groups"]}
+    assert hk_check["idle"]["state"] == "refused" and hk_check["idle"]["refused"]["code"] == "hook_held", hk_check
     hk_path = open_socket(hk_shell)
     send(hk_path, "type", "echo hk-idle > /tmp/hm-hk-idle", "key", 28)
     machine.wait_until_succeeds('test "$(cat /tmp/hm-hk-idle)" = hk-idle')
