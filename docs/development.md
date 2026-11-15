@@ -369,7 +369,9 @@ one.
 
 - `hyprmasq` builds `hyprmasq-mcp`, `hyprmasq-input`, `hyprmasq-launch` and
   `hyprmasq-reaper` from the release's archive, and depends on
-  `hyprmasq-plugin` of its version.
+  `hyprmasq-plugin` of its version or newer. yay installs a new
+  `hyprmasq-plugin-bin` before it builds the new `hyprmasq`, so an exact
+  version would stop the update.
 - `hyprmasq-bin` installs the same programs prebuilt, in place of `hyprmasq`.
   `build-tools.sh` builds them with the PKGBUILD of `hyprmasq`, tests
   included, on the oldest snapshot that a plugin builds on, as below, and

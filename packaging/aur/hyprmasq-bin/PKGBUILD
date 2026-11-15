@@ -15,7 +15,9 @@ pkgdesc='Computer use for Hyprland: an MCP server and tools for per-window scree
 arch=(x86_64)
 url='https://github.com/nyrda/hyprmasq'
 license=(MIT)
-depends=(ffmpeg glibc "hyprmasq-plugin=$pkgver" jq libei libxkbcommon sh)
+# The plugin of this release or a newer one: yay installs the new hyprmasq-plugin-bin before it builds this package, while
+# the old one is still installed, and makepkg checks this before it builds.
+depends=(ffmpeg glibc "hyprmasq-plugin>=$pkgver" jq libei libxkbcommon sh)
 provides=("hyprmasq=$pkgver")
 conflicts=(hyprmasq)
 options=(!debug !strip)

@@ -364,6 +364,25 @@ jobs:
             (cd "$dir" && sudo -u builder updpkgsums)
           done
           cat /tmp/aur/hyprmasq-plugin-bin/PKGBUILD
+      # The new packages then install over them one at a time, as yay updates: hyprmasq-plugin-bin while the AUR's
+      # hyprmasq is still installed, and then hyprmasq. 0.3.0 and 0.3.1 required the plugin of exactly their version,
+      # which no update passes this way, so they are not installed first.
+      - name: Install the packages that the AUR has
+        if: needs.plan.outputs.mode != 'refresh'
+        run: |
+          for pkg in hyprmasq-plugin-bin hyprmasq; do
+            git clone -q "https://aur.archlinux.org/$pkg.git" "/tmp/published/$pkg"
+          done
+          srcinfo=/tmp/published/hyprmasq/.SRCINFO
+          if [[ ! -f $srcinfo ]] || grep -q $'^\tdepends = hyprmasq-plugin=' "$srcinfo"; then
+            echo "The AUR has no hyprmasq that updates one package at a time"
+            exit 0
+          fi
+          chown -R builder /tmp/published
+          for pkg in hyprmasq-plugin-bin hyprmasq; do
+            (cd "/tmp/published/$pkg" && sudo -u builder makepkg -si --noconfirm)
+          done
+          pacman -Q hyprmasq hyprmasq-plugin-bin
       - name: Build and install hyprmasq-plugin-bin
         run: cd /tmp/aur/hyprmasq-plugin-bin && sudo -u builder makepkg -si --noconfirm
       - name: Build and install hyprmasq
