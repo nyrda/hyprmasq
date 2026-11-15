@@ -1,4 +1,5 @@
 #include "Commands.hpp"
+#include "Hyprland.hpp"
 
 #include "Deferred.hpp"
 #include "Eis.hpp"
@@ -12,7 +13,6 @@
 #include "Windows.hpp"
 #include "X11.hpp"
 
-#include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 
 #include <charconv>
@@ -24,10 +24,6 @@
 #include <vector>
 
 namespace hyprmasq {
-    using IPC::Socket1::eOutputFormat;
-    using IPC::Socket1::FORMAT_JSON;
-    using IPC::Socket1::SResponse;
-
     namespace {
         constexpr std::string_view USAGE =
             "usage:\n"
@@ -292,7 +288,7 @@ namespace hyprmasq {
                 return "null";
             const auto reason   = source->reason.empty() ? std::string{} : std::format(R"(,"reason":"{}")", source->reason);
             const auto window   = source->window.lock();
-            const auto stableId = window ? std::format(R"("{:x}")", window->metadata().stableID()) : std::string{"null"};
+            const auto stableId = window ? std::format(R"("{:x}")", hl::stableID(window)) : std::string{"null"};
             return std::format(R"({{"window":{},"stableId":{},"placed":{}{}}})", jsonString(source->address), stableId, source->placed, reason);
         }
 
@@ -374,15 +370,15 @@ namespace hyprmasq {
                 return std::format(
                     R"({{"ok":true,"address":{},"stableId":"{:x}","xwayland":{},"x11":{},"size":{{"width":{},"height":{}}},"resizing":{},"starved":{},"outdated":{},"scale":{},)"
                     R"("socket":{},"socketId":{},"commits":{},"interrupted":{},"lastPause":{},"drag":{},"lease":{},"capabilities":{{"lease":{},"hold":{},"dnd":{},"privateDnd":{},"keyboard":"{}"}},"source":{},"popups":{}}})",
-                    jsonString(windowAddress(window)), window->metadata().stableID(), window->backend().isX11(), x11Json(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry,
-                    late, jsonOrNull(scale), socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut),
+                    jsonString(windowAddress(window)), hl::stableID(window), hl::isX11(window), x11Json(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry, late,
+                    jsonOrNull(scale), socket ? jsonString(socket->path) : "null", socket ? jsonString(socket->id) : "null", jsonOrNull(commits), jsonOrNull(cut),
                     paused ? jsonString(*paused) : "null", dragJson(drags), lease ? "{" + leaseFields(*lease) + "}" : "null", caps.lease, caps.hold, caps.dnd, caps.privateDnd,
                     keyboard, sourceJson(source), popupsJson(popups));
             return std::format(
                 "address: {}\nstableId: {:x}\nxwayland: {}\nx11: {}\nsize: {}x{}\nresizing: {}\nstarved: {}\noutdated: {}\nscale: {}\nsocket: {}\nsocketId: {}\ncommits: {}\n"
                 "interrupted: {}\nlastPause: {}\ndrag: {}\nlease: {}\ncapabilities: lease={} hold={} dnd={} private_dnd={} keyboard={}\nsource: {}\npopups: {}\n",
-                windowAddress(window), window->metadata().stableID(), window->backend().isX11(), x11Text(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry, late,
-                jsonOrNull(scale), socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none", cut ? std::to_string(*cut) : "none",
+                windowAddress(window), hl::stableID(window), hl::isX11(window), x11Text(kind), sc<int>(size.x), sc<int>(size.y), behind, hungry, late, jsonOrNull(scale),
+                socket ? socket->path : "none", socket ? socket->id : "none", commits ? std::to_string(*commits) : "none", cut ? std::to_string(*cut) : "none",
                 paused.value_or("none"), dragText(drags), lease ? leaseText(*lease) : "none", caps.lease, caps.hold, caps.dnd, caps.privateDnd, keyboard, sourceText(source),
                 popupsText(popups));
         }

@@ -33,22 +33,19 @@ on one desktop, shown at double speed.
 
 ## Install
 
-hyprmasq is built for one Hyprland release: `main` for 0.57.2 and the
-`hyprland-0.56` branch for 0.56.2. `hyprctl version` shows yours.
+hyprmasq builds against Hyprland 0.57.2 and 0.56.2 from the same source.
+`hyprctl version` shows yours.
 
 **Arch and Omarchy.** Build a pacman package from a clone:
 
 ```sh
-# Hyprland 0.57.2
 git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
-# Hyprland 0.56.2
-git clone -b hyprland-0.56 https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
 ```
 
 The plugin must be built against the exact Hyprland that loads it, and
-refuses to load into any other. So after each Hyprland update, `git switch`
-the clone to the branch for it, run `git pull && makepkg -sif` and restart
-Hyprland. Until then, Hyprland runs without the plugin.
+refuses to load into any other. So after each Hyprland update, run
+`git pull && makepkg -sif` and restart Hyprland. Until then, Hyprland runs
+without the plugin.
 
 **NixOS.** Add the flake input, pass `inputs` through `specialArgs`, and
 enable the module. It installs the plugin, the tools and the Hyprland build

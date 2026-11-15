@@ -1,6 +1,6 @@
 #pragma once
 #include "Error.hpp"
-#include <hyprland/src/ipc/s1/S1.hpp>
+#include "Hyprland.hpp"
 #include <functional>
 #include <string>
 
@@ -10,18 +10,18 @@ namespace hyprmasq::deferred {
     // Signals stopFd(), waits for all running work and answers every client that is still waiting.
     void shutdown();
 
-    // Runs work on its own thread. Returns the reply for the command handler to return: a promise that hyprctl answers
-    // with once work finishes, or work's own result when the caller needs the reply at once. Work goes on the main thread
-    // once it has run, so it may hold what only the main thread may free.
-    IPC::Socket1::SResponse run(std::move_only_function<std::string()> work);
+    // Runs work on its own thread. Returns the reply for the command handler to return: one that hyprctl sends once work
+    // finishes (a promise on Hyprland 0.57, a placeholder on 0.56), or work's own result when the caller needs the reply
+    // at once. Work goes on the main thread once it has run, so it may hold what only the main thread may free.
+    SResponse run(std::move_only_function<std::string()> work);
     // Like run(), for work that waits for the main thread, which therefore never runs it or waits for it. Where run()
     // would run work at once, the reply is refuse(why) instead.
-    IPC::Socket1::SResponse runWaiting(std::move_only_function<std::string()> work, std::move_only_function<std::string(const SError&)> refuse);
+    SResponse runWaiting(std::move_only_function<std::string()> work, std::move_only_function<std::string(const SError&)> refuse);
     // A reply whose work the main thread can start only later, once what it needs is ready, as pixels that the GPU reads
     // back. The command handler returns response, and start(work), called on the main thread, runs work on its own
     // thread as run() does. A reply that start() has not started by the unload is refuse(why). Only while canDefer().
     struct SLater {
-        IPC::Socket1::SResponse                                               response;
+        SResponse                                                             response;
         std::move_only_function<void(std::move_only_function<std::string()>)> start;
     };
     SLater later(std::move_only_function<std::string(const SError&)> refuse);
@@ -29,8 +29,10 @@ namespace hyprmasq::deferred {
     // the main thread may only start when this is true.
     bool canDefer();
     // Whether the main thread waits for the work that calls this to end: work on the main thread itself, which run()
-    // runs there when it cannot defer the reply, as for HyprlandAPI::invokeHyprctlCommand, or cannot start a thread.
-    // Such work must not wait for anything outside Hyprland, such as a pipe's reader.
+    // runs there when it cannot defer the reply, as for HyprlandAPI::invokeHyprctlCommand, or cannot start a thread, and
+    // on Hyprland 0.56 work whose reply a request that cannot be deferred collects, as a batch through
+    // HyprlandAPI::invokeHyprctlCommand does. Such work must not wait for anything outside Hyprland, such as a pipe's
+    // reader.
     bool waited();
     // An eventfd that becomes readable when the plugin unloads, or -1 while it is not loaded. shutdown() waits for every
     // job, so work that waits for something outside Hyprland, such as a pipe's reader, watches it and ends early. It

@@ -1,16 +1,18 @@
 #include "Windows.hpp"
 #include "FocusPolicy.hpp"
+#include "Hyprland.hpp"
 #include "PrivateAccess.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
-#include <hyprland/src/desktop/view/window/Window.hpp>
-#include <hyprland/src/desktop/view/window/X11Backend.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#if HYPRMASQ_HYPRLAND >= 57
+#include <hyprland/src/desktop/view/window/X11Backend.hpp>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -32,7 +34,7 @@ namespace hyprmasq {
         address = normalizeAddress(address);
 
         for (const auto& window : Desktop::windowState()->windows()) {
-            if (window && window->mapped() && windowAddress(window) == address)
+            if (window && hl::mapped(window) && windowAddress(window) == address)
                 return window;
         }
 
@@ -40,7 +42,8 @@ namespace hyprmasq {
     }
 
     Vector2D geometryOffset(const PHLWINDOW& window) {
-        return !window->backend().isX11() && window->backend().valid() ? window->backend().geometry().box.pos() : Vector2D{};
+        const auto geometry = hl::xdgGeometry(window);
+        return geometry ? geometry->pos() : Vector2D{};
     }
 
     CBox unite(const CBox& a, const CBox& b) {
@@ -71,19 +74,19 @@ namespace hyprmasq {
                 s->breadthfirst([&](SP<CWLSurfaceResource> child, const Vector2D&, void*) { fn(child); }, nullptr);
         };
         visit(window->wlSurface()->resource());
-        if (window->popupHead())
-            window->popupHead()->breadthfirst([&](SP<Desktop::View::CPopup> p, void*) { visit(p->resource()); }, nullptr);
+        if (hl::popupHead(window))
+            hl::popupHead(window)->breadthfirst([&](SP<Desktop::View::CPopup> p, void*) { visit(p->resource()); }, nullptr);
     }
 
     std::vector<SPopupBox> popupBoxes(const PHLWINDOW& window) {
         std::vector<SPopupBox> boxes;
-        if (window->backend().isX11() || !window->popupHead() || !window->backend().valid())
+        if (!hl::popupHead(window) || !hl::xdgGeometry(window))
             return boxes;
         const auto geometry = geometryOffset(window);
-        window->popupHead()->breadthfirst(
+        hl::popupHead(window)->breadthfirst(
             [&](SP<Desktop::View::CPopup> popup, void*) {
                 const auto surface = popup->resource();
-                if (!popup->mapped() || !surface || !surface->m_mapped)
+                if (!hl::mapped(popup) || !surface || !surface->m_mapped)
                     return;
                 // At its parent's origin less the window's geometry offset, as the renderer and the plugin's pointer place it.
                 const auto          origin = popup->coordsRelativeToParent() - geometry;
@@ -110,19 +113,25 @@ namespace hyprmasq {
         // Within a logical pixel: a buffer of odd width at scale 2 is half a pixel wide.
         const auto differs = [](const Vector2D& a, const Vector2D& b) { return std::abs(a.x - b.x) >= 1 || std::abs(a.y - b.y) >= 1; };
         // Hyprland takes the size it configured an X11 window to last as reported once the window commits.
-        if (window->backend().isX11()) {
-            const auto pending = pendingReportedSizeOf(sc<Desktop::View::CX11Backend&>(window->backend())).value_or(window->backend().reportedSize());
-            return differs(window->backend().reportedSize(), pending) && differs(surface->m_current.size, pending);
+        if (hl::isX11(window)) {
+#if HYPRMASQ_HYPRLAND >= 57
+            const auto reported = window->backend().reportedSize();
+            const auto pending  = pendingReportedSizeOf(sc<Desktop::View::CX11Backend&>(window->backend())).value_or(reported);
+#else
+            const auto reported = window->m_reportedSize;
+            const auto pending  = window->m_pendingReportedSize;
+#endif
+            return differs(reported, pending) && differs(surface->m_current.size, pending);
         }
-        if (!window->backend().valid())
+        const auto geometry = hl::xdgGeometry(window);
+        if (!geometry)
             return false;
         // Hyprland notes the size of each configure, floored, and applies it as the acked size with the first commit after
         // the window acks it. A window that acks a configure that keeps its size need not commit, so its content counts
         // too: the xdg window geometry when the window sets one, otherwise its surface.
         const auto     goal = window->size(Desktop::View::IGeometric::GEOMETRIC_GOAL);
         const Vector2D size{std::floor(std::max(0.0, goal.x)), std::floor(std::max(0.0, goal.y))};
-        const auto     geometry = window->backend().geometry().box;
-        const auto     content  = geometry.w > 0 && geometry.h > 0 ? geometry.size() : surface->m_current.size;
+        const auto     content = geometry->w > 0 && geometry->h > 0 ? geometry->size() : surface->m_current.size;
         return differs(surface->m_current.ackedSize, size) && differs(content, size);
     }
 }

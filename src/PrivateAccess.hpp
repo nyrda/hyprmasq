@@ -1,5 +1,7 @@
 #pragma once
 
+#include "HyprlandVersion.hpp"
+
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/helpers/math/Math.hpp>
 #include <hyprland/src/helpers/memory/Memory.hpp>
@@ -15,6 +17,7 @@
 
 class CFunctionHook;
 class CHookSystem;
+class CHyprCtl;
 class CIdleNotifyProtocol;
 class CPrimarySelectionDevice;
 class CPrimarySelectionProtocol;
@@ -33,6 +36,7 @@ class CZwpPrimarySelectionDeviceV1;
 class IDataDevice;
 class IDataSource;
 class IKeyboard;
+struct SHyprCtlCommand;
 struct SXSelection;
 struct wl_resource;
 namespace Desktop::Rule {
@@ -128,7 +132,8 @@ namespace hyprmasq {
     // CWindowRuleApplicator::m_window: the window whose rules an applicator reads.
     PHLWINDOWREF& windowOf(Desktop::Rule::CWindowRuleApplicator& applicator);
 
-    // Windows, src/desktop/view/window/Window.hpp and X11Backend.hpp.
+#if HYPRMASQ_HYPRLAND >= 57
+    // Windows, src/desktop/view/window/Window.hpp and X11Backend.hpp, on Hyprland 0.57. 0.56 has these members public.
     // CWindow::m_requestSuppression.activateFocusOnly: whether the window's activation requests only mark it urgent.
     bool& activateFocusOnlyOf(Desktop::View::CWindow& window);
     // CX11Backend::m_pendingReportedSize: the size Hyprland last configured an X11 window to, until the window takes it.
@@ -136,6 +141,11 @@ namespace hyprmasq {
     // CX11Backend::m_xwaylandSurface: an X11 window's XWayland surface, with its X window, override-redirect flag and
     // window types.
     WP<CXWaylandSurface>& xwaylandSurfaceOf(Desktop::View::CX11Backend& backend);
+#else
+    // hyprctl, src/debug/HyprCtl.hpp, on Hyprland 0.56.
+    // CHyprCtl::m_commands: its commands, among them the batch command.
+    std::vector<SP<SHyprCtlCommand>>& commandsOf(CHyprCtl& ctl);
+#endif
 
     // Idle notifications, src/protocols/IdleNotify.hpp.
     // CIdleNotifyProtocol::isInhibited: whether an idle inhibitor holds off the notifications that obey inhibitors, as
@@ -143,9 +153,15 @@ namespace hyprmasq {
     bool& inhibitedOf(CIdleNotifyProtocol& protocol);
 
     // The renderer, src/render/Renderer.hpp.
+#if HYPRMASQ_HYPRLAND >= 57
     // IHyprRenderer::renderWindow, protected: draws a window into the render of ctx, presented as presentation says.
     void renderWindow(Render::IHyprRenderer& renderer, Render::CRenderContext& ctx, PHLWINDOW window, PHLMONITOR monitor, const Render::SWindowRenderPresentation& presentation,
                       const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode, bool ignorePosition, bool standalone);
+#else
+    // IHyprRenderer::renderWindow, protected: draws a window into the current render.
+    void renderWindow(Render::IHyprRenderer& renderer, PHLWINDOW window, PHLMONITOR monitor, const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode,
+                      bool ignorePosition, bool standalone);
+#endif
 
     // The function hooks of plugins, src/plugins/HookSystem.hpp.
     // CHookSystem::m_activeHooks: the addresses of the functions that a plugin has hooked, which CFunctionHook::hook()
@@ -161,8 +177,10 @@ namespace hyprmasq {
     std::vector<unsigned char>& originalBytesOf(CFunctionHook& hook);
     bool& activeOf(CFunctionHook& hook);
 
-    // The GL renderer, src/render/GLRenderer.hpp.
+#if HYPRMASQ_HYPRLAND >= 57
+    // The GL renderer, src/render/GLRenderer.hpp, on Hyprland 0.57. 0.56 keeps these public in IHyprRenderer.
     // CHyprGLRenderer::m_pendingBufferUses: the client buffers that full fake renders, as captures are, and aborted renders
     // drew, which the renderer holds until the end of its next render of a monitor.
     std::vector<Render::SSurfaceBufferUse>& pendingBufferUsesOf(Render::GL::CHyprGLRenderer& renderer);
+#endif
 }

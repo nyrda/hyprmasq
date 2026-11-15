@@ -1,5 +1,6 @@
 #include "Deferred.hpp"
 #include "Hooks.hpp"
+#include "Hyprland.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
@@ -15,6 +16,9 @@
 #include <stdexcept>
 #include <thread>
 #include <vector>
+
+// Hyprland 0.57 answers a hyprctl request with a promise. Deferred056.cpp does the same for 0.56.
+#if HYPRMASQ_HYPRLAND >= 57
 
 namespace hyprmasq::deferred {
     namespace {
@@ -112,7 +116,7 @@ namespace hyprmasq::deferred {
         }
 
         // Starts work and returns the promise of its reply.
-        IPC::Socket1::SResponse schedule(std::move_only_function<std::string()> work, Refuse refuse) {
+        SResponse schedule(std::move_only_function<std::string()> work, Refuse refuse) {
             Resolver resolver;
             auto     promise = CPromise<std::string>::make([&](Resolver r) { resolver = r; });
             start(std::move(work), std::move(refuse), std::move(resolver));
@@ -217,7 +221,7 @@ namespace hyprmasq::deferred {
         return std::this_thread::get_id() == mainThread;
     }
 
-    IPC::Socket1::SResponse run(std::move_only_function<std::string()> work) {
+    SResponse run(std::move_only_function<std::string()> work) {
         if (!deferrable())
             return work();
         return schedule(std::move(work), nullptr);
@@ -238,7 +242,7 @@ namespace hyprmasq::deferred {
                       }};
     }
 
-    IPC::Socket1::SResponse runWaiting(std::move_only_function<std::string()> work, std::move_only_function<std::string(const SError&)> refuse) {
+    SResponse runWaiting(std::move_only_function<std::string()> work, std::move_only_function<std::string(const SError&)> refuse) {
         if (!deferrable())
             return refuse(SError{eErrorCode::UNSUPPORTED, "wait only works in requests to hyprctl's socket"});
         return schedule(std::move(work), std::move(refuse));
@@ -246,3 +250,5 @@ namespace hyprmasq::deferred {
 }
 
 template struct hyprmasq::SPinned<hyprmasq::deferred::InvokeHyprctlCommand, &HyprlandAPI::invokeHyprctlCommand>;
+
+#endif

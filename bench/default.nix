@@ -57,7 +57,12 @@ let
         scale = builtins.elemAt m 1;
       };
   # Hyprland's flake versions its package "<release>+date=<date>_<commit>".
-  targetVersion = if pinsHyprlandFlake then pkgs.lib.fileContents (source + "/HYPRLAND_VERSION") else "0.56.2";
+  # HYPRLAND_VERSION names the pinned release first, and the release before it after it.
+  targetVersion =
+    if pinsHyprlandFlake then
+      builtins.head (pkgs.lib.splitString "\n" (pkgs.lib.fileContents (source + "/HYPRLAND_VERSION")))
+    else
+      "0.56.2";
   hyprland =
     if builtins.head (pkgs.lib.splitString "+" pkgs.hyprland.version) == targetVersion then
       pkgs.hyprland

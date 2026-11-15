@@ -4,6 +4,7 @@
 #include "Hooks.hpp"
 #include "PrivateAccess.hpp"
 #include "X11.hpp"
+#include "Hyprland.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
@@ -250,7 +251,7 @@ namespace hyprmasq::selection {
             }
             if (old && !userSelection(old))
                 old->cancelled();
-            Log::logger->log(Log::DEBUG, "hyprmasq", "the agent's {} is {:x}", kind == CLIPBOARD ? "clipboard" : "primary selection", rc<uintptr_t>(source.get()));
+            hl::log(Log::DEBUG, "the agent's {} is {:x}", kind == CLIPBOARD ? "clipboard" : "primary selection", rc<uintptr_t>(source.get()));
             changed();
         }
 
@@ -346,7 +347,7 @@ namespace hyprmasq::selection {
                     else
                         g_pSeatManager->setCurrentPrimarySelection(nullptr);
                 }
-                Log::logger->log(Log::DEBUG, "hyprmasq", "keeping the X {} of window {:x} from Wayland", *kind == CLIPBOARD ? "clipboard" : "primary selection", e->owner);
+                hl::log(Log::DEBUG, "keeping the X {} of window {:x} from Wayland", *kind == CLIPBOARD ? "clipboard" : "primary selection", e->owner);
             }
             return result;
         }
@@ -422,7 +423,7 @@ namespace hyprmasq::selection {
         const auto source = slot.source.lock();
         const bool ended  = source && slot.owner == client && !userSelection(source);
         if (ended) {
-            Log::logger->log(Log::DEBUG, "hyprmasq", "the user's input ends the agent's clipboard {:x} in its app", rc<uintptr_t>(source.get()));
+            hl::log(Log::DEBUG, "the user's input ends the agent's clipboard {:x} in its app", rc<uintptr_t>(source.get()));
             clear(CLIPBOARD);
             source->cancelled();
         }

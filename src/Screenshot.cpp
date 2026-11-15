@@ -1,23 +1,24 @@
+#include "Hyprland.hpp"
 #include "Screenshot.hpp"
 #include "PrivateAccess.hpp"
 #include "Windows.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
-#include <hyprland/src/desktop/view/window/Window.hpp>
-#include <hyprland/src/desktop/view/window/WindowEffectsController.hpp>
-#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
-#include <hyprland/src/render/GLRenderer.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/render/gl/GLFramebuffer.hpp>
 #include <hyprland/src/render/pass/TexPassElement.hpp>
+#if HYPRMASQ_HYPRLAND >= 57
+#include <hyprland/src/desktop/view/window/WindowEffectsController.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
+#include <hyprland/src/render/GLRenderer.hpp>
 #include <hyprland/src/render/transformer/TransformerList.hpp>
-#include <hyprland/src/workspace/HLWorkspace.hpp>
+#endif
 #include <hyprutils/math/Region.hpp>
 #include <hyprutils/utils/ScopeGuard.hpp>
 
@@ -162,6 +163,13 @@ namespace hyprmasq {
         };
     }
 
+    // A client buffer that a render drew, which the renderer holds until the GPU is done with it.
+#if HYPRMASQ_HYPRLAND >= 57
+    using DrawnBuffer = Render::SSurfaceBufferUse;
+#else
+    using DrawnBuffer = CHLBufferReference;
+#endif
+
     // The images of a capture without their pixels, which the GPU reads back into pixel buffer objects after the render,
     // and the window's buffers that the render drew, which the app may not reuse until the GPU is done with them. Once
     // the GPU is, the buffers are mapped, and any thread may copy the pixels out. The capture must go on the main thread,
@@ -174,11 +182,11 @@ namespace hyprmasq {
             size_t         size   = 0;
             const uint8_t* mapped = nullptr;
         };
-        std::vector<SRead>                     reads;          // the image, then the detail image
-        GLsync                                 done = nullptr; // signals once the GPU has run the reads
-        std::vector<Render::SSurfaceBufferUse> drawn;
-        Time::steady_tp                        started = Time::steadyNow();
-        Then                                   then;
+        std::vector<SRead>       reads;          // the image, then the detail image
+        GLsync                   done = nullptr; // signals once the GPU has run the reads
+        std::vector<DrawnBuffer> drawn;
+        Time::steady_tp          started = Time::steadyNow();
+        Then                     then;
 
         SPendingCapture()                                  = default;
         SPendingCapture(const SPendingCapture&)            = delete;
@@ -417,10 +425,16 @@ namespace hyprmasq {
             CRegion damage = {0.0, 0.0, sc<double>(width), sc<double>(height)};
             if (!g_pHyprRenderer->beginFullFakeRender(monitor, damage, fb))
                 return false;
+#if HYPRMASQ_HYPRLAND >= 57
             auto& ctx                  = g_pHyprRenderer->context();
             ctx.m_data.fbSize          = Vector2D{width, height};
             ctx.m_data.transformDamage = false;
             g_pHyprRenderer->setProjectionType(ctx, Render::RPT_EXPORT);
+#else
+            g_pHyprRenderer->m_renderData.fbSize          = Vector2D{width, height};
+            g_pHyprRenderer->m_renderData.transformDamage = false;
+            g_pHyprRenderer->setProjectionType(Render::RPT_EXPORT);
+#endif
             g_pHyprRenderer->setViewport(0, 0, width, height);
             glClearColor(0.F, 0.F, 0.F, 0.F);
             glClear(GL_COLOR_BUFFER_BIT);
@@ -428,17 +442,23 @@ namespace hyprmasq {
         }
 
         // Aborts a render that an exception left unfinished: while a render context is active, no other render, also none of
-        // the compositor's own, can begin.
+        // the compositor's own, can begin. Hyprland 0.56 has no render context.
         Hyprutils::Utils::CScopeGuard abortUnfinished() {
             return Hyprutils::Utils::CScopeGuard([] {
+#if HYPRMASQ_HYPRLAND >= 57
                 if (g_pHyprRenderer->context().active())
                     g_pHyprRenderer->abortRender();
+#endif
             });
         }
 
         // Ends the render, which resets the render context.
         void finishRender() {
+#if HYPRMASQ_HYPRLAND >= 57
             g_pHyprRenderer->context().m_data.blockScreenShader = true;
+#else
+            g_pHyprRenderer->m_renderData.blockScreenShader = true;
+#endif
             g_pHyprRenderer->endRender();
         }
 
@@ -451,7 +471,11 @@ namespace hyprmasq {
             CTexPassElement::SRenderData data;
             data.tex = source->getTexture();
             data.box = box;
+#if HYPRMASQ_HYPRLAND >= 57
             g_pHyprRenderer->draw(g_pHyprRenderer->context(), data, CRegion{0.0, 0.0, sc<double>(width), sc<double>(height)});
+#else
+            g_pHyprRenderer->draw(data, CRegion{0.0, 0.0, sc<double>(width), sc<double>(height)});
+#endif
             finishRender();
             return fb;
         }
@@ -474,32 +498,60 @@ namespace hyprmasq {
         class CGoalGeometry {
           public:
             explicit CGoalGeometry(const PHLWINDOW& window) : m_window(window) {
-                auto& size     = window->sizeAnimation();
-                m_size         = std::exchange(size->value(), size->goal());
+                auto& size = window->sizeAnimation();
+                m_size     = std::exchange(size->value(), size->goal());
+#if HYPRMASQ_HYPRLAND >= 57
                 m_animatingIn  = window->presentation().animatingIn();
                 m_transformers = std::exchange(transformersOf(window), makeUnique<Render::CWindowTransformerList>());
                 window->presentation().setAnimatingIn(false);
+#else
+                m_animatingIn  = std::exchange(window->m_animatingIn, false);
+                m_transformers = std::exchange(window->m_transformers, {});
+#endif
             }
             ~CGoalGeometry() {
                 m_window->sizeAnimation()->value() = m_size;
+#if HYPRMASQ_HYPRLAND >= 57
                 m_window->presentation().setAnimatingIn(m_animatingIn);
                 transformersOf(m_window) = std::move(m_transformers);
+#else
+                m_window->m_animatingIn  = m_animatingIn;
+                m_window->m_transformers = std::move(m_transformers);
+#endif
             }
             CGoalGeometry(const CGoalGeometry&)            = delete;
             CGoalGeometry& operator=(const CGoalGeometry&) = delete;
 
           private:
+#if HYPRMASQ_HYPRLAND >= 57
             // The effects controller hands out the window's transformers read-only. They belong to the window, which is
             // not const, so they can be swapped out.
             static UP<Render::CWindowTransformerList>& transformersOf(const PHLWINDOW& window) {
                 return const_cast<UP<Render::CWindowTransformerList>&>(window->effects().transformers());
             }
 
-            PHLWINDOW                          m_window;
-            Vector2D                           m_size;
-            bool                               m_animatingIn = false;
             UP<Render::CWindowTransformerList> m_transformers;
+#else
+            std::vector<UP<Render::IWindowTransformer>> m_transformers;
+#endif
+            PHLWINDOW m_window;
+            Vector2D  m_size;
+            bool      m_animatingIn = false;
         };
+
+#if HYPRMASQ_HYPRLAND < 57
+        // Hyprland 0.56 resets the render data's monitor after every offscreen render, as Screenshare::CScreenshareFrame
+        // does, which beginRender sets also when it fails. 0.57 keeps it in the render context, which ends with the render.
+        class CRenderMonitorReset {
+          public:
+            CRenderMonitorReset() = default;
+            ~CRenderMonitorReset() {
+                g_pHyprRenderer->m_renderData.pMonitor.reset();
+            }
+            CRenderMonitorReset(const CRenderMonitorReset&)            = delete;
+            CRenderMonitorReset& operator=(const CRenderMonitorReset&) = delete;
+        };
+#endif
 
         // The renderer holds each dmabuf buffer that it draws, which the app may not reuse until the compositor releases
         // it. After a monitor's frame, Hyprland lets them go once the GPU is done with them, but after a full fake render,
@@ -511,7 +563,11 @@ namespace hyprmasq {
         // thread only, and nothing else renders in between.
         class CDrawnBuffers {
           public:
+#if HYPRMASQ_HYPRLAND >= 57
             CDrawnBuffers() : m_renderer(dynamic_cast<Render::GL::CHyprGLRenderer*>(g_pHyprRenderer.get())), m_before(m_renderer ? pendingBufferUsesOf(*m_renderer).size() : 0) {}
+#else
+            CDrawnBuffers() : m_before(g_pHyprRenderer->m_usedAsyncBuffers.size()) {}
+#endif
             ~CDrawnBuffers() {
                 take();
             }
@@ -519,11 +575,15 @@ namespace hyprmasq {
             CDrawnBuffers& operator=(const CDrawnBuffers&) = delete;
 
             // The buffers that the renderer took since, which it no longer holds.
-            std::vector<Render::SSurfaceBufferUse> take() {
-                std::vector<Render::SSurfaceBufferUse> taken;
+            std::vector<DrawnBuffer> take() {
+                std::vector<DrawnBuffer> taken;
+#if HYPRMASQ_HYPRLAND >= 57
                 if (!m_renderer)
                     return taken;
                 auto& used = pendingBufferUsesOf(*m_renderer);
+#else
+                auto& used = g_pHyprRenderer->m_usedAsyncBuffers;
+#endif
                 if (used.size() > m_before) {
                     const auto from = used.begin() + sc<std::ptrdiff_t>(m_before);
                     taken.assign(std::make_move_iterator(from), std::make_move_iterator(used.end()));
@@ -533,8 +593,10 @@ namespace hyprmasq {
             }
 
           private:
+#if HYPRMASQ_HYPRLAND >= 57
             Render::GL::CHyprGLRenderer* m_renderer;
-            size_t                       m_before;
+#endif
+            size_t m_before;
         };
 
         // The renderer produces premultiplied alpha, PNG stores straight alpha.
@@ -550,7 +612,7 @@ namespace hyprmasq {
     }
 
     std::expected<std::shared_ptr<SPendingCapture>, SError> startCapture(const PHLWINDOW& window, const SCaptureOptions& options) {
-        if (!window || !window->mapped())
+        if (!window || !hl::mapped(window))
             return std::unexpected(SError{eErrorCode::WINDOW_GONE, "window is not mapped"});
 
         const auto monitor = window->m_monitor.lock();
@@ -627,6 +689,9 @@ namespace hyprmasq {
             return std::unexpected(SError{eErrorCode::INTERNAL, "only the GL renderer is supported"});
         // The render context holds the monitor: a begin that fails aborts it, and the end of the render, or abortUnfinished()
         // after an exception, resets it.
+#if HYPRMASQ_HYPRLAND < 57
+        const CRenderMonitorReset reset;
+#endif
         // Takes the window's buffers from the renderer after the reads below, at every return.
         CDrawnBuffers drawn;
         auto          pending = std::make_shared<SPendingCapture>();
@@ -635,11 +700,16 @@ namespace hyprmasq {
         const auto guard = abortUnfinished();
 
         // Rendered windows already get frame callbacks from the normal render loop.
+#if HYPRMASQ_HYPRLAND >= 57
         auto& ctx                  = g_pHyprRenderer->context();
         ctx.m_blockSurfaceFeedback = rendered(window);
+#else
+        g_pHyprRenderer->m_bBlockSurfaceFeedback = rendered(window);
+#endif
         {
             const CGoalGeometry goal{window};
             {
+#if HYPRMASQ_HYPRLAND >= 57
                 // renderWindow puts the window at the image's origin plus the floating offset of the presentation, which
                 // moves popups above or left of the window into the image, and draws popups only while their window is
                 // rendered on screen.
@@ -652,11 +722,30 @@ namespace hyprmasq {
                         workspace->m_forceRendering = forced;
                 });
                 renderWindow(*g_pHyprRenderer, ctx, window, monitor, presentation, Time::steadyNow(), false, Render::RENDER_PASS_ALL, true, true);
+#else
+                // Hyprland 0.56 keeps the floating offset in the window itself.
+                const auto workspace = window->m_workspace;
+                const auto offset    = std::exchange(window->m_floatingOffset, Vector2D{-boxX, -boxY});
+                const bool forced    = workspace && std::exchange(workspace->m_forceRendering, true);
+                const auto restore   = Hyprutils::Utils::CScopeGuard([&] {
+                    window->m_floatingOffset = offset;
+                    if (workspace)
+                        workspace->m_forceRendering = forced;
+                });
+                renderWindow(*g_pHyprRenderer, window, monitor, Time::steadyNow(), false, Render::RENDER_PASS_ALL, true, true);
+#endif
             }
-            ctx.m_blockSurfaceFeedback = false;
             // The box can reach past the monitor, where simplifying the render pass would cut it off.
-            ctx.m_data.noSimplify = true;
+#if HYPRMASQ_HYPRLAND >= 57
+            ctx.m_blockSurfaceFeedback = false;
+            ctx.m_data.noSimplify      = true;
             finishRender();
+#else
+            g_pHyprRenderer->m_bBlockSurfaceFeedback = false;
+            const bool simplify                      = std::exchange(g_pHyprRenderer->m_renderData.noSimplify, true);
+            finishRender();
+            g_pHyprRenderer->m_renderData.noSimplify = simplify;
+#endif
         }
 
         // Reads the area from the render, fitted within maxPixels: a smaller image is drawn from the full one on the GPU.

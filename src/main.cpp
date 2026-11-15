@@ -67,10 +67,14 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         throw;
     }
 
+#if HYPRMASQ_HYPRLAND >= 57
     HyprlandAPI::registerHyprCtlCommand(
         PHANDLE, IPC::Socket1::SCommand{.name = "hyprmasq", .match = IPC::Socket1::COMMAND_MATCH_PREFIX, .handler = [](const IPC::Socket1::SRequest& request) {
                                             return hyprmasq::handleCommand(request.format, request.command);
                                         }});
+#else
+    HyprlandAPI::registerHyprCtlCommand(PHANDLE, SHyprCtlCommand{.name = "hyprmasq", .exact = false, .fn = hyprmasq::handleCommand});
+#endif
 
     return {"hyprmasq", "Per-window screenshots and EIS input for Hyprland", "nyrda", std::string{hyprmasq::VERSION}};
 }

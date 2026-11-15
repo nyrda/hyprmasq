@@ -21,6 +21,12 @@
       pkgs = import ./nix/pkgs.nix { inherit system hyprland; };
       goPkgs = nixpkgs.legacyPackages.${system};
       vmTest = import ./nix/hyprmasq-vm-test.nix { inherit system pkgs goPkgs; };
+      # The plugin and its test on Hyprland 0.56.2, the older release of HYPRLAND_VERSION, which is the flake's nixpkgs'
+      # own Hyprland.
+      vmTest056 = import ./nix/hyprmasq-vm-test.nix {
+        inherit system goPkgs;
+        pkgs = goPkgs;
+      };
     in
     {
       # Built against the pinned Hyprland. To build against your own compositor package:
@@ -30,6 +36,9 @@
         # Also installed as $out/bin/hyprmasq-mcp by the hyprmasq package.
         hyprmasq-mcp = self.packages.${system}.hyprmasq.mcp;
         default = self.packages.${system}.hyprmasq;
+        # The plugin for Hyprland 0.56.2, and that Hyprland. The MCP server is the same for both.
+        hyprmasq-hyprland056 = vmTest056.plugin;
+        hyprland-hyprland056 = goPkgs.hyprland;
         # The exact Hyprland the plugin above is built and VM-tested against. Running these guarantees a match.
         inherit (pkgs) hyprland xdg-desktop-portal-hyprland;
       };
@@ -44,6 +53,12 @@
         vm-test = vmTest;
         # The same test in containers at once, which needs a GPU and the Nix settings of docs/vm-test.md.
         container-test = import ./nix/container-test.nix { inherit system pkgs goPkgs; };
+        # Both on Hyprland 0.56.2, see "Two Hyprland releases" in docs/development.md.
+        vm-test-hyprland056 = vmTest056;
+        container-test-hyprland056 = import ./nix/container-test.nix {
+          inherit system goPkgs;
+          pkgs = goPkgs;
+        };
         module-compatibility = import ./nix/module-test.nix { inherit self pkgs; };
         # The subtest tables of docs/vm-test.md against the VM test's areas, without a VM.
         vm-test-docs = pkgs.runCommand "hyprmasq-vm-test-docs" { nativeBuildInputs = [ pkgs.python3 ]; } ''
@@ -57,14 +72,25 @@
       };
 
       # Builds the plugin with make, and the MCP server with go in mcp/.
-      devShells.${system}.default = pkgs.mkShell.override { inherit (pkgs.hyprland) stdenv; } {
-        inputsFrom = [ self.packages.${system}.hyprmasq ];
-        packages = [
-          goPkgs.go
-          goPkgs.clang-tools
-          # The Go tests of recordings make videos.
-          pkgs.ffmpeg-headless
-        ];
+      devShells.${system} = {
+        default = pkgs.mkShell.override { inherit (pkgs.hyprland) stdenv; } {
+          inputsFrom = [ self.packages.${system}.hyprmasq ];
+          packages = [
+            goPkgs.go
+            goPkgs.clang-tools
+            # The Go tests of recordings make videos.
+            pkgs.ffmpeg-headless
+          ];
+        };
+        # The same against Hyprland 0.56.2: nix develop .#hyprland056 -c make
+        hyprland056 = goPkgs.mkShell.override { inherit (goPkgs.hyprland) stdenv; } {
+          inputsFrom = [ self.packages.${system}.hyprmasq-hyprland056 ];
+          packages = [
+            goPkgs.go
+            goPkgs.clang-tools
+            goPkgs.ffmpeg-headless
+          ];
+        };
       };
     };
 }

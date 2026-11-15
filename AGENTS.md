@@ -31,6 +31,14 @@ The plugin runs inside the compositor: never block Hyprland's main thread, and
 check that hooked functions still do what their hooks expect against the
 pinned Hyprland source. The build checks only their types.
 
+The plugin builds against two Hyprland releases from one source: 0.57.2, which
+`flake.lock` pins, and 0.56.2 (`HYPRLAND_VERSION` names both). Use the helpers
+of `src/Hyprland.hpp` for what differs, and `#if HYPRMASQ_HYPRLAND` where no
+helper fits. Check hooked functions and private members against both
+releases' sources. Build for 0.56.2 with `./dev.sh build --hyprland 0.56`.
+"Two Hyprland releases" in `docs/development.md` says when a PR also passes
+the test gate on 0.56.2.
+
 ## Checks before committing
 
 - Build: `nix develop -c make`
@@ -54,7 +62,9 @@ pinned Hyprland source. The build checks only their types.
   machine with a GPU and the Nix settings in `docs/vm-test.md`
   (`.#checks.x86_64-linux.container-test`), and otherwise in a NixOS VM
   (`.#checks.x86_64-linux.vm-test`). Screenshots and logs from the run land in
-  `result/`. Add a subtest for new behaviour, and update the
+  `result/`. `./dev.sh gate --hyprland 0.56` runs it on Hyprland 0.56.2, for a
+  PR that changes a hook, code that differs between the releases, what the
+  plugin uses of Hyprland, or the test. Add a subtest for new behaviour, and update the
   subtest table in `docs/vm-test.md`, which
   `nix build .#checks.x86_64-linux.vm-test-docs` checks against the code.
 
@@ -62,7 +72,7 @@ Nix only sees files known to Git, so `git add` new files before building.
 
 ## Pull requests
 
-CI runs `nix flake check --no-build`, then builds `hyprmasq` and `hyprmasq-mcp`
+CI runs `nix flake check --no-build`, then builds `hyprmasq`, `hyprmasq-hyprland056` (the plugin for Hyprland 0.56.2) and `hyprmasq-mcp`
 including the Go tests with `-short`, and the flake checks `mcp-tests` (all Go
 tests), `format` (clang-format and gofmt), `vm-test-docs` (the VM test's
 subtest tables) and `bench-calc` (the Calc checker). It runs the other bench

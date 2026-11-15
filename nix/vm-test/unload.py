@@ -140,8 +140,8 @@ with subtest("a screenshot whose pixels the GPU still reads back when the plugin
     # Within one batch, the unload runs before the event loop looks whether the GPU has read the screenshot back.
     machine.execute("rm -f /tmp/hm-unload-inflight.png")
     parts = batch(f"hyprmasq screenshot {green} /tmp/hm-unload-inflight.png; plugin unload {plugin}")
-    # The unload's own reply is empty: Hyprland at the pin answers a batch as soon as its last pending reply is in, and the
-    # screenshot's came in during the unload, before the batch took the unload's reply (ipc/s1/S1.cpp, dispatchBatch).
+    # On Hyprland 0.57, the unload's own reply is empty: it answers a batch as soon as its last pending reply is in, and
+    # the screenshot's came in during the unload, before the batch took the unload's reply (ipc/s1/S1.cpp, dispatchBatch).
     assert parts[0] == "ok", parts
     assert "hyprmasq" not in hypr("plugin list")
     assert_png("/tmp/hm-unload-inflight.png", (0, 255, 0))

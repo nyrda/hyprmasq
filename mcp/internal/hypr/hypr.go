@@ -75,8 +75,9 @@ func (c *Client) Request(ctx context.Context, request string) ([]byte, error) {
 	stop := context.AfterFunc(ctx, func() { conn.SetDeadline(time.Unix(1, 0)) })
 	defer stop()
 
-	// Hyprland takes what has arrived when it reads as the whole request, so it has to arrive in one write.
-	if _, err := conn.Write([]byte(request)); err != nil {
+	// Hyprland 0.56 reads the request in chunks and stops at the first short read, and 0.57 takes what has arrived, so it
+	// has to arrive in one write.
+	if _, err := conn.Write(frame(request)); err != nil {
 		return nil, contextError(ctx, err)
 	}
 	reply, err := io.ReadAll(conn)
@@ -86,8 +87,21 @@ func (c *Client) Request(ctx context.Context, request string) ([]byte, error) {
 	return reply, nil
 }
 
+// readChunk is how much Hyprland 0.56 reads of a request at a time.
+const readChunk = 1023
+
 // MaxRequest is the longest request this client sends. Longer ones could arrive in several pieces.
 const MaxRequest = 32768
+
+// frame returns the bytes to send for request. On Hyprland 0.56, a request that fills its last chunk exactly would leave
+// the main thread blocked in a read for a further chunk, so it gets a trailing space, which every command ignores, also
+// on 0.57.
+func frame(request string) []byte {
+	if len(request)%readChunk == 0 {
+		request += " "
+	}
+	return []byte(request)
+}
 
 func contextError(ctx context.Context, err error) error {
 	if ctx.Err() != nil {
