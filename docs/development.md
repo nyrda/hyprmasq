@@ -34,9 +34,10 @@ push cancels the run it replaces. CI does not run the race
 detector, which slows the tests of screenshots and pixels a hundredfold.
 
 A second workflow, `.github/workflows/aur.yml`, builds and publishes the
-[AUR packages](#aur-packages). On a PR that changes the plugin or the
-packaging, it builds the prebuilt plugins and both packages, and verifies the
-Hyprland builds of Arch and Omarchy, without publishing.
+[AUR packages](#aur-packages). On a PR that changes the plugin, the tools, the
+MCP server or the packaging, it builds the prebuilt plugins and tools and the
+three packages, and verifies the Hyprland builds of Arch and Omarchy, without
+publishing.
 
 The test gate, `./dev.sh gate`, is local, and CI does not run it. It runs the
 [container test](vm-test.md#containers) on a machine with a render node and the
@@ -354,8 +355,8 @@ one.
    `git push origin vX.Y.Z`. The tags are not signed yet, as
    [Checking what you build](installation.md#checking-what-you-build) says.
 3. The tag's push runs `.github/workflows/aur.yml`: it builds the prebuilt
-   plugins, creates the GitHub release with them attached, and publishes both
-   [AUR packages](#aur-packages) of the release. Check that the run passed.
+   plugins and tools, creates the GitHub release with them attached, and
+   publishes the three [AUR packages](#aur-packages) of the release. Check that the run passed.
 4. Write the GitHub release's notes. They are the project's changelog: what
    changed since the last release, what a user has to change, and the Hyprland
    releases it builds against. Their links go to the docs at the tag,
@@ -363,11 +364,17 @@ one.
 
 ## AUR packages
 
-`packaging/aur` holds the two AUR packages that `yay -S hyprmasq` installs:
+`packaging/aur` holds the AUR packages that `yay -S hyprmasq` and
+`yay -S hyprmasq-bin` install:
 
 - `hyprmasq` builds `hyprmasq-mcp`, `hyprmasq-input`, `hyprmasq-launch` and
   `hyprmasq-reaper` from the release's archive, and depends on
   `hyprmasq-plugin` of its version.
+- `hyprmasq-bin` installs the same programs prebuilt, in place of `hyprmasq`.
+  `build-tools.sh` builds them with the PKGBUILD of `hyprmasq`, tests
+  included, on the oldest snapshot that a plugin builds on, as below, and
+  `check-userland.sh` loads their libraries on each userland. The release has
+  them as `hyprmasq-<version>-x86_64.tar.gz`.
 - `hyprmasq-plugin-bin` provides it: one prebuilt plugin for each Hyprland
   release that `HYPRLAND_VERSION` names and Arch or Omarchy's stable channel
   serve, `hyprland-builds` with the Hyprland builds that each plugin runs, and
@@ -402,7 +409,7 @@ Another served build goes in the list when:
 Hyprland build that the AUR's `hyprland-builds` lacks, it verifies it against
 the released plugins, and publishes the list with a new `pkgrel` through
 `packaging/aur/publish.sh`, which accepts only lines of hashes and versions. It
-also checks every hour that the plugins still load their libraries. A build
+also checks every hour that the plugins and tools still load their libraries. A build
 that fails a check is held: it opens one issue for it, with the reasons, and
 the plugin refuses that build. When only the Hyprland sources changed, read the
 change, and run the workflow by hand with `accept` set to the build's version,

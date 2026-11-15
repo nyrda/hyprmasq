@@ -40,7 +40,7 @@ hyprmasq builds against Hyprland 0.57.2 and 0.56.2 from the same source.
 `~/.config/hypr/hyprland.lua`:
 
 ```sh
-yay -S hyprmasq
+yay -S hyprmasq                 # or hyprmasq-bin, which builds nothing on your machine
 ```
 
 ```lua

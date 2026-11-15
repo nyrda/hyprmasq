@@ -10,7 +10,7 @@ load into any other build. Rebuild the plugin whenever Hyprland changes.
 
 | Method | Use it when |
 | --- | --- |
-| [Arch and Omarchy](#arch-and-omarchy) | You run Arch Linux or Omarchy. `yay -S hyprmasq` installs the plugin prebuilt for Arch's and Omarchy's Hyprland, and the MCP server. |
+| [Arch and Omarchy](#arch-and-omarchy) | You run Arch Linux or Omarchy. `yay -S hyprmasq` installs the plugin prebuilt for Arch's and Omarchy's Hyprland, and the MCP server. `yay -S hyprmasq-bin` installs the MCP server prebuilt too. |
 | [NixOS module](#nixos-module) | You run NixOS. The flake pins Hyprland and the plugin together. This is the main, tested path. |
 | [Nix packages](#nix-packages-without-the-module) | You manage the Hyprland package yourself on Nix. |
 | [Manual build](#manual-build) | You want a local build, for development or another distribution. |
@@ -37,17 +37,21 @@ Install hyprmasq from the AUR with a helper such as yay:
 
 ```sh
 yay -S hyprmasq                 # or: paru -S hyprmasq
+yay -S hyprmasq-bin             # the same, with nothing built on your machine
 ```
 
-It installs two packages of the same release:
+Either installs two packages of the same release:
 
 | Package | Contents | Built |
 | --- | --- | --- |
-| `hyprmasq` | `hyprmasq-mcp`, `hyprmasq-input`, `hyprmasq-launch` and `hyprmasq-reaper`. | On your machine, from the release's source. None of them depends on Hyprland's internals. |
-| `hyprmasq-plugin-bin` | The plugin, once for each Hyprland release that hyprmasq targets, and the loader. | By the project's CI, for the Hyprland builds that Arch and Omarchy's stable channel ship. |
+| `hyprmasq` | `hyprmasq-mcp`, `hyprmasq-input`, `hyprmasq-launch` and `hyprmasq-reaper`. | On your machine, from the release's source, with Go. None of them depends on Hyprland's internals. |
+| `hyprmasq-bin` | The same programs, in place of `hyprmasq`. | By the project's CI, with the PKGBUILD of `hyprmasq`, on the oldest userland that the plugins run. |
+| `hyprmasq-plugin-bin` | The plugin, once for each Hyprland release that hyprmasq targets, and the loader. Both packages above install it. | By the project's CI, for the Hyprland builds that Arch and Omarchy's stable channel ship. |
 
 Nothing compiles the plugin on your machine, so a Hyprland update needs no
-rebuild. Then add the loader to `~/.config/hypr/hyprland.lua`, which Omarchy
+rebuild. `hyprmasq` builds the programs once for each hyprmasq release,
+which takes about a minute and installs `go` for the build.
+`hyprmasq-bin` skips that. Install one of the two. Each replaces the other. Then add the loader to `~/.config/hypr/hyprland.lua`, which Omarchy
 uses:
 
 ```lua
@@ -72,8 +76,8 @@ which come before `/usr/bin` on `PATH`, or pass
 
 ### Updates
 
-`yay -Syu` updates both packages with the rest of the system. A hyprmasq
-release updates both. An update takes effect when Hyprland loads the plugin
+`yay -Syu` updates the packages with the rest of the system. A hyprmasq
+release updates both of yours. An update takes effect when Hyprland loads the plugin
 again, at its next start.
 
 A plugin must match the Hyprland build that loads it: hyprmasq compares the
@@ -108,13 +112,14 @@ below.
 | `/usr/lib/hyprmasq/<release>/hyprland-builds` | `hyprmasq-plugin-bin` | The Hyprland builds that this plugin runs. |
 | `/usr/lib/hyprmasq/<version>` | `hyprmasq-plugin-bin` | A link to the plugin for each other Hyprland version that one runs. |
 | `/etc/xdg/hypr/hyprmasq_plugin.lua` | `hyprmasq-plugin-bin` | The loader. |
-| `/usr/lib/hyprmasq/hyprmasq-reaper` | `hyprmasq` | The helper that launched commands run under. The plugin finds it in its parent directory. |
-| `/usr/bin/hyprmasq-mcp` | `hyprmasq` | The [MCP server](mcp.md). |
-| `/usr/bin/hyprmasq-input` | `hyprmasq` | The libei sender for scripts. |
-| `/usr/bin/hyprmasq-launch` | `hyprmasq` | Starts an application on a hidden workspace. |
-| `/usr/share/licenses/<package>/LICENSE` | both | The MIT license. |
+| `/usr/lib/hyprmasq/hyprmasq-reaper` | `hyprmasq` or `hyprmasq-bin` | The helper that launched commands run under. The plugin finds it in its parent directory. |
+| `/usr/bin/hyprmasq-mcp` | `hyprmasq` or `hyprmasq-bin` | The [MCP server](mcp.md). |
+| `/usr/bin/hyprmasq-input` | `hyprmasq` or `hyprmasq-bin` | The libei sender for scripts. |
+| `/usr/bin/hyprmasq-launch` | `hyprmasq` or `hyprmasq-bin` | Starts an application on a hidden workspace. |
+| `/usr/share/licenses/<package>/LICENSE` | each | The MIT license. |
 
-`pacman -Ql hyprmasq hyprmasq-plugin-bin` lists them. The packages depend on
+`pacman -Ql hyprmasq hyprmasq-plugin-bin` lists them, with `hyprmasq-bin` in
+place of `hyprmasq` if you installed that. The packages depend on
 `hyprland` without pinning its version. A pin would keep `pacman -Syu` from
 updating Hyprland until you removed hyprmasq.
 
@@ -122,9 +127,10 @@ updating Hyprland until you removed hyprmasq.
 
 - Read the PKGBUILDs before you install them. Your AUR helper shows them, and
   `packaging/aur` in the repository holds the same files.
-- The plugins are built by the repository's GitHub Actions from the release
-  tag, with public logs, and attached to the GitHub release, where they are
-  never replaced. `hyprmasq-plugin-bin` pins each by its hash, and
+- The plugins and the programs of `hyprmasq-bin` are built by the
+  repository's GitHub Actions from the release tag, with public logs, and
+  attached to the GitHub release, where they are never replaced.
+  `hyprmasq-plugin-bin` and `hyprmasq-bin` pin each by its hash, and
   `hyprmasq` the release's archive. The project does not sign its releases
   yet.
 - `go` refuses a module whose download does not match its hash in
@@ -142,7 +148,8 @@ git clone https://github.com/nyrda/hyprmasq && cd hyprmasq && makepkg -si
 
 `-s` installs the missing dependencies, such as `go` for the build, and `-i`
 installs the package, both through pacman. It replaces the AUR packages, and
-pacman offers to remove `hyprmasq-plugin-bin`. The package has no install
+pacman offers to remove `hyprmasq-plugin-bin`, and `hyprmasq-bin` if it is
+installed. The package has no install
 script and no pacman hook. The installed Hyprland must be version 0.57.2 or
 0.56.2. Other releases have other internals, and the build stops on their
 version.
@@ -174,8 +181,9 @@ refuses to load and says "it was built for another Hyprland build".
 
 ### Removing
 
-Run `sudo pacman -R hyprmasq hyprmasq-plugin-bin`, or `sudo pacman -R hyprmasq`
-for a build from a clone, with `hyprmasq-debug` if it is installed. The
+Run `sudo pacman -R hyprmasq hyprmasq-plugin-bin`, with `hyprmasq-bin` in
+place of `hyprmasq` if you installed that, or `sudo pacman -R hyprmasq` for a
+build from a clone, with `hyprmasq-debug` if it is installed. The
 `pcall` around the loader's `dofile` keeps `hyprland.lua` working without it.
 
 ## NixOS module

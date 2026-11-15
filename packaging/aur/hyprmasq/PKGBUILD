@@ -3,6 +3,7 @@
 # The MCP server and the tools of a hyprmasq release, built from its source: hyprmasq-mcp, hyprmasq-input,
 # hyprmasq-launch, and hyprmasq-reaper, which the plugin finds in /usr/lib/hyprmasq. None of them depends on Hyprland's
 # internals, so a Hyprland update needs no rebuild. The plugin of the same release comes from hyprmasq-plugin-bin.
+# hyprmasq-bin has the same programs, built by this file in the project's CI.
 # Only Go modules are downloaded besides the release, and go.sum verifies them.
 # The CI of github.com/nyrda/hyprmasq publishes this file from packaging/aur. It sets pkgver to the release,
 # sha256sums to its archive, and pkgrel.

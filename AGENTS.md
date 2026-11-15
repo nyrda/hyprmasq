@@ -81,7 +81,7 @@ subtest tables) and `bench-calc` (the Calc checker). It runs the other bench
 unit tests above and checks `docs/benchmarks.md`, `docs/comparison.md` and the comparison's two other pages
 against their data with `bench/render.py --check`. It caches the Nix store
 between runs, so a check whose inputs did not change is not built again. CI
-does not run `go test -race`. `.github/workflows/aur.yml` builds the prebuilt plugins and the AUR packages on PRs that change the plugin or the packaging, and publishes them on release tags and every hour. The test gate, `./dev.sh gate`, is local; CI does not run it. Before opening a PR, run it on the commit you push and fill
+does not run `go test -race`. `.github/workflows/aur.yml` builds the prebuilt plugins and tools and the AUR packages on PRs that change the plugin, the tools, the MCP server or the packaging, and publishes them on release tags and every hour. The test gate, `./dev.sh gate`, is local; CI does not run it. Before opening a PR, run it on the commit you push and fill
 in the test gate section of
 `.github/pull_request_template.md` with that commit and which test ran. Before merging, compare
 the PR's head commit with the one it passed on: after new commits, an amend, a
