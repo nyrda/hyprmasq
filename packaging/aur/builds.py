@@ -280,13 +280,13 @@ def definition(tree, qualified):
 
 
 def class_source(tree, qualified):
-    """The .cpp beside the header that defines the class, if it has one."""
+    """(header, .cpp beside it or None) of the class, or None when no header under src/ defines it."""
     name = qualified.split("::")[-1]
     pattern = re.compile(rf"^\s*(class|struct)\s+{re.escape(name)}\b[^;]*$", re.M)
-    for header in (tree / "src").rglob("*.hpp"):
+    for header in sorted((tree / "src").rglob("*.hpp")):
         if pattern.search(header.read_text(errors="replace")):
             cpp = header.with_suffix(".cpp")
-            return cpp.relative_to(tree) if cpp.exists() else None
+            return header.relative_to(tree), cpp.relative_to(tree) if cpp.exists() else None
     return None
 
 
@@ -295,7 +295,17 @@ def private_classes(source, build):
     build.install_headers()
     flags = run("pkg-config", "--cflags", "hyprland", "libdrm", "pixman-1", "egl", "glesv2", "libpng", "libeis-1.0", "xkbcommon", "xcb", capture_output=True).stdout.split()
     out = run("g++", "-std=c++2b", "-E", "-DWLR_USE_UNSTABLE", *flags, source / "src/PrivateAccess.cpp", capture_output=True).stdout
-    return sorted(set(re.findall(r"SExpose(?:Unnamed)?<\s*\w+\s*,\s*&\s*((?:\w+::)*\w+)::\w+\s*>", out)))
+    # An alias such as `using CursorManager = Pointer::Cursor::CCursorManager;` names a class the preprocessor leaves as
+    # it is. The last definition of a name is PrivateAccess.cpp's own, after the headers.
+    aliases = dict(re.findall(r"\busing\s+(\w+)\s*=\s*((?:\w+::)*\w+)\s*;", out))
+    classes = set()
+    for name in re.findall(r"SExpose(?:Unnamed)?<\s*\w+\s*,\s*&\s*((?:\w+::)*\w+)::\w+\s*>", out):
+        for _ in range(5):
+            if "::" in name or name not in aliases:
+                break
+            name = aliases[name]
+        classes.add(name)
+    return sorted(classes)
 
 
 def source_changes(source, binary, reference, build):
@@ -312,11 +322,12 @@ def source_changes(source, binary, reference, build):
         else:
             files.add(before)
     for qualified in private_classes(source, build):
+        log(f"private members of {qualified}")
         before, after = class_source(old, qualified), class_source(new, qualified)
-        if before != after:
-            changed.append(f"{qualified}: its source is {before} at the reference and {after} now")
-        elif before:
-            files.add(before)
+        if not before or before != after:
+            changed.append(f"{qualified}: defined in {before} at the reference and {after} now")
+        elif before[1]:
+            files.add(before[1])
     for file in sorted(files):
         if (old / file).read_bytes() != (new / file).read_bytes():
             changed.append(f"{file} changed")
@@ -371,7 +382,8 @@ def verify(args):
                 reasons.append("the plugin compiles to other code against its headers" + (f": {error}" if error else ""))
             if missing_syms := missing_symbols(binaries[label], build):
                 reasons.append(f"its Hyprland or libraries do not export {', '.join(missing_syms[:10])}")
-            how = "identical"
+            # A build accepted by hand stays so, while its commit, now accepted, skips the source check.
+            how = "accepted" if entries.get(b["version"], {}).get("how") == "accepted" else "identical"
             if not reasons and build.commit not in accepted:
                 if changes := source_changes(source, binaries[label], reference, build):
                     if args.accept == b["version"]:
