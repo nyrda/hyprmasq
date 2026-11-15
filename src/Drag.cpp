@@ -1,6 +1,7 @@
 #include "Drag.hpp"
 #include "Hooks.hpp"
 #include "PrivateAccess.hpp"
+#include "Hyprland.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/debug/log/Logger.hpp>
@@ -90,7 +91,7 @@ namespace hyprmasq::drag {
                     if (sourceless && origin)
                         sourceless(CWLSurfaceResource::fromResource(origin), icon ? CWLSurfaceResource::fromResource(icon) : nullptr);
                     else
-                        Log::logger->log(Log::WARN, "hyprmasq", "ignoring a drag without a source");
+                        hl::log(Log::WARN, "ignoring a drag without a source");
                     current = previous;
                     return;
                 }
@@ -410,7 +411,7 @@ namespace hyprmasq::drag {
         m_record->endedAt = Time::steadyNow();
         m_record->end(m_id, phase, reason);
         m_record->changed.emit();
-        Log::logger->log(Log::DEBUG, "hyprmasq", "private drag {} {}", phase, reason);
+        hl::log(Log::DEBUG, "private drag {} {}", phase, reason);
         reapLater();
     }
 

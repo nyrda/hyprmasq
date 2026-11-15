@@ -1,5 +1,6 @@
 #include "Hooks.hpp"
 #include "PrivateAccess.hpp"
+#include "Hyprland.hpp"
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/debug/log/Logger.hpp>
@@ -100,8 +101,7 @@ namespace hyprmasq {
             // A Hyprland that reused the trampolines for another hook would run that hook's code instead. The jump never
             // goes in then, and neither does a hook() of the function, which would hide it.
             if (std::memcmp(hook.launch, hook.launchCode.data(), hook.launchCode.size()) != 0 || std::memcmp(hook.land, hook.landCode.data(), hook.landCode.size()) != 0) {
-                Log::logger->log(Log::ERR, "hyprmasq",
-                                 "the trampolines of hyprmasq's hook of {} changed since its first install, so this Hyprland reuses them: not installing it again", hook.name);
+                hl::log(Log::ERR, "the trampolines of hyprmasq's hook of {} changed since its first install, so this Hyprland reuses them: not installing it again", hook.name);
                 hook.broken = std::format("Hyprland reused the memory of hyprmasq's hook of {}", hook.name);
                 return hook.broken;
             }
@@ -244,7 +244,7 @@ namespace hyprmasq {
         }
         const auto refuse = [&](SError error) -> std::unexpected<SError> {
             if (!m_refused || m_refused->message != error.message)
-                Log::logger->log(Log::WARN, "hyprmasq", "{}", error.message);
+                hl::log(Log::WARN, "{}", error.message);
             m_refused = error;
             return std::unexpected(std::move(error));
         };
@@ -273,7 +273,7 @@ namespace hyprmasq {
         ++m_claims;
         ++m_installs;
         if (m_refused)
-            Log::logger->log(Log::INFO, "hyprmasq", "the hooks for {} are installed again", m_feature);
+            hl::log(Log::INFO, "the hooks for {} are installed again", m_feature);
         m_refused.reset();
         return CHookClaim{this};
     }

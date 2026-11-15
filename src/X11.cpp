@@ -1,12 +1,11 @@
 #include "X11.hpp"
 #include "Eis.hpp"
 #include "Hooks.hpp"
+#include "Hyprland.hpp"
 #include "PrivateAccess.hpp"
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
-#include <hyprland/src/desktop/view/window/Window.hpp>
-#include <hyprland/src/desktop/view/window/X11Backend.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
@@ -14,6 +13,9 @@
 #include <hyprland/src/xwayland/XSurface.hpp>
 #include <hyprland/src/xwayland/XWM.hpp>
 #include <hyprland/src/xwayland/XWayland.hpp>
+#if HYPRMASQ_HYPRLAND >= 57
+#include <hyprland/src/desktop/view/window/X11Backend.hpp>
+#endif
 #include <linux/sockios.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -335,24 +337,33 @@ namespace hyprmasq::x11 {
             return std::vector<xcb_window_t>{children, children + xcb_query_tree_children_length(tree.get())};
         }
 
-        // The X window of an XWayland window, while its XWayland surface lives.
-        std::optional<xcb_window_t> xWindow(const PHLWINDOW& w) {
-            if (!w || !w->backend().isX11() || !w->backend().valid())
-                return std::nullopt;
-            return sc<xcb_window_t>(w->backend().clientID().id);
-        }
-
         // The XWayland surface of an XWayland window, while it lives.
         SP<CXWaylandSurface> xSurface(const PHLWINDOW& w) {
-            if (!w || !w->backend().isX11() || !w->backend().valid())
+#if HYPRMASQ_HYPRLAND >= 57
+            if (!w || !hl::isX11(w) || !w->backend().valid())
                 return nullptr;
             return xwaylandSurfaceOf(sc<Desktop::View::CX11Backend&>(w->backend())).lock();
+#else
+            return w && w->m_isX11 ? w->m_xwaylandSurface.lock() : nullptr;
+#endif
+        }
+
+        // The X window of an XWayland window, while its XWayland surface lives.
+        std::optional<xcb_window_t> xWindow(const PHLWINDOW& w) {
+#if HYPRMASQ_HYPRLAND >= 57
+            if (!w || !hl::isX11(w) || !w->backend().valid())
+                return std::nullopt;
+            return sc<xcb_window_t>(w->backend().clientID().id);
+#else
+            const auto surface = xSurface(w);
+            return surface ? std::optional<xcb_window_t>{surface->m_xID} : std::nullopt;
+#endif
         }
 
         std::map<xcb_window_t, SP<CXWaylandSurface>> mappedSurfaces() {
             std::map<xcb_window_t, SP<CXWaylandSurface>> result;
             for (const auto& w : Desktop::windowState()->windows()) {
-                if (auto s = w && w->mapped() ? xSurface(w) : nullptr)
+                if (auto s = w && hl::mapped(w) ? xSurface(w) : nullptr)
                     result.emplace(s->m_xID, s);
             }
             return result;
@@ -528,7 +539,7 @@ namespace hyprmasq::x11 {
         if (!resource)
             return nullptr;
         auto* client = resource->client();
-        return window->backend().isX11() || serves(client) ? client : nullptr;
+        return hl::isX11(window) || serves(client) ? client : nullptr;
     }
 
     bool serves(wl_client* client) {

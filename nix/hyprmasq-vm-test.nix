@@ -8,7 +8,8 @@
   # Runs the machine as a systemd-nspawn container instead of a VM, with Hyprland nested in labwc on the host's GPU.
   # The build needs the uid-range and gpu system features, see docs/vm-test.md.
   container ? false,
-  # Hyprland's package set at the commit locked in flake.lock.
+  # Hyprland's package set at the commit locked in flake.lock, or for the older release that HYPRLAND_VERSION names
+  # (0.56.2), the flake's nixpkgs, whose Hyprland it is.
   pkgs ? import ./pkgs.nix { inherit system; },
   # The nixpkgs whose Go builds hyprmasq-mcp: the flake's nixpkgs input, read from flake.lock.
   goPkgs ?
@@ -23,15 +24,17 @@
 }:
 let
   # Hyprland's flake versions its package "<release>+date=<date>_<commit>".
-  targetVersion = pkgs.lib.fileContents ../HYPRLAND_VERSION;
+  targetVersions = pkgs.lib.splitString "\n" (pkgs.lib.fileContents ../HYPRLAND_VERSION);
   pinnedVersion = builtins.head (pkgs.lib.splitString "+" pkgs.hyprland.version);
 
-  # Bumping the pin is a port: the pinned Hyprland has to be the release this branch targets.
+  # Bumping a pin is a port: the pinned Hyprland has to be a release that the plugin targets.
   hyprland =
-    if pinnedVersion == targetVersion then
+    if builtins.elem pinnedVersion targetVersions then
       pkgs.hyprland
     else
-      throw "hyprmasq targets Hyprland ${targetVersion} (HYPRLAND_VERSION), flake.lock pins ${pkgs.hyprland.version}";
+      throw "hyprmasq targets Hyprland ${toString targetVersions} (HYPRLAND_VERSION), the test pins ${pkgs.hyprland.version}";
+  # 0.57 or 0.56, which the areas read as hyprland_release where Hyprland itself behaves differently.
+  release = pkgs.lib.versions.majorMinor pinnedVersion;
 
   # Same compiler as Hyprland, so the plugin shares its C++ runtime.
   plugin = pkgs.callPackage ./package.nix {
@@ -134,6 +137,7 @@ let
       "# Areas: ${toString (map (area: area.name) selected)}, checked by ${areasChecked}"
       "expected_version = ${builtins.toJSON plugin.version}"
       "nested = ${if container then "True" else "False"}"
+      "hyprland_release = ${builtins.toJSON release}"
       (builtins.readFile ./vm-test/common.py)
       "try:"
       "    wait_for_hyprland()"
@@ -271,7 +275,7 @@ pkgs.testers.runNixOSTest (
   {
     passthru = { inherit plugin; };
     name =
-      "hyprmasq-window-automation-${if container then "container" else "vm"}"
+      "hyprmasq-window-automation-${if container then "container" else "vm"}-hyprland-${release}"
       + lib.optionalString (areas != null) "-${label}";
     inherit testScript;
   }

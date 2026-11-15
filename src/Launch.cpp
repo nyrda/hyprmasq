@@ -1,15 +1,14 @@
 #include "Launch.hpp"
 #include "Hooks.hpp"
+#include "Hyprland.hpp"
 #include "Process.hpp"
 #include "Windows.hpp"
 #include <hyprland/src/Compositor.hpp>
 
 #include <hyprland/src/config/supplementary/executor/Executor.hpp>
 #include <hyprland/src/debug/log/Logger.hpp>
-#include <hyprland/src/workspace/HLWorkspace.hpp>
 #include <hyprland/src/desktop/rule/Engine.hpp>
 #include <hyprland/src/desktop/rule/windowRule/WindowRule.hpp>
-#include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 
@@ -125,13 +124,13 @@ namespace hyprmasq::launch {
         std::optional<std::string> selector(const PHLWORKSPACE& workspace) {
             if (!workspace)
                 return std::nullopt;
-            const auto& name = workspace->addressableName();
-            if (workspace->type() == Workspace::eWorkspaceType::SPECIAL) {
+            const auto name = hl::name(workspace);
+            if (hl::special(workspace)) {
                 if (name.starts_with("special:") && validWorkspace(std::string_view(name).substr(8)))
                     return name;
                 return std::nullopt;
             }
-            if (const auto id = workspace->numberedID(); id && *id > 0)
+            if (const auto id = hl::number(workspace))
                 return std::to_string(*id);
             if (validWorkspace(name))
                 return "name:" + name;
@@ -174,7 +173,7 @@ namespace hyprmasq::launch {
             // Held already for a launch, and for input that opens a window, while its socket is in use. A window that
             // opens later still opens silently, and may take the focus by asking for activation.
             if (const auto refused = claimHooks())
-                Log::logger->log(Log::WARN, "hyprmasq", "placing a window that may take the focus: {}", refused->message);
+                hl::log(Log::WARN, "placing a window that may take the focus: {}", refused->message);
             t.tag = std::format("hyprmasq-{}", ++serial);
             window->m_ruleApplicator->m_tagKeeper.applyTag("+" + t.tag);
             (*rule)->registerMatch(Desktop::Rule::RULE_PROP_TAG, t.tag);
@@ -197,7 +196,7 @@ namespace hyprmasq::launch {
 
         const SLaunch* launchOf(const PHLWINDOW& window) {
             const pid_t self = getpid();
-            for (pid_t pid = window->backend().pid(), depth = 0; pid > 1 && pid != self && depth < MAX_DEPTH; pid = process::parent(pid), ++depth) {
+            for (pid_t pid = hl::pid(window), depth = 0; pid > 1 && pid != self && depth < MAX_DEPTH; pid = process::parent(pid), ++depth) {
                 const auto launch = std::ranges::find_if(launches, [&](const auto& l) { return l.pid == pid; });
                 if (launch != launches.end() && alive(*launch))
                     return &*launch;
@@ -237,9 +236,9 @@ namespace hyprmasq::launch {
     void init() {
         reaper = findReaper();
         if (reaper.empty())
-            Log::logger->log(Log::WARN, "hyprmasq", "hyprmasq-reaper not found next to the plugin or on PATH: a launch loses the windows of an app whose launcher exits");
+            hl::log(Log::WARN, "hyprmasq-reaper not found next to the plugin or on PATH: a launch loses the windows of an app whose launcher exits");
         else
-            Log::logger->log(Log::DEBUG, "hyprmasq", "launching through {}", reaper);
+            hl::log(Log::DEBUG, "launching through {}", reaper);
         launchesEnd = wl_event_loop_add_timer(
             g_pCompositor->m_wlEventLoop,
             [](void*) {
@@ -297,8 +296,8 @@ namespace hyprmasq::launch {
         std::erase_if(tracked, [](const auto& t) { return t.window.expired() && !t.rule; });
         std::vector<SLaunched> result;
         for (const auto& t : tracked)
-            if (const auto window = t.window.lock(); window && window->mapped() && !t.token.empty())
-                result.push_back({.address = windowAddress(window), .stableId = std::format("{:x}", window->metadata().stableID()), .token = t.token});
+            if (const auto window = t.window.lock(); window && hl::mapped(window) && !t.token.empty())
+                result.push_back({.address = windowAddress(window), .stableId = std::format("{:x}", hl::stableID(window)), .token = t.token});
         return result;
     }
 

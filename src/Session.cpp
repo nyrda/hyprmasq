@@ -1,5 +1,6 @@
 #include "Session.hpp"
 #include "Cursor.hpp"
+#include "Hyprland.hpp"
 #include "Placement.hpp"
 #include "PrivateAccess.hpp"
 #include "Selection.hpp"
@@ -9,7 +10,6 @@
 #include <hyprland/src/debug/log/Logger.hpp>
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
-#include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
@@ -77,9 +77,9 @@ namespace hyprmasq::input {
         // hit testing leaves out. Points are looked up in the frame of the shots, so that input reaches what they show
         // there. The offset of the window's own surface is 0 in both.
         SP<Desktop::View::CPopup> popupAt(const PHLWINDOW& w, const Vector2D& point) {
-            if (w->backend().isX11() || !w->popupHead() || w->popupTreeSize() == 0)
+            if (hl::isX11(w) || !hl::popupHead(w) || hl::popupTreeSize(w) == 0)
                 return nullptr;
-            const auto popup = w->popupHead()->at(w->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT) + geometryOffset(w) + point);
+            const auto popup = hl::popupHead(w)->at(w->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT) + geometryOffset(w) + point);
             return popup && popup->wlSurface() && popup->wlSurface()->resource() ? popup : nullptr;
         }
 
@@ -92,8 +92,8 @@ namespace hyprmasq::input {
         // The surface at a window-local point, and the point in that surface's coordinates.
         SP<CWLSurfaceResource> surfaceAt(const PHLWINDOW& w, const Vector2D& point, Vector2D& local) {
             // Like Hyprland, address X11 windows through their one surface, in XWayland's scale.
-            if (w->backend().isX11()) {
-                local = w->backend().surfaceLocalToBuffer(point);
+            if (hl::isX11(w)) {
+                local = point * hl::x11SurfaceScale(w);
                 return w->resource();
             }
             if (const auto popup = popupAt(w, point)) {
@@ -360,7 +360,7 @@ namespace hyprmasq::input {
         auto s = wlSeat();
         if (!w || !s || (!source && !(request && request->sourceless)))
             return "source_gone";
-        if (w->backend().isX11() || xServer())
+        if (hl::isX11(w) || xServer())
             return "x11";
         // The user's input to the connection would reach the drag's client in the middle of it: their keys, their
         // pointer, or a finger they hold down.
@@ -612,7 +612,7 @@ namespace hyprmasq::input {
         const auto type   = eis_event_get_type(e);
         const bool leaves = (eis_event_get_device(e) == keyboard && (type == EIS_EVENT_DEVICE_STOP_EMULATING || type == EIS_EVENT_DEVICE_CLOSED)) ||
             (type == EIS_EVENT_CLIENT_DISCONNECT && eis_event_get_client(e) == client);
-        return leaves && enteredKeyboard && w && !w->backend().isX11() && xServer() && Time::steadyNow() < lastKeys + SATELLITE_BATCH;
+        return leaves && enteredKeyboard && w && !hl::isX11(w) && xServer() && Time::steadyNow() < lastKeys + SATELLITE_BATCH;
     }
 
     bool SSession::holding() const {
@@ -802,7 +802,7 @@ namespace hyprmasq::input {
         }
 
         std::optional<x11::SStack> stack;
-        if (w->backend().isX11() && ((takesFocus && !x11::focus(w)) || (!isKeyboard && !(stack = x11::raise(w))))) {
+        if (hl::isX11(w) && ((takesFocus && !x11::focus(w)) || (!isKeyboard && !(stack = x11::raise(w))))) {
             drop(device);
             pause("x11_unresponsive");
             return;
@@ -812,7 +812,7 @@ namespace hyprmasq::input {
         // xwayland-satellite moves X focus once it has handled the whole batch of Wayland events that entered the
         // window, but forwards keys at once. Keys and the return of focus to the user's window each wait for a
         // later batch, or they would reach whichever window had X focus before.
-        const bool satellite = isKeyboard && !w->backend().isX11() && real != w->resource() && xServer();
+        const bool satellite = isKeyboard && !hl::isX11(w) && real != w->resource() && xServer();
         if (satellite && !enteredKeyboard) {
             enterKeyboard(s, w->resource(), restore);
             deferredKeys = true;
@@ -841,7 +841,7 @@ namespace hyprmasq::input {
             // Queued frames go to the target first, and the focus goes back once they run out.
             if (isKeyboard && satellite)
                 restoreDue = true;
-            else if (isKeyboard && !w->backend().isX11() && real != w->resource() && (!keys.empty() || Time::steadyNow() < lastCommand + KEYS_SETTLE))
+            else if (isKeyboard && !hl::isX11(w) && real != w->resource() && (!keys.empty() || Time::steadyNow() < lastCommand + KEYS_SETTLE))
                 keepKeyboard(s);
             else if (isKeyboard) {
                 keyboardKept = false;
@@ -860,7 +860,7 @@ namespace hyprmasq::input {
             x11::lower(*stack);
         // xwayland-satellite moves X focus once it has handled the batch that entered the window, so keys after
         // the click wait for a later batch, as after an enter for keys.
-        if (frame.focusedKeyboard && !w->backend().isX11() && xServer())
+        if (frame.focusedKeyboard && !hl::isX11(w) && xServer())
             hold();
         // X focus goes back at once when the user's keyboard is on the same Wayland client, otherwise once input
         // pauses.
@@ -1055,7 +1055,7 @@ namespace hyprmasq::input {
         auto       surf    = Desktop::View::CWLSurface::fromResource(real);
         auto       box     = surf ? surf->getSurfaceBoxGlobal() : std::nullopt;
         auto       realWin = surf ? Desktop::View::CWindow::fromView(surf->view()) : nullptr;
-        const auto scale   = realWin && realWin->backend().isX11() ? realWin->backend().surfaceScale() : 1.0;
+        const auto scale   = realWin && hl::isX11(realWin) ? hl::x11SurfaceScale(realWin) : 1.0;
         const auto local   = (g_pInputManager->getMouseCoordsInternal() - (box ? box->pos() : Vector2D{})) * scale;
         leavePointer();
         for (auto& p : s->m_pointers)
@@ -1086,7 +1086,7 @@ namespace hyprmasq::input {
         const bool recent = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInput).count() < IDLE_MS;
         const bool idle   = !recent && !held && keys.empty() && buttons.empty();
         // An X11 app's open menu keeps the X focus, until it closes.
-        const bool menu = idle && w->backend().isX11() && x11::keepsFocus(w);
+        const bool menu = idle && hl::isX11(w) && x11::keepsFocus(w);
         if (idle) {
             leave();
             if (!menu)
@@ -1155,7 +1155,7 @@ namespace hyprmasq::input {
     }
 
     void SSession::refuse(eis_client* sender, const SError& why) {
-        Log::logger->log(Log::WARN, "hyprmasq", "refusing the sender of {}: {}", path, why.message);
+        hl::log(Log::WARN, "refusing the sender of {}: {}", path, why.message);
         eis_client_connect(sender);
         if (auto* s = eis_client_new_seat(sender, std::format("hyprmasq refused {}: {}", codeName(why.code), why.message).c_str())) {
             eis_seat_add(s);

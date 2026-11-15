@@ -1,8 +1,7 @@
+#include "Hyprland.hpp"
 #include "PrivateAccess.hpp"
 
 #include <hyprland/src/desktop/rule/windowRule/WindowRuleApplicator.hpp>
-#include <hyprland/src/desktop/view/window/Window.hpp>
-#include <hyprland/src/desktop/view/window/X11Backend.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/plugins/HookSystem.hpp>
 #include <hyprland/src/pointer/cursor/CursorManager.hpp>
@@ -11,9 +10,14 @@
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/DataDevice.hpp>
 #include <hyprland/src/protocols/core/Seat.hpp>
-#include <hyprland/src/render/GLRenderer.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/xwayland/XWM.hpp>
+#if HYPRMASQ_HYPRLAND >= 57
+#include <hyprland/src/desktop/view/window/X11Backend.hpp>
+#include <hyprland/src/render/GLRenderer.hpp>
+#else
+#include <hyprland/src/debug/HyprCtl.hpp>
+#endif
 
 #include <utility>
 
@@ -149,6 +153,7 @@ namespace hyprmasq {
         };
         template struct SExpose<SApplicatorWindow, &Desktop::Rule::CWindowRuleApplicator::m_window>;
 
+#if HYPRMASQ_HYPRLAND >= 57
         struct SWindowSuppression {
             friend constexpr auto exposed(SWindowSuppression);
         };
@@ -163,6 +168,13 @@ namespace hyprmasq {
             friend constexpr type             exposed(SX11Surface);
         };
         template struct SExpose<SX11Surface, &Desktop::View::CX11Backend::m_xwaylandSurface>;
+#else
+        struct SHyprCtlCommands {
+            using type = std::vector<SP<SHyprCtlCommand>> CHyprCtl::*;
+            friend constexpr type                         exposed(SHyprCtlCommands);
+        };
+        template struct SExpose<SHyprCtlCommands, &CHyprCtl::m_commands>;
+#endif
 
         struct SIdleInhibited {
             using type = bool     CIdleNotifyProtocol::*;
@@ -210,6 +222,7 @@ namespace hyprmasq {
         };
         template struct SExpose<SHookActive, &CFunctionHook::m_active>;
 
+#if HYPRMASQ_HYPRLAND >= 57
         struct SGLPendingBuffers {
             using type = std::vector<Render::SSurfaceBufferUse> Render::GL::CHyprGLRenderer::*;
             friend constexpr type                               exposed(SGLPendingBuffers);
@@ -221,6 +234,12 @@ namespace hyprmasq {
                                                          Render::eRenderPassMode, bool, bool);
             friend constexpr type exposed(SRenderWindow);
         };
+#else
+        struct SRenderWindow {
+            using type = void (Render::IHyprRenderer::*)(PHLWINDOW, PHLMONITOR, const Time::steady_tp&, bool, Render::eRenderPassMode, bool, bool);
+            friend constexpr type exposed(SRenderWindow);
+        };
+#endif
         template struct SExpose<SRenderWindow, &Render::IHyprRenderer::renderWindow>;
     }
 
@@ -312,6 +331,7 @@ namespace hyprmasq {
         return applicator.*exposed(SApplicatorWindow{});
     }
 
+#if HYPRMASQ_HYPRLAND >= 57
     bool& activateFocusOnlyOf(Desktop::View::CWindow& window) {
         return (window.*exposed(SWindowSuppression{})).activateFocusOnly;
     }
@@ -323,6 +343,11 @@ namespace hyprmasq {
     WP<CXWaylandSurface>& xwaylandSurfaceOf(Desktop::View::CX11Backend& backend) {
         return backend.*exposed(SX11Surface{});
     }
+#else
+    std::vector<SP<SHyprCtlCommand>>& commandsOf(CHyprCtl& ctl) {
+        return ctl.*exposed(SHyprCtlCommands{});
+    }
+#endif
 
     bool& inhibitedOf(CIdleNotifyProtocol& protocol) {
         return protocol.*exposed(SIdleInhibited{});
@@ -352,6 +377,7 @@ namespace hyprmasq {
         return hook.*exposed(SHookActive{});
     }
 
+#if HYPRMASQ_HYPRLAND >= 57
     void renderWindow(Render::IHyprRenderer& renderer, Render::CRenderContext& ctx, PHLWINDOW window, PHLMONITOR monitor, const Render::SWindowRenderPresentation& presentation,
                       const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode, bool ignorePosition, bool standalone) {
         (renderer.*exposed(SRenderWindow{}))(ctx, std::move(window), std::move(monitor), presentation, time, decorate, mode, ignorePosition, standalone);
@@ -360,4 +386,10 @@ namespace hyprmasq {
     std::vector<Render::SSurfaceBufferUse>& pendingBufferUsesOf(Render::GL::CHyprGLRenderer& renderer) {
         return renderer.*exposed(SGLPendingBuffers{});
     }
+#else
+    void renderWindow(Render::IHyprRenderer& renderer, PHLWINDOW window, PHLMONITOR monitor, const Time::steady_tp& time, bool decorate, Render::eRenderPassMode mode,
+                      bool ignorePosition, bool standalone) {
+        (renderer.*exposed(SRenderWindow{}))(std::move(window), std::move(monitor), time, decorate, mode, ignorePosition, standalone);
+    }
+#endif
 }

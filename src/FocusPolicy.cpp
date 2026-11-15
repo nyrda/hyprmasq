@@ -1,13 +1,12 @@
 #include "FocusPolicy.hpp"
 #include "Hooks.hpp"
+#include "Hyprland.hpp"
 #include "Launch.hpp"
 #include "PrivateAccess.hpp"
 #include "Selection.hpp"
 #include "Session.hpp"
 #include "X11.hpp"
 #include <hyprland/src/desktop/state/FocusState.hpp>
-#include <hyprland/src/desktop/view/window/Window.hpp>
-#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
@@ -15,6 +14,9 @@
 #include <hyprland/src/protocols/core/Compositor.hpp>
 #include <hyprland/src/protocols/core/DataDevice.hpp>
 #include <hyprland/src/protocols/core/Seat.hpp>
+#if HYPRMASQ_HYPRLAND >= 57
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
+#endif
 #include <algorithm>
 #include <ranges>
 #include <utility>
@@ -23,12 +25,17 @@
 namespace hyprmasq::input {
     namespace {
         // The hooked functions, see SPinned at the end of this file.
-        using PopupGrab                                 = void (CXDGShellProtocol::*)(SP<CXDGPopupResource>);
-        using StartDrag                                 = void (CWLDataDeviceProtocol::*)(WP<CWLDataSourceResource>, SP<CWLSurfaceResource>, SP<CWLSurfaceResource>);
-        using ActivationRequest                         = void (Desktop::View::CWindow::*)();
-        using WindowFocus                               = void (Desktop::CFocusState::*)(PHLWINDOW, Desktop::eFocusReason, SP<CWLSurfaceResource>);
-        using Activate                                  = void (Desktop::View::CWindow::*)(bool);
-        using UpdateDecorations                         = void (Desktop::View::CWindowPresentation::*)();
+        using PopupGrab = void (CXDGShellProtocol::*)(SP<CXDGPopupResource>);
+        using StartDrag = void (CWLDataDeviceProtocol::*)(WP<CWLDataSourceResource>, SP<CWLSurfaceResource>, SP<CWLSurfaceResource>);
+        // An XWayland window's activation request: CWindow::onActivationRequest on Hyprland 0.57, activateX11 on 0.56.
+        using ActivationRequest = void (Desktop::View::CWindow::*)();
+        using WindowFocus       = void (Desktop::CFocusState::*)(PHLWINDOW, Desktop::eFocusReason, SP<CWLSurfaceResource>);
+        using Activate          = void (Desktop::View::CWindow::*)(bool);
+#if HYPRMASQ_HYPRLAND >= 57
+        using UpdateDecorations = void (Desktop::View::CWindowPresentation::*)();
+#else
+        using UpdateDecorations = void (Desktop::View::CWindow::*)();
+#endif
         using KeyboardFocus                             = void (CSeatManager::*)(SP<CWLSurfaceResource>);
         using PointerFocus                              = void (CSeatManager::*)(SP<CWLSurfaceResource>, const Vector2D&);
         using KeyboardKey                               = void (CSeatManager::*)(uint32_t, uint32_t, wl_keyboard_key_state);
@@ -111,7 +118,7 @@ namespace hyprmasq::input {
             if (auto* session = protectedSession(origin))
                 privateDrag(session, nullptr, icon);
             else
-                Log::logger->log(Log::WARN, "hyprmasq", "ignoring a drag without a source");
+                hl::log(Log::WARN, "ignoring a drag without a source");
         }
 
         // X11 has no popup grabs to refuse. An X11 app takes focus by asking for activation, or by mapping a window
@@ -120,7 +127,7 @@ namespace hyprmasq::input {
         // activation, those count as one app per X server. New windows are only kept from focus by a known process, so
         // that apps the user starts still get focus.
         bool sameX11App(const PHLWINDOW& a, wl_client* aServer, const PHLWINDOW& b, wl_client* bServer, bool knownProcess) {
-            const auto pid = [](const PHLWINDOW& w) { return w->backend().isX11() ? w->backend().pid() : 0; };
+            const auto pid = [](const PHLWINDOW& w) { return hl::isX11(w) ? hl::pid(w) : 0; };
             if (!aServer || aServer != bServer)
                 return false;
             if (pid(a) > 0 && pid(b) > 0)
@@ -152,14 +159,14 @@ namespace hyprmasq::input {
         // in answer to input, as a terminal does for its bell or a page through window.focus(): the driven window itself
         // never, and its app's other windows while the user is in another app. The app is the window's connection.
         bool drivenWaylandApp(const PHLWINDOW& w) {
-            if (!w || w->backend().isX11() || !w->resource())
+            if (!w || hl::isX11(w) || !w->resource())
                 return false;
             const auto* client  = w->resource()->client();
             const auto  focused = Desktop::focusState()->window();
             const bool  inApp   = focused && focused->resource() && focused->resource()->client() == client;
             return std::ranges::any_of(sessions, [&](const auto& entry) {
                 const auto driven = entry.second->window.lock();
-                return driven && !driven->backend().isX11() && driven->resource() && driven->resource()->client() == client && (driven == w || !inApp);
+                return driven && !hl::isX11(driven) && driven->resource() && driven->resource()->client() == client && (driven == w || !inApp);
             });
         }
         // xwayland-satellite forwards activation requests as xdg-activation. A forced activation comes from the user,
@@ -169,12 +176,20 @@ namespace hyprmasq::input {
         void activate(Desktop::View::CWindow* self, bool force) {
             if (!force && drivenX11App(self->m_self.lock(), false))
                 return;
+#if HYPRMASQ_HYPRLAND >= 57
             auto&      suppression = activateFocusOnlyOf(*self);
             const bool suppressed  = suppression;
             if (!force && (launch::placed(self->m_self.lock()) || drivenWaylandApp(self->m_self.lock())))
                 suppression = true;
             originalActivate(self, force);
             suppression = suppressed;
+#else
+            const auto suppressed = self->m_suppressedEvents;
+            if (!force && (launch::placed(self->m_self.lock()) || drivenWaylandApp(self->m_self.lock())))
+                self->m_suppressedEvents |= Desktop::View::SUPPRESS_ACTIVATE_FOCUSONLY;
+            originalActivate(self, force);
+            self->m_suppressedEvents = suppressed;
+#endif
         }
         void windowFocus(Desktop::CFocusState* self, PHLWINDOW w, Desktop::eFocusReason reason, SP<CWLSurfaceResource> surface) {
             if (w && reason == Desktop::FOCUS_REASON_NEW_WINDOW && drivenX11App(w, true))
@@ -183,6 +198,7 @@ namespace hyprmasq::input {
         }
 
         // Every change to a window's position or size updates its decorations, the one place where moves show.
+#if HYPRMASQ_HYPRLAND >= 57
         void updateDecos(Desktop::View::CWindowPresentation* self) {
             originalUpdateDecos(self);
             for (auto& [_, session] : sessions) {
@@ -190,6 +206,15 @@ namespace hyprmasq::input {
                     session->checkRegionsLater();
             }
         }
+#else
+        void updateDecos(Desktop::View::CWindow* self) {
+            originalUpdateDecos(self);
+            for (auto& [_, session] : sessions) {
+                if (session->window.lock().get() == self)
+                    session->checkRegionsLater();
+            }
+        }
+#endif
 
         // When the real focus changes, Hyprland sends every keyboard or pointer a leave, which does nothing for one
         // without a surface. A lease keeps the emulated focus of a window on another connection than the new focus, so
@@ -310,8 +335,13 @@ namespace hyprmasq::input {
         auto& activateHook = defineHook<Activate, &activate>(handle, "_ZN7Desktop4View7CWindow8activateEb", "Desktop::View::CWindow::activate(bool)", originalActivate);
         input.add(activateHook);
         hooks::launch.add(activateHook);
+#if HYPRMASQ_HYPRLAND >= 57
         input.add(defineHook<UpdateDecorations, &updateDecos>(handle, "_ZN7Desktop4View19CWindowPresentation17updateDecorationsEv",
                                                               "Desktop::View::CWindowPresentation::updateDecorations()", originalUpdateDecos));
+#else
+        input.add(defineHook<UpdateDecorations, &updateDecos>(handle, "_ZN7Desktop4View7CWindow17updateWindowDecosEv", "Desktop::View::CWindow::updateWindowDecos()",
+                                                              originalUpdateDecos));
+#endif
         input.add(defineHook<KeyboardFocus, &setKeyboardFocus>(handle, "_ZN12CSeatManager16setKeyboardFocusEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEE",
                                                                "CSeatManager::setKeyboardFocus(Hyprutils::Memory::CSharedPointer<CWLSurfaceResource>)", originalKeyboardFocus));
         input.add(defineHook<PointerFocus, &setPointerFocus>(
@@ -330,8 +360,12 @@ namespace hyprmasq::input {
         input.add(touchHook);
         hooks::clipboard.add(touchHook);
         auto& x11 = hooks::x11Input;
+#if HYPRMASQ_HYPRLAND >= 57
         x11.add(defineHook<ActivationRequest, &activateX11>(handle, "_ZN7Desktop4View7CWindow19onActivationRequestEv", "Desktop::View::CWindow::onActivationRequest()",
                                                             originalActivateX11));
+#else
+        x11.add(defineHook<ActivationRequest, &activateX11>(handle, "_ZN7Desktop4View7CWindow11activateX11Ev", "Desktop::View::CWindow::activateX11()", originalActivateX11));
+#endif
         x11.add(defineHook<WindowFocus, &windowFocus>(
             handle, "_ZN7Desktop11CFocusState14rawWindowFocusEN9Hyprutils6Memory14CSharedPointerINS_4View7CWindowEEENS_12eFocusReasonENS3_I18CWLSurfaceResourceEE",
             "Desktop::CFocusState::rawWindowFocus(Hyprutils::Memory::CSharedPointer<Desktop::View::CWindow>, Desktop::eFocusReason, "
@@ -350,10 +384,18 @@ namespace hyprmasq::input {
 
 template struct hyprmasq::SPinned<hyprmasq::input::PopupGrab, &CXDGShellProtocol::addOrStartGrab>;
 template struct hyprmasq::SPinned<hyprmasq::input::StartDrag, &CWLDataDeviceProtocol::initiateDrag>;
+#if HYPRMASQ_HYPRLAND >= 57
 template struct hyprmasq::SPinned<hyprmasq::input::ActivationRequest, &Desktop::View::CWindow::onActivationRequest>;
+#else
+template struct hyprmasq::SPinned<hyprmasq::input::ActivationRequest, &Desktop::View::CWindow::activateX11>;
+#endif
 template struct hyprmasq::SPinned<hyprmasq::input::WindowFocus, &Desktop::CFocusState::rawWindowFocus>;
 template struct hyprmasq::SPinned<hyprmasq::input::Activate, &Desktop::View::CWindow::activate>;
+#if HYPRMASQ_HYPRLAND >= 57
 template struct hyprmasq::SPinned<hyprmasq::input::UpdateDecorations, &Desktop::View::CWindowPresentation::updateDecorations>;
+#else
+template struct hyprmasq::SPinned<hyprmasq::input::UpdateDecorations, &Desktop::View::CWindow::updateWindowDecos>;
+#endif
 template struct hyprmasq::SPinned<hyprmasq::input::KeyboardFocus, &CSeatManager::setKeyboardFocus>;
 template struct hyprmasq::SPinned<hyprmasq::input::PointerFocus, &CSeatManager::setPointerFocus>;
 template struct hyprmasq::SPinned<hyprmasq::input::KeyboardKey, &CSeatManager::sendKeyboardKey>;

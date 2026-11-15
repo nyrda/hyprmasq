@@ -1,5 +1,6 @@
 #include "Placement.hpp"
 #include "Hooks.hpp"
+#include "Hyprland.hpp"
 #include "Launch.hpp"
 #include "PrivateAccess.hpp"
 #include "Process.hpp"
@@ -9,7 +10,6 @@
 #include <hyprland/src/config/values/types/BoolValue.hpp>
 #include <hyprland/src/desktop/rule/windowRule/WindowRuleApplicator.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
-#include <hyprland/src/desktop/view/window/Window.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
@@ -141,8 +141,8 @@ namespace hyprmasq::placement {
             const auto surface = w->resource();
             if (!surface)
                 return std::nullopt;
-            SApp app{.client = surface->client(), .pid = w->backend().pid()};
-            if (w->backend().isX11() && app.pid <= 0)
+            SApp app{.client = surface->client(), .pid = hl::pid(w)};
+            if (hl::isX11(w) && app.pid <= 0)
                 return std::nullopt;
             app.started = startedOf(app, known);
             return app;
@@ -163,8 +163,8 @@ namespace hyprmasq::placement {
             SApp       app{.client = surface->client()};
             wl_client_get_credentials(app.client, &app.pid, nullptr, nullptr);
             for (const auto& w : Desktop::windowState()->windows()) {
-                if (w && w->backend().isX11() && w->mapped() && w->resource() == surface) {
-                    app.pid = w->backend().pid();
+                if (w && hl::isX11(w) && hl::mapped(w) && w->resource() == surface) {
+                    app.pid = hl::pid(w);
                     break;
                 }
             }
@@ -271,7 +271,11 @@ namespace hyprmasq::placement {
                 }
                 return false;
             }
+#if HYPRMASQ_HYPRLAND >= 57
             const bool shortcut = sc<bool>(g_pInputManager->getModsFromAllKBs() & (Input::HL_MODIFIER_CTRL | Input::HL_MODIFIER_ALT | Input::HL_MODIFIER_META));
+#else
+            const bool shortcut = sc<bool>(g_pInputManager->getModsFromAllKBs() & (HL_MODIFIER_CTRL | HL_MODIFIER_ALT | HL_MODIFIER_META));
+#endif
             if (!shortcut && (event.keycode == KEY_ENTER || event.keycode == KEY_KPENTER)) {
                 auto* const field = g_pInputManager->m_relay.getFocusedTextInput();
                 if ((field && field->isEnabled()) || (surface && typedInto == surface && now - typedAt < LINE))
@@ -297,7 +301,7 @@ namespace hyprmasq::placement {
             // A parent names it: an xdg_toplevel parent, WM_TRANSIENT_FOR, or through xdg-foreign a window of another
             // app, as for a portal's file chooser. A parent the agent does not work in, such as the user's own window
             // of the same app, makes the window the user's.
-            if (const auto parent = w->backend().parent()) {
+            if (const auto parent = hl::parent(w)) {
                 const auto* d = find(inputs.driven, parent);
                 if (!d)
                     return std::nullopt;
@@ -307,7 +311,7 @@ namespace hyprmasq::placement {
             // since: on its workspace, or if that is gone, on that of its parent. The windows of an xwayland-satellite
             // share its connection and its process, so its apps cannot be told apart.
             const auto app = appOf(w);
-            if (!app || (!w->backend().isX11() && x11::server(w)))
+            if (!app || (!hl::isX11(w) && x11::server(w)))
                 return std::nullopt;
             const SDriven*                 best = nullptr;
             PHLWORKSPACE                   workspace;
@@ -321,10 +325,10 @@ namespace hyprmasq::placement {
                 if (best && *d.input <= *best->input)
                     continue;
                 PHLWORKSPACE at;
-                if (source && source->mapped())
+                if (source && hl::mapped(source))
                     at = source->m_workspace;
                 else if (!(at = d.workspace.lock()))
-                    if (const auto parent = d.parent.lock(); parent && parent->mapped())
+                    if (const auto parent = d.parent.lock(); parent && hl::mapped(parent))
                         at = parent->m_workspace;
                 if (at) {
                     best      = &d;
@@ -460,7 +464,7 @@ namespace hyprmasq::placement {
         d->app       = appOf(window, d->app);
         d->address   = windowAddress(window);
         d->workspace = window->m_workspace;
-        d->parent    = window->backend().parent();
+        d->parent    = hl::parent(window);
     }
 
     std::optional<SSource> source(const PHLWINDOW& window) {

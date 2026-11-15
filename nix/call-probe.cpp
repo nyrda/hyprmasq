@@ -19,7 +19,11 @@
 
 #include <hyprland/src/desktop/state/WindowState.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
+#if __has_include(<hyprland/src/desktop/view/window/Window.hpp>)
 #include <hyprland/src/desktop/view/window/Window.hpp>
+#else
+#include <hyprland/src/desktop/view/Window.hpp>
+#endif
 #include <hyprland/src/managers/SeatManager.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
@@ -62,10 +66,15 @@ namespace {
 
     SP<CXDGPopupResource> firstPopup(const std::string& address) {
         for (const auto& window : Desktop::windowState()->windows()) {
-            if (!window || std::format("0x{:x}", rc<uintptr_t>(window.get())) != address || !window->popupHead())
+#if __has_include(<hyprland/src/desktop/view/window/Window.hpp>)
+            const auto head = window ? window->popupHead() : nullptr;
+#else
+            const auto head = window ? window->m_popupHead : nullptr;
+#endif
+            if (!head || std::format("0x{:x}", rc<uintptr_t>(window.get())) != address)
                 continue;
             SP<CXDGPopupResource> found;
-            window->popupHead()->breadthfirst(
+            head->breadthfirst(
                 [&](SP<Desktop::View::CPopup> popup, void*) {
                     const auto surface = popup->resource();
                     if (found || !surface || !surface->m_role || surface->m_role->role() != SURFACE_ROLE_XDG_SHELL)
@@ -79,8 +88,12 @@ namespace {
         return nullptr;
     }
 
+#if __has_include(<hyprland/src/ipc/s1/S1.hpp>)
     IPC::Socket1::SResponse probe(const IPC::Socket1::SRequest& parsed) {
         const auto& request = parsed.command;
+#else
+    std::string probe(eHyprCtlOutputFormat, std::string request) {
+#endif
         if (request.starts_with("hmprobe grab ")) {
             const auto popup = firstPopup(request.substr(13));
             if (!popup)
@@ -98,7 +111,11 @@ namespace {
 }
 
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+#if __has_include(<hyprland/src/ipc/s1/S1.hpp>)
     HyprlandAPI::registerHyprCtlCommand(handle, IPC::Socket1::SCommand{.name = "hmprobe", .match = IPC::Socket1::COMMAND_MATCH_PREFIX, .handler = probe});
+#else
+    HyprlandAPI::registerHyprCtlCommand(handle, SHyprCtlCommand{.name = "hmprobe", .exact = false, .fn = probe});
+#endif
     return {"hyprmasq-call-probe", "Calls hooked functions as an optimizing build of Hyprland does", "hyprmasq", "1"};
 }
 

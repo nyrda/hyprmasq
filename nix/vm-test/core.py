@@ -49,7 +49,8 @@ with subtest("screenshots are encoded while Hyprland keeps running"):
         f"hyprmasq screenshot {green} /tmp/hm-batch-green.png"
     )
     assert len(parts) == 3 and parts[0] == "ok" and parts[2] == "ok", parts
-    assert parts[1].startswith("workspace 4 ("), parts
+    # Hyprland 0.56 words activeworkspace differently.
+    assert parts[1].startswith("workspace 4 (" if hyprland_release != "0.56" else "workspace ID 4 "), parts
     assert_png("/tmp/hm-batch-red.png", (255, 0, 0))
     assert_png("/tmp/hm-batch-green.png", (0, 255, 0))
     parts = [
@@ -73,10 +74,19 @@ with subtest("a screenshot that Hyprland waits for writes regular files, and ref
     reply = json.loads(alice(f"{ipc} timeout 10 hyprctl -j hmcall hyprmasq screenshot {red} /tmp/hm-call.png"))
     assert not reply["ok"] and reply["code"] == "unsupported", reply
     assert "/tmp/hm-call.png is not a regular file" in reply["error"], reply
+    batched = "su - alice -c " + shlex.quote(f"{ipc} timeout 10 hyprctl hmcall '[[BATCH]]hyprmasq' screenshot {red} /tmp/hm-call.png ';' hyprmasq version")
+    if hyprland_release == "0.56":
+        # Hyprland 0.56 takes a batch through invokeHyprctlCommand, which needs its reply at once too. hyprctl exits 7
+        # for a reply that starts with an error.
+        status, reply = machine.execute(batched)
+        parts = reply.split("\n\n\n")
+        assert status == 7 and len(parts) == 2 and parts[0].startswith("error: /tmp/hm-call.png is not a regular file"), parts
+        assert parts[1].strip().startswith("hyprmasq "), parts
+    else:
+        # invokeHyprctlCommand puts the format before the command, so Hyprland never takes a request through it for a batch.
+        _, reply = machine.execute(batched)
+        assert "unknown request" in reply, reply
     machine.succeed("test -p /tmp/hm-call.png")
-    # invokeHyprctlCommand puts the format before the command, so Hyprland never takes a request through it for a batch.
-    _, reply = machine.execute("su - alice -c " + shlex.quote(f"{ipc} timeout 10 hyprctl hmcall '[[BATCH]]hyprmasq' version ';' hyprmasq version"))
-    assert "unknown request" in reply, reply
     # A regular file is written, also over an existing one.
     reply = json.loads(alice(f"{ipc} timeout 10 hyprctl -j hmcall hyprmasq screenshot {red} /tmp/hm-call-file.png"))
     assert reply["ok"] and reply["path"] == "/tmp/hm-call-file.png", reply
@@ -85,6 +95,12 @@ with subtest("a screenshot that Hyprland waits for writes regular files, and ref
     reply = json.loads(alice(f"{ipc} timeout 10 hyprctl -j hmcall hyprmasq screenshot {red} /tmp/hm-call-file.png"))
     assert reply["ok"], reply
     assert_png("/tmp/hm-call-file.png", (255, 0, 0))
+    if hyprland_release == "0.56":
+        # And in a batch.
+        alice("rm -f /tmp/hm-call-batch.png && printf old > /tmp/hm-call-batch.png")
+        parts = alice(f"{ipc} timeout 10 hyprctl hmcall '[[BATCH]]hyprmasq' screenshot {red} /tmp/hm-call-batch.png ';' hyprmasq version").split("\n\n\n")
+        assert parts[0].strip() == "ok", parts
+        assert_png("/tmp/hm-call-batch.png", (255, 0, 0))
     assert hypr(f"plugin unload {caller}") == "ok"
     assert json.loads(hypr("-j activeworkspace"))["id"] == 4
 
