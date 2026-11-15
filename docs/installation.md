@@ -1,6 +1,6 @@
 # Installation
 
-hyprmasq 0.3.0 is built and tested against **Hyprland v0.57.2** at the
+hyprmasq 0.3.1 is built and tested against **Hyprland v0.57.2** at the
 release commit `flake.lock` pins, and against **v0.56.2**, the release before
 it, on x86_64 Linux. Both build from the same source, see
 [Older Hyprland releases](#older-hyprland-releases).
@@ -164,8 +164,8 @@ through `proxy.golang.org`, or from their repositories with
 `GOPROXY=direct makepkg -si`. makepkg builds in `build/makepkg` of the clone,
 or under `BUILDDIR` when you set one, and writes the package files to the
 clone's root. `pacman -Q hyprmasq` shows a version such as
-`0.3.0.r12.g5e0bb2a`: the `VERSION` file, the number of commits and the
-commit. The programs report the `VERSION`, here `0.3.0`.
+`0.3.1.r12.g5e0bb2a`: the `VERSION` file, the number of commits and the
+commit. The programs report the `VERSION`, here `0.3.1`.
 
 It installs the plugin as `/usr/lib/hyprmasq/hyprmasq.so`, and as the loader
 `/etc/xdg/hypr/hyprmasq_plugin.lua` the line
