@@ -59,7 +59,7 @@ hyprctl hyprmasq eis close "$addr"
 | `clipboard` | `text N: A pastes asked for it, E have ended, C with all of it` | How far the pastes of the last text that `clipboard set` made have read it, while it is still the agent's clipboard. |
 | `hooks` | `group mode, state` lines | The plugin's groups of function hooks, whether each is installed, and why its last install was refused. See [Other plugins](#other-plugins). |
 | `hooks check` | `group state` lines | Install each group that is not installed and remove it again at once: `installs`, `installed` for one in use, or `refused` with why, as when another plugin holds a hook or this Hyprland's code cannot be hooked. Whether the running Hyprland takes every hook. |
-| `version` | `hyprmasq 0.3.1 interface 5` | Plugin version and command interface version. |
+| `version` | `hyprmasq 0.3.2 interface 5` | Plugin version and command interface version. |
 | `help` | usage | The command summary. |
 
 All commands are `hyprctl hyprmasq …`. Keywords such as `since`, `max` and
@@ -90,7 +90,7 @@ errors are JSON too, with `hyprctl` exiting 0, so check `ok`:
 | `launched` | `{"ok":true,"windows":[{"address":"0x…","stableId":"1a","token":"9c1f0e4ab27d3365"}]}` |
 | `clipboard set` | `{"ok":true,"serial":3}` |
 | `clipboard` | `{"ok":true,"serial":3,"held":true,"asked":1,"ended":1,"complete":1}` |
-| `version` | `{"ok":true,"version":"0.3.1","interface":5}` |
+| `version` | `{"ok":true,"version":"0.3.2","interface":5}` |
 | `hooks` | `{"ok":true,"groups":[{"name":"input","onDemand":true,"installed":false,"claims":0,"installs":3,"functions":["CSeatManager::setKeyboardFocus(…)"],"refused":null}]}` |
 | `hooks check` | `{"ok":true,"all":true,"groups":[{"name":"input","state":"installs","refused":null}]}` |
 | an error | `{"ok":false,"error":"no mapped window 0x1234","code":"window_gone"}` |
