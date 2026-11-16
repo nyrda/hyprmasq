@@ -13,7 +13,10 @@ the MCP server, described in [MCP server](mcp.md).
   relative to the window's top-left corner, the same for screenshots and for
   pointer input. A screenshot pixel at PX,PY is at
   `region.x + PX / scale`, `region.y + PY / scale`, using the `region` and
-  `scale` of the screenshot's JSON reply.
+  `scale` of the screenshot's JSON reply. Hyprland `main` draws a window's
+  surface centered in the window when the surface is smaller than the window,
+  and leaves its subsurfaces where they are. Pointer input follows the drawing,
+  so a point reaches what the screenshot shows there.
 - **Input socket.** `eis open` creates a [libei](https://gitlab.freedesktop.org/libinput/libei)
   socket bound to one window. Input sent to it goes to that window only.
   The socket is removed when you close it, when the window closes, or when the

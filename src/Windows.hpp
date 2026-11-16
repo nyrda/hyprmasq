@@ -25,6 +25,13 @@ namespace hyprmasq {
     // out: the offset of its content within its surface. 0 for an X11 window.
     Vector2D geometryOffset(const PHLWINDOW& window);
 
+    // Where Hyprland draws the window's own surface within the window, in window-local logical pixels: centered in the
+    // window when the surface is smaller than the size Hyprland gave it, as Hyprland main does, and at 0 otherwise. Its
+    // subsurfaces stay where they are, and the releases draw it at 0 too, as their CWLSurface::correctSmallVec() returns
+    // nothing where the renderer applies it. Emulated input and the places of surfaces follow it, so that a point of a
+    // screenshot reaches what the screenshot shows there.
+    Vector2D drawnOffset(const PHLWINDOW& window);
+
     // The smallest box that holds both boxes.
     CBox unite(const CBox& a, const CBox& b);
 

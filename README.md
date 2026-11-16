@@ -33,7 +33,9 @@ on one desktop, shown at double speed.
 
 ## Install
 
-hyprmasq builds against Hyprland 0.57.2 and 0.56.2 from the same source.
+hyprmasq builds against Hyprland 0.57.2 and 0.56.2 from the same source, and
+a branch against Hyprland `main`, see
+[Hyprland main](docs/installation.md#hyprland-main).
 `hyprctl version` shows yours.
 
 **Arch and Omarchy.** Install from the AUR, and load the plugin from

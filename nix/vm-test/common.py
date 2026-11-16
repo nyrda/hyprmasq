@@ -593,6 +593,36 @@ def dnd_probe(log, title, *options, workspace=81):
     return address, open_socket(address)
 
 
+def dnd_point(address, x, y):
+    """A point of the drag probe in its window, given at (x, y) of its 400×200 surface, or of its subsurface, which lies
+    over the surface's right half from (200, 0) to (400, 200), where Hyprland draws them, as a screenshot shows them and
+    hyprmasq's input reaches them. Hyprland main draws a surface smaller than its window centered in it and leaves its
+    subsurfaces where they are, while 0.57 and 0.56 draw it at the top left."""
+    if hyprland_release in ("0.56", "0.57") or (200 <= x < 400 and 0 <= y < 200):
+        return x, y
+    width, height = next(c for c in clients() if c["address"] == address)["size"]
+    return x + max(0, (width - 400) // 2), y + max(0, (height - 200) // 2)
+
+
+def dnd_steps(address, *steps):
+    """hyprmasq-input steps for the drag probe, with the points of each move and path placed by dnd_point."""
+    placed, i = [], 0
+    while i < len(steps):
+        if steps[i] == "move":
+            placed += ["move", *dnd_point(address, steps[i + 1], steps[i + 2])]
+            i += 3
+        elif steps[i] == "path":
+            count = steps[i + 1]
+            placed += ["path", count]
+            for n in range(count):
+                placed += dnd_point(address, steps[i + 2 + 2 * n], steps[i + 3 + 2 * n])
+            i += 2 + 2 * count
+        else:
+            placed.append(steps[i])
+            i += 1
+    return placed
+
+
 def dnd_events(log, start=0):
     return [e for _, e in probe_events(log, start)]
 

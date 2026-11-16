@@ -34,12 +34,15 @@ check that hooked functions still do what their hooks expect against the
 pinned Hyprland source. The build checks only their types.
 
 The plugin builds against two Hyprland releases from one source: 0.57.2, which
-`flake.lock` pins, and 0.56.2 (`HYPRLAND_VERSION` names both). Use the helpers
+`flake.lock` pins, and 0.56.2 (`HYPRLAND_VERSION` names both). It also builds
+against Hyprland `main` at the commit that `flake.lock` locks as
+`hyprland-main`, whose version `HYPRLAND_MAIN_VERSION` names. Use the helpers
 of `src/Hyprland.hpp` for what differs, and `#if HYPRMASQ_HYPRLAND` where no
-helper fits. Check hooked functions and private members against both
-releases' sources. Build for 0.56.2 with `./dev.sh build --hyprland 0.56`.
-"Two Hyprland releases" in `docs/development.md` says when a PR also passes
-the test gate on 0.56.2.
+helper fits. Check hooked functions and private members against all three
+sources. Build for 0.56.2 with `./dev.sh build --hyprland 0.56`, and for
+Hyprland main with `./dev.sh build --hyprland main`.
+"Two Hyprland releases" and "Hyprland main" in `docs/development.md` say when
+a PR also passes the test gate on 0.56.2 or on Hyprland main.
 
 ## Checks before committing
 
@@ -67,7 +70,9 @@ the test gate on 0.56.2.
   (`.#checks.x86_64-linux.vm-test`). Screenshots and logs from the run land in
   `result/`. `./dev.sh gate --hyprland 0.56` runs it on Hyprland 0.56.2, for a
   PR that changes a hook, code that differs between the releases, what the
-  plugin uses of Hyprland, or the test. Add a subtest for new behaviour, and update the
+  plugin uses of Hyprland, or the test. `./dev.sh gate --hyprland main` runs it
+  on Hyprland main, for a PR that moves `hyprland-main` or changes code that
+  only Hyprland main builds. Add a subtest for new behaviour, and update the
   subtest table in `docs/vm-test.md`, which
   `nix build .#checks.x86_64-linux.vm-test-docs` checks against the code.
 
@@ -75,7 +80,7 @@ Nix only sees files known to Git, so `git add` new files before building.
 
 ## Pull requests
 
-CI runs `nix flake check --no-build`, then builds `hyprmasq`, `hyprmasq-hyprland056` (the plugin for Hyprland 0.56.2) and `hyprmasq-mcp`
+CI runs `nix flake check --no-build`, then builds `hyprmasq`, `hyprmasq-hyprland056` (the plugin for Hyprland 0.56.2), `hyprmasq-hyprland-main` (the plugin for Hyprland main) and `hyprmasq-mcp`
 including the Go tests with `-short`, and the flake checks `mcp-tests` (all Go
 tests), `format` (clang-format and gofmt), `vm-test-docs` (the VM test's
 subtest tables) and `bench-calc` (the Calc checker). It runs the other bench
