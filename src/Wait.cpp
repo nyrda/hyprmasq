@@ -107,19 +107,20 @@ namespace hyprmasq::wait {
         std::optional<Vector2D> surfaceOrigin(const PHLWINDOW& window, const CWLSurfaceResource* target) {
             const auto              geometry = geometryOffset(window);
             std::optional<Vector2D> found;
-            auto                    find = [&](const SP<CWLSurfaceResource>& root, const Vector2D& base) {
+            auto                    find = [&](const SP<CWLSurfaceResource>& root, const Vector2D& base, const Vector2D& drawn) {
                 if (!root || found)
                     return;
                 root->breadthfirst(
                     [&](SP<CWLSurfaceResource> s, const Vector2D& offset, void*) {
                         if (!found && s.get() == target)
-                            found = base + offset;
+                            found = base + offset + (s == root ? drawn : Vector2D{});
                     },
                     nullptr);
             };
-            find(window->wlSurface() ? window->wlSurface()->resource() : nullptr, -geometry);
+            // The window's own surface where Hyprland draws it (see drawnOffset), and its subsurfaces where they are.
+            find(window->wlSurface() ? window->wlSurface()->resource() : nullptr, -geometry, drawnOffset(window));
             if (!found && hl::popupHead(window))
-                hl::popupHead(window)->breadthfirst([&](SP<Desktop::View::CPopup> p, void*) { find(p->resource(), p->coordsRelativeToParent() - geometry); }, nullptr);
+                hl::popupHead(window)->breadthfirst([&](SP<Desktop::View::CPopup> p, void*) { find(p->resource(), p->coordsRelativeToParent() - geometry, {}); }, nullptr);
             return found;
         }
 

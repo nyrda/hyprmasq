@@ -91,7 +91,7 @@ with subtest("a hidden window's own drag-and-drop runs privately, and its data g
     expected, pointer = snapshot(), cursor()
     state = window_state(address)
     assert state["capabilities"]["privateDnd"] and state["capabilities"]["hold"], state
-    send(path, *dnd_path_to_sub, "up", "left")
+    send(path, *dnd_steps(address, *dnd_path_to_sub, "up", "left"))
     events = wait_dnd("dnd-full", "source finished")
     assert f"payload {dnd_payload}" in events and "finish" in events and "source cancelled" not in events, events
     # The press's serial started it, and the window's pointer left without a release of the button.
@@ -115,11 +115,11 @@ with subtest("a hidden window's own drag-and-drop runs privately, and its data g
     assert drag_record(address) == finished_record(1), drag_record(address)
     # The finish drew the window green, which a capture shows, and the user's focus and pointer stayed.
     image, _ = shot(address, "dnd-full")
-    assert near(pixels(image, (100, 100))[0], (0x22, 0xAA, 0x44)), pixels(image, (100, 100))
+    assert near(pixels(image, dnd_point(address, 100, 100))[0], (0x22, 0xAA, 0x44)), pixels(image, dnd_point(address, 100, 100))
     assert snapshot() == expected and cursor() == pointer, (snapshot(), cursor())
     # After the drop, the window's pointer takes motion again.
     start = len(probe_events("dnd-full"))
-    send(path, "move", 60, 60)
+    send(path, *dnd_steps(address, "move", 60, 60))
     wait_dnd("dnd-full", "pointer enter hm-dnd-full", start)
     close_probe(address)
 
@@ -133,7 +133,7 @@ with subtest("drags in quick succession each run privately, also when the app st
     burst = []
     for y in (30, 70, 110, 150):
         burst += ["path", 2, 50, y, 300, y]
-    send(path, *burst)
+    send(path, *dnd_steps(address, *burst))
     wait_for("four finishes", lambda: dnd_events("dnd-burst").count("source finished") == 4, timeout=30)
     events = dnd_events("dnd-burst")
     assert events.count("drag threshold") == 4 and events.count("press frame") == 4, events
@@ -154,7 +154,7 @@ with subtest("a private drag that the destination refuses, or that ends outside 
     expected = snapshot()
     for options, reason, end in [("accept=none", "rejected", 150), ("actions=ask", "rejected", 150), ("", "no_target", 500)]:
         address, path = dnd_probe("dnd-refused", "hm-dnd-refused", options)
-        send(path, "move", 50, 100, "down", "left", "move", 90, 100, "move", end, 100, "up", "left")
+        send(path, *dnd_steps(address, "move", 50, 100, "down", "left", "move", 90, 100, "move", end, 100, "up", "left"))
         events = wait_dnd("dnd-refused", "source cancelled")
         assert "drag drop" not in events and "source finished" not in events and "payload" not in " ".join(events), (options, events)
         assert drag_record(address) == cancelled_record(1, reason), (options, drag_record(address))
@@ -170,8 +170,8 @@ with subtest("only the serial of a held emulated press starts a private drag"):
     for options in ["serial=enter", "serial=old", "serial=forged"]:
         address, path = dnd_probe("dnd-serial", "hm-dnd-serial", options)
         if options == "serial=old":
-            send(path, "move", 50, 100, "click")
-        send(path, "move", 50, 100, "down", "left", "move", 90, 100, "move", 150, 100, "up", "left")
+            send(path, *dnd_steps(address, "move", 50, 100, "click"))
+        send(path, *dnd_steps(address, "move", 50, 100, "down", "left", "move", 90, 100, "move", 150, 100, "up", "left"))
         events = wait_dnd("dnd-serial", "source cancelled")
         assert not any(e.startswith(("drag enter", "data offer")) for e in events), (options, events)
         assert drag_record(address) == cancelled_record(1, "serial", private=False), (options, drag_record(address))
@@ -182,7 +182,7 @@ with subtest("a drag without a source runs within its app without offers, from a
     # without an offer, motion and leaves, and no drop. Hyprland's own handler cannot take such a drag.
     address, path = dnd_probe("dnd-nosource", "hm-dnd-nosource", "source=none")
     expected, pointer = snapshot(), cursor()
-    send(path, *dnd_path_to_sub, "up", "left")
+    send(path, *dnd_steps(address, *dnd_path_to_sub, "up", "left"))
     wait_for("the drag's end", lambda: drag_record(address)["phase"] == "finished", timeout=20)
     events = dnd_events("dnd-nosource")
     enters = [e.split() for e in events if e.startswith("drag enter ")]
@@ -194,7 +194,7 @@ with subtest("a drag without a source runs within its app without offers, from a
     close_probe(address)
     # One with a made-up serial is refused and counted, though there is no source to tell.
     address, path = dnd_probe("dnd-nosource-forged", "hm-dnd-nosource-forged", "source=none", "serial=forged")
-    send(path, "move", 50, 100, "down", "left", "move", 90, 100, "move", 150, 100, "up", "left")
+    send(path, *dnd_steps(address, "move", 50, 100, "down", "left", "move", 90, 100, "move", 150, 100, "up", "left"))
     wait_for("the refusal", lambda: drag_record(address)["id"] == 1, timeout=20)
     assert drag_record(address) == cancelled_record(1, "serial", private=False), drag_record(address)
     assert not any(e.startswith("drag enter") for e in dnd_events("dnd-nosource-forged")), dnd_events("dnd-nosource-forged")
@@ -205,7 +205,7 @@ with subtest("a private drag ends when its source, data device, window, socket o
 
     def held_drag(log, title):
         address, path = dnd_probe(log, title)
-        run_input_background(f"hm-{log}", path, *dnd_path_to_sub, "sleep", 6000, "up", "left")
+        run_input_background(f"hm-{log}", path, *dnd_steps(address, *dnd_path_to_sub, "sleep", 6000, "up", "left"))
         wait_dnd(log, "drag enter sub")
         return address, path
 
@@ -245,7 +245,7 @@ with subtest("a private drag ends when its source, data device, window, socket o
 with subtest("a dropped private drag outlives its sender until the destination finishes, or it gives up"):
     # The destination finishes 1.5 s after the data, while the sender has long exited.
     address, path = dnd_probe("dnd-late", "hm-dnd-late", "finish=late")
-    send(path, *dnd_path_to_sub, "up", "left")
+    send(path, *dnd_steps(address, *dnd_path_to_sub, "up", "left"))
     wait_dnd("dnd-late", "payload")
     assert drag_record(address)["phase"] == "dropped", drag_record(address)
     events = wait_dnd("dnd-late", "source finished")
@@ -254,7 +254,7 @@ with subtest("a dropped private drag outlives its sender until the destination f
     close_probe(address)
     # One that never finishes is given up after 10 s: its outcome is unknown, and the source keeps its data.
     address, path = dnd_probe("dnd-never", "hm-dnd-never", "finish=never")
-    send(path, *dnd_path_to_sub, "up", "left")
+    send(path, *dnd_steps(address, *dnd_path_to_sub, "up", "left"))
     wait_dnd("dnd-never", "payload")
     assert drag_record(address)["phase"] == "dropped", drag_record(address)
     events = wait_dnd("dnd-never", "source cancelled", timeout=20)
@@ -284,7 +284,7 @@ with subtest("the user's real input to the app of a private drag cancels the dra
     center = (user["at"][0] + 50, user["at"][1] + 50)
     for n, take in enumerate(["pointer", "keyboard"], 1):
         start = len(probe_events("dnd-user"))
-        run_input_background("hm-dnd-user", path, *dnd_path_to_sub, "sleep", 6000, "up", "left")
+        run_input_background("hm-dnd-user", path, *dnd_steps(address, *dnd_path_to_sub, "sleep", 6000, "up", "left"))
         wait_dnd("dnd-user", "drag enter sub", start)
         if take == "pointer":
             # The test's Hyprland moves no focus with motion alone, so the user clicks there, through the virtual
@@ -326,7 +326,7 @@ with subtest("the user's typing during a private drag arrives unchanged, with th
     steps = []
     for x in range(60, 340, 4):
         steps += ["move", x, 100, "sleep", 250]
-    run_input_background("hm-dnd-typing", path, "move", 50, 100, "down", "left", *steps, "up", "left")
+    run_input_background("hm-dnd-typing", path, *dnd_steps(address, "move", 50, 100, "down", "left", *steps, "up", "left"))
     wait_dnd("dnd-typing", "drag enter hm-dnd-typing")
     typed_from = vm_now()
     # QEMU drops keys of the guest's terminal at 10 ms a key also without a drag, so they come slower.
