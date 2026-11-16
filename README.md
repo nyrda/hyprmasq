@@ -48,7 +48,8 @@ pcall(dofile, "/etc/xdg/hypr/hyprmasq_plugin.lua")
 ```
 
 The plugin comes prebuilt for the Hyprland that Arch and Omarchy ship, so
-Hyprland updates need nothing from you: `yay -Syu` keeps both in step. See
+Hyprland updates need nothing from you: `yay -Syu`, or `omarchy update` on
+Omarchy, keeps both in step. See
 [Arch and Omarchy](docs/installation.md#arch-and-omarchy), also for a build
 from a clone.
 
