@@ -53,9 +53,8 @@ rebuild. `hyprmasq` builds the programs once for each hyprmasq release,
 which takes about a minute and installs `go` for the build.
 `hyprmasq-bin` skips that. Install one of the two. Each replaces the other,
 and both replace a [build from a clone](#building-from-a-clone): pacman
-offers to remove it. Omarchy's Install > AUR menu installs with
-`--noconfirm`, which declines that offer, so replace a build from a clone with
-`yay -S` in a terminal.
+offers to remove it. On Omarchy, replace a build from a clone with `yay -S` in
+a terminal, not the Install > AUR menu.
 
 Then add the loader to `~/.config/hypr/hyprland.lua`, which Omarchy uses:
 
@@ -81,13 +80,9 @@ which come before `/usr/bin` on `PATH`, or pass
 
 ### Updates
 
-`yay -Syu` updates the packages with the rest of the system. On Omarchy,
-`omarchy update` does that instead: Omarchy stops a direct `yay -Syu` or
-`pacman -Syu`, and `omarchy update` updates the AUR packages after the system
-packages. Its update notice only tracks Omarchy itself, so a hyprmasq release
-arrives with the next update you run. A hyprmasq release updates both of your
-packages. An update takes effect when Hyprland loads the plugin again, at its
-next start.
+`yay -Syu` updates the packages with the rest of the system, or
+`omarchy update` on Omarchy. A hyprmasq release updates both of yours. An
+update takes effect when Hyprland loads the plugin again, at its next start.
 
 A plugin must match the Hyprland build that loads it: hyprmasq compares the
 commit that Hyprland was built from, and the major and minor versions of
@@ -511,7 +506,6 @@ instructions, but the tool descriptions carry every rule, so nothing is lost.
 | The plugin fails to load with "built for another Hyprland build" | It was compiled against another Hyprland build. Rebuild it against the running one. `hyprctl version` shows that build. On Arch with a build from a clone, after a Hyprland update, run `makepkg -sif` in your clone and restart Hyprland. |
 | `yay -Syu` or `omarchy update` stops at "installing hyprmasq-plugin-bin breaks dependency 'hyprmasq-plugin=0.3.0' required by hyprmasq", or `0.3.1` | hyprmasq 0.3.0 and 0.3.1 required the plugin of exactly their version, which yay cannot update one package at a time. Run `sudo pacman -R hyprmasq`, or `hyprmasq-bin`, then `yay -S hyprmasq` or `yay -S hyprmasq-bin` again. Later releases update as usual. |
 | The plugin fails to load with "this hyprmasq package has no plugin for the running Hyprland build" | `hyprmasq-plugin-bin` has not verified that Hyprland build yet. Run `yay -Syu`, or `omarchy update` on Omarchy, later and restart Hyprland, see [Updates](#updates). The MCP tools' `plugin_missing` error gives the same reason. |
-| `yay -Syu` on Omarchy stops at "This looks like a direct pacman system upgrade" | Omarchy updates through `omarchy update`, which also updates the AUR packages. Run that instead, see [Updates](#updates). |
 | Loading fails with a hook error | The plugin was built against a Hyprland other than the pinned commit, whose functions differ. |
 | `the plugin refused input to the window: another plugin hooks …` | Another Hyprland plugin hooks a function that hyprmasq needs for input to windows, which the message names. Screenshots keep working. Input works again once that plugin no longer holds it. `hyprctl hyprmasq hooks` lists what hyprmasq hooks and what was refused. See [Other plugins](automation.md#other-plugins). |
 | `hyprctl hyprmasq …` says the command is unknown | The plugin is not loaded. Check `hyprctl plugin list`. |
