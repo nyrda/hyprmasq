@@ -142,6 +142,12 @@ func minSendTime(steps []inputStep) time.Duration {
 					ms += typeHoldMs
 				}
 			}
+		case "hold":
+			// The chord stays down for its time, after its modifiers.
+			ms += int(value(argv[2]))
+			if strings.Contains(argv[1], "+") {
+				ms += chordModMs
+			}
 		case "text":
 			// Every character is at least one key press, and a CR LF is one Enter.
 			if keys := utf8.RuneCountInString(argv[1]) - strings.Count(argv[1], "\r\n"); keys > 0 {

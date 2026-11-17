@@ -11,8 +11,8 @@ import (
 )
 
 func TestCompactActionsSendTheSameEvents(t *testing.T) {
-	named := `[{"action":"click","x":40,"y":50,"button":"right","count":2,"modifiers":["ctrl"]},{"action":"move","x":60,"y":70},{"action":"path","points":[[20,20],[80,90]]},{"action":"scroll","x":100,"y":100,"dy":3,"unit":"notch","dx":-1},{"action":"type","text":"hello\nworld"},{"action":"key","keys":["ctrl","a"]},{"action":"key","keys":["right"],"repeat":7},{"action":"pause","ms":0}]`
-	compact := `[["click",40,50,"right",2,["ctrl"]],["move",60,70],["path",[[20,20],[80,90]]],["scroll",100,100,3,"notch",-1],["type","hello\nworld"],["key",["ctrl","a"]],["key","right",7],["pause",0]]`
+	named := `[{"action":"click","x":40,"y":50,"button":"right","count":2,"modifiers":["ctrl"]},{"action":"move","x":60,"y":70},{"action":"path","points":[[20,20],[80,90]]},{"action":"scroll","x":100,"y":100,"dy":3,"unit":"notch","dx":-1},{"action":"type","text":"hello\nworld"},{"action":"key","keys":["ctrl","a"]},{"action":"key","keys":["right"],"repeat":7},{"action":"hold","keys":["shift","right"],"ms":40},{"action":"hold","keys":["up"],"ms":0},{"action":"pause","ms":0}]`
+	compact := `[["click",40,50,"right",2,["ctrl"]],["move",60,70],["path",[[20,20],[80,90]]],["scroll",100,100,3,"notch",-1],["type","hello\nworld"],["key",["ctrl","a"]],["key","right",7],["hold",["shift","right"],40],["hold","up",0],["pause",0]]`
 	var inputs [][][]string
 	for _, actions := range []string{named, compact} {
 		e := newTestEnv(t)
@@ -30,7 +30,7 @@ func TestCompactActionsSendTheSameEvents(t *testing.T) {
 }
 
 func TestInvalidCompactActionsSendNothing(t *testing.T) {
-	for _, action := range []string{`[]`, `["missing",10,20]`, `["click",10]`, `["click",null,20]`, `["type",10]`, `["key",[]]`, `["key","right",501]`, `["move",10,20,30]`, `[10]`, `[null,20]`, `[10,null]`, `[true,20]`, `[10,"20"]`, `[10,20,30]`, `[-1,20]`} {
+	for _, action := range []string{`[]`, `["missing",10,20]`, `["click",10]`, `["click",null,20]`, `["type",10]`, `["key",[]]`, `["key","right",501]`, `["hold","right"]`, `["hold","right",5001]`, `["hold",[],10]`, `["hold","right",10,2]`, `["move",10,20,30]`, `[10]`, `[null,20]`, `[10,null]`, `[true,20]`, `[10,"20"]`, `[10,20,30]`, `[-1,20]`} {
 		e := newTestEnv(t)
 		e.window("0xa1", "1a", 320, 200)
 		e.screenshot(`{"window":"0xa1"}`)

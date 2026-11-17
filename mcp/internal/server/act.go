@@ -569,6 +569,9 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 	if applied && !closed && !cancelled && s.focusReturned(capCtx, r, st) {
 		out.Actions.SharedFocusReturned, out.Actions.Interrupted = &focusReturnedOut{Effect: "unknown"}, true
 	}
+	if applied && !closed && !cancelled && s.holdDisturbed(capCtx, r, st) {
+		out.Actions.HoldDisturbed = &focusReturnedOut{Effect: "unknown"}
+	}
 	// A drag that was going on before the call counts also without input.
 	if out.Actions != nil && !closed && !cancelled && (applied || len(r.batch) == 0) {
 		waited := ""
@@ -593,6 +596,9 @@ func (s *Server) finish(ctx context.Context, r *actRequest, out *actOut, st hypr
 		if out.Wait != nil && out.Wait.Ended == "no_redraw" {
 			wait = ""
 		}
+	}
+	if out.Actions != nil && out.Actions.HoldDisturbed != nil {
+		focus, unchanged = joinHints(focus, holdDisturbedHint(out.Shot)), ""
 	}
 	// A drag-and-drop that did not go through tells why the window may not have changed, which the hints about a
 	// missing redraw or change would only guess at.
@@ -646,6 +652,18 @@ func (s *Server) focusReturned(ctx context.Context, r *actRequest, st hypr.State
 	}
 	cur, err := s.hypr.State(ctx, r.window)
 	return err == nil && cur.StableID == st.StableID && deref(cur.SocketID) == deref(st.SocketID) && cur.Interrupted != nil && *cur.Interrupted > *st.Interrupted
+}
+
+// holdDisturbed tells whether the window lost the hold capability while a batch that held keys for a time was sent:
+// the user's focus came to it or to another window of its app, whose own input takes the keyboard back and so lets a
+// held key go. The batch was checked with hold in st, so a window without it now lost it since. Whether a hold ended
+// early is not known.
+func (s *Server) holdDisturbed(ctx context.Context, r *actRequest, st hypr.State) bool {
+	if !st.Capabilities.Hold || !slices.ContainsFunc(r.batch, func(a action) bool { return a.Kind == "hold" }) {
+		return false
+	}
+	cur, err := s.hypr.State(ctx, r.window)
+	return err == nil && cur.StableID == st.StableID && !cur.Capabilities.Hold
 }
 
 // captureResult captures the window for the result of an act. A capture region whose shot no longer has the window's

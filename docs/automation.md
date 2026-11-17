@@ -242,7 +242,7 @@ hyprctl hyprmasq lease "$addr" release my-script
 | Capability | True when |
 | --- | --- |
 | `lease` | The window can hold a focus lease: a Wayland window that does not share its connection with the window that has your keyboard focus. |
-| `hold` | Buttons and keys can stay pressed across input frames, which paths with a button, clicks with modifiers and chords like `a+b` need. False while the window shares its Wayland connection with your keyboard or pointer focus. |
+| `hold` | Buttons and keys can stay pressed across input frames, which paths with a button, clicks with modifiers, chords like `a+b` and keys held for a time need. False while the window shares its Wayland connection with your keyboard or pointer focus. |
 | `dnd` | The window is the active window, whose drag-and-drop Hyprland runs with your pointer. |
 | `privateDnd` | A drag-and-drop that emulated input starts runs privately inside the window. See [Drag-and-drop](#drag-and-drop). |
 | `keyboard` | `x11-focus` for X11 windows not opened with `force`, whose keys depend on the X focus. Otherwise `yes`. |
@@ -268,7 +268,7 @@ hyprmasq-input --help | --version
 | Option | Meaning |
 | --- | --- |
 | `--socket PATH` | The socket that `eis open` printed. Required. |
-| `--no-pace` | Leave out the delays that pace input like a person's. `sleep`, `<wait:MS>`, `<settle>` and `sync` still wait. |
+| `--no-pace` | Leave out the delays that pace input like a person's. `sleep`, `<wait:MS>`, `<settle>` and `sync` still wait, and `hold` still holds. |
 | `--json` | Print the outcome as one JSON object on stdout. |
 | `--budget MS` | Refuse the actions, before sending anything, if at their pace they cannot end within MS (0 to 3600000) of the start. |
 | `--locale NAME` | The target application's locale, such as `pt_BR.UTF-8`, whose Compose table types characters that have no key of their own. Default: the sender's own locale. |
@@ -287,6 +287,7 @@ Options come before the first action.
 | `wheel DX DY` | Scroll whole wheel notches, -100 to 100 per axis. |
 | `key CODE` | Press and release a Linux evdev key code, such as `28` for Enter. |
 | `keys CHORD [REPEAT]` | Press the keys of CHORD together, such as `ctrl+shift+t` or `enter`, 1 to 500 times. |
+| `hold CHORD MS` | Press the keys of CHORD, keep them pressed for 0 to 3600000 ms, counted from the press of the last key, and release them. An app repeats a held key by itself, at the rate of your keyboard settings. |
 | `type TEXT` | Type text, with [key tags](#key-tags) for keys and waits. |
 | `text TEXT` | Type TEXT literally, without tags or escapes. |
 | `sleep MS` | Wait 0 to 3600000 ms. |
@@ -305,6 +306,7 @@ hyprmasq-input --socket "$socket" move 120 40 click text 'hello world' keys ente
 hyprmasq-input --socket "$socket" move 200 80 click left 2 keys ctrl+c
 hyprmasq-input --socket "$socket" path 2 50 50 300 50 wheel 0 3
 hyprmasq-input --socket "$socket" path 4 20 200 120 60 220 60 320 200 left
+hyprmasq-input --socket "$socket" hold shift+right 1500
 ```
 
 **Checks.** Every action is checked before anything is sent: the syntax
@@ -331,6 +333,7 @@ send it, so `hyprmasq-input` paces its input unless `--no-pace` is given:
 | Chords with modifiers | the key 10 ms after its modifiers, held 15 ms, 15 ms apart |
 | Typed keys, and a single press with `keys` | held 5 ms, 10 ms apart |
 | Repeated plain keys | distinct press/release frames with 1 ms gaps |
+| Held chords | the last key 10 ms after the keys before it, held for the time given |
 | Wheel notches | 20 ms apart, then 20 ms after the last notch |
 | Smooth scrolls | 20 ms after each |
 | Paths | steps of at most 10 logical pixels, 10 ms apart. A path takes 21 to 2000 steps by its length, so they are shorter under 210 pixels and longer over 20000, and at least one per segment. |

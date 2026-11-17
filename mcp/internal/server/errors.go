@@ -54,6 +54,8 @@ const (
 	hintHookHeld = "Another Hyprland plugin hooks a function that hyprmasq needs for this, which the error names. Screenshots still work. Tell the user, who can unload that plugin or stop what it is doing."
 
 	// The plugin sends the modifier state again with every frame, but no other held key.
+	// The user's own input to the app takes the keyboard back, which lets go of the key.
+	hintKeyHoldMissing   = "This window has the user's keyboard or pointer focus, or shares its Wayland connection with the window that has it, so a key cannot stay pressed for a time: the user's own input would let it go. Drive a separate instance of the app, which launch starts, or press the key several times with repeat."
 	hintChordHoldMissing = "This window has the user's keyboard or pointer focus, or shares its Wayland connection with the window that has it, so of the keys of a chord only modifiers such as ctrl, alt, shift and super stay pressed between input frames, and the others would arrive one after another. Hold only modifiers, or press the keys in separate key actions."
 )
 

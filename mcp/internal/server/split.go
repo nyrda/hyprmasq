@@ -62,7 +62,7 @@ func scrollSplitAt(r *actRequest, sh *shot, until time.Time) int {
 func changesInput(batch []action) bool {
 	for _, a := range batch {
 		switch {
-		case a.Kind == "click" || a.Kind == "key" || a.Kind == "type" || a.Kind == "paste" || a.holdsButton():
+		case a.Kind == "click" || a.pressesKeys() || a.Kind == "type" || a.Kind == "paste" || a.holdsButton():
 			return true
 		}
 	}

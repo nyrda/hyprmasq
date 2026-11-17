@@ -78,7 +78,7 @@ func waitHint(w *waitOut, batch []action, shotID string, actions *actionsOut, sh
 			return fmt.Sprintf("Nothing was drawn %s. If the window is still loading, wait again: act with no actions, a larger wait.expect_ms, and a deadline_ms at least 1000 above it.", since)
 		case "click":
 			return "The click may have missed or had no visible effect" + laterWindow(batch) + ". " + look + " before repeating it."
-		case "key", "type", "paste":
+		case "key", "hold", "type", "paste":
 			return "The keys may have gone to another widget or had no visible effect" + laterWindow(batch) + ". " + look + " before repeating them."
 		case "move":
 			if !opensWindows(batch) {
@@ -208,6 +208,13 @@ func focusReturnedHint(s *shotOut) string {
 		lookAt(s) + ": if it shows the result, go on; if it is unclear, verify the window's state before repeating the action."
 }
 
+// holdDisturbedHint explains a hold in a window that the user's focus reached meanwhile, which says nothing about how
+// long the app saw the key pressed, so the hint leaves that to the shot.
+func holdDisturbedHint(s *shotOut) string {
+	return "The user's focus came to this window or to another window of its app while the batch held a key, and the user's input there lets the key go, so the hold may have ended early. " +
+		lookAt(s) + ": if it shows the result, go on; if the hold fell short, hold again for what is missing."
+}
+
 // hintLateShortcut explains a shortcut that changed nothing in a window that shares its app's keyboard focus with the
 // user's window, see lateShortcutHint.
 const hintLateShortcut = "This app shares its keyboard focus between this window and the user's, which gets it back about 250 ms after a shortcut or function key, so one that the app handles later may not have run. " +
@@ -248,7 +255,7 @@ var commandModifierKeysyms = map[string]bool{
 // Super held, a function key or a media key. The plugin keeps the focus after Escape too, and gives it back at once
 // after Enter, which are left out.
 func shortcutKey(a action) bool {
-	if a.Kind != "key" || len(a.Keys) == 0 {
+	if !a.pressesKeys() || len(a.Keys) == 0 {
 		return false
 	}
 	last := strings.ToLower(a.Keys[len(a.Keys)-1])

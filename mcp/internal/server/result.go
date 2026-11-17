@@ -87,6 +87,10 @@ type actionsOut struct {
 	SharedFocusReturned *focusReturnedOut `json:"shared_focus_returned,omitempty"`
 	// The same event under its older name, kept for clients that read it: true with shared_focus_returned.
 	Interrupted bool `json:"interrupted,omitempty"`
+	// Present only when the batch held keys for a time and the window had lost the hold capability by its end: the
+	// user's focus came to the window or to another window of its app, whose input lets a held key go. It records
+	// that, not whether a hold ended early, which nothing the compositor sees tells.
+	HoldDisturbed *focusReturnedOut `json:"hold_disturbed,omitempty"`
 	// Present only when the window's app started a drag-and-drop during the batch: how the last one went.
 	DragAndDrop *dragOut `json:"drag_and_drop,omitempty"`
 	// Present only when act did not send all of the batch, and why: the scrolls that end it, after the actions before
@@ -128,7 +132,8 @@ type dragOut struct {
 }
 
 type focusReturnedOut struct {
-	// Always "unknown": the shortcut may have taken effect before the focus returned, or not.
+	// Always "unknown": the shortcut may have taken effect before the focus returned, or not, and a hold may have
+	// lasted its time or ended early.
 	Effect string `json:"effect"`
 }
 

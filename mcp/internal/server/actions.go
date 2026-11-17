@@ -39,6 +39,11 @@ func (a *action) hasCoordinates() bool {
 	return false
 }
 
+// pressesKeys tells whether the action presses a chord: a key, or a hold, which keeps it pressed for a time.
+func (a *action) pressesKeys() bool {
+	return a.Kind == "key" || a.Kind == "hold"
+}
+
 // holdsButton tells whether the action holds a button down while the pointer moves, as a path with a button does: a
 // drag, which can start an app's drag-and-drop.
 func (a *action) holdsButton() bool {
@@ -73,6 +78,7 @@ var actionFields = map[string][]string{
 	"type":   {"text"},
 	"paste":  {"text"},
 	"key":    {"keys", "repeat"},
+	"hold":   {"keys", "ms"},
 	"pause":  {"ms"},
 }
 
@@ -106,12 +112,53 @@ var actionRequired = map[string][]string{
 	"type":   {"text"},
 	"paste":  {"text"},
 	"key":    {"keys"},
+	"hold":   {"keys", "ms"},
 	"pause":  {"ms"},
+}
+
+// holdKeyName is the hold action of Anthropic's computer use tool, which Claude models reach for: its text is the
+// chord and its duration the seconds. The schema leaves it out, as it does the click aliases.
+const holdKeyName = "hold_key"
+
+// holdKeyFields turns the fields of a hold_key into those of a hold: text into keys and duration, in seconds, into ms.
+// A field that is not the type it should be, or null, stays as it is, so that the checks of hold name it.
+func holdKeyFields(fields map[string]json.RawMessage) map[string]json.RawMessage {
+	out := map[string]json.RawMessage{}
+	for name, raw := range fields {
+		// Unmarshal takes a null for any type and leaves the value as it was.
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			out[name] = raw
+			continue
+		}
+		switch name {
+		case "action":
+			out[name] = json.RawMessage(`"hold"`)
+		case "text":
+			var text string
+			if _, given := fields["keys"]; !given && json.Unmarshal(raw, &text) == nil {
+				out["keys"], _ = json.Marshal([]string{text})
+				continue
+			}
+			out[name] = raw
+		case "duration":
+			var seconds float64
+			if _, given := fields["ms"]; !given && json.Unmarshal(raw, &seconds) == nil && !math.IsNaN(seconds) && !math.IsInf(seconds, 0) && math.Abs(seconds) < 1e6 {
+				out["ms"] = json.RawMessage(strconv.Itoa(int(math.Round(seconds * 1000))))
+				continue
+			}
+			out[name] = raw
+		default:
+			out[name] = raw
+		}
+	}
+	return out
 }
 
 // Limits within those of hyprmasq-input, which gets every action on its command line.
 const (
 	maxPauseMs = 5000
+	// A hold shares the ms of a pause, and its limit.
+	maxHoldMs = maxPauseMs
 	// The sender's MAX_REPEAT: 500 repeated plain keys take about half a second and fit the default deadline, and those of a
 	// chord with modifiers 20 s, which fit the longest.
 	maxRepeat  = 500
@@ -159,16 +206,19 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 	var a action
 	kindRaw, ok := fields["action"]
 	if !ok {
-		return a, invalidf("%s.action is missing; it is one of click, move, path, scroll, type, paste, key, pause", path)
+		return a, invalidf("%s.action is missing; it is one of click, move, path, scroll, type, paste, key, hold, pause", path)
 	}
 	var named string
 	err := json.Unmarshal(kindRaw, &named)
+	if err == nil && named == holdKeyName {
+		fields, named = holdKeyFields(fields), "hold"
+	}
 	alias, isAlias := clickAliases[named]
 	if dragNames[named] {
 		return a, dragRefused(path, named)
 	}
 	if err != nil || actionFields[named] == nil && !isAlias {
-		return a, invalidf("%s.action must be one of click, move, path, scroll, type, paste, key, pause, not %s", path, kindRaw)
+		return a, invalidf("%s.action must be one of click, move, path, scroll, type, paste, key, hold, pause, not %s", path, kindRaw)
 	}
 	a.Kind = named
 	allowed := actionFields[a.Kind]
@@ -282,7 +332,7 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 		if strings.ContainsRune(a.Text, 0) {
 			return a, invalidf("%s.text contains a NUL character, which cannot be %s", path, map[string]string{"type": "typed", "paste": "pasted"}[a.Kind])
 		}
-	case "key":
+	case "key", "hold":
 		var keys []string
 		if err := field("keys", &keys); err != nil || len(keys) == 0 {
 			// An error about an element of the array names that element.
@@ -298,6 +348,9 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 		a.Keys = chord
 		if a.Repeat < 1 || a.Repeat > maxRepeat {
 			return a, invalidf("%s.repeat must be 1 to %d, not %d", path, maxRepeat, a.Repeat)
+		}
+		if a.Kind == "hold" && (a.Ms < 0 || a.Ms > maxHoldMs) {
+			return a, invalidf("%s.ms must be 0 to %d, not %d", path, maxHoldMs, a.Ms)
 		}
 	case "pause":
 		if a.Ms < 0 || a.Ms > maxPauseMs {
@@ -337,6 +390,7 @@ func expandAction(raw json.RawMessage, path string) (json.RawMessage, error) {
 		"type":   {"text"},
 		"paste":  {"text"},
 		"key":    {"keys", "repeat"},
+		"hold":   {"keys", "ms"},
 		"pause":  {"ms"},
 	}[kind]
 	if fields == nil || len(parts) > len(fields)+1 {
@@ -344,7 +398,7 @@ func expandAction(raw json.RawMessage, path string) (json.RawMessage, error) {
 	}
 	object := map[string]json.RawMessage{"action": parts[0]}
 	for i, p := range parts[1:] {
-		if kind == "key" && i == 0 && len(bytes.TrimSpace(p)) > 0 && bytes.TrimSpace(p)[0] == '"' {
+		if (kind == "key" || kind == "hold") && i == 0 && len(bytes.TrimSpace(p)) > 0 && bytes.TrimSpace(p)[0] == '"' {
 			p = append(append(json.RawMessage{'['}, p...), ']')
 		}
 		object[fields[i]] = p
@@ -510,6 +564,8 @@ func translate(index int, a action, toLogical func(x, y float64) (float64, float
 		}
 	case "key":
 		return []inputStep{step("keys", strings.Join(a.Keys, "+"), strconv.Itoa(a.Repeat))}
+	case "hold":
+		return []inputStep{step("hold", strings.Join(a.Keys, "+"), strconv.Itoa(a.Ms))}
 	case "type":
 		return []inputStep{step("text", a.Text)}
 	case "paste":

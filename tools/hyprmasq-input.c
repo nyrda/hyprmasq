@@ -139,6 +139,7 @@ enum actionType {
     ACTION_WHEEL,
     ACTION_KEY,
     ACTION_KEYS,
+    ACTION_HOLD,
     ACTION_TYPE,
     ACTION_TEXT,
     ACTION_SLEEP,
@@ -158,6 +159,7 @@ static const struct {
     [ACTION_WHEEL]  = {"wheel", "wheel DX DY, whole notches up to 100"},
     [ACTION_KEY]    = {"key", "key CODE"},
     [ACTION_KEYS]   = {"keys", "keys CHORD [REPEAT], REPEAT 1 to 500"},
+    [ACTION_HOLD]   = {"hold", "hold CHORD MS, up to 3600000"},
     [ACTION_TYPE]   = {"type", "type TEXT"},
     [ACTION_TEXT]   = {"text", "text TEXT"},
     [ACTION_SLEEP]  = {"sleep", "sleep MS, up to 3600000"},
@@ -180,10 +182,10 @@ struct action {
     long            count;  // clicks, repeats, points of path or milliseconds, the least of sync
     long            limit;  // the most milliseconds of sync
     long            dx, dy; // wheel notches
-    const char*     text;   // the text of type and text, the chord of keys
+    const char*     text;   // the text of type and text, the chord of keys and hold
     char**          points; // the coordinates of path, X1 Y1 X2 Y2 and so on, checked by parseAction
     const char*     mods;   // the modifiers of click and path
-    struct chord    chord;  // the chord of keys, the modifiers of click and path
+    struct chord    chord;  // the chord of keys and hold, the modifiers of click and path
     struct steps    steps;  // the keys of type and text
     long            keysAt; // the keys sent before the action started, or -1
 };
@@ -234,6 +236,8 @@ static void help(void) {
           "  wheel DX DY                       Scroll whole notches, -100 to 100.\n"
           "  key CODE                          Press and release an evdev key code.\n"
           "  keys CHORD [REPEAT]               Press a chord 1 to 500 times. Default: 1.\n"
+          "  hold CHORD MS                     Keep a chord pressed for 0 to 3600000\n"
+          "                                    milliseconds, also with --no-pace.\n"
           "  type TEXT                         Type text with key tags and escapes.\n"
           "  text TEXT                         Type literal text without tags or escapes.\n"
           "  sleep MS                          Wait 0 to 3600000 milliseconds.\n"
@@ -647,6 +651,21 @@ static bool pressChord(struct state* s, const struct chord* c, long modMs, long 
         return false;
     s->releasing = last;
     return paceWait(s, holdMs) && sendKey(s, c->code, false, false) && releaseMods(s, c);
+}
+
+// Keeps a chord pressed for ms, from the press of its key to its release, which --no-pace does not shorten: the time is
+// the action's, not its pacing. The time counts from before the press is sent, so that a round trip after its frame
+// takes none of it. Its modifiers go down before it and come up after it, as those of any chord. Only once the time
+// has passed are releases all that is left: a window that closes while the key is held ends the hold early, and the
+// action is not done.
+static bool holdChord(struct state* s, const struct chord* c, long ms) {
+    if (!pressMods(s, c, CHORD_MOD_MS))
+        return false;
+    const uint64_t pressed = nowNs();
+    if (!sendKey(s, c->code, true, true) || !waitUntil(s, pressed + MS(ms)))
+        return false;
+    s->releasing = true;
+    return sendKey(s, c->code, false, false) && releaseMods(s, c);
 }
 
 static bool parseButton(const char* name, uint32_t* button) {
@@ -1336,12 +1355,13 @@ static int parseAction(int argc, char** argv, struct action* a) {
     *a = (struct action){.type = type, .code = BTN_LEFT, .count = 1, .keysAt = -1};
     // The arguments each action requires, which are all checked below; optional ones are checked as they come.
     // path requires N here, and its points below.
-    static const int required[ACTION_TYPES] = {[ACTION_MOVE] = 2, [ACTION_DOWN] = 1, [ACTION_UP] = 1,   [ACTION_PATH] = 1, [ACTION_SCROLL] = 2, [ACTION_WHEEL] = 2,
-                                               [ACTION_KEY] = 1,  [ACTION_KEYS] = 1, [ACTION_TYPE] = 1, [ACTION_TEXT] = 1, [ACTION_SLEEP] = 1,  [ACTION_SYNC] = 2};
-    unsigned long    code;
-    char*            end = NULL;
-    int              i   = 1 + required[type];
-    bool             ok  = argc >= i;
+    static const int required[ACTION_TYPES] = {
+        [ACTION_MOVE] = 2, [ACTION_DOWN] = 1, [ACTION_UP] = 1,   [ACTION_PATH] = 1, [ACTION_SCROLL] = 2, [ACTION_WHEEL] = 2, [ACTION_KEY] = 1,
+        [ACTION_KEYS] = 1, [ACTION_HOLD] = 2, [ACTION_TYPE] = 1, [ACTION_TEXT] = 1, [ACTION_SLEEP] = 1,  [ACTION_SYNC] = 2};
+    unsigned long code;
+    char*         end = NULL;
+    int           i   = 1 + required[type];
+    bool          ok  = argc >= i;
     switch (ok ? (int)a->type : -1) {
         case ACTION_MOVE:
         case ACTION_SCROLL: ok = parseDouble(argv[1], &a->x) && parseDouble(argv[2], &a->y); break;
@@ -1376,6 +1396,7 @@ static int parseAction(int argc, char** argv, struct action* a) {
             if (ok && hasOptional(argc, argv, i))
                 ok = parseCount(argv[i++], 1, MAX_REPEAT, &a->count);
             break;
+        case ACTION_HOLD: ok = checkChord(a->text = argv[1], false) && parseCount(argv[2], 0, MAX_SLEEP_MS, &a->count); break;
         case ACTION_TYPE: a->text = argv[1]; break;
         case ACTION_TEXT:
             if (!(ok = validUtf8(a->text = argv[1])))
@@ -1429,7 +1450,7 @@ static long pathSteps(const struct action* a) {
 }
 
 static bool needsKeymap(const struct action* a) {
-    return a->type == ACTION_KEYS || a->type == ACTION_TYPE || a->type == ACTION_TEXT || a->mods;
+    return a->type == ACTION_KEYS || a->type == ACTION_HOLD || a->type == ACTION_TYPE || a->type == ACTION_TEXT || a->mods;
 }
 
 // Checks an action against the keymap and the pointer region, which the server sends after connecting.
@@ -1443,7 +1464,8 @@ static bool resolveAction(struct state* s, struct action* a) {
             if (!checkPoint(s, pathX(a, 0), pathY(a, 0)) || !checkPoint(s, pathX(a, a->count - 1), pathY(a, a->count - 1)))
                 return false;
             break;
-        case ACTION_KEYS: return resolveChord(s, a->text, false, &a->chord);
+        case ACTION_KEYS:
+        case ACTION_HOLD: return resolveChord(s, a->text, false, &a->chord);
         case ACTION_TYPE: return parseText(s, a->text, &a->steps);
         case ACTION_TEXT: return parseLiteral(s, a->text, &a->steps);
         default: break;
@@ -1620,7 +1642,7 @@ static bool typedKeys(const struct action* a) {
 }
 
 // The least time that the resolved actions take at their pace, in milliseconds, without the round trips: the delays of
-// the pacing, of which only sleeps and waits remain with --no-pace. type and text count every step they resolved to, so
+// the pacing, of which only sleeps, waits and the times of holds remain with --no-pace. type and text count every step they resolved to, so
 // a character typed through Compose counts a key for each keysym of its sequence.
 static long pacedTime(const struct state* s, const struct action* actions, int total) {
     const long pace = s->pace ? 1 : 0;
@@ -1659,6 +1681,7 @@ static long pacedTime(const struct state* s, const struct action* actions, int t
                 else
                     ms += pace * (a->count * (mods + CHORD_HOLD_MS) + (a->count - 1) * CHORD_GAP_MS);
                 break;
+            case ACTION_HOLD: ms += pace * mods + a->count; break;
             case ACTION_TYPE:
             case ACTION_TEXT:
                 for (size_t j = 0; j < a->steps.count; ++j) {
@@ -1694,6 +1717,7 @@ static bool runAction(struct state* s, const struct action* a) {
                     return false;
             }
             return true;
+        case ACTION_HOLD: return holdChord(s, &a->chord, a->count);
         case ACTION_TYPE:
         case ACTION_TEXT: return typeSteps(s, &a->steps);
         case ACTION_SLEEP: return waitUntil(s, nowNs() + MS(a->count));

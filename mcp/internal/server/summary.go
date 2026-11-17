@@ -113,6 +113,9 @@ func actionsText(a *actionsOut, batch []action) string {
 	if a.SharedFocusReturned != nil {
 		text += " · shared keyboard focus returned for user input"
 	}
+	if a.HoldDisturbed != nil {
+		text += " · the user's focus came to this app during a hold"
+	}
 	if a.DragAndDrop != nil {
 		text += dragText(a.DragAndDrop)
 	}

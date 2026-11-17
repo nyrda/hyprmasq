@@ -323,7 +323,7 @@ func TestProtocol(t *testing.T) {
 			"a line break presses Enter and a tab presses Tab",
 			"a zoom from screenshot region, whose own pixels act takes without conversion",
 			`"spline" passes through every point but curves between them, so for a precise trace give points close together, and use line where the target bends sharply or the points are sparse`,
-			"path, clicks with modifiers, and chords holding a key other than a modifier while pressing the next need the hold capability",
+			"path, clicks with modifiers, and chords holding a non-modifier key while pressing the next need the hold capability",
 			`"shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5`, `capture "window" asks for one`},
 		"windows": {"needed for paths, for clicks with modifiers, and for key chords that hold a key other than a modifier",
 			"without it, the window loses the focus after each call, and what its app closes on focus loss may be gone by the next call"},

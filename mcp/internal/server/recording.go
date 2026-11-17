@@ -481,6 +481,8 @@ func recordMarks(batch []action, sh *shot) []record.Mark {
 			if a.Repeat > 1 {
 				m.Label += fmt.Sprintf(" ×%d", a.Repeat)
 			}
+		case "hold":
+			m.Kind, m.Label = "keys", fmt.Sprintf("%s held %s s", strings.Join(a.Keys, "+"), formatNumber(float64(a.Ms)/1000))
 		default:
 			m.Kind = ""
 		}
