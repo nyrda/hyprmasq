@@ -36,6 +36,7 @@ ARRAY_FIELDS = {
     "type": ("text",),
     "paste": ("text",),
     "key": ("keys", "repeat"),
+    "hold": ("keys", "ms"),
     "pause": ("ms",),
 }
 # The click actions of Anthropic's computer use tool that act takes as clicks: their button and count (clickAliases).
@@ -269,12 +270,13 @@ def action_object(raw):
     if isinstance(raw, list):
         if len(raw) == 2 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in raw):
             return {"action": "click", "x": raw[0], "y": raw[1]}
-        if not raw or raw[0] not in ARRAY_FIELDS or len(raw) - 1 > len(ARRAY_FIELDS[raw[0]]):
+        # An agent may send any JSON: a name that is no string is no action's.
+        if not raw or not isinstance(raw[0], str) or raw[0] not in ARRAY_FIELDS or len(raw) - 1 > len(ARRAY_FIELDS[raw[0]]):
             return None
         raw = {"action": raw[0], **dict(zip(ARRAY_FIELDS[raw[0]], raw[1:]))}
     if not isinstance(raw, dict):
         return None
-    if raw.get("action") in CLICK_ALIASES:
+    if isinstance(raw.get("action"), str) and raw["action"] in CLICK_ALIASES:
         button, count = CLICK_ALIASES[raw["action"]]
         raw = {**raw, "action": "click", "button": button, "count": count}
     modifiers = raw.get("modifiers")

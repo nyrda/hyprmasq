@@ -177,5 +177,6 @@ times as long. hyprmasq's author ran that series: the
 
 ## License
 
-[MIT](LICENSE). The photo of the benchmark's trace task has
-[its own licence](bench/README.md#trace).
+[MIT](LICENSE). The photos of the benchmark's trace and pano tasks have
+their own licences, see [trace](bench/README.md#trace) and
+[pano](bench/README.md#pano).

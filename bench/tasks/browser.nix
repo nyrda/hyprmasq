@@ -1,4 +1,4 @@
-# The user's browser in the tasks that have one (board, trace, calc), when benchBrowser, from default.nix, is
+# The user's browser in the tasks that have one (board, trace, pano, calc), when benchBrowser, from default.nix, is
 # chromium: Chromium with the policies of the Forgejo task's, no first-run screens, sign-in, sync, password prompts
 # or promotions. Firefox's configuration stays in each task's vm.nix, as its default browser.
 {

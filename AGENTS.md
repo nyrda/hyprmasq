@@ -56,7 +56,8 @@ the test gate on 0.56.2.
   `python3 bench/tasks/board/check_test.py`,
   `python3 bench/tasks/files/check_test.py`,
   `python3 bench/tasks/form/check_test.py`,
-  `python3 bench/tasks/inkscape/check_test.py` and
+  `python3 bench/tasks/inkscape/check_test.py`,
+  `python3 bench/tasks/pano/check_test.py` and
   `python3 bench/tasks/trace/check_test.py`. The Calc checker needs LibreOffice:
   `nix-build bench/tasks/calc/check-test.nix`.
 - Test: `./dev.sh gate` runs the test in `nix/vm-test/`, split into areas. It must

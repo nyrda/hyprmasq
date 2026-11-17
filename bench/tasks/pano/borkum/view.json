@@ -1,0 +1,13 @@
+{
+  "image": "photo.jpg",
+  "size": [4800, 601],
+  "title": "Opening view · Borkum from the lighthouse",
+  "crumbs": "Blog › Borkum from the lighthouse › Panorama ›",
+  "heading": "Opening view",
+  "alt": "Borkum from the top of its lighthouse, all the way round",
+  "path": "/posts/borkum-from-the-lighthouse/panorama",
+  "target": "the cargo ship",
+  "target_heading": 73.1,
+  "tolerance": 3,
+  "start": 250
+}

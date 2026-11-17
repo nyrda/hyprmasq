@@ -1,0 +1,3 @@
+You are helping Mara Lindqvist on her Linux desktop. You can see and control it only through the hyprmasq tools. Mara is working in another window; do not disturb her. Her browser, Firefox, is already running.
+
+Mara is writing a blog post about a trip to the island of Borkum. In Firefox, the panorama of her post is open: her photo from the top of the lighthouse, all the way round, in a viewer that shows a part of it. Readers will first see the panorama as its saved opening view shows it. Turn the view until the cargo ship out on the sea is in its centre, and save that as the opening view. When you are done, say "Done".
