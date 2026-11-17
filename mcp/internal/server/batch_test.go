@@ -65,6 +65,17 @@ func TestValidationSendsNothing(t *testing.T) {
 		{"repeat", `[{"action":"key","keys":["a"],"repeat":501}]`, "invalid_arguments", "actions[0].repeat", false},
 		{"empty key", `[{"action":"key","keys":["ctrl+"]}]`, "invalid_arguments", "plus", false},
 		{"pause", `[{"action":"pause","ms":5001}]`, "invalid_arguments", "actions[0].ms", false},
+		{"hold too long", `[{"action":"hold","keys":["a"],"ms":5001}]`, "invalid_arguments", "actions[0].ms must be 0 to 5000", false},
+		{"hold without a time", `[{"action":"hold","keys":["a"]}]`, "invalid_arguments", "actions[0].ms is missing", false},
+		{"hold without keys", `[{"action":"hold","ms":100}]`, "invalid_arguments", "actions[0].keys is missing", false},
+		{"repeat of a hold", `[{"action":"hold","keys":["a"],"ms":100,"repeat":2}]`, "invalid_arguments", "actions[0].repeat is not a field of hold", false},
+		{"hold_key too long", `[{"action":"hold_key","text":"a","duration":5.5}]`, "invalid_arguments", "actions[0].ms must be 0 to 5000, not 5500", false},
+		{"hold_key without a duration", `[{"action":"hold_key","text":"a"}]`, "invalid_arguments", "actions[0].ms is missing", false},
+		{"hold_key with a duration that is no number", `[{"action":"hold_key","text":"a","duration":"1"}]`, "invalid_arguments", "actions[0].duration is not a field of hold", false},
+		{"hold_key with a null duration", `[{"action":"hold_key","text":"enter","duration":null}]`, "invalid_arguments", "actions[0].duration is not a field of hold", false},
+		{"hold_key with a null text", `[{"action":"hold_key","text":null,"duration":1}]`, "invalid_arguments", "actions[0].text is not a field of hold", false},
+		{"hold without hold", `[{"action":"key","keys":["enter"]},{"action":"hold","keys":["shift"],"ms":100}]`, "unsupported",
+			"actions[1] (hold) keeping shift pressed needs the hold capability, which window 0xa1 lacks", true},
 		{"notch", `[{"action":"scroll","x":1,"y":1,"dy":1.5}]`, "invalid_arguments", "notch", false},
 		{"later action", `[{"action":"type","text":"a"},{"action":"click","x":700,"y":1}]`, "out_of_bounds", "actions[1] (click)", false},
 		{"bottom edge", `[{"action":"click","x":1,"y":400}]`, "out_of_bounds", "1,400", false},
@@ -208,6 +219,12 @@ func TestTranslate(t *testing.T) {
 		{`{"action":"key","keys":["Return"]}`, [][]string{{"keys", "enter", "1"}}},
 		{`{"action":"key","keys":["ctrl","+"]}`, [][]string{{"keys", "ctrl+plus", "1"}}},
 		{`{"action":"key","keys":["F12","XF86AudioMute","del","cmd"]}`, [][]string{{"keys", "f12+XF86AudioMute+delete+super", "1"}}},
+		{`{"action":"hold","keys":["Shift","Right"],"ms":1500}`, [][]string{{"hold", "shift+right", "1500"}}},
+		{`{"action":"hold","keys":["w"],"ms":0}`, [][]string{{"hold", "w", "0"}}},
+		// Anthropic's hold_key: its text is the chord, and its duration the seconds.
+		{`{"action":"hold_key","text":"shift+Right","duration":1.5}`, [][]string{{"hold", "shift+right", "1500"}}},
+		{`{"action":"hold_key","text":"w","duration":2}`, [][]string{{"hold", "w", "2000"}}},
+		{`{"action":"hold_key","keys":["w"],"ms":250}`, [][]string{{"hold", "w", "250"}}},
 		{`{"action":"type","text":"<enter> \\n literal"}`, [][]string{{"text", "<enter> \\n literal"}}},
 		{`{"action":"pause","ms":250}`, [][]string{{"sleep", "250"}}},
 	}
@@ -316,6 +333,9 @@ func TestMinSendTime(t *testing.T) {
 		{steps([]string{"keys", "ctrl+l", "3"}), 105},
 		{steps([]string{"keys", "right", "100"}), 99},
 		{steps([]string{"keys", "A", "2"}), 1},
+		// A hold lasts its time, after the 10 ms of its modifiers.
+		{steps([]string{"hold", "right", "1500"}), 1500},
+		{steps([]string{"hold", "shift+right", "1500"}, []string{"hold", "left", "0"}), 1560},
 		{steps([]string{"text", "aé\r\nc"}), 50},
 		{steps([]string{"sleep", "250"}, []string{"keys", "enter", "1"}), 305},
 		// A sync takes the place of the gap after the action before it, and lasts at least its MIN.
@@ -350,6 +370,9 @@ func TestBatchesThatTheDeadlineCannotFit(t *testing.T) {
 			"at least 30145 ms to send", "Split it over several calls: repeated plain keys have 1 ms gaps, and chords with modifiers 40 ms."},
 		// Input ends early enough for a sender that the deadline stops to report before the capture.
 		{`"actions":[{"action":"key","keys":["a"]}],"deadline_ms":2000`, "deadline_ms 2000 leaves 0 ms for it", "Give a deadline_ms of at least 4000"},
+		// Three holds of the longest time, with the gaps between them.
+		{`"actions":[["hold","right",5000],["hold","right",5000],["hold","right",5000]]`, "at least 15100 ms to send, about 16610 ms with round trips; deadline_ms 15000 leaves 12750 ms for it",
+			"Give a deadline_ms of at least 23000"},
 		{`"actions":[{"action":"type","text":"` + strings.Repeat("x", 1000) + `"}]`, "at least 14990 ms to send, about 16489 ms with round trips; deadline_ms 15000 leaves 12750 ms for it",
 			"Give a deadline_ms of at least 22000"},
 		// Text that fits at 15 ms a character, but not with the round trips, which took about 15.5 ms a character in the VM.

@@ -150,6 +150,7 @@ object when you need to skip an optional position.
 | type | `["type", text]` |
 | paste | `["paste", text]` |
 | key | `["key", keys, repeat?]` |
+| hold | `["hold", keys, ms]` |
 | pause | `["pause", ms]` |
 
 `keys` accepts a single name such as `"right"`, a chord such as `"ctrl+l"`,
@@ -257,13 +258,15 @@ page.
 | `type` | `text`, typed literally with the active keymap. A line break presses Enter. At most 65536 bytes per batch, with the text of pastes. |
 | `paste` | `text`, inserted at once through the agent clipboard with Shift+Insert. Line breaks and tabs stay text. See [Pasting](#pasting). |
 | `key` | `keys`, such as `["ctrl", "l"]` or `["ctrl+l"]`, pressed together, and `repeat` (1 to 500). A single plain key presses as a typed key does; repeated plain keys have 1 ms gaps between distinct press/release frames, and chords with modifiers take 40 ms. |
+| `hold` | `keys`, as for `key`, and `ms` (0 to 5000), how long they stay pressed. See [Holding keys](#holding-keys). |
 | `pause` | `ms` (0 to 5000) |
 
 `act` also takes the click actions of Anthropic's computer use tool, which
 Claude models reach for: `left_click`, `double_click`, `triple_click`,
 `right_click` and `middle_click`, with `x`, `y` and `modifiers`. Each is a
-`click` with its button and count. The schema leaves them out, so they add
-nothing to the model's prompt.
+`click` with its button and count. Its `hold_key`, with the chord as `text`
+and the seconds as `duration`, is a `hold`. The schema leaves them out, so
+they add nothing to the model's prompt.
 
 A batch saves round trips but runs without looking, so agents batch only
 targets that are visible in the shot. A menu or dialog that opens needs a new
@@ -289,11 +292,48 @@ diagonal that a submenu needs. A path is paced like a hand's drag: a press,
 50 ms, steps 10 ms apart, 50 ms and a release. A spline's samples count as
 points, and the paths of one batch move through at most 4000 points.
 
-Paths with a button, clicks with modifiers, and chords that hold a key other
-than a modifier need the window's `hold` capability. A path without a button
+Paths with a button, clicks with modifiers, chords that hold a key other
+than a modifier and every `hold` need the window's `hold` capability. A path without a button
 needs it only with modifiers. A path with a button can start an app's own
 drag-and-drop, which runs privately inside the window when the window has the
 `dnd` capability. See [Drag-and-drop](automation.md#drag-and-drop).
+
+### Holding keys
+
+`["hold", keys, ms]` presses the keys of a chord in order, keeps them pressed
+for `ms` milliseconds, counted from the press of the last key, and releases
+them in reverse. It is for what an app does while a key is down: a game that
+moves while an arrow key is held, a viewer that pans or turns, a button that
+confirms once a key has been held long enough.
+
+```json
+{"window":"0x55d1c0a3e4b0","actions":[["hold",["shift","right"],1500]]}
+```
+
+`key` with `repeat` presses and releases a key a counted number of times, and
+`hold` presses it once. An app that repeats a held key does so by itself, after
+the delay and at the rate of the user's keyboard settings, so a hold gives a
+time, not a count of presses. For an exact count use `repeat`.
+
+The app sees the key down for the time asked within a few milliseconds: over
+34 holds of the [benchmark's pano task](../bench/README.md#pano) in Firefox
+and Chromium, the page's press and release were at most 11 ms nearer or
+farther apart than asked, and 1 ms in the median.
+
+A hold lasts at most 5000 ms, and its time counts toward `deadline_ms` like
+any other input: a batch whose holds the deadline cannot fit is refused before
+anything is sent. Several holds in one batch release between them. Nothing
+stays pressed after a call, also when it fails or is cancelled.
+
+Every hold needs the window's `hold` capability, also a hold of modifiers
+alone: in a window without it, the user's own input to the app takes the
+keyboard back and lets the key go. The batch is refused with `unsupported` and
+nothing is sent. When the window had `hold` before the batch and has lost it
+by its end, the user's focus came to it or to another window of its app
+meanwhile. The result then keeps its delivery, has
+`actions.hold_disturbed` with `effect` `unknown`, says
+`the user's focus came to this app during a hold` in its summary, and its
+hint points at the shot: the hold may have lasted its time or ended early.
 
 In Wayland windows, what an agent copies or selects goes to an agent
 clipboard of its own, which pastes in the other windows it drives, never in

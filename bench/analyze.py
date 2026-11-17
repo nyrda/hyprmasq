@@ -24,7 +24,8 @@ The time of the act calls, in seconds, split into what the results and the sende
   When a redraw in the watch made the result one wait, after a first wait without redraw or ending in a timeout, the
   wait has that time.
 - input_s: the sender's pacing of the actions sent, without pauses: gaps, holds, typing at 15 ms a key, the 300 ms
-  from a click to the keys after it, and at least 150 ms for the window's answer to a click.
+  from a click to the keys after it, and at least 150 ms for the window's answer to a click. A hold action's time is
+  input too: the keys are down for it.
 - rest_s: the rest of the calls' time, not clamped: the captures and their comparison, the check of targets, the
   shots of new windows and of the window a closed one came from with their waits, a click's answer beyond its
   least, the sender's start and round trips, locks and transport. The results do not time these apart.
@@ -104,6 +105,10 @@ def sender_steps(actions):
         elif kind == "key":
             # act joins the keys with "+", as in ["ctrl", "l"] or ["ctrl+l"], and a "+" means modifiers.
             seq = [["keys", "+" in "+".join(a.get("keys", [])), a.get("repeat", 1)]]
+        elif kind == "hold":
+            # Its keys as a key's, and the time they stay down.
+            keys = a.get("keys", [])
+            seq = [["hold", "+" in "+".join([keys] if isinstance(keys, str) else keys), a.get("ms", 0)]]
         elif kind == "type":
             seq = [["text", a.get("text", "")]]
         elif kind == "pause":
@@ -113,7 +118,7 @@ def sender_steps(actions):
         for step in seq:
             if sync is not None:
                 since += ACTION_GAP_MS
-                if step[0] in ("text", "keys"):
+                if step[0] in ("text", "keys", "hold"):
                     steps[sync][1] = max(0, CLICK_SETTLE_MS - since + ACTION_GAP_MS)
                     sync = None
                 elif step[0] == "sleep":
@@ -165,6 +170,9 @@ def pacing(actions):
         elif verb == "keys":
             # Repeated plain keys use their own pace; one press keeps typing pace.
             paced += (step[2] * REPEAT_HOLD_MS + (step[2] - 1) * REPEAT_GAP_MS) if step[2] > 1 else TYPE_HOLD_MS
+        elif verb == "hold":
+            # The chord stays down for its time, after its modifiers.
+            paced += step[2] + (CHORD_MOD_MS if step[1] else 0)
         elif verb == "text":
             # Every character is a key, and a CR LF one Enter; one typed through Compose takes more.
             keys = len(step[1]) - step[1].count("\r\n")
@@ -175,10 +183,10 @@ def pacing(actions):
 
 
 def opens_windows(actions):
-    """Whether act watches for a redraw and new windows after the batch: a click, drag, path or key, or text with a
-    line break."""
+    """Whether act watches for a redraw and new windows after the batch: a click, drag, path, key or hold, or text
+    with a line break."""
     for a in actions:
-        if a.get("action") in ("click", "drag", "path", "key") or a.get("action") == "type" and re.search("[\r\n]", a.get("text", "")):
+        if a.get("action") in ("click", "drag", "path", "key", "hold") or a.get("action") == "type" and re.search("[\r\n]", a.get("text", "")):
             return True
     return False
 

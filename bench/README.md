@@ -7,7 +7,7 @@ agents use logged-in Claude Code and Codex. API-backed agents need their provide
 Agents complete a task in an offline NixOS VM through `hyprmasq-mcp`. The benchmark grades the VM's state,
 measures time on both sides of the MCP connection, and asks the agent for a debrief. It measures how agents
 use hyprmasq and where hyprmasq costs them time. The tasks are board, calc, files, forgejo, form, inkscape,
-thunderbird and trace.
+pano, thunderbird and trace.
 
 Run results are in [docs/benchmarks.md](../docs/benchmarks.md). `export.py` turns results directories into the
 datasets that page is generated from, and `render.py` draws its figures and tables; see
@@ -57,8 +57,8 @@ To build a VM driver without running an agent:
 
 ```sh
 nix-build bench/default.nix -A driver
-# For another task, add --argstr task calc, files, forgejo, board, form, inkscape or trace. Board also needs --argstr variant dnd or
-# pointer, form its number of questions, such as --argstr variant 25, and trace its figure, river.
+# For another task, add --argstr task calc, files, forgejo, board, form, inkscape, pano or trace. Board also needs --argstr variant dnd or
+# pointer, form its number of questions, such as --argstr variant 25, trace its figure, river, and pano its panorama, borkum.
 ```
 
 See [By hand](#by-hand) to boot that driver and probe MCP without an agent.
@@ -839,8 +839,8 @@ user's workspace, errors from input that closed its window and wait timeouts. It
 | Part | What it counts |
 | --- | --- |
 | `wait_s` | The wait for the window to settle, as each result's `wait.elapsed_ms` gives it. |
-| `watch_s` | The watch for a second redraw and new windows after the wait, after a click, drag, key or line break: the 500 ms that the `act` tool's description in the log names, or the watch's own time when the result says `drew again, settled … later`. When a redraw in the watch makes the result one wait, after a first wait without a redraw, `wait_s` holds the watch, and only the grace for new windows that is left over counts here; after a wait that timed out, nothing does. |
-| `input_s` | The sender's pacing of the actions it sent, pauses aside: the gaps, holds and typed keys of `tools/hyprmasq-input.c` (15 ms a typed key), the 300 ms from a click to the keys after it, and at least 150 ms for the window's answer to a click that more actions follow. |
+| `watch_s` | The watch for a second redraw and new windows after the wait, after a click, drag, key, hold or line break: the 500 ms that the `act` tool's description in the log names, or the watch's own time when the result says `drew again, settled … later`. When a redraw in the watch makes the result one wait, after a first wait without a redraw, `wait_s` holds the watch, and only the grace for new windows that is left over counts here; after a wait that timed out, nothing does. |
+| `input_s` | The sender's pacing of the actions it sent, pauses aside: the gaps, holds and typed keys of `tools/hyprmasq-input.c` (15 ms a typed key), the time of a `hold` action, the 300 ms from a click to the keys after it, and at least 150 ms for the window's answer to a click that more actions follow. |
 | `pause_s` | The pause actions the agent added. |
 | `rest_s` | The rest of the calls' time, not clamped. |
 
@@ -1251,6 +1251,73 @@ stays within a tenth of a photo pixel of the pointer's path.
 - `user.js`: no first-run pages, tips or telemetry in Firefox.
 - `variants`, `debrief.md`: the figure, `river`, and the debrief, which also asks how the agent drew
   along the curve.
+
+### pano
+
+Mara is writing a blog post and sets the opening view of its panorama in her Firefox 157: the prompt asks the agent
+to turn the view until a thing in the photo is in its centre, and to save that view. It names no tools and no keys.
+Firefox is started like a user would, on the visible workspace, and moved to the hidden workspace `web`. The user
+stays on workspace 1 with the terminal. With `--browser chromium`, Chromium shows the panorama instead. The task has
+one panorama, its variant `borkum`, a directory with its photo, the page's texts, the view it starts at and the
+target (`view.json`) and its prompt (`prompt.md`):
+
+- `borkum`: the island of Borkum from the top of its lighthouse, all the way round, 4800×601 pixels. The agent
+  turns the view to the cargo ship out on the sea, at 73.1° from the photo's left edge and 2.1° wide. The viewer
+  starts at 250°, over the beach, with the ship out of sight, 177° to the left and 183° to the right.
+
+The photo is not under the repository's MIT licence. `borkum/photo.jpg` is made from
+[360-Grad-Panorama von Borkum](https://commons.wikimedia.org/wiki/File:360-Grad-Panorama_von_Borkum.jpg) by
+Thomas Kniess on Wikimedia Commons, and is licensed like it under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). `borkum/prepare.py` makes it from the original: it
+evens out the sky's brightness where the photo's two edges meet, keeps the rows around the horizon and scales the
+photo down.
+
+The task exercises what no other task does: keys that are held for a time. The viewer turns only while an arrow key
+is down, 30° a second, or 90° with Shift held as well, and saves its view once S has been down for two seconds, as
+its panel says. `act`'s `hold` action keeps a chord pressed for a time, so one action turns the view by a known
+angle: the ship is 5.9 s of a plain hold away, more than a hold's 5 s, and 1.97 s of a hold with Shift. A key that
+is pressed and released turns the view by next to nothing: `key` holds it for about 5 ms, 0.2°, and each press of
+its `repeat` for a millisecond or less, so that 500 of them turn the view by about 15°. A drag turns nothing. So
+the task asks for held keys, and `check.py` and `attribute.py` count the keys that were only tapped. The viewer shows 100° of
+the panorama, with a scale of the directions above it and a line at its centre.
+
+The view turns by the time between a key's press and its release, as the events' timestamps tell it, not by the
+frames the page draws, so a hidden window in the VM, which draws in software, turns as far as a visible one. The page
+ignores a held key's autorepeat. Firefox on Wayland gives the repeats as presses that it does not mark as repeats,
+so a press of a key that is down counts as one.
+
+- `vm.nix`: the blog on `blog.example.test:80` with the variant's panorama, and Firefox with policies against
+  first-run pages.
+- `viewer.py STATE-DIR TARGET-DIR`: the blog's server and the viewer's page. The server keeps the view and the saved
+  opening view in `state.json`, and logs every view that a turn ended at in `views.jsonl` and every save in
+  `saves.jsonl`, with the time, so the grade comes from the server, not from the screen. The page also logs every
+  key event it gets, its layout, each turn with how long its key was down and from where to where it turned, and
+  each hold of S that saved or was let go too soon, in `events.jsonl`.
+- `check.py [--target DIR]`: grades the saved opening view. It passes when the view's centre lies within the
+  variant's tolerance of the target, 3° for the ship, counted the shorter way round. At 30° a second that is a hold
+  within 100 ms of the right time. The view as it is turned, without a save, is not graded. A failure says how far
+  the saved view is from the target and on which side: `the centre of the saved opening view is 8.6° to the left
+  of the cargo ship`. It also reports the turns, how many were made with Shift, the keys that were only tapped,
+  the time the keys were down, the autorepeats and the saves let go too soon. Its milestones are `first turn`,
+  `target centred`, `view saved` and `last change`.
+- `attribute.py RUN-DIR | RESULTS-DIR`: what each key that the agent held came to, from `mcp.jsonl` and the page's
+  events. For each `hold`, and each key of a `key` action, that an `act` call sent to the task's window, it finds
+  the page's press of that key during the call, in order, and compares the time asked with the time the page saw
+  the key down. A hold that the page saw for the time asked, within 50 ms, is `held`. One that it saw for another
+  time, or not at all, is `hyprmasq`'s. One in a batch that was refused or stopped before it is `not sent`. It
+  counts the holds, the chords among them, the keys pressed with `key`, the act calls that held keys and the
+  largest difference between a time asked and a time seen. It prints a table per run and writes
+  `attribution.json`.
+- `check_test.py`: `python3 bench/tasks/pano/check_test.py` checks the grade on saved views at, beside and far from
+  the ship, on a view that is not saved and on a target at the photo's edge, the milestones, the server's state
+  and the directions it takes, the page's texts and the photo's size, and the attribution on constructed logs:
+  holds seen for their time, for another time and not at all, holds of a refused and of a stopped batch, keys
+  that were pressed, `hold_key` of Anthropic's tool, keys to another window, repeats that the browser does not
+  mark and presses outside a call.
+- `setup.py`: the profile, Firefox's window and its workspace, and the grade with the page's logs in `collect()`.
+- `user.js`: no first-run pages, tips or telemetry in Firefox.
+- `variants`, `debrief.md`: the panorama, `borkum`, and the debrief, which also asks how the agent turned the view
+  and chose the times of its holds.
 
 ### files
 

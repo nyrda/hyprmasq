@@ -55,6 +55,9 @@ func checkCapabilities(batch []action, caps hypr.Capabilities, address string) e
 		case a.Kind == "key" && heldKey(a.Keys) != "":
 			what += fmt.Sprintf(" holding %s while it presses %s", heldKey(a.Keys), a.Keys[len(a.Keys)-1])
 			hint = hintChordHoldMissing
+		case a.Kind == "hold":
+			what += fmt.Sprintf(" keeping %s pressed", strings.Join(a.Keys, "+"))
+			hint = hintKeyHoldMissing
 		default:
 			continue
 		}
@@ -109,7 +112,7 @@ func translateBatch(batch []action, sh *shot) []inputStep {
 			if sync >= 0 {
 				sinceClick += actionGapMs
 				switch verb {
-				case "text", "keys":
+				case "text", "keys", "hold":
 					// The sync replaces the gap after the click, so it lasts as long as the gap and what follows it fall
 					// short of clickSettleMs.
 					steps[sync].Argv[1] = strconv.Itoa(max(0, clickSettleMs-sinceClick+actionGapMs))
@@ -122,7 +125,7 @@ func translateBatch(batch []action, sh *shot) []inputStep {
 			}
 			steps = append(steps, step)
 		}
-		keyed = keyed || a.Kind == "key" || a.Kind == "type" || a.Kind == "paste"
+		keyed = keyed || a.pressesKeys() || a.Kind == "type" || a.Kind == "paste"
 		if (a.Kind == "click" || a.holdsButton()) && i < len(batch)-1 {
 			steps = append(steps, inputStep{Batch: i + 1, Argv: []string{"sync", "0", strconv.Itoa(answerMaxMs)}})
 			sync, sinceClick, keyed = len(steps)-1, 0, false
@@ -213,7 +216,7 @@ func batchHasCoordinates(batch []action) bool {
 func opensWindows(batch []action) bool {
 	for _, a := range batch {
 		switch {
-		case a.Kind == "click" || a.Kind == "key" || a.Kind == "paste" || a.holdsButton():
+		case a.Kind == "click" || a.pressesKeys() || a.Kind == "paste" || a.holdsButton():
 			return true
 		case a.Kind == "type":
 			if strings.ContainsAny(a.Text, "\r\n") {

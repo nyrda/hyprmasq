@@ -34,7 +34,7 @@ def named_actions(arguments):
         "click": ("x", "y", "button", "count", "modifiers"), "move": ("x", "y"),
         "drag": ("from", "to", "button", "modifiers"), "path": ("points", "curve", "button", "modifiers"),
         "scroll": ("x", "y", "dy", "unit", "dx"), "type": ("text",),
-        "key": ("keys", "repeat"), "pause": ("ms",),
+        "key": ("keys", "repeat"), "hold": ("keys", "ms"), "pause": ("ms",),
     }
     out = []
     for action in arguments.get("actions") or []:
@@ -42,7 +42,7 @@ def named_actions(arguments):
             action = dict(action="click", x=action[0], y=action[1])
         elif isinstance(action, list) and action and isinstance(action[0], str):
             action = dict(zip(fields.get(action[0], ()), action[1:]), action=action[0])
-            if action["action"] == "key" and isinstance(action.get("keys"), str):
+            if action["action"] in ("key", "hold") and isinstance(action.get("keys"), str):
                 action["keys"] = [action["keys"]]
         if isinstance(action, dict):
             out.append(action)

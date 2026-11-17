@@ -248,6 +248,20 @@ class CurrentProtocol(unittest.TestCase):
         self.assertEqual(analyze.pacing([{"action": "key", "keys": ["right"], "repeat": 100}]), (99, 0))
         self.assertEqual(analyze.pacing([{"action": "key", "keys": ["ctrl", "right"], "repeat": 2}]), (65, 0))
 
+    def test_a_hold_takes_its_time_and_is_watched_as_a_key(self):
+        self.assertEqual(analyze.pacing([{"action": "hold", "keys": ["right"], "ms": 1500}]), (1500, 0))
+        # Its modifiers go down 10 ms before it, and the next action follows after the gap.
+        self.assertEqual(analyze.pacing([{"action": "hold", "keys": ["shift", "right"], "ms": 1500},
+                                         {"action": "hold", "keys": "s", "ms": 0}]), (1560, 0))
+        # After a click it waits as keys do: the answer's 150 ms, or the 300 ms from the click, whichever is longer.
+        keyed, _ = analyze.pacing([{"action": "click"}, {"action": "key", "keys": ["right"]}])
+        self.assertEqual(analyze.pacing([{"action": "click"}, {"action": "hold", "keys": ["right"], "ms": 100}]),
+                         (keyed - analyze.TYPE_HOLD_MS + 100, 0))
+        self.assertTrue(analyze.opens_windows([{"action": "hold", "keys": ["right"], "ms": 100}]))
+        result = analyze.split({"summary": "1/1 delivered · redraw observed · quiet 200 ms · 235 ms", "hint": "", "seconds": 2.4},
+                               {"actions": [["hold", ["shift", "right"], 1500]]}, {}, 500)
+        self.assertEqual((result["input"], result["watch"], result["pauses"]), (1.51, 0.5, 0))
+
     def test_a_path_with_a_button_is_paced_as_a_drag(self):
         # 100 px: a drag's 21 steps, the press after the motion and the holds; without a button, a gap every step.
         drag = analyze.pacing([{"action": "drag", "from": [0, 0], "to": [100, 0]}])

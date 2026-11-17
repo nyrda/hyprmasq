@@ -109,6 +109,47 @@ with subtest("hyprmasq-input paces clicks and key chords and reports JSON"):
     assert events[28][1] - events[27][1] >= 12, events
     assert snapshot() == before_focus
 
+with subtest("hyprmasq-input holds a chord for its time, also without pacing, and lets it go on SIGTERM"):
+    # Shift goes down first and Right 10 ms after it, which stays down for the time given, counted from its press.
+    offset = log_size("hm-i-wev")
+    assert input_json(input_path, "hold", "shift+right", 400, options="--budget 10000") == (0, dict(complete(1), paceMs=410))
+    events = wait_wev(offset, {"key"}, lambda e: len(e) >= 4)
+    assert [e[2:] for e in events] == [(42, 1), (106, 1), (106, 0), (42, 0)], events
+    assert 8 <= events[1][1] - events[0][1] <= 150 and 395 <= events[2][1] - events[1][1] <= 600, events
+
+    # --no-pace leaves out the pacing and the gap before the next action, but not the hold: the budget counts the
+    # hold's time and nothing else.
+    offset = log_size("hm-i-wev")
+    assert input_json(input_path, "hold", "a", 300, "keys", "b", options="--no-pace --budget 10000") == (0, dict(complete(2), paceMs=300))
+    events = wait_wev(offset, {"key"}, lambda e: len(e) >= 4)
+    assert [e[2:] for e in events] == [(30, 1), (30, 0), (48, 1), (48, 0)], events
+    assert 295 <= events[1][1] - events[0][1] <= 500, events
+
+    # Holds that the budget cannot fit are refused whole, and so are a hold without its time, one that is too long and
+    # one of a key that the keymap lacks.
+    offset = log_size("hm-i-wev")
+    status, result = input_json(input_path, "hold", "a", 400, "hold", "b", 400, options="--budget 500")
+    assert (status, result["delivery"], result["error"]["code"], result["paceMs"]) == (2, "none", "too_long", 850), result
+    for args, code in [(["hold", "a"], "invalid_arguments"), (["hold", "a", 3600001], "invalid_arguments"),
+                       (["hold", "ctrl+nosuchkey", 10], "invalid_arguments"), (["hold", "ä", 10], "cannot_type")]:
+        status, result = input_json(input_path, *args)
+        assert (status, result["delivery"], result["error"]["code"]) == (2, "none", code), (args, result)
+    time.sleep(0.5)
+    assert wev_events(offset, ["key"]) == []
+
+    # A signal ends a hold: the keys come up in reverse, and the sender reports that it was stopped.
+    offset = log_size("hm-i-wev")
+    run_input_background("hm-i-hold", input_path, "hold", "ctrl+a", 20000)
+    wait_wev(offset, {"key"}, lambda e: len(e) >= 2)
+    time.sleep(0.5)
+    machine.succeed("pkill -TERM -x hyprmasq-input")
+    status, result = input_result("hm-i-hold")
+    assert (status, result["done"], result["delivery"], result["error"]["code"]) == (1, 0, "partial", "cancelled"), result
+    events = wev_events(offset, {"key"})
+    assert [e[2:] for e in events] == [(29, 1), (30, 1), (30, 0), (29, 0)], events
+    assert 400 <= events[2][1] - events[1][1] < 5000, events
+    assert snapshot() == before_focus
+
 with subtest("hyprmasq-input scrolls in wheel notches and drags in steps"):
     offset = log_size("hm-i-wev")
     assert input_json(input_path, "move", 200, 200, "wheel", 0, 3, "wheel", 0, -1, "wheel", 2, 0) == (0, complete(4))

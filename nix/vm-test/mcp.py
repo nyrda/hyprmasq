@@ -370,6 +370,11 @@ with subtest("hyprmasq-mcp sends nothing for a batch it refuses"):
     refused(chord, "unsupported")
     assert chord.data["error"]["message"] == f"actions[0] (key) holding a while it presses b needs the hold capability, which window {shared_hidden} lacks", chord
     assert "Hold only modifiers, or press the keys in separate key actions." in chord.data["hint"], chord
+    # A key that is held for a time would be let go by the user's own input, also a modifier.
+    held = mcp.call("act", {"window": shared_hidden, "actions": [["hold", "shift", 200]]})
+    refused(held, "unsupported")
+    assert held.data["error"]["message"] == f"actions[0] (hold) keeping shift pressed needs the hold capability, which window {shared_hidden} lacks", held
+    assert "press the key several times with repeat" in held.data["hint"], held
     # A chord that holds only modifiers works.
     machine.succeed("rm -f /tmp/hm-m-chord")
     actions = [{"action": "type", "text": "echo "}, {"action": "key", "keys": ["shift", "x"]}, {"action": "type", "text": " > /tmp/hm-m-chord"}, {"action": "key", "keys": ["enter"]}]
@@ -377,6 +382,20 @@ with subtest("hyprmasq-mcp sends nothing for a batch it refuses"):
     assert not shifted.is_error and shifted.data["actions"]["delivery"] == "complete", shifted
     machine.wait_until_succeeds("test -s /tmp/hm-m-chord", timeout=10)
     assert machine.succeed("cat /tmp/hm-m-chord") == "X\n"
+    assert snapshot() == (53, shared_focused)
+    # With the user's focus in another app, the window has hold, and a hold is sent. The user's focus that comes to its
+    # app meanwhile takes hold from it, which the result says.
+    focus_workspace(4)
+    wait_for("hold for the hidden footclient", lambda: listed(mcp, shared_hidden)[0]["capabilities"]["hold"])
+    holding = mcp.start("act", {"window": shared_hidden, "actions": [["hold", "shift", 3000]], "capture": "none", "wait": {"expect_change": False}})
+    time.sleep(1)
+    focus_workspace(53)
+    wait_for("shared focus", lambda: snapshot() == (53, shared_focused))
+    disturbed = mcp.result(holding)
+    assert not disturbed.is_error and disturbed.data["actions"]["delivery"] == "complete", disturbed
+    assert disturbed.data["actions"]["hold_disturbed"] == {"effect": "unknown"}, disturbed
+    assert "1/1 delivered · the user's focus came to this app during a hold" in disturbed.data["summary"], disturbed
+    assert disturbed.data["hint"].startswith("The user's focus came to this window or to another window of its app while the batch held a key"), disturbed
     assert snapshot() == (53, shared_focused)
     focus_workspace(4)
     for address in (shared_hidden, shared_focused):

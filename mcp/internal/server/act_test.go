@@ -371,6 +371,50 @@ func TestSharedFocusReturnedForUserInput(t *testing.T) {
 	}
 }
 
+// A window that loses hold while a batch holds a key got the user's focus, or another window of its app did: the
+// result says that the hold may have ended early, and only for a batch with a hold.
+func TestHoldDisturbedByTheUsersFocus(t *testing.T) {
+	e := newTestEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	// The user's focus comes to the app once the sender runs.
+	focus := func() {
+		e.fake.with(func() {
+			e.fake.find("0xa1").Caps.Hold = true
+			e.fake.onState = func(w *fakeWindow) {
+				if e.senderLogged("start") {
+					w.Caps.Hold = false
+				}
+			}
+		})
+		os.Remove(e.inputLog)
+	}
+	focus()
+	res := e.act(`{"window":"0xa1","actions":[["hold","right",50]],"capture":"none"}`)
+	summary := get(t, res, "summary").(string)
+	if res.IsError || get(t, res, "actions.delivery") != "complete" || get(t, res, "actions.hold_disturbed.effect") != "unknown" ||
+		!strings.HasPrefix(summary, "1/1 delivered · the user's focus came to this app during a hold · ") || get(t, res, "hint") != holdDisturbedHint(nil) {
+		t.Fatalf("%s", text(res))
+	}
+	if got := e.inputs(); !reflect.DeepEqual(got, [][]string{{"hold", "right", "50"}}) {
+		t.Fatalf("inputs %q", got)
+	}
+	// A key that is not held says nothing of it.
+	focus()
+	res = e.act(`{"window":"0xa1","actions":[["key","right"]],"capture":"none"}`)
+	if res.IsError || get(t, res, "actions.hold_disturbed") != nil || strings.Contains(text(res), "during a hold") {
+		t.Errorf("%s", text(res))
+	}
+	// Nor does a hold in a window that keeps its capability.
+	e.fake.with(func() {
+		e.fake.onState = nil
+		e.fake.find("0xa1").Caps.Hold = true
+	})
+	res = e.act(`{"window":"0xa1","actions":[["hold",["shift","right"],50]],"capture":"none"}`)
+	if res.IsError || get(t, res, "actions.hold_disturbed") != nil || get(t, res, "hint") != nil {
+		t.Errorf("%s", text(res))
+	}
+}
+
 // Input that closes its window after the wait has ended quiet, as a file chooser does a moment after Enter, before or
 // after the capture, is delivered and closed the window: no failed capture, and no shot of a window that is gone.
 func TestWindowClosedAfterTheWait(t *testing.T) {
