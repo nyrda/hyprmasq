@@ -239,6 +239,20 @@ class Attribute(unittest.TestCase):
         self.assertEqual(out["keys"][0]["why"], "0/2 delivered, nothing sent")
         self.assertEqual((out["summary"]["holds"], out["summary"]["holds_sent"], out["summary"]["asked_ms"]), (4, 1, 300))
 
+    def test_a_hold_that_the_batch_stopped_at_after_its_press_is_interrupted(self):
+        def build(r):
+            start = r.act([["hold", "left", 300], ["hold", "right", 1000], ["hold", "s", 2100]], done=1,
+                          text="1/3 delivered, delivery partial: actions[1] (hold) may be partly applied")
+            r.press(start + 0.1, "ArrowLeft", 300)
+            r.press(start + 0.5, "ArrowRight", 400)
+
+        out = self.run_of(build)
+        self.assertEqual([(k["keys"], k["outcome"], k.get("seen_ms"), k["blame"]) for k in out["keys"]],
+                         [("left", "held", 300, None), ("right", "interrupted", 400, None), ("s", "not sent", None, None)])
+        self.assertEqual(out["keys"][1]["why"], "1/3 delivered, delivery partial: actions[1] (hold) may be partly applied")
+        self.assertEqual((out["summary"]["holds_sent"], out["summary"]["held"], out["summary"]["hyprmasq"],
+                          out["summary"]["other_presses"]), (2, 1, 0, 0))
+
     def test_keys_that_are_pressed_ask_for_no_time(self):
         def build(r):
             start = r.act([["key", "right", 3], {"action": "key", "keys": ["shift+Right"]}])

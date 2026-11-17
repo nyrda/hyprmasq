@@ -5,7 +5,8 @@ key pressed with a key action, that an act call sent to the task's window, it fi
 the call, in order, and compares the time the agent asked for with the time between the press and the release that
 the page got. A hold that the page saw for the time asked, within TOLERANCE_MS, is `held`. One that the page saw for
 another time, or not at all, is the tool's: `hyprmasq`, or the run's other backend. A hold that was not sent, as in a
-batch that was refused or stopped before it, is `not sent`. Keys pressed with a key action are listed with the time
+batch that was refused or stopped before it, is `not sent`. The action that a batch stopped at may have gone out in
+part: a hold whose press the page saw is `interrupted`, with the time the page saw, and no one's. Keys pressed with a key action are listed with the time
 the page saw them down, without a verdict: they ask for no time.
 
 It also counts how the agent turned the view: the holds, how many were chords, the keys it tapped, the act calls
@@ -127,14 +128,15 @@ def attribute(run_dir):
                      "asked_ms": ask["ms"]}
             if ask["presses"] > 1:
                 entry["presses"] = ask["presses"]
-            if i >= done:
+            # The page's presses of the chord's last key during the call, in order, that no action before took. The
+            # actions after the one that the batch stopped at were not sent, and that one maybe in part.
+            seen = [] if i > done else [m for m, p in enumerate(presses) if m not in used and p["key"] == ask["keys"][-1]
+                                        and first <= p["host"] <= last][:ask["presses"]]
+            if i > done or i == done and not seen:
                 entry.update(outcome="not sent", blame=None, why=call["summary"])
                 keys.append(entry)
                 continue
             held = held or ask["ms"] is not None
-            # The page's presses of the chord's last key during the call, in order, that no action before took.
-            seen = [m for m, p in enumerate(presses) if m not in used and p["key"] == ask["keys"][-1]
-                    and first <= p["host"] <= last][:ask["presses"]]
             used.update(seen)
             # The keys that the chord holds around its last one are the action's too.
             for key in ask["keys"][:-1] if seen else []:
@@ -142,7 +144,11 @@ def attribute(run_dir):
                              and first <= p["host"] <= last][:1])
             times = [presses[m]["ms"] for m in seen]
             entry["seen"] = len(seen)
-            if ask["ms"] is None:
+            if i == done:
+                # The batch stopped at this action, after its press: a signal, a pause or a closed window cut it short.
+                entry.update(seen_ms=[t for t in times if t is not None] if ask["ms"] is None else times[0],
+                             outcome="interrupted", blame=None, why=call["summary"])
+            elif ask["ms"] is None:
                 # A key action asks for no time: what the page saw is told, not judged.
                 entry.update(seen_ms=[t for t in times if t is not None], outcome="pressed" if seen else "not seen",
                              blame=None if seen else tool, why="" if seen else "the page saw no press of the key")

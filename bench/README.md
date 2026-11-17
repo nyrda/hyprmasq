@@ -839,8 +839,8 @@ user's workspace, errors from input that closed its window and wait timeouts. It
 | Part | What it counts |
 | --- | --- |
 | `wait_s` | The wait for the window to settle, as each result's `wait.elapsed_ms` gives it. |
-| `watch_s` | The watch for a second redraw and new windows after the wait, after a click, drag, key or line break: the 500 ms that the `act` tool's description in the log names, or the watch's own time when the result says `drew again, settled … later`. When a redraw in the watch makes the result one wait, after a first wait without a redraw, `wait_s` holds the watch, and only the grace for new windows that is left over counts here; after a wait that timed out, nothing does. |
-| `input_s` | The sender's pacing of the actions it sent, pauses aside: the gaps, holds and typed keys of `tools/hyprmasq-input.c` (15 ms a typed key), the 300 ms from a click to the keys after it, and at least 150 ms for the window's answer to a click that more actions follow. |
+| `watch_s` | The watch for a second redraw and new windows after the wait, after a click, drag, key, hold or line break: the 500 ms that the `act` tool's description in the log names, or the watch's own time when the result says `drew again, settled … later`. When a redraw in the watch makes the result one wait, after a first wait without a redraw, `wait_s` holds the watch, and only the grace for new windows that is left over counts here; after a wait that timed out, nothing does. |
+| `input_s` | The sender's pacing of the actions it sent, pauses aside: the gaps, holds and typed keys of `tools/hyprmasq-input.c` (15 ms a typed key), the time of a `hold` action, the 300 ms from a click to the keys after it, and at least 150 ms for the window's answer to a click that more actions follow. |
 | `pause_s` | The pause actions the agent added. |
 | `rest_s` | The rest of the calls' time, not clamped. |
 
