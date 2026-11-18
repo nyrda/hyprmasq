@@ -120,6 +120,28 @@ class Page(unittest.TestCase):
         main("--check", self.page)
 
 
+class Glance(unittest.TestCase):
+    def test_a_copy_of_the_figure_alone_says_what_its_pass_rate_is_and_where_its_runs_are(self):
+        # Board ran three times and passed once, calc once and passed: a pass rate of 67% on 2 of 4 runs.
+        runs = [dict(run("gpt-6.1-sol", i, i == 1, 50, 12), date="2026-10-29") for i in (1, 2, 3)]
+        runs.append(dict(run("gpt-6.1-sol", 1, True, 40, 10), task="calc", date="2026-11-18"))
+        svg, alt = render.glance({"runs": runs})
+        text = html.unescape(svg.render("light", "glance"))
+        self.assertIn("67%", text)
+        self.assertIn("2/4", text)
+        self.assertIn("mean of tasks", text)
+        self.assertIn("averaged over the 2 tasks", text)
+        self.assertIn("29 Oct to 18 Nov 2026", text)
+        self.assertIn(render.BENCHMARKS_URL, text)
+        self.assertIn("from 29 Oct to 18 Nov 2026", alt)
+
+    def test_date_span_names_the_year_once_unless_the_runs_cross_one(self):
+        self.assertEqual(render.date_span([{"date": "2026-11-18"}]), "18 Nov 2026")
+        self.assertEqual(render.date_span([{"date": "2026-11-18"}, {"date": "2026-10-29"}]), "29 Oct to 18 Nov 2026")
+        self.assertEqual(render.date_span([{"date": "2026-12-30"}, {"date": "2027-01-02"}]), "30 Dec 2026 to 2 Jan 2027")
+        self.assertIsNone(render.date_span([{"date": None}]))
+
+
 class Load(unittest.TestCase):
     def test_legacy_variant_is_inferred_only_from_unambiguous_task_sources(self):
         with tempfile.TemporaryDirectory() as d:
