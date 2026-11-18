@@ -706,28 +706,35 @@ def api_cost(model, requests):
     return round(cost, 6)
 
 
+def add(a, b):
+    """The sum of two turns' counts, None when either turn's is unknown."""
+    return None if a is None or b is None else a + b
+
+
 def agent_usage(harness, stream, transcript=()):
     """Tokens and turns from the agent's own event stream, and its final answer. input_tokens counts every prompt
     token, cache reads and writes included. cost_usd is the harness's own figure, except for Codex, whose transcript
     gives the requests to price at the API's list prices."""
     usage = {}
     if harness in ("claude", "claude-api"):
-        for e in stream:
-            line = e["line"]
-            if line.get("type") == "result":
-                u = line.get("usage") or {}
-                usage = {
-                    "turns": line.get("num_turns"),
-                    "input_tokens": u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
-                    + u.get("cache_creation_input_tokens", 0),
-                    "cache_read_tokens": u.get("cache_read_input_tokens", 0),
-                    "cache_write_tokens": u.get("cache_creation_input_tokens", 0),
-                    "output_tokens": u.get("output_tokens"),
-                    "thinking_tokens": (u.get("output_tokens_details") or {}).get("thinking_tokens"),
-                    "api_seconds": (line.get("duration_api_ms") or 0) / 1000,
-                    "cost_usd": line.get("total_cost_usd"),
-                    "final": line.get("result"),
-                }
+        # A result is its process's alone: after the user's reply (run.py --user-reply), the run's usage is the sum.
+        results = [e["line"] for e in stream if e["line"].get("type") == "result"]
+        for line in results:
+            u = line.get("usage") or {}
+            turn = {
+                "turns": line.get("num_turns"),
+                "input_tokens": u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
+                + u.get("cache_creation_input_tokens", 0),
+                "cache_read_tokens": u.get("cache_read_input_tokens", 0),
+                "cache_write_tokens": u.get("cache_creation_input_tokens", 0),
+                "output_tokens": u.get("output_tokens"),
+                "thinking_tokens": (u.get("output_tokens_details") or {}).get("thinking_tokens"),
+                "api_seconds": (line.get("duration_api_ms") or 0) / 1000,
+                "cost_usd": line.get("total_cost_usd"),
+            }
+            usage = turn if not usage else {k: add(usage[k], v) for k, v in turn.items()}
+        if results:
+            usage["final"] = results[-1].get("result")
     elif harness == "pi":
         # Each assistant message's message_end carries the usage of its request; a turn is one of them.
         replies = [e["line"]["message"] for e in stream
@@ -753,6 +760,8 @@ def agent_usage(harness, stream, transcript=()):
         final, model = None, None
         for e in stream:
             line = e["line"]
+            # A turn's usage is the session's so far: after the user's reply (run.py --user-reply), the last turn's
+            # is both turns'.
             if line.get("type") == "turn.completed":
                 u = line.get("usage") or {}
                 usage = {
@@ -960,6 +969,8 @@ def metrics(run_dir):
         "agent_exit": run.get("agent_exit"),
         "timed_out": run.get("timed_out", False),
         "budget_exhausted": run.get("budget_exhausted", False),
+        # The user's reply to an agent that ended without saying "Done" (run.py --user-reply), or None.
+        "user_reply": run.get("user_reply"),
         "wall_seconds": round(wall, 1),
         "tool_seconds": round(tool_seconds, 1),
         "outside_tool_seconds": round(wall - tool_seconds, 1),

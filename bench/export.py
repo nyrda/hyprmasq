@@ -106,6 +106,9 @@ def run_record(results_dir, name, fail, variant):
     # What the failure analysis needs. The machine is the label a series gave it, as a run's times hold only there.
     record["failures"] = s.get("failures") or []
     record["final"] = s.get("final")
+    # The user's reply to an agent that ended without saying "Done", which the run went on after.
+    if s.get("user_reply"):
+        record["user_reply"] = {k: s["user_reply"][k] for k in ("after", "reply", "tool_calls_before")}
     if s.get("error_texts"):
         record["error_texts"] = s["error_texts"]
     if s.get("infrastructure"):

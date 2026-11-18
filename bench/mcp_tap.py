@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A stdio MCP server that forwards to hyprmasq-mcp in the benchmark VM and logs every message.
 
-    mcp_tap.py CID PORT LOG [MAX_CALLS]
+    mcp_tap.py CID PORT LOG [MAX_CALLS [SPENT]]
 
 The agent starts it as its MCP server. It connects to the VM over vsock, where socat starts one hyprmasq-mcp
 per connection, and passes newline-delimited JSON-RPC both ways unchanged. Each message is logged to LOG as a
@@ -9,7 +9,9 @@ JSON line with the host time it passed: `dir` is `request` (agent to server) or 
 replaced by their size, so the log stays small and tool time is measured outside both the agent and the VM.
 
 With MAX_CALLS above 0, the tool calls after the first MAX_CALLS do not reach the server. The tap answers each with
-an error, logs it with `dir` `budget`, and creates LOG.budget, from which run.py stops the agent.
+an error, logs it with `dir` `budget`, and creates LOG.budget, from which run.py stops the agent. SPENT is the tool
+calls that an earlier tap of the run passed, which count against MAX_CALLS: run.py starts another tap when the agent
+goes on after the user's reply.
 """
 
 import hashlib
@@ -45,14 +47,14 @@ def budget_reply(message, calls, max_calls):
             "result": {"content": [{"type": "text", "text": text}], "isError": True}}
 
 
-def main(cid, port, log_path, max_calls="0"):
+def main(cid, port, log_path, max_calls="0", spent="0"):
     max_calls = int(max_calls)
     sock = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
     sock.connect((int(cid), int(port)))
     log = open(log_path, "a", buffering=1)
     lock = threading.Lock()
     out = threading.Lock()
-    calls = 0
+    calls = int(spent)
 
     def send(line):
         with out:
@@ -100,4 +102,4 @@ if __name__ == "__main__":
     if sys.argv[1:] == ["--help"]:
         print(__doc__)
     else:
-        main(*sys.argv[1:5])
+        main(*sys.argv[1:6])

@@ -262,10 +262,25 @@ def slot_cpus(cores, slots, per_slot):
             for k in range(slots)]
 
 
-def tap_command(cid, log, max_calls=0):
-    """The MCP tap between the agent and the VM's server, with a budget of tool calls when max_calls is above 0."""
+def tap_command(cid, log, max_calls=0, spent=0):
+    """The MCP tap between the agent and the VM's server, with a budget of tool calls when max_calls is above 0, of
+    which spent were made before, through an earlier tap of the run."""
     return [sys.executable, os.path.join(BENCH, "mcp_tap.py"), str(cid), "5000", log] + (
-        [str(max_calls)] if max_calls > 0 else [])
+        [str(max_calls)] + ([str(spent)] if spent else []) if max_calls > 0 else [])
+
+
+# What the user answers, with --user-reply, an agent that ended its turn without saying "Done", which every task's
+# prompt asks for at the end: such an agent stopped to ask the user something, such as whether to grant an access the
+# task asks for, or gave up. The user answers once, as a user would who is there, and the run goes on in the agent's
+# session with its tools.
+USER_REPLY = "Yes, go ahead."
+DONE = re.compile(r"\bDone\b")
+
+
+def needs_reply(agent, final):
+    """Whether the user answers the agent: it ended its turn by itself, without saying "Done"."""
+    return (agent["exit"] == 0 and not agent["timed_out"] and not agent["budget_exhausted"] and not agent["refused"]
+            and bool(agent["session"]) and not DONE.search(final or ""))
 
 
 def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprmasq"):
@@ -273,7 +288,7 @@ def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprma
     # A backend's skill (Cua's or computer-use-linux's) runs through Claude Code's Skill tool, from its own agent home
     # (skill_home), when the prompt names it as a slash command, as on the laptop; the debrief gets no tools. Claude Code
     # reads a user's skills only with the user's settings, which in that fresh home are the skill alone.
-    skill = backend in SKILLS and not resume
+    skill = backend in SKILLS and tap is not None
     command = [
         "claude", "-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose",
         # Only the backend's tools, and none of the user's CLAUDE.md, settings, hooks, skills or MCP servers. With a
@@ -288,7 +303,8 @@ def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprma
         command += ["--effort", effort]
     if resume:
         command += ["--resume", resume]
-    else:
+    # The run's tools, also when the agent goes on in its session after the user's reply; the debrief gets none.
+    if tap:
         config = {"mcpServers": {server: {"command": tap[0], "args": tap[1:]}}}
         command += ["--mcp-config", json.dumps(config),
                     "--allowedTools", " ".join(SKILL_TOOLS) + f" mcp__{server}" if skill else f"mcp__{server}"]
@@ -313,9 +329,13 @@ def codex_command(model, prompt, tap, resume=None, effort=None, backend="hyprmas
         command += ["-c", f"model_reasoning_effort={json.dumps(effort)}"]
     if not resume:
         command += ["--sandbox", "read-only"]
+    elif tap:
+        # exec resume takes no --sandbox: the same sandbox through the configuration.
+        command += ["-c", 'sandbox_mode="read-only"']
     for feature in CODEX_DISABLED:
         command += ["--disable", feature]
-    if not resume:
+    # The run's tools, also when the agent goes on in its session after the user's reply; the debrief gets none.
+    if tap:
         command += [
             "-c", f"mcp_servers.{server}.command={json.dumps(tap[0])}",
             "-c", f"mcp_servers.{server}.args={json.dumps(tap[1:])}",
@@ -336,7 +356,10 @@ def pi_command(model, prompt, tap, resume=None, sessions=None, effort=None):
     ]
     if effort:
         command += ["--thinking", effort]
-    if resume:
+    if resume and tap:
+        # The agent going on in its session after the user's reply, with its tools.
+        command += ["--session", resume, "-e", "builtin:mcp", "--tools", "mcp__hyprmasq__*"]
+    elif resume:
         # The debrief: the session's file, no tools, and no MCP server to give any.
         command += ["--session", resume, "--no-tools"]
     else:
@@ -355,16 +378,22 @@ def pi_agent_dir(tap, sessions):
     for name in ("auth.json", "models.json", "models-store.json"):
         if os.path.exists(os.path.join(user, name)):
             os.symlink(os.path.join(user, name), os.path.join(agent_dir, name))
+    pi_mcp_config(agent_dir, tap)
+    with open(os.path.join(agent_dir, "settings.json"), "w") as f:
+        json.dump({"defaultProjectTrust": "never"}, f)
+    os.makedirs(sessions)
+    return agent_dir
+
+
+def pi_mcp_config(agent_dir, tap):
+    """The tap as pi's only MCP server, its tools declared to the model directly. pi starts its MCP servers from this
+    file, not from its command, so the tap that the agent gets after the user's reply goes here too."""
     config = {
         "autoEnableCodemode": False,
         "mcpServers": {"hyprmasq": {"command": tap[0], "args": tap[1:], "exposure": "direct", "timeout": TOOL_TIMEOUT}},
     }
     with open(os.path.join(agent_dir, "mcp.json"), "w") as f:
         json.dump(config, f, indent=2)
-    with open(os.path.join(agent_dir, "settings.json"), "w") as f:
-        json.dump({"defaultProjectTrust": "never"}, f)
-    os.makedirs(sessions)
-    return agent_dir
 
 
 def check_pi_model(agent_dir, model):
@@ -766,6 +795,38 @@ def booted_vm(driver, run_dir, cid, timeout, cpus=None, env=None):
         shutil.rmtree(runtime, ignore_errors=True)
 
 
+def reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, cid, sessions, agent_dir, agent_vars, timeout,
+                  max_calls, label):
+    """The user's one reply to an agent that ended its turn without saying "Done" (needs_reply), and the agent going on
+    in its session, with its tools, a tap that counts the calls made before against the budget, and the rest of its
+    time. Its events follow the turn's in agent.jsonl, so that the run's time, usage and final answer are the two
+    turns'. A new tap means a new hyprmasq-mcp in the VM, so the agent's shots from before are gone. Returns the agent
+    of both turns and what the user replied after what, or the agent alone and None."""
+    stream = os.path.join(run_dir, "agent.jsonl")
+    final = final_text(harness, stream)
+    resume = pi_session(sessions, agent["session"])[0] if harness == "pi" else agent["session"]
+    if not needs_reply(agent, final) or not resume:
+        return agent, None
+    log = os.path.join(run_dir, "mcp.jsonl")
+    spent = sum(1 for e in report.load_jsonl(log)
+                if e.get("dir") == "request" and (e.get("msg") or {}).get("method") == "tools/call")
+    tap = tap_command(cid, log, max_calls, spent)
+    if agent_dir:
+        pi_mcp_config(agent_dir, tap)
+    print(f"{label} the agent ended without saying Done: the user replies", flush=True)
+    command = agent_command(harness, model, USER_REPLY, tap, resume=resume, sessions=sessions, effort=effort,
+                            backend=backend)
+    more = run_agent(command, cwd, stream, os.path.join(run_dir, "agent.stderr"),
+                     max(60, timeout - (time.time() - agent["start"])), agent_vars, api_key=harness == "claude-api",
+                     budget=os.path.join(run_dir, "mcp.jsonl.budget") if max_calls > 0 else None)
+    both = {**more, "start": agent["start"], "api_key_source": agent["api_key_source"],
+            "refused": agent["refused"] or more["refused"],
+            # Claude Code may go on in a session of its own: the debrief resumes the last, and both transcripts move.
+            "session": more["session"] or agent["session"],
+            "sessions": list(dict.fromkeys(s for s in (agent["session"], more["session"]) if s))}
+    return both, {"after": final, "reply": USER_REPLY, "at": more["start"], "tool_calls_before": spent}
+
+
 def run_debrief(harness, model, effort, backend, browser, task_dir, variant, run_dir, cwd, agent_vars, summary, resume,
                 label, run):
     """Asks the agent, in its own session, the task's debrief questions about its run, into debrief.md."""
@@ -800,7 +861,7 @@ class DebriefKeyError(RuntimeError):
 
 def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief, cpus=None,
             dispatched=None, backend="hyprmasq", prompt_kind="task", browser="firefox", max_calls=0, desktop="bare",
-            chromium_options="", mcp_args=""):
+            chromium_options="", mcp_args="", user_reply=False):
     task_dir = os.path.join(BENCH, "tasks", task)
     run_dir = os.path.join(out, run_name(harness, model, rep, effort))
     label = f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}]"
@@ -845,6 +906,11 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
                               os.path.join(run_dir, "agent.stderr"), timeout, agent_vars,
                               api_key=harness == "claude-api",
                               budget=os.path.join(run_dir, "mcp.jsonl.budget") if max_calls > 0 else None)
+            reply = None
+            if user_reply:
+                check_api_key_used(agent, "agent")
+                agent, reply = reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, cid, sessions,
+                                             agent_dir, agent_vars, timeout, max_calls, label)
 
         run = {
             "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
@@ -860,6 +926,8 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             "max_calls": max_calls, "budget_exhausted": agent["budget_exhausted"],
             "agent_start": agent["start"], "agent_end": agent["end"], "agent_exit": agent["exit"],
             "timed_out": agent["timed_out"], "session": agent["session"],
+            # With --user-reply, the user's one reply to an agent that ended without saying "Done", or None.
+            "user_reply_enabled": user_reply, "user_reply": reply,
             "harness_version": version([executable(harness), "--version"]), "machine": machine(),
             # The CPUs the VM ran on, or None where it could run on any.
             "cpus": format_cpus(cpus) if cpus else None,
@@ -899,7 +967,8 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             with open(os.path.join(run_dir, "run.json"), "w") as f:
                 json.dump(run, f, indent=2)
     finally:
-        move_transcript(harness, agent["session"], cwd, run_dir, sessions, config)
+        for session in agent.get("sessions") or [agent["session"]]:
+            move_transcript(harness, session, cwd, run_dir, sessions, config)
         shutil.rmtree(cwd, ignore_errors=True)
         if home:
             # The run's copy of the login, and links, which rmtree removes and does not follow.
@@ -1044,7 +1113,8 @@ def run_config(source, task, variant, args):
             "browser": args.browser, "desktop": args.desktop, "chromium_options": args.chromium_options, "mcp_args": args.mcp_args,
             "prompt_sha256": file_sha256([task_file(task_dir, variant, PROMPTS[args.prompt]),
                                           task_file(task_dir, variant, "debrief.md")]),
-            "timeout": args.timeout, "max_calls": args.max_calls, "debrief": not args.no_debrief}
+            "timeout": args.timeout, "max_calls": args.max_calls, "debrief": not args.no_debrief,
+            "user_reply": args.user_reply}
 
 
 def check_identity(out, identity):
@@ -1089,11 +1159,11 @@ def check_resume(out, config, parser, agents):
 
 # What results directories from before the backend and prompt options ran with.
 DEFAULT_CONFIG = {"backend": "hyprmasq", "prompt": "task", "browser": "firefox", "desktop": "bare", "chromium_options": "",
-                  "mcp_args": ""}
+                  "mcp_args": "", "user_reply": False}
 # What must be the same for runs to go into one results directory. The driver and the skill are the run's own (run.json's
 # identity, check_identity), and bench_dirty says a commit does not name the benchmark's code.
 IDENTITY_KEYS = ("commit", "task", "variant", "display", "backend", "prompt", "browser", "desktop", "chromium_options", "mcp_args",
-                 "bench_commit", "bench_dirty", "prompt_sha256", "timeout", "max_calls", "debrief")
+                 "bench_commit", "bench_dirty", "prompt_sha256", "timeout", "max_calls", "debrief", "user_reply")
 
 
 def pending_runs(out, reps, agents):
@@ -1125,6 +1195,9 @@ def add_run_options(parser, tasks=False):
     parser.add_argument("--max-calls", type=int, default=0,
                         help="tool calls an agent may make: the run stops and fails at the next one. 0 for no limit")
     parser.add_argument("--no-debrief", action="store_true")
+    parser.add_argument("--user-reply", action="store_true",
+                        help=f'answer an agent that ends its turn without saying "Done" once, with "{USER_REPLY}", '
+                             "and let it go on in its session with its tools before the VM grades the run")
     parser.add_argument("--backend", choices=BACKENDS, default="hyprmasq",
                         help="the desktop tool the agent gets: hyprmasq, from --source, or Cua Driver (bench/cua), "
                              "hypruse (bench/hypruse) or computer-use-linux (bench/computer-use-linux)")
@@ -1243,7 +1316,7 @@ def main():
             with vm_lock(args.lock):
                 run_one(driver, args.task, args.variant, harness, model, effort, rep, out, args.cid, args.timeout,
                         not args.no_debrief, cpus, args.dispatch, args.backend, args.prompt, args.browser,
-                        args.max_calls, args.desktop, args.chromium_options, args.mcp_args)
+                        args.max_calls, args.desktop, args.chromium_options, args.mcp_args, args.user_reply)
         except Exception as e:  # one broken run does not end the benchmark
             print(f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}] error: {e}", flush=True)
     print(report.report(out))
