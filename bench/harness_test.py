@@ -602,9 +602,10 @@ class UserReply(unittest.TestCase):
                 {"type": "item.completed", "item": {"type": "agent_message", "text": "Done. I connected it."}},
                 {"type": "turn.completed", "usage": second}))
             executable(bin_dir, "codex", f"printf '%s\\n' \"$@\" > {argv}\ncat <<'EOF'\n{events}\nEOF\n")
+            started = time.time()
             with mock.patch.dict(os.environ, {"PATH": bin_dir + os.pathsep + os.environ["PATH"]}):
-                agent, reply = run.reply_as_user("codex", "gpt", "medium", "hyprmasq", dict(self.AGENT), run_dir,
-                                                 work, 4242, None, None, {}, 600, 36, "[test]")
+                agent, reply = run.reply_as_user("codex", "gpt", "medium", "hyprmasq", dict(self.AGENT, start=started),
+                                                 run_dir, work, 4242, None, None, {}, 600, 36, "[test]")
             with open(argv) as f:
                 args = f.read().split("\n")
             self.assertEqual(args[1:3], ["resume", "s1"])
@@ -613,15 +614,27 @@ class UserReply(unittest.TestCase):
                           "\n".join(args))
             self.assertEqual(reply["after"], "Do you approve?")
             self.assertEqual((reply["reply"], reply["tool_calls_before"]), (run.USER_REPLY, 3))
-            self.assertEqual((agent["start"], agent["session"], agent["exit"]), (0.0, "s1", 0))
+            self.assertEqual((agent["start"], agent["session"], agent["exit"]), (started, "s1", 0))
             usage = report.agent_usage("codex", report.load_jsonl(os.path.join(run_dir, "agent.jsonl")))
             self.assertEqual((usage["input_tokens"], usage["cache_read_tokens"], usage["output_tokens"]),
                              (3000, 2300, 120))
             self.assertEqual(usage["final"], "Done. I connected it.")
             # An agent that said Done gets no reply.
-            agent, reply = run.reply_as_user("codex", "gpt", "medium", "hyprmasq", dict(self.AGENT), run_dir,
-                                             work, 4242, None, None, {}, 600, 36, "[test]")
+            agent, reply = run.reply_as_user("codex", "gpt", "medium", "hyprmasq", dict(self.AGENT, start=time.time()),
+                                             run_dir, work, 4242, None, None, {}, 600, 36, "[test]")
             self.assertIsNone(reply)
+
+    def test_an_agent_without_time_left_gets_no_reply(self):
+        with tempfile.TemporaryDirectory() as work:
+            with open(os.path.join(work, "agent.jsonl"), "w") as f:
+                f.write(json.dumps({"t": 0, "line": {"type": "item.completed",
+                                                     "item": {"type": "agent_message", "text": "Do you approve?"}}}) + "\n")
+            # The agent started 100 seconds ago and may take 100: its time is spent, and nothing runs again.
+            started = dict(self.AGENT, start=time.time() - 100)
+            agent, reply = run.reply_as_user("codex", "gpt", "medium", "hyprmasq", started, work, work, 4242, None,
+                                             None, {}, 100, 0, "[test]")
+            self.assertIsNone(reply)
+            self.assertIs(agent, started)
 
     def test_claude_codes_usage_is_both_processes(self):
         def result(n, tokens, cost, text):

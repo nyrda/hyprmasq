@@ -799,13 +799,14 @@ def reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, cid, ses
                   max_calls, label):
     """The user's one reply to an agent that ended its turn without saying "Done" (needs_reply), and the agent going on
     in its session, with its tools, a tap that counts the calls made before against the budget, and the rest of its
-    time. Its events follow the turn's in agent.jsonl, so that the run's time, usage and final answer are the two
+    time: an agent with none left gets no reply. Its events follow the turn's in agent.jsonl, so that the run's time, usage and final answer are the two
     turns'. A new tap means a new hyprmasq-mcp in the VM, so the agent's shots from before are gone. Returns the agent
     of both turns and what the user replied after what, or the agent alone and None."""
     stream = os.path.join(run_dir, "agent.jsonl")
     final = final_text(harness, stream)
     resume = pi_session(sessions, agent["session"])[0] if harness == "pi" else agent["session"]
-    if not needs_reply(agent, final) or not resume:
+    left = timeout - (time.time() - agent["start"])
+    if not needs_reply(agent, final) or not resume or left <= 0:
         return agent, None
     log = os.path.join(run_dir, "mcp.jsonl")
     spent = sum(1 for e in report.load_jsonl(log)
@@ -816,8 +817,8 @@ def reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, cid, ses
     print(f"{label} the agent ended without saying Done: the user replies", flush=True)
     command = agent_command(harness, model, USER_REPLY, tap, resume=resume, sessions=sessions, effort=effort,
                             backend=backend)
-    more = run_agent(command, cwd, stream, os.path.join(run_dir, "agent.stderr"),
-                     max(60, timeout - (time.time() - agent["start"])), agent_vars, api_key=harness == "claude-api",
+    more = run_agent(command, cwd, stream, os.path.join(run_dir, "agent.stderr"), left, agent_vars,
+                     api_key=harness == "claude-api",
                      budget=os.path.join(run_dir, "mcp.jsonl.budget") if max_calls > 0 else None)
     both = {**more, "start": agent["start"], "api_key_source": agent["api_key_source"],
             "refused": agent["refused"] or more["refused"],

@@ -118,7 +118,7 @@ task's prompt asks for at the end: such an agent stopped to ask the user somethi
 that the task asks for, or gave up. The reply is "Yes, go ahead.", sent into the agent's session before the VM grades
 the run. The agent goes on with its tools and the rest of its time, through a tap that counts the calls it made before
 against `--max-calls`. The new tap starts a new `hyprmasq-mcp` in the VM, so the agent's shots from before are gone and
-it takes a new one. An agent that timed out or spent its budget gets no reply. The run's time, usage and final answer
+it takes a new one. An agent that timed out, spent its budget or has no time left gets no reply. The run's time, usage and final answer
 are both turns', and `run.json` and `summary.json` record the reply as `user_reply`: the agent's message it answered,
 the reply and the tool calls before it. Without the option no agent gets a reply, as in the published sets so far, and
 `source.json` records it, so that a results directory holds runs of one or the other.
