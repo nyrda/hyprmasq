@@ -22,8 +22,9 @@ has that name: then the last of the datasets names it too. Views:
   the tasks' counts differ, and the median wall time, and the cost per passed run. Where the tasks do not fit as
   columns, a row per task and a column per agent instead, with each agent's runs passed and cost below, and without
   the times where those columns are too narrow for them. A task an agent did not run reads "not run".
-- glance: a row per agent, the best first by the mean of its tasks' shares of runs passed, with that mean, each
-  task's share, the sum of its tasks' median wall times and its cost per passed run.
+- glance: a row per agent, the best first by its pass rate, the mean of its tasks' shares of runs passed, with that
+  rate and its runs passed, each task's share, the sum of its tasks' median wall times and its cost per passed run.
+  It says what it shows, when the runs took place and where they are published, since it is shared without the page.
 - overview: time with each row's runs passed beside its median, to set agents side by side on every task, each
   panel's scale fitting the agents whose median is at most 2.5 times the panel's typical one.
 - time: each run's wall time and the medians of the time in hyprmasq's tools and outside them, a panel per task,
@@ -149,6 +150,9 @@ THEMES = {
 FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif'
 WIDTH = 880
 PAD = 24
+# Where the benchmark's method and every run are published, which the glance figure names for a copy of it alone.
+BENCHMARKS_URL = "github.com/nyrda/hyprmasq/blob/main/docs/benchmarks.md"
+MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 # Helvetica's advance widths of the printable ASCII characters, in thousandths of an em.
 _HELVETICA = (
@@ -610,10 +614,25 @@ def scoreboard(data):
     return svg, alt
 
 
+def date_span(runs):
+    """The days the runs took place, as "29 Oct to 18 Nov 2026", or None without dates."""
+    days = sorted({r["date"] for r in runs if r.get("date")})
+    if not days:
+        return None
+    def day(d, year=True):
+        y, m, dd = d.split("-")
+        return f"{int(dd)} {MONTHS[int(m) - 1]}" + (f" {y}" if year else "")
+    first, last = days[0], days[-1]
+    if first == last:
+        return day(first)
+    return f"{day(first, first[:4] != last[:4])} to {day(last)}"
+
+
 def glance(data):
-    """A row per agent, the best share of runs passed first: a bar of all its runs passed, a cell per task with the
-    share of that task's runs, the sum of its tasks' median wall times with the time in hyprmasq's tools, and its cost
-    per passed run."""
+    """A row per agent, the best pass rate first: a bar of its pass rate, the mean of its tasks' shares of runs passed,
+    with that rate and its runs passed, a cell per task with the share of that task's runs, the sum of its tasks'
+    median wall times with the time in hyprmasq's tools, and its cost per passed run. Its text says what the pass
+    rate is, when the runs took place and where they are published, since the figure is shared without the page."""
     runs = data["runs"]
     def is_photo(task):
         return task.split("-")[0] in PHOTO_TASKS
@@ -649,10 +668,11 @@ def glance(data):
     svg = Svg()
     top = header(
         svg, "Runs passed, time and cost per model",
-        [f"{passed} of {total} runs passed. A row per model, the best first by the mean of its tasks' shares of runs",
-         "passed, which the first bar shows, so that a task with more runs does not weigh more. Each time is the sum of",
-         "its tasks' median wall times, the part in hyprmasq's tools in blue. Board and trace stand apart: they also ask",
-         "to understand a photo, and a model that cannot spends its calls there. Its cost is per passed run."]
+        [f"{passed} of {total} runs passed. A row per model, the best first by its pass rate: the share of each task's",
+         f"runs that passed, averaged over the {len(ts)} tasks, so that a task run more often does not weigh more. Where",
+         "a model ran some tasks more often, its pass rate differs from its share of runs passed. Each time is the sum",
+         "of its tasks' median wall times, the part in hyprmasq's tools in blue. Board and trace stand apart: they also",
+         "ask to understand a photo, and a model that cannot spends its calls there. Its cost is per passed run."]
         + [line for line in [effort_note(runs)] if line],
         [("swatch", "pass", "passed"), ("swatch", "fail", "failed"), ("swatch", "tools", "in hyprmasq's tools"),
          ("swatch", "out", "rest of the time")],
@@ -661,7 +681,8 @@ def glance(data):
     effort_w = max(text_width(k[1], 12) for k in keys) + 10 if efforts else 0
     label_w = name_w + effort_w + 16
     pct_w = text_width("100%", 13, True)
-    count_w = max(text_width(f"{sum(r['passed'] for r in of[k])}/{len(of[k])}", 11.5) for k in keys)
+    count_w = max([text_width(f"{sum(r['passed'] for r in of[k])}/{len(of[k])}", 11.5) for k in keys]
+                  + [text_width("passed", 12, True)])
     bar_w, cell_bar = 48, 13
     passed_w = bar_w + 6 + pct_w + 5 + count_w + 14
     time_texts = {photo: {k: f"{wall[photo][k] / 60:.0f} min" for k in keys} for photo in (False, True)}
@@ -685,9 +706,13 @@ def glance(data):
 
     head_h = max(text_width(task_title(t), 10.5, True) for t in ts) * 0.71 + 6
     base = top + head_h
-    column_heads(svg, [(x_passed, ["Tasks passed"]), (x_times[False], ["Time, other", f"{plain_count} tasks"]),
+    x_count = x_passed + bar_w + 6 + pct_w + 5
+    column_heads(svg, [(x_passed, ["Pass rate,", "mean of tasks"]), (x_count, ["Runs", "passed"]),
+                       (x_times[False], ["Time, other", f"{plain_count} tasks"]),
                        (x_times[True], ["Time, the", f"{len(ts) - plain_count} with a photo"]),
                        (x_cost, ["Cost per", "passed run"])], base - 15)
+    if efforts:
+        svg.text(PAD + label_w - 16, base - 15, "Effort", cls="t2", size=12, weight="600", anchor="end")
     for j, t in enumerate(ts):
         x = x_of(j) + cell_bar / 2 + 2
         svg.text(x, base, task_title(t), cls="t2", size=10.5, weight="600", rotate=-45)
@@ -714,7 +739,7 @@ def glance(data):
         ok = sum(r["passed"] for r in rs)
         share(x_passed, cy, share_of[key], 1, bar_w, 12)
         svg.text(x_passed + bar_w + 6, cy + 4.5, f"{100 * share_of[key]:.0f}%", size=13, weight="600")
-        svg.text(x_passed + bar_w + 6 + pct_w + 5, cy + 4.5, f"{ok}/{len(rs)}", cls="m", size=11.5)
+        svg.text(x_count, cy + 4.5, f"{ok}/{len(rs)}", cls="m", size=11.5)
         for j, t in enumerate(ts):
             cell = [r for r in rs if r["task"] == t]
             x = x_of(j)
@@ -733,10 +758,22 @@ def glance(data):
         svg.text(x_cost + cost_bar + 6, cy + 4.5, cost_texts[key], cls="t2", size=12.5)
         if i < len(keys) - 1:
             svg.line(PAD, y0 + row_h * (i + 1), WIDTH - PAD, y0 + row_h * (i + 1), "grid")
-    svg.height = y0 + row_h * len(keys) + 20
-    alt = (f"Runs passed, time and cost per model. {passed} of {total} runs passed. A row per model, the best first, "
-           "with the mean of its tasks' shares of runs passed, each task's share, the sums of its tasks' median wall "
-           "times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run.")
+    # What a copy of the figure alone needs: what the runs were, when, and where the method and every run are.
+    span = date_span(runs)
+    foot = y0 + row_h * len(keys) + 26
+    lines = ["Coding agents doing desktop tasks through hyprmasq's MCP tools in offline NixOS VMs"
+             + (f", {span}." if span else "."),
+             "A probe of hyprmasq with each model, no formal ranking of models. Builds and machines differ between sets.",
+             f"Method and every run: {BENCHMARKS_URL}"]
+    for n, line in enumerate(lines):
+        svg.text(PAD, foot + 17 * n, line, cls="m", size=11.5)
+    svg.height = foot + 17 * (len(lines) - 1) + 18
+    alt = (f"Runs passed, time and cost per model. {passed} of {total} runs passed. A row per model, the best first by "
+           "its pass rate, the mean of its tasks' shares of runs passed, with that rate, its runs passed, each task's "
+           "share, the sums of its tasks' median wall times for board and trace, which ask to understand a photo, and "
+           "for the other tasks, and its cost per passed run"
+           + (f". The runs took place from {span}" if span and " to " in span else f". The runs took place on {span}" if span else "")
+           + ".")
     return svg, alt
 
 

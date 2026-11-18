@@ -134,8 +134,8 @@ hyprctl hyprmasq eis close "$addr"
 ## Benchmarks
 
 Fourteen models on ten desktop tasks in an offline VM. Current Anthropic and
-OpenAI models passed 90 to 100% of their tasks' runs, all but the small
-`gpt-6-luna`, and no run of any model changed the user's focus or
+OpenAI models passed 90 to 100% of each task's runs on average, all but the
+small `gpt-6-luna`, and no run of any model changed the user's focus or
 workspace. See the [benchmarks](docs/benchmarks.md).
 
 Beside three other computer use tools for Linux, hyprmasq was the one that
@@ -145,7 +145,7 @@ times as long. hyprmasq's author ran that series: the
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model on ten desktop tasks, the most runs passed first." src="docs/benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model on ten desktop tasks, the highest pass rate first: the share of each task&#x27;s runs that passed, averaged over the tasks." src="docs/benchmarks/glance.svg">
 </picture>
 
 ## Limits and trust
