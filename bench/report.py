@@ -573,10 +573,12 @@ def pi_text(message):
 
 
 # OpenAI's API list prices in USD per million tokens, from https://developers.openai.com/api/docs/pricing on
-# 2026-10-26: input, cached input, cache writes and output, and the prices for a request whose prompt is over
+# 2026-10-26, and for the gpt-6.2 models on 2026-11-18: input, cached input, cache writes and output, and the prices for a request whose prompt is over
 # LONG_PROMPT tokens. Codex runs on a ChatGPT login report no cost, so a run's cost is what its requests would cost
 # on the API.
 OPENAI_PRICES = {
+    "gpt-6.2-astra": ((8.00, 0.40, 10.00, 40.00), (16.00, 0.80, 20.00, 60.00)),
+    "gpt-6.2-sol": ((2.00, 0.10, 2.50, 10.00), (4.00, 0.20, 5.00, 15.00)),
     "gpt-6-astra": ((10.00, 1.00, 12.50, 50.00), (20.00, 2.00, 25.00, 75.00)),
     "gpt-6.1-sol": ((2.00, 0.10, 2.50, 10.00), (4.00, 0.20, 5.00, 15.00)),
     "gpt-6.1-terra": ((1.00, 0.05, 1.25, 5.00), (2.00, 0.10, 2.50, 7.50)),

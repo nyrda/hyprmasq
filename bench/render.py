@@ -94,6 +94,8 @@ from report import fmt  # noqa: E402
 
 # Display names of the models, in the order agents are listed in; others follow by their ids.
 NAMES = {
+    "gpt-6.2-astra": "gpt-6.2-astra",
+    "gpt-6.2-sol": "gpt-6.2-sol",
     "gpt-6.1-sol": "gpt-6.1-sol",
     "gpt-6.1-terra": "gpt-6.1-terra",
     "gpt-6-astra": "gpt-6-astra",
