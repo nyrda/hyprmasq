@@ -14,10 +14,10 @@ times as long. No run disturbed the user, and every failure was the model's own.
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 glance -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model. 551 of 656 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run." src="benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model. 555 of 656 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run." src="benchmarks/glance.svg">
 </picture>
 
-<sub>Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026. gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026. Builds and machines differ, so times compare roughly. Qwen 3.8 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. GLM 5.3 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. gpt-6.2-astra and gpt-6.2-sol ran each task four times at medium, two on each of two machines, on main&#x27;s 0c3f8ed on 18 Nov 2026.</sub>
+<sub>Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026. gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026. Builds and machines differ, so times compare roughly. Qwen 3.8 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. GLM 5.3 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. gpt-6.2-astra and gpt-6.2-sol ran each task four times at medium, two on each of two machines, on main&#x27;s 0c3f8ed on 18 Nov 2026. In Forgejo, gpt-6.2-sol asked the user before it granted the dashboard access, and went on after the user&#x27;s reply.</sub>
 <!-- /render -->
 
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 overview -->
@@ -32,12 +32,12 @@ times as long. No run disturbed the user, and every failure was the model's own.
 | Model | Runs passed | What to expect |
 | --- | --- | --- |
 | Opus 5.5 | 40/40 | Passed every run. |
+| gpt-6.2-sol | 40/40 | Passed every run, board included, as fast and cheap as gpt-6.1-sol. In Forgejo it asks the user before it grants the dashboard access to Mara's account, and goes on after the user's reply. |
 | Sonnet 5.5 | 59/60 | Missed one run of the form with dropdowns. |
 | gpt-6.2-astra | 38/40 | Passes every task. Its two misses were the lookalike label on board, in `dnd`. It costs two thirds of what gpt-6-astra costs per passed run, and took longer per step on its release day. |
 | gpt-6-astra | 38/40 | Passes every task. Its two misses were Sol's and Terra's lookalike label on board. |
 | gpt-6.1-terra | 71/84, 37/40 at `high` | Passes every task but board, where it labels a lookalike part in about a third of its runs, at `high` as at `medium`. |
 | gpt-6.1-sol | 68/84, 36/40 at `high` | As Terra. `high` helped it on board in the first set of reruns, not in the later one. |
-| gpt-6.2-sol | 36/40 | Passed every run of every task but Forgejo, board included, as fast and cheap as gpt-6.1-sol. In each Forgejo run it uploaded the file, then stopped at Forgejo's consent screen and asked the user whether to grant the dashboard access to Mara's account. |
 | Haiku 5.5 | 36/40 | Close to the frontier models, fast and cheap. It missed half its board-pointer runs. |
 | Kimi K3.1 Pro | 8/10 | Passes the long form, mail and web tasks, but slowly, and draws imprecisely. |
 | Qwen 3.8 Flash | 21/30 | Passed every run of files, Forgejo, Inkscape, Thunderbird and both forms, at about two cents a run, but slowly. It passed one board run and no trace run, most of them ending at the call budget. |
@@ -65,7 +65,6 @@ that hyprmasq caused was fixed. Tasks it was not developed against may still fin
 | gpt-6.1-terra | Board | 2 `dnd`, 1 `pointer` at `high` | Put the CPU power headers' label on the lookalike. |
 | gpt-6-astra | Board | 1 `dnd`, 1 `pointer` | Put the CPU power headers' label on the lookalike. |
 | gpt-6.2-astra | Board | 2 `dnd` | Put the CPU power headers' label on the lookalike. |
-| gpt-6.2-sol | Forgejo | 4 | Uploaded the release notes, then stopped at Forgejo's consent screen and asked whether to grant the dashboard read and write access to Mara's account, which left it unconnected. |
 | Haiku 5.5 | Board-pointer | 2 | Left the BMC chip's label on no part, and in the other run put the SATA ports' label on the memory slots. |
 | Haiku 5.5 | Calc | 1 | Averaged the wrong range and left out the growth formula. |
 | Haiku 5.5 | Trace | 1 | Covered 92% of the bank. |
@@ -294,7 +293,7 @@ close call.
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 4/4 | 106 (91–195) | 20 (19–36) | 5.6 (3.3–8.9) | 14 (12–16) | 24 (20–34) | 14 (11–16) |
-| gpt-6.2-sol | medium | 0/4 | 84 (63–137) | 20 (20–21) | 2.3 (2.0–2.5) | 14 (14–15) | 21 (21–21) | 14 (14–15) |
+| gpt-6.2-sol | medium | 4/4 | 101 (99–178) | 22 (22–22) | 3.0 (2.9–3.2) | 17 (17–19) | 22 (21–22) | 16 (16–18) |
 | gpt-6.1-sol | medium | 6/6 | 74 (69–79) | 20 (18–22) | 2.8 (2.6–3.1) | 16 (14–18) | 21 (21–26) | 26 (26–29) |
 | gpt-6.1-sol | high | 4/4 | 68 (62–78) | 20 (19–22) | 2.5 (2.2–2.9) | 16 (14–16) | 22 (22–23) | 26 (26–28) |
 | gpt-6.1-terra | medium | 6/6 | 54 (51–60) | 20 (18–24) | 1.7 (1.6–2.1) | 15 (14–16) | 22 (22–25) | 26 (26–26) |
@@ -315,7 +314,7 @@ close call.
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 309 (221–437) | 85 (81–90) | 1 (1–1) | 0.487 (0.415–0.607) |
-| gpt-6.2-sol | medium | 323 (292–364) | 89 (82–90) | 1 (1–1) | 0.107 (0.093–0.168) |
+| gpt-6.2-sol | medium | 417 (417–499) | 86 (79–89) | 1 (1–2) | 0.177 (0.140–0.219) |
 | gpt-6.1-sol | medium | 317 (274–363) | 91 (89–92) | 1 (1–1) | 0.102 (0.084–0.105) |
 | gpt-6.1-sol | high | 306 (274–319) | 92 (88–94) | 1 (1–1) | 0.089 (0.081–0.100) |
 | gpt-6.1-terra | medium | 293 (274–315) | 92 (86–92) | 1 (1–1) | 0.044 (0.044–0.059) |
@@ -574,7 +573,7 @@ close call.
 | Agent | Effort | Passed | Input M | Cached % | Output k | Cost $ | Cost per passed run $ |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 38/40 | 7.33 | 86 | 23 | 11.68 | 0.31 |
-| gpt-6.2-sol | medium | 36/40 | 8.52 | 85 | 33 | 3.59 | 0.10 |
+| gpt-6.2-sol | medium | 40/40 | 8.97 | 85 | 35 | 3.83 | 0.10 |
 | gpt-6.1-sol | medium | 68/84 | 16.79 | 89 | 97 | 6.09 | 0.09 |
 | gpt-6.1-sol | high | 36/40 | 9.64 | 90 | 58 | 3.36 | 0.09 |
 | gpt-6.1-terra | medium | 71/84 | 13.28 | 86 | 78 | 2.78 | 0.04 |
@@ -618,7 +617,7 @@ The time of `act`, hyprmasq's tool that sends input and returns what changed, ov
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 act -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/act-dark.svg">
-  <img alt="Time in finished act calls: Input pacing 4195 s, Settle wait 2325 s, Redraw watch 2584 s, Pauses 534 s, Rest 2741 s" src="benchmarks/act.svg">
+  <img alt="Time in finished act calls: Input pacing 4195 s, Settle wait 2326 s, Redraw watch 2587 s, Pauses 534 s, Rest 2741 s" src="benchmarks/act.svg">
 </picture>
 <!-- /render -->
 
@@ -1277,12 +1276,20 @@ physical cores on the 4750U and one on the 5600X. The call budgets are those of 
 - Codex CLI 0.169.1 with a ChatGPT login, from a copy pinned on each machine: `gpt-6.2-astra` and `gpt-6.2-sol` at
   `medium`. Codex's own default for both is `low`.
 
+In Forgejo, Sol uploaded the file and then stopped at Forgejo's consent screen, to ask the user whether to grant the
+dashboard read and write access to Mara's account. With no user to answer, those runs failed, though neither hyprmasq
+nor the model had failed the task. Sol's Forgejo runs therefore ran with `run.py --user-reply`: the user answers an
+agent once that ends its turn without saying "Done", with "Yes, go ahead.", and the agent goes on in its session with
+its tools. In each of the four, Sol asked, got the reply, approved the access and connected the dashboard. No other run
+of the set ended without saying "Done", so the reply would have changed none of them. The four runs without the reply,
+which stopped at the consent screen, are not in the dataset.
+
 17 of Astra's 57 runs waited 61 to 465 seconds for one response of OpenAI's, 15 of them for the session's first. Each
 such response held at most 61 output tokens and no reasoning, and Codex logged no retry. Each of these runs ran
 again on the same machine until no response took longer than a minute, two of them twice. All 17 had passed, so the
 reruns change Astra's times and not its runs passed. No response of Sol's took longer than 26 seconds.
 
-The 80 runs cost an estimated $15.27 at API list prices, Astra's $11.68 of it.
+The 80 runs cost an estimated $15.51 at API list prices, Astra's $11.68 of it.
 
 </details>
 
