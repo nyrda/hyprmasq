@@ -74,6 +74,7 @@ python3 bench/run.py --source ../hyprmasq-feature       # the plugin and server 
 python3 bench/run.py --task forgejo                     # another task: a directory under bench/tasks
 python3 bench/run.py --display 2560x1440@1              # another monitor: WIDTHxHEIGHT@SCALE
 python3 bench/run.py --max-calls 20                     # stop and fail a run at its 21st tool call
+python3 bench/run.py --user-reply                       # answer an agent that stops without saying "Done" once
 python3 bench/run.py --task board --variant pointer     # a task's variant: one of tasks/TASK/variants
 python3 bench/run.py --task form --variant 10           # a quick probe: 10 questions instead of the default 25
 python3 bench/run.py --task form --variant 25-no-dropdowns  # the form without dropdowns
@@ -111,6 +112,16 @@ on the same display. `source.json` records it.
 
 `--mcp-args` gives `hyprmasq-mcp` in the VM options of its own, such as `--max-image-size 1920`, and `source.json`
 records them as `mcp_args`. The comparison's image size probe ran with it.
+
+`--user-reply` has the user answer an agent once that ended its turn by itself without saying "Done", which every
+task's prompt asks for at the end: such an agent stopped to ask the user something, such as whether to grant an access
+that the task asks for, or gave up. The reply is "Yes, go ahead.", sent into the agent's session before the VM grades
+the run. The agent goes on with its tools and the rest of its time, through a tap that counts the calls it made before
+against `--max-calls`. The new tap starts a new `hyprmasq-mcp` in the VM, so the agent's shots from before are gone and
+it takes a new one. An agent that timed out, spent its budget or has no time left gets no reply. The run's time, usage and final answer
+are both turns', and `run.json` and `summary.json` record the reply as `user_reply`: the agent's message it answered,
+the reply and the tool calls before it. Without the option no agent gets a reply, as in the published sets so far, and
+`source.json` records it, so that a results directory holds runs of one or the other.
 
 `--lock FILE` holds a shared lock on FILE while each run's VM is up, for machines where other VMs, such as the VM
 test under `flock FILE`, would not fit into memory next to the benchmark's. Benchmark VMs share the lock, so the

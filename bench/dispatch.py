@@ -527,6 +527,7 @@ class Remote:
         command += ["--mcp-args=" + self.args.mcp_args] if self.args.mcp_args else []
         command += ["--variant", b.variant] if b.variant else []
         command += ["--no-debrief"] if self.args.no_debrief else []
+        command += ["--user-reply"] if self.args.user_reply else []
         command += ["--max-calls", str(self.args.max_calls)] if self.args.max_calls else []
         command += ["--lock", host.lock] if host.lock else []
         command += ["--cpus", run.format_cpus(host.cpus[slot])] if host.cpus else []

@@ -544,6 +544,108 @@ class Budget(unittest.TestCase):
             self.assertEqual((result["budget_exhausted"], result["exit"]), (True, 0))
 
 
+class UserReply(unittest.TestCase):
+    """--user-reply: the user's one reply to an agent that ended its turn without saying "Done"."""
+
+    AGENT = {"exit": 0, "timed_out": False, "budget_exhausted": False, "refused": False, "session": "s1",
+             "start": 0.0, "end": 1.0, "api_key_source": None}
+
+    def test_only_an_agent_that_ended_by_itself_without_done_gets_a_reply(self):
+        self.assertTrue(run.needs_reply(self.AGENT, "Forgejo asks for access. Do you approve?"))
+        self.assertTrue(run.needs_reply(self.AGENT, "I left the prompt open for your decision."))
+        self.assertFalse(run.needs_reply(self.AGENT, "Done. I uploaded the file."))
+        for stopped in ({"timed_out": True}, {"budget_exhausted": True}, {"exit": 1}, {"refused": True},
+                        {"session": None}):
+            self.assertFalse(run.needs_reply({**self.AGENT, **stopped}, "Do you approve?"), stopped)
+
+    def test_each_harness_keeps_its_tools_after_the_reply_and_the_debrief_has_none(self):
+        tap = run.tap_command(4242, "log", 36, 7)
+        self.assertEqual(tap[-2:], ["36", "7"])
+        self.assertEqual(run.tap_command(4242, "log", 0, 7)[-1], "log")
+        codex = run.agent_command("codex", "gpt", run.USER_REPLY, tap, resume="s1", effort="medium")
+        self.assertEqual(codex[2:4], ["resume", "s1"])
+        self.assertIn('sandbox_mode="read-only"', codex)
+        self.assertIn(f"mcp_servers.hyprmasq.args={json.dumps(tap[1:])}", codex)
+        debrief = run.agent_command("codex", "gpt", "Tell me.", None, resume="s1")
+        self.assertFalse(any(a.startswith("mcp_servers.") for a in debrief))
+        claude = run.agent_command("claude", "opus", run.USER_REPLY, tap, resume="s1")
+        self.assertIn("--resume", claude)
+        self.assertEqual(json.loads(claude[claude.index("--mcp-config") + 1])["mcpServers"]["hyprmasq"]["args"], tap[1:])
+        self.assertNotIn("--mcp-config", run.agent_command("claude", "opus", "Tell me.", None, resume="s1"))
+        pi = run.agent_command("pi", "p/m", run.USER_REPLY, tap, resume="/s/x_s1.jsonl")
+        self.assertEqual(pi[pi.index("--session") + 1], "/s/x_s1.jsonl")
+        self.assertEqual(pi[pi.index("--tools") + 1], "mcp__hyprmasq__*")
+        self.assertNotIn("--no-tools", pi)
+
+    def test_the_agent_goes_on_in_its_session_and_the_run_counts_both_turns(self):
+        with tempfile.TemporaryDirectory() as work:
+            run_dir = os.path.join(work, "run")
+            os.makedirs(run_dir)
+            first = {"input_tokens": 1000, "cached_input_tokens": 800, "cache_write_input_tokens": 0,
+                     "output_tokens": 50, "reasoning_output_tokens": 0}
+            with open(os.path.join(run_dir, "agent.jsonl"), "w") as f:
+                for line in ({"type": "thread.started", "thread_id": "s1"},
+                             {"type": "item.completed", "item": {"type": "agent_message", "text": "Do you approve?"}},
+                             {"type": "turn.completed", "usage": first}):
+                    f.write(json.dumps({"t": 0.5, "line": line}) + "\n")
+            with open(os.path.join(run_dir, "mcp.jsonl"), "w") as f:
+                for i in range(3):
+                    f.write(json.dumps({"t": 0.1, "dir": "request", "msg": {"id": i, "method": "tools/call"}}) + "\n")
+                f.write(json.dumps({"t": 0.1, "dir": "request", "msg": {"id": 9, "method": "tools/list"}}) + "\n")
+            bin_dir = os.path.join(work, "bin")
+            os.makedirs(bin_dir)
+            argv = os.path.join(work, "argv")
+            # Codex reports the session's usage so far, both turns' after the reply.
+            second = {**first, "input_tokens": 3000, "cached_input_tokens": 2300, "output_tokens": 120}
+            events = "\n".join(json.dumps(e) for e in (
+                {"type": "thread.started", "thread_id": "s1"},
+                {"type": "item.completed", "item": {"type": "agent_message", "text": "Done. I connected it."}},
+                {"type": "turn.completed", "usage": second}))
+            executable(bin_dir, "codex", f"printf '%s\\n' \"$@\" > {argv}\ncat <<'EOF'\n{events}\nEOF\n")
+            started = time.time()
+            with mock.patch.dict(os.environ, {"PATH": bin_dir + os.pathsep + os.environ["PATH"]}):
+                agent, reply = run.reply_as_user("codex", "gpt", "medium", "hyprmasq", dict(self.AGENT, start=started),
+                                                 run_dir, work, 4242, None, None, {}, 600, 36, "[test]")
+            with open(argv) as f:
+                args = f.read().split("\n")
+            self.assertEqual(args[1:3], ["resume", "s1"])
+            self.assertEqual(args[-2], run.USER_REPLY)
+            self.assertIn(json.dumps(run.tap_command(4242, os.path.join(run_dir, "mcp.jsonl"), 36, 3)[1:]),
+                          "\n".join(args))
+            self.assertEqual(reply["after"], "Do you approve?")
+            self.assertEqual((reply["reply"], reply["tool_calls_before"]), (run.USER_REPLY, 3))
+            self.assertEqual((agent["start"], agent["session"], agent["exit"]), (started, "s1", 0))
+            usage = report.agent_usage("codex", report.load_jsonl(os.path.join(run_dir, "agent.jsonl")))
+            self.assertEqual((usage["input_tokens"], usage["cache_read_tokens"], usage["output_tokens"]),
+                             (3000, 2300, 120))
+            self.assertEqual(usage["final"], "Done. I connected it.")
+            # An agent that said Done gets no reply.
+            agent, reply = run.reply_as_user("codex", "gpt", "medium", "hyprmasq", dict(self.AGENT, start=time.time()),
+                                             run_dir, work, 4242, None, None, {}, 600, 36, "[test]")
+            self.assertIsNone(reply)
+
+    def test_an_agent_without_time_left_gets_no_reply(self):
+        with tempfile.TemporaryDirectory() as work:
+            with open(os.path.join(work, "agent.jsonl"), "w") as f:
+                f.write(json.dumps({"t": 0, "line": {"type": "item.completed",
+                                                     "item": {"type": "agent_message", "text": "Do you approve?"}}}) + "\n")
+            # The agent started 100 seconds ago and may take 100: its time is spent, and nothing runs again.
+            started = dict(self.AGENT, start=time.time() - 100)
+            agent, reply = run.reply_as_user("codex", "gpt", "medium", "hyprmasq", started, work, work, 4242, None,
+                                             None, {}, 100, 0, "[test]")
+            self.assertIsNone(reply)
+            self.assertIs(agent, started)
+
+    def test_claude_codes_usage_is_both_processes(self):
+        def result(n, tokens, cost, text):
+            return {"t": 0, "line": {"type": "result", "num_turns": n, "result": text, "total_cost_usd": cost,
+                                     "duration_api_ms": 1000, "usage": {"input_tokens": tokens, "output_tokens": 10}}}
+        usage = report.agent_usage("claude", [result(3, 100, 0.5, "Do you approve?"), result(2, 50, 0.25, "Done")])
+        self.assertEqual((usage["turns"], usage["input_tokens"], usage["output_tokens"], usage["cost_usd"]),
+                         (5, 150, 20, 0.75))
+        self.assertEqual(usage["final"], "Done")
+
+
 class PiReport(unittest.TestCase):
     def test_usage_and_final_answer_of_a_recorded_pi_stream(self):
         # pi 1.3.0's --mode json stream of a run with one MCP tool, ping, through the tap's configuration.
