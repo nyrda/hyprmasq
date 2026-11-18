@@ -11,16 +11,16 @@ Reliable work needs a current model of Anthropic or OpenAI, Haiku 5.5 included. 
 manage forms and keyboard work but fail more often on the rest, and Kimi, Argon, Qwen, DeepSeek and GLM take several
 times as long. No run disturbed the user, and every failure was the model's own.
 
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash glance -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 glance -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model. 477 of 576 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run." src="benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model. 555 of 656 runs passed. A row per model, the best first, with the mean of its tasks&#x27; shares of runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run." src="benchmarks/glance.svg">
 </picture>
 
-<sub>Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026. gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026. Builds and machines differ, so times compare roughly. Qwen 3.8 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. GLM 5.3 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026.</sub>
+<sub>Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026. gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026. Builds and machines differ, so times compare roughly. Qwen 3.8 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. GLM 5.3 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. gpt-6.2-astra and gpt-6.2-sol ran each task four times at medium, two on each of two machines, on main&#x27;s 0c3f8ed on 18 Nov 2026. In Forgejo, gpt-6.2-sol asked the user before it granted the dashboard access, and went on after the user&#x27;s reply.</sub>
 <!-- /render -->
 
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash overview -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 overview -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/overview-dark.svg">
   <img alt="Runs passed and wall time per run of each agent, a panel per task. Each bar is the median wall time with the median time in hyprmasq&#x27;s tools inside it, and each dot one run. Each row also gives its runs passed." src="benchmarks/overview.svg">
@@ -32,7 +32,9 @@ times as long. No run disturbed the user, and every failure was the model's own.
 | Model | Runs passed | What to expect |
 | --- | --- | --- |
 | Opus 5.5 | 40/40 | Passed every run. |
+| gpt-6.2-sol | 40/40 | Passed every run, board included, as fast and cheap as gpt-6.1-sol. In Forgejo it asks the user before it grants the dashboard access to Mara's account, and goes on after the user's reply. |
 | Sonnet 5.5 | 59/60 | Missed one run of the form with dropdowns. |
+| gpt-6.2-astra | 38/40 | Passes every task. Its two misses were the lookalike label on board, in `dnd`. It costs two thirds of what gpt-6-astra costs per passed run, and took longer per step on its release day. |
 | gpt-6-astra | 38/40 | Passes every task. Its two misses were Sol's and Terra's lookalike label on board. |
 | gpt-6.1-terra | 71/84, 37/40 at `high` | Passes every task but board, where it labels a lookalike part in about a third of its runs, at `high` as at `medium`. |
 | gpt-6.1-sol | 68/84, 36/40 at `high` | As Terra. `high` helped it on board in the first set of reruns, not in the later one. |
@@ -62,6 +64,7 @@ that hyprmasq caused was fixed. Tasks it was not developed against may still fin
 | gpt-6.1-sol | Trace | 1 at `high` | Covered 90.5% of the bank. |
 | gpt-6.1-terra | Board | 2 `dnd`, 1 `pointer` at `high` | Put the CPU power headers' label on the lookalike. |
 | gpt-6-astra | Board | 1 `dnd`, 1 `pointer` | Put the CPU power headers' label on the lookalike. |
+| gpt-6.2-astra | Board | 2 `dnd` | Put the CPU power headers' label on the lookalike. |
 | Haiku 5.5 | Board-pointer | 2 | Left the BMC chip's label on no part, and in the other run put the SATA ports' label on the memory slots. |
 | Haiku 5.5 | Calc | 1 | Averaged the wrong range and left out the growth formula. |
 | Haiku 5.5 | Trace | 1 | Covered 92% of the bank. |
@@ -94,13 +97,15 @@ close call.
 
 <details><summary>Numbers per task, and tokens and cost</summary>
 
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table board-dnd -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table board-dnd -->
 <details><summary>Numbers: Board-dnd</summary>
 
 **Outcome and time**
 
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 2/4 | 48 (39–89) | 12 (12–13) | 7.9 (6.8–11.0) | 3 (2–5) | 9 (9–10) | 2 (2–4) |
+| gpt-6.2-sol | medium | 4/4 | 47 (43–54) | 13 (13–13) | 6.1 (4.6–6.6) | 5 (4–6) | 9 (9–9) | 4 (3–6) |
 | gpt-6.1-sol | medium | 7/18 | 55 (44–68) | 12 (12–15) | 5.8 (4.6–9.2) | 5 (4–7) | 9 (9–11) | 4 (3–8) |
 | gpt-6.1-sol | high | 2/4 | 54 (50–58) | 12 (12–14) | 6.2 (4.8–6.8) | 5 (5–6) | 9 (9–9) | 4 (4–5) |
 | gpt-6.1-terra | medium | 10/18 | 29 (25–44) | 12 (11–13) | 4.3 (3.1–5.8) | 3 (2–7) | 9 (9–10) | 6 (2–12) |
@@ -120,6 +125,8 @@ close call.
 
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 66 (54–90) | 76 (69–82) | 0 (0–0) | 0.170 (0.151–0.179) |
+| gpt-6.2-sol | medium | 108 (90–128) | 84 (76–91) | 1 (1–1) | 0.048 (0.041–0.069) |
 | gpt-6.1-sol | medium | 99 (81–135) | 86 (77–93) | 1 (1–1) | 0.046 (0.031–0.074) |
 | gpt-6.1-sol | high | 99 (99–117) | 84 (82–86) | 1 (1–1) | 0.051 (0.048–0.059) |
 | gpt-6.1-terra | medium | 65 (49–136) | 78 (68–88) | 1 (0–1) | 0.019 (0.016–0.045) |
@@ -137,13 +144,15 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table board-pointer -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table board-pointer -->
 <details><summary>Numbers: Board-pointer</summary>
 
 **Outcome and time**
 
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 4/4 | 82 (74–123) | 12 (12–12) | 12.6 (5.9–17.3) | 4 (3–4) | 9 (9–9) | 3 (3–4) |
+| gpt-6.2-sol | medium | 4/4 | 50 (44–54) | 13 (13–13) | 6.5 (5.3–7.3) | 5 (4–5) | 9 (9–9) | 4 (4–7) |
 | gpt-6.1-sol | medium | 13/18 | 52 (38–79) | 13 (12–15) | 5.3 (3.5–8.5) | 6 (5–9) | 9 (9–11) | 5 (4–8) |
 | gpt-6.1-sol | high | 3/4 | 73 (66–76) | 13 (13–14) | 7.4 (6.6–8.7) | 6 (5–7) | 9 (9–10) | 6 (4–8) |
 | gpt-6.1-terra | medium | 13/18 | 34 (28–45) | 12 (12–14) | 3.9 (2.2–5.2) | 4 (2–8) | 9 (9–10) | 8 (3–15) |
@@ -163,6 +172,8 @@ close call.
 
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 74 (71–163) | 80 (75–88) | 0 (0–1) | 0.180 (0.106–0.299) |
+| gpt-6.2-sol | medium | 105 (90–108) | 87 (72–91) | 1 (1–1) | 0.047 (0.036–0.064) |
 | gpt-6.1-sol | medium | 114 (98–174) | 87 (71–93) | 1 (1–2) | 0.049 (0.034–0.074) |
 | gpt-6.1-sol | high | 119 (100–139) | 85 (82–91) | 2 (1–2) | 0.059 (0.054–0.065) |
 | gpt-6.1-terra | medium | 80 (49–157) | 82 (58–89) | 1 (1–1) | 0.023 (0.018–0.033) |
@@ -180,13 +191,15 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table calc -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table calc -->
 <details><summary>Numbers: Calc</summary>
 
 **Outcome and time**
 
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 4/4 | 177 (109–214) | 16 (14–20) | 8.1 (3.0–9.7) | 18 (14–26) | 18 (15–26) | 20 (18–22) |
+| gpt-6.2-sol | medium | 4/4 | 71 (66–84) | 16 (15–17) | 2.5 (2.2–2.9) | 17 (15–20) | 20 (16–23) | 18 (15–26) |
 | gpt-6.1-sol | medium | 6/6 | 82 (76–94) | 20 (18–22) | 3.0 (2.1–3.7) | 17 (15–17) | 28 (18–29) | 20 (18–27) |
 | gpt-6.1-sol | high | 4/4 | 93 (84–102) | 18 (17–19) | 3.0 (2.6–3.3) | 19 (18–20) | 28 (26–37) | 34 (30–35) |
 | gpt-6.1-terra | medium | 6/6 | 51 (43–62) | 16 (15–17) | 1.9 (1.5–2.6) | 13 (12–14) | 17 (15–21) | 26 (17–28) |
@@ -206,6 +219,8 @@ close call.
 
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 273 (223–323) | 89 (80–93) | 1 (1–1) | 0.331 (0.301–0.666) |
+| gpt-6.2-sol | medium | 344 (296–362) | 89 (81–91) | 1 (1–1) | 0.126 (0.104–0.147) |
 | gpt-6.1-sol | medium | 321 (276–330) | 89 (86–90) | 2 (2–2) | 0.116 (0.096–0.140) |
 | gpt-6.1-sol | high | 378 (335–412) | 92 (89–94) | 2 (2–3) | 0.114 (0.098–0.146) |
 | gpt-6.1-terra | medium | 261 (237–300) | 87 (84–92) | 1 (1–2) | 0.054 (0.046–0.056) |
@@ -223,13 +238,15 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table files -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table files -->
 <details><summary>Numbers: File manager</summary>
 
 **Outcome and time**
 
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 4/4 | 36 (31–82) | 4 (4–5) | 7.0 (5.4–14.2) | 3 (3–4) | 7 (5–7) | 7 (7–8) |
+| gpt-6.2-sol | medium | 4/4 | 29 (26–32) | 5 (5–6) | 3.1 (2.8–3.5) | 5 (4–6) | 6 (5–8) | 8 (4–9) |
 | gpt-6.1-sol | medium | 6/6 | 32 (25–64) | 6 (5–12) | 2.5 (1.9–7.2) | 6 (5–10) | 8 (8–19) | 11 (7–17) |
 | gpt-6.1-sol | high | 4/4 | 28 (22–30) | 6 (5–6) | 2.2 (2.2–2.5) | 6 (5–7) | 8 (8–9) | 11 (7–12) |
 | gpt-6.1-terra | medium | 6/6 | 23 (20–34) | 6 (5–12) | 2.0 (1.6–2.4) | 6 (5–10) | 8 (7–18) | 12 (12–19) |
@@ -249,6 +266,8 @@ close call.
 
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 69 (69–90) | 69 (43–80) | 0 (0–0) | 0.211 (0.159–0.339) |
+| gpt-6.2-sol | medium | 101 (86–121) | 83 (77–92) | 0 (0–0) | 0.042 (0.033–0.059) |
 | gpt-6.1-sol | medium | 110 (92–184) | 85 (75–94) | 0 (0–1) | 0.048 (0.041–0.061) |
 | gpt-6.1-sol | high | 110 (93–121) | 90 (86–92) | 0 (0–1) | 0.036 (0.033–0.044) |
 | gpt-6.1-terra | medium | 105 (92–179) | 86 (81–89) | 1 (0–1) | 0.021 (0.019–0.042) |
@@ -266,13 +285,15 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table forgejo -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table forgejo -->
 <details><summary>Numbers: Forgejo</summary>
 
 **Outcome and time**
 
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 4/4 | 106 (91–195) | 20 (19–36) | 5.6 (3.3–8.9) | 14 (12–16) | 24 (20–34) | 14 (11–16) |
+| gpt-6.2-sol | medium | 4/4 | 101 (99–178) | 22 (22–22) | 3.0 (2.9–3.2) | 17 (17–19) | 22 (21–22) | 16 (16–18) |
 | gpt-6.1-sol | medium | 6/6 | 74 (69–79) | 20 (18–22) | 2.8 (2.6–3.1) | 16 (14–18) | 21 (21–26) | 26 (26–29) |
 | gpt-6.1-sol | high | 4/4 | 68 (62–78) | 20 (19–22) | 2.5 (2.2–2.9) | 16 (14–16) | 22 (22–23) | 26 (26–28) |
 | gpt-6.1-terra | medium | 6/6 | 54 (51–60) | 20 (18–24) | 1.7 (1.6–2.1) | 15 (14–16) | 22 (22–25) | 26 (26–26) |
@@ -292,6 +313,8 @@ close call.
 
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 309 (221–437) | 85 (81–90) | 1 (1–1) | 0.487 (0.415–0.607) |
+| gpt-6.2-sol | medium | 417 (417–499) | 86 (79–89) | 1 (1–2) | 0.177 (0.140–0.219) |
 | gpt-6.1-sol | medium | 317 (274–363) | 91 (89–92) | 1 (1–1) | 0.102 (0.084–0.105) |
 | gpt-6.1-sol | high | 306 (274–319) | 92 (88–94) | 1 (1–1) | 0.089 (0.081–0.100) |
 | gpt-6.1-terra | medium | 293 (274–315) | 92 (86–92) | 1 (1–1) | 0.044 (0.044–0.059) |
@@ -309,13 +332,15 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table form -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table form -->
 <details><summary>Numbers: Form with dropdowns</summary>
 
 **Outcome and time**
 
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images | All right at s |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 4/4 | 117 (82–260) | 32 (30–38) | 5.7 (3.6–16.5) | 12 (12–12) | 48 (48–49) | 11 (11–16) | 107 (76–244) |
+| gpt-6.2-sol | medium | 4/4 | 84 (77–86) | 41 (40–44) | 2.3 (2.3–2.9) | 12 (12–14) | 56 (49–58) | 24 (16–34) | 79 (74–80) |
 | gpt-6.1-sol | medium | 6/6 | 94 (83–119) | 34 (32–40) | 2.9 (2.6–3.5) | 17 (16–22) | 62 (57–69) | 34 (17–36) | 86 (72–100) |
 | gpt-6.1-sol | high | 4/4 | 99 (80–127) | 38 (35–40) | 2.6 (2.0–3.2) | 18 (15–21) | 64 (59–68) | 36 (34–37) | 92 (74–115) |
 | gpt-6.1-terra | medium | 6/6 | 79 (68–90) | 34 (30–35) | 2.2 (1.7–2.4) | 20 (13–20) | 64 (59–70) | 37 (18–50) | 74 (61–83) |
@@ -335,6 +360,8 @@ close call.
 
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 223 (220–258) | 89 (80–94) | 1 (1–1) | 0.322 (0.223–0.446) |
+| gpt-6.2-sol | medium | 263 (248–311) | 83 (81–90) | 1 (1–1) | 0.124 (0.084–0.137) |
 | gpt-6.1-sol | medium | 356 (337–480) | 91 (89–95) | 2 (1–2) | 0.114 (0.100–0.122) |
 | gpt-6.1-sol | high | 392 (322–450) | 91 (87–92) | 2 (1–2) | 0.132 (0.112–0.138) |
 | gpt-6.1-terra | medium | 413 (276–441) | 91 (87–94) | 2 (1–2) | 0.059 (0.045–0.081) |
@@ -352,13 +379,15 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table form-no-dropdowns -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table form-no-dropdowns -->
 <details><summary>Numbers: Form without dropdowns</summary>
 
 **Outcome and time**
 
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images | All right at s |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 4/4 | 122 (83–174) | 33 (30–38) | 5.6 (4.5–8.7) | 12 (11–13) | 48 (47–49) | 12 (10–13) | 111 (68–142) |
+| gpt-6.2-sol | medium | 4/4 | 78 (66–79) | 39 (28–41) | 2.8 (2.7–3.2) | 11 (11–12) | 52 (47–55) | 11 (11–12) | 68 (58–73) |
 | gpt-6.1-sol | medium | 6/6 | 68 (63–76) | 32 (32–34) | 3.2 (2.9–3.6) | 8 (7–12) | 61 (60–64) | 16 (13–29) | 58 (55–65) |
 | gpt-6.1-sol | high | 4/4 | 66 (62–67) | 35 (35–39) | 3.3 (2.3–3.5) | 8 (7–8) | 62 (61–63) | 13 (13–16) | 58 (54–58) |
 | gpt-6.1-terra | medium | 6/6 | 56 (53–59) | 32 (32–35) | 2.5 (2.0–2.7) | 7 (7–7) | 58 (56–59) | 12 (12–16) | 48 (46–52) |
@@ -378,6 +407,8 @@ close call.
 
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 232 (203–269) | 90 (85–94) | 1 (1–1) | 0.291 (0.262–0.376) |
+| gpt-6.2-sol | medium | 215 (213–235) | 85 (80–94) | 1 (1–1) | 0.088 (0.059–0.110) |
 | gpt-6.1-sol | medium | 174 (156–244) | 87 (86–91) | 1 (1–1) | 0.066 (0.056–0.102) |
 | gpt-6.1-sol | high | 179 (159–179) | 88 (82–90) | 1 (1–1) | 0.066 (0.057–0.091) |
 | gpt-6.1-terra | medium | 157 (156–159) | 86 (76–86) | 1 (1–1) | 0.034 (0.032–0.049) |
@@ -395,13 +426,15 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table inkscape -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table inkscape -->
 <details><summary>Numbers: Inkscape</summary>
 
 **Outcome and time**
 
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 4/4 | 49 (28–61) | 3 (3–3) | 8.8 (5.3–11.6) | 4 (3–4) | 3 (3–3) | 7 (3–7) |
+| gpt-6.2-sol | medium | 4/4 | 25 (20–27) | 4 (4–5) | 2.5 (2.2–3.1) | 5 (4–5) | 6 (6–6) | 12 (12–12) |
 | gpt-6.1-sol | medium | 6/6 | 22 (20–24) | 3 (3–4) | 3.1 (2.2–3.4) | 4 (4–4) | 6 (6–6) | 11 (7–11) |
 | gpt-6.1-sol | high | 4/4 | 23 (20–44) | 3 (3–4) | 3.0 (2.1–4.8) | 4 (4–5) | 6 (6–6) | 11 (11–12) |
 | gpt-6.1-terra | medium | 6/6 | 16 (15–17) | 3 (3–4) | 2.5 (2.3–3.3) | 3 (3–3) | 6 (6–6) | 11 (11–11) |
@@ -421,6 +454,8 @@ close call.
 
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 74 (69–76) | 84 (58–90) | 0 (0–0) | 0.130 (0.088–0.285) |
+| gpt-6.2-sol | medium | 105 (89–106) | 78 (67–90) | 0 (0–0) | 0.059 (0.034–0.067) |
 | gpt-6.1-sol | medium | 80 (80–82) | 83 (70–90) | 0 (0–0) | 0.037 (0.027–0.057) |
 | gpt-6.1-sol | high | 80 (80–98) | 90 (83–90) | 0 (0–0) | 0.029 (0.026–0.037) |
 | gpt-6.1-terra | medium | 65 (65–65) | 81 (69–81) | 0 (0–0) | 0.017 (0.016–0.024) |
@@ -438,13 +473,15 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table thunderbird -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table thunderbird -->
 <details><summary>Numbers: Thunderbird</summary>
 
 **Outcome and time**
 
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 4/4 | 117 (98–132) | 25 (25–31) | 4.5 (3.6–5.3) | 17 (15–22) | 25 (24–33) | 19 (15–22) |
+| gpt-6.2-sol | medium | 4/4 | 84 (82–94) | 26 (25–27) | 2.4 (2.4–2.6) | 20 (18–20) | 25 (24–26) | 20 (18–21) |
 | gpt-6.1-sol | medium | 6/6 | 129 (93–173) | 35 (27–42) | 2.8 (2.6–3.4) | 26 (19–32) | 41 (24–45) | 32 (26–46) |
 | gpt-6.1-sol | high | 4/4 | 113 (100–152) | 34 (28–41) | 2.9 (2.7–3.0) | 24 (21–28) | 32 (26–51) | 29 (27–39) |
 | gpt-6.1-terra | medium | 6/6 | 77 (65–86) | 34 (27–40) | 1.8 (1.5–2.4) | 18 (17–20) | 31 (23–33) | 23 (19–25) |
@@ -464,6 +501,8 @@ close call.
 
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 368 (313–503) | 93 (85–94) | 1 (1–1) | 0.469 (0.310–0.537) |
+| gpt-6.2-sol | medium | 447 (397–467) | 87 (83–89) | 1 (1–1) | 0.170 (0.132–0.212) |
 | gpt-6.1-sol | medium | 641 (450–836) | 92 (91–95) | 2 (2–3) | 0.177 (0.137–0.193) |
 | gpt-6.1-sol | high | 580 (509–774) | 92 (90–93) | 2 (2–3) | 0.173 (0.157–0.221) |
 | gpt-6.1-terra | medium | 397 (369–446) | 92 (85–93) | 2 (1–2) | 0.063 (0.053–0.087) |
@@ -481,13 +520,15 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash table trace -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table trace -->
 <details><summary>Numbers: Trace</summary>
 
 **Outcome and time**
 
 | Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 4/4 | 77 (40–101) | 3 (3–3) | 9.6 (8.9–15.9) | 4 (3–4) | 1 (1–1) | 6 (6–6) |
+| gpt-6.2-sol | medium | 4/4 | 53 (38–62) | 4 (3–4) | 5.2 (4.1–6.9) | 6 (6–6) | 1 (1–1) | 6 (5–6) |
 | gpt-6.1-sol | medium | 6/6 | 74 (42–96) | 4 (2–6) | 5.6 (3.2–6.4) | 7 (5–9) | 2 (1–3) | 6 (4–8) |
 | gpt-6.1-sol | high | 3/4 | 69 (51–75) | 3 (3–4) | 5.0 (3.4–5.6) | 8 (6–8) | 1 (1–1) | 6 (5–7) |
 | gpt-6.1-terra | medium | 6/6 | 21 (20–31) | 2 (2–6) | 4.7 (4.0–4.9) | 3 (3–5) | 1 (1–3) | 6 (3–10) |
@@ -507,6 +548,8 @@ close call.
 
 | Agent | Effort | Input k | Cached % | Output k | Cost $ |
 | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 73 (71–77) | 77 (68–79) | 1 (0–1) | 0.177 (0.172–0.220) |
+| gpt-6.2-sol | medium | 128 (109–132) | 79 (64–83) | 1 (1–2) | 0.071 (0.061–0.116) |
 | gpt-6.1-sol | medium | 139 (100–186) | 86 (78–93) | 2 (1–2) | 0.059 (0.044–0.092) |
 | gpt-6.1-sol | high | 145 (121–161) | 86 (82–90) | 2 (2–2) | 0.070 (0.069–0.084) |
 | gpt-6.1-terra | medium | 65 (65–98) | 80 (69–85) | 1 (1–1) | 0.019 (0.019–0.026) |
@@ -524,11 +567,13 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash costs -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 costs -->
 <details><summary>Tokens and cost per agent</summary>
 
 | Agent | Effort | Passed | Input M | Cached % | Output k | Cost $ | Cost per passed run $ |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | medium | 38/40 | 7.33 | 86 | 23 | 11.68 | 0.31 |
+| gpt-6.2-sol | medium | 40/40 | 8.97 | 85 | 35 | 3.83 | 0.10 |
 | gpt-6.1-sol | medium | 68/84 | 16.79 | 89 | 97 | 6.09 | 0.09 |
 | gpt-6.1-sol | high | 36/40 | 9.64 | 90 | 58 | 3.36 | 0.09 |
 | gpt-6.1-terra | medium | 71/84 | 13.28 | 86 | 78 | 2.78 | 0.04 |
@@ -569,10 +614,10 @@ The form's seconds per kind of question, of Sol, Terra and Sonnet:
 
 The time of `act`, hyprmasq's tool that sends input and returns what changed, over all runs:
 
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash act -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 act -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/act-dark.svg">
-  <img alt="Time in finished act calls: Input pacing 3768 s, Settle wait 2081 s, Redraw watch 2318 s, Pauses 523 s, Rest 2344 s" src="benchmarks/act.svg">
+  <img alt="Time in finished act calls: Input pacing 4195 s, Settle wait 2326 s, Redraw watch 2587 s, Pauses 534 s, Rest 2741 s" src="benchmarks/act.svg">
 </picture>
 <!-- /render -->
 
@@ -1099,9 +1144,10 @@ recovered.
   [05ce488](https://github.com/nyrda/hyprmasq/commit/05ce488) fixed. In none did hyprmasq deliver
   input elsewhere than the agent aimed it, apart from that attempt.
 - **Models:** Sol, Terra, Astra and Luna are OpenAI's `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-astra` and
-  `gpt-6-luna` through Codex, Opus, Sonnet and Haiku Anthropic's Claude 5.5 models through Claude Code, and Kimi K3.1
-  Pro, Gemini 4 Argon, DeepSeek v4.1 Flash, Qwen 3.8 Flash and GLM 5.3 Flash run through pi. Costs are what the requests cost at the providers' API
-  list prices, also where a subscription paid for them. The figures' cost is per passed run: the cost of all runs
+  `gpt-6-luna` through Codex, as are `gpt-6.2-astra` and `gpt-6.2-sol`, Opus, Sonnet and Haiku Anthropic's Claude
+  5.5 models through Claude Code, and Kimi K3.1 Pro, Gemini 4 Argon, DeepSeek v4.1 Flash, Qwen 3.8 Flash and GLM 5.3
+  Flash run through pi. Costs are what the requests cost at the providers' API list prices, also where a subscription
+  paid for them. The figures' cost is per passed run: the cost of all runs
   over those that passed.
 
 </details>
@@ -1216,6 +1262,34 @@ once on each, on the same cores as Qwen's. The call budgets are those of the set
 - pi 1.5.0 on the 5800X3D and 1.4.0 on the others: `opencode-go/glm-5.3-flash` at `high`.
 
 The 30 runs cost $0.76 at the provider's prices.
+
+</details>
+
+<details><summary>Models: gpt-6.2-astra and gpt-6.2-sol, 18 Nov 2026</summary>
+
+The runs took place on 2026-11-18, the day OpenAI released the two models, at main's
+[`0c3f8ed`](https://github.com/nyrda/hyprmasq/commit/0c3f8ed), with Hyprland 0.57.2. They are in
+[gpt-6.2.json](benchmarks/data/gpt-6.2.json). Each model ran each task four times, two on each of two machines of the
+set of 2 Nov: the Ryzen 7 PRO 4750U and the Ryzen 5 5600X, three VMs at once on each, each VM on cores of its own, two
+physical cores on the 4750U and one on the 5600X. The call budgets are those of the set of 2 Nov.
+
+- Codex CLI 0.169.1 with a ChatGPT login, from a copy pinned on each machine: `gpt-6.2-astra` and `gpt-6.2-sol` at
+  `medium`. Codex's own default for both is `low`.
+
+In Forgejo, Sol uploaded the file and then stopped at Forgejo's consent screen, to ask the user whether to grant the
+dashboard read and write access to Mara's account. With no user to answer, those runs failed, though neither hyprmasq
+nor the model had failed the task. Sol's Forgejo runs therefore ran with `run.py --user-reply`: the user answers an
+agent once that ends its turn without saying "Done", with "Yes, go ahead.", and the agent goes on in its session with
+its tools. In each of the four, Sol asked, got the reply, approved the access and connected the dashboard. No other run
+of the set ended without saying "Done", so the reply would have changed none of them. The four runs without the reply,
+which stopped at the consent screen, are not in the dataset.
+
+17 of Astra's 57 runs waited 61 to 465 seconds for one response of OpenAI's, 15 of them for the session's first. Each
+such response held at most 61 output tokens and no reasoning, and Codex logged no retry. Each of these runs ran
+again on the same machine until no response took longer than a minute, two of them twice. All 17 had passed, so the
+reruns change Astra's times and not its runs passed. No response of Sol's took longer than 26 seconds.
+
+The 80 runs cost an estimated $15.51 at API list prices, Astra's $11.68 of it.
 
 </details>
 

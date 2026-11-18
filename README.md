@@ -133,7 +133,7 @@ hyprctl hyprmasq eis close "$addr"
 
 ## Benchmarks
 
-Twelve models on ten desktop tasks in an offline VM. Current Anthropic and
+Fourteen models on ten desktop tasks in an offline VM. Current Anthropic and
 OpenAI models passed 90 to 100% of their tasks' runs, all but the small
 `gpt-6-luna`, and no run of any model changed the user's focus or
 workspace. See the [benchmarks](docs/benchmarks.md).
