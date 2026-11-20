@@ -120,6 +120,19 @@ class Runs(unittest.TestCase):
             self.assertEqual([(j.name, j.effort) for u in units for j in u.jobs], [("codex-gpt-high-1", "high")])
 
 
+class Budgets(unittest.TestCase):
+    def test_a_task_variant_gets_its_own_budget_of_calls(self):
+        parser = argparse.ArgumentParser()
+        parser.error = lambda message: (_ for _ in ()).throw(ValueError(message))
+        tasks = [("form", "25"), ("form", "25-no-dropdowns"), ("calc", None)]
+        self.assertEqual(dispatch.parse_budgets(["form:25=72", "form:25-no-dropdowns=30", "calc=34"], tasks, parser),
+                         {("form", "25"): 72, ("form", "25-no-dropdowns"): 30, ("calc", None): 34})
+        # TASK alone must name one --task; the budget is a count.
+        for bad in ("form=72", "board=20", "calc=x", "calc"):
+            with self.assertRaises(ValueError, msg=bad):
+                dispatch.parse_budgets([bad], tasks, parser)
+
+
 class Outcome(unittest.TestCase):
     def test_outcome_of_a_run_directory(self):
         with tempfile.TemporaryDirectory() as out:
@@ -406,6 +419,71 @@ class Scheduling(unittest.TestCase):
         # The codex runs that free slots came for while another ran waited, and say so.
         self.assertTrue(any(j.waited > 0 for j in jobs if j.harness == "codex"))
         self.assertTrue(all(j.waited == 0 for j in jobs if j.harness == "claude"))
+
+    def test_the_quota_gate_runs_no_more_agy_runs_at_once_than_the_quota_covers(self):
+        quota = {"gemini-5h": {"remaining": 0.25, "reset": "r1", "window": "5h"},
+                 "gemini-weekly": {"remaining": 0.9, "reset": "w1", "window": "weekly"}}
+        gate = dispatch.QuotaGate(lambda: quota, ["gemini-5h", "gemini-weekly"], {"5h": 0.1, "weekly": 0.03},
+                                  refresh=0)
+        hosts = [dispatch.Host("a,slots=2"), dispatch.Host("b,slots=2")]
+        with contextlib.redirect_stdout(io.StringIO()):
+            ran, most = self.gated(hosts, [("agy", "gemini-4-neon"), ("codex", "gpt")], 4, gate)
+        # 25% left covers two runs of 10% at once; codex's runs do not wait for agy's quota.
+        self.assertEqual(most["agy"], 2)
+        self.assertGreater(most["codex"], 0)
+        self.assertEqual(sum(n for (host, harness), n in ran.items() if harness == "agy"), 4)
+
+    def test_the_quota_gate_waits_through_a_reset(self):
+        readings = iter([0.05] * 3)
+        def read():
+            left = next(readings, None)
+            return {"gemini-5h": {"remaining": left if left is not None else 1.0,
+                                  "reset": "r1" if left is not None else "r2", "window": "5h"}}
+        gate = dispatch.QuotaGate(read, ["gemini-5h"], {"5h": 0.1}, refresh=0)
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            ran, most = self.gated([dispatch.Host("a")], [("agy", "gemini-4-neon")], 2, gate)
+        self.assertEqual(ran[("a", "agy")], 2)
+        self.assertIn("quota: waiting, gemini-5h 5% left, 1 runs take 10%, resets r1", printed.getvalue())
+        self.assertIn("quota: runs start again", printed.getvalue())
+
+    def test_a_runs_cost_is_what_the_buckets_lost_once_runs_finished_a_reset_left_out(self):
+        readings = iter([(0.9, "r1"), (0.7, "r1"), (1.0, "r2"), (0.8, "r2")])
+        def read():
+            left, reset = next(readings)
+            return {"gemini-5h": {"remaining": left, "reset": reset, "window": "5h"}}
+        gate = dispatch.QuotaGate(read, ["gemini-5h"], {"5h": 0.1}, refresh=0)
+        for _ in range(4):
+            gate.quota()
+        self.assertAlmostEqual(gate.spent["gemini-5h"], 0.4)
+        gate.done(2)
+        self.assertEqual(gate.cost("gemini-5h"), 0.1)  # the estimate, until three runs finished
+        gate.done(2)
+        self.assertAlmostEqual(gate.cost("gemini-5h"), 0.1)
+        self.assertEqual(dispatch.agy_buckets("gemini-4-neon"), ("gemini-5h", "gemini-weekly"))
+        self.assertEqual(dispatch.agy_buckets("gemini-4-argon"), ("gemini-argon-wtu-weekly",))
+        self.assertEqual(dispatch.agy_buckets("claude-opus-5-5"), ("3p-5h", "3p-weekly"))
+
+    def gated(self, hosts, agents, reps, gate):
+        """Runs the agents' repetitions with the gate; returns the jobs by host and agent, and the most of each
+        harness's jobs that ran at once."""
+        build = dispatch.Build("/nowhere", {"path": "/a", "commit": "a" * 40})
+        units = [dispatch.Unit([dispatch.Job(build, h, m, rep)]) for rep in range(1, reps + 1) for h, m in agents]
+        ran, lock = collections.Counter(), threading.Lock()
+        running, most = collections.Counter(), collections.Counter()
+
+        def execute(host, slot, job):
+            with lock:
+                ran[str(host), job.harness] += 1
+                running[job.harness] += 1
+                most[job.harness] = max(most[job.harness], running[job.harness])
+            time.sleep(0.05)
+            with lock:
+                running[job.harness] -= 1
+            return "done"
+
+        dispatch.dispatch(hosts, dispatch.Queue(units, hosts, gate=gate), lambda host: True, execute)
+        return ran, most
 
     def test_max_concurrent_patterns(self):
         agents = [("codex", "gpt", None), ("claude-api", "sonnet", None)]

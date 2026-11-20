@@ -6,8 +6,9 @@
            [--prompt task|comparison]
            [--browser firefox|chromium]
 
-HARNESS is claude (Claude Code) or codex (Codex CLI), which use the logins of the user running this; claude-api
-(Claude Code billed to the user's Anthropic API key); or pi, with MODEL as PROVIDER/MODEL of the user's pi setup.
+HARNESS is claude (Claude Code), codex (Codex CLI) or agy (Antigravity CLI), which use the logins of the user running
+this; claude-api (Claude Code billed to the user's Anthropic API key); or pi, with MODEL as PROVIDER/MODEL of the user's
+pi setup.
 EFFORT is the reasoning effort the harness runs the model at, one of the harness's levels in EFFORTS; without it,
 the harness's default. Each run gets RESULTS/<harness>-<model>[-<effort>]-<rep>/, with any / in the model as _,
 holding the agent's event stream, the MCP log, screenshots, the VM's logs, the grade, the debrief and summary.json.
@@ -22,6 +23,7 @@ import argparse
 import contextlib
 import datetime
 import fcntl
+import functools
 import glob
 import hashlib
 import json
@@ -42,17 +44,19 @@ BENCH = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_AGENTS = ["codex:gpt-6.1-sol", "codex:gpt-6.1-terra", "codex:gpt-6-astra",
                   "claude:claude-opus-5-5", "claude:claude-sonnet-5-5"]
 
-HARNESSES = ("claude", "claude-api", "codex", "pi")
+HARNESSES = ("agy", "claude", "claude-api", "codex", "pi")
 # Harnesses that use API keys of this machine: dispatch.py sends their runs to another one only for claude-api, whose
 # key it passes to a machine named with api-keys; pi reads its keys from its files.
 LOCAL_ONLY = ("claude-api", "pi")
 # The reasoning efforts each harness takes for @EFFORT: Claude Code's --effort, the levels that Codex passes on as
-# model_reasoning_effort and the OpenAI API accepts, and pi's --thinking.
+# model_reasoning_effort and the OpenAI API accepts, pi's --thinking, and agy's --effort, which picks the model's variant
+# of that level, such as gemini-4-neon-low for gemini-4-neon.
 CLAUDE_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 EFFORTS = {
     "claude": CLAUDE_EFFORTS, "claude-api": CLAUDE_EFFORTS,
     "codex": ("none", "minimal", "low", "medium", "high", "xhigh", "max"),
     "pi": ("off", "minimal", "low", "medium", "high", "xhigh", "max"),
+    "agy": ("low", "medium", "high", "xhigh", "max"),
 }
 # Where claude-api's key and request headers come from when the environment does not give them.
 API_KEY_ENV, API_HEADERS_ENV = "HYPRMASQ_BENCH_ANTHROPIC_API_KEY", "HYPRMASQ_BENCH_ANTHROPIC_HEADERS"
@@ -88,9 +92,13 @@ TOOL_TIMEOUT = 600
 # Codex injects an installed skill's SKILL.md when the prompt names it, and Claude Code runs a skill named as a slash
 # command.
 SKILL_MENTION = {"codex": "${skill} ", "claude": "/{skill} "}
-# pi runs only with hyprmasq: Cua documents pi with its CLI and computer-use-linux with pi's native tools, not their MCP
-# servers, and the comparisons run Claude Code and Codex.
-PI_ONLY_HYPRMASQ = "pi runs only with hyprmasq: the comparisons with other tools run Claude Code and Codex"
+# pi and agy run only with hyprmasq: Cua documents pi with its CLI and computer-use-linux with pi's native tools, not
+# their MCP servers, the other backends' skills are not set up for agy, and the comparisons run Claude Code and Codex.
+HYPRMASQ_ONLY = ("agy", "pi")
+
+
+def hyprmasq_only(harness):
+    return f"{harness} runs only with hyprmasq: the comparisons with other tools run Claude Code and Codex"
 
 # Codex features that would give the agent tools besides hyprmasq's, or load the user's own setup.
 CODEX_DISABLED = [
@@ -406,10 +414,168 @@ def check_pi_model(agent_dir, model):
         raise RuntimeError(f"pi lists no model {model}: run `pi update` for its catalog, or name another model")
 
 
+# The Antigravity CLI's agent for a run: a custom agent of the run's agent home (agy_home), its main agent, with agy's
+# default prompt and none of its built-in tools but read_file. agy hands an MCP tool's images to the model only as files
+# it saves in the conversation's directory, "[Resource offloaded to file://...]", which the agent opens with read_file;
+# without it the agent sees no screenshot. agy lets it read that directory and the run's empty working directory, and
+# denies the rest in print mode, which ends the run. Of its other tools manage_task stays, which agy gives every agent
+# that keeps its default prompt, for background tasks that it cannot start here. The server's tools are eager, given
+# to the model directly as mcp_SERVER_TOOL, as Claude Code's and Codex's are; agy's default puts them behind its
+# call_mcp_tool. Its MCP tool timeout is timeoutSeconds.
+AGY_AGENT = "hyprmasq-bench"
+AGY_AGENT_FILE = f"""---
+name: {AGY_AGENT}
+description: The hyprmasq benchmark's agent, with the desktop tool's MCP server and read_file for its images.
+mainAgent: true
+subagent: false
+inheritMcp: true
+tools: [read_file]
+---
+# {AGY_AGENT}
+"""
+# The login that `agy acp --login` keeps in a file, which a run's home links as Codex's links auth.json. agy reads
+# the system keyring as well, through D-Bus, which a home of its own does not change.
+AGY_DATA = os.path.join(".gemini", "antigravity-cli")
+AGY_TOKEN = os.path.join(AGY_DATA, "antigravity-oauth-token")
+
+
+@functools.lru_cache(maxsize=None)
+def agy_executable():
+    """agy's own binary. mise's shim would install agy again into the run's HOME, where mise keeps its tools, as
+    Omarchy's mise setup does."""
+    path = shutil.which("agy")
+    if not path:
+        return "agy"
+    if os.path.basename(os.path.realpath(path)) == "mise":
+        found = subprocess.run(["mise", "which", "agy"], capture_output=True, text=True, timeout=120,
+                               stdin=subprocess.DEVNULL, cwd=os.path.expanduser("~"), env=without_api_keys(os.environ))
+        path = found.stdout.strip() if found.returncode == 0 and found.stdout.strip() else path
+    return os.path.realpath(path)
+
+
+def agy_settings(server):
+    """agy's settings for a run, given with --settings and never saved: the backend's tools allowed, which print mode
+    would otherwise deny, as it cannot ask."""
+    return {"permissions": {"allow": [f"mcp({server}/*)"]}}
+
+
+def agy_command(model, prompt, resume=None, effort=None, backend="hyprmasq"):
+    """agy in print mode as the run's agent (AGY_AGENT), from its agent home, with its events as stream-json. The debrief
+    resumes the conversation, whose MCP server the home no longer has (agy_mcp_config)."""
+    command = [agy_executable(), "--print", prompt, "--output-format", "stream-json", "--model", model,
+               "--agent", AGY_AGENT, "--disable-slash-commands", "--settings", json.dumps(agy_settings(SERVER[backend]))]
+    if effort:
+        command += ["--effort", effort]
+    if resume:
+        command += ["--conversation", resume]
+    return command
+
+
+def agy_home(home):
+    """The agent home of an agy run: its agent, the user's login linked if it is in a file, and no MCP server yet."""
+    config = os.path.join(home, ".gemini", "config")
+    os.makedirs(os.path.join(config, "agents"))
+    with open(os.path.join(config, "agents", f"{AGY_AGENT}.md"), "w") as f:
+        f.write(AGY_AGENT_FILE)
+    agy_mcp_config(home)
+    token = os.path.expanduser(os.path.join("~", AGY_TOKEN))
+    if os.path.exists(token):
+        os.makedirs(os.path.dirname(os.path.join(home, AGY_TOKEN)), exist_ok=True)
+        os.symlink(token, os.path.join(home, AGY_TOKEN))
+    # Nothing updates agy while it runs: a series keeps the version it checked.
+    return {"HOME": home, "AGY_CLI_DISABLE_AUTO_UPDATE": "true"}
+
+
+def agy_mcp_config(home, server=None, tap=None, tools=()):
+    """The MCP servers of an agy home: the tap as the backend's server, its tools eager, or none, for the debrief."""
+    servers = {}
+    if server:
+        servers[server] = {"command": tap[0], "args": tap[1:], "timeoutSeconds": TOOL_TIMEOUT,
+                           "tools": {tool: {"eager": True} for tool in tools}}
+    with open(os.path.join(home, ".gemini", "config", "mcp_config.json"), "w") as f:
+        json.dump({"mcpServers": servers}, f, indent=2)
+
+
+def agy_mcp_tap(home, tap):
+    """The home's MCP server, with its eager tools, through a new tap: agy starts its servers from mcp_config.json,
+    not from its command, so the tap that the agent gets after the user's reply goes there."""
+    path = os.path.join(home, ".gemini", "config", "mcp_config.json")
+    with open(path) as f:
+        config = json.load(f)
+    for server in config["mcpServers"].values():
+        server.update({"command": tap[0], "args": tap[1:]})
+    with open(path, "w") as f:
+        json.dump(config, f, indent=2)
+
+
+def server_tools(cid, log):
+    """The names of the tools of the backend's server in the VM, listed in a session of their own through the tap,
+    which logs it to log: agy gives the model only the tools named eager in its configuration."""
+    import mcp_probe
+
+    session = mcp_probe.Session(cid, log, client="hyprmasq-bench-tools")
+    try:
+        return [tool["name"] for tool in session.request("tools/list", {})["result"]["tools"]]
+    finally:
+        session.close()
+
+
+AGY_EFFORT_SUFFIX = re.compile(r"-(?:" + "|".join(EFFORTS["agy"]) + r")$")
+
+
+def check_agy_model(model, effort, env):
+    """Refuses a model that agy does not list: as a model of its own, such as gemini-4-neon-low, which takes no effort,
+    or with variants of each effort, such as gemini-4-neon, whose effort's variant it must list. agy would fail the run
+    after the VM's boot."""
+    listed = subprocess.run([agy_executable(), "models"], capture_output=True, text=True, timeout=120,
+                            env=agent_env(env), stdin=subprocess.DEVNULL, cwd=env["HOME"])
+    models = {line.split()[0] for line in listed.stdout.splitlines() if line.strip() and "\t" in line}
+    if not models:
+        raise RuntimeError(f"agy lists no models (exit {listed.returncode}): log in with `agy`, or `agy acp --login` "
+                           "over SSH: " + (listed.stdout + listed.stderr).strip()[-300:])
+    if model in models:
+        if effort:
+            raise RuntimeError(f"agy's model {model} has its effort in its name: give it without @{effort}, or give "
+                               f"{AGY_EFFORT_SUFFIX.sub('', model)}@{effort}")
+        return
+    if effort and f"{model}-{effort}" not in models:
+        raise RuntimeError(f"agy lists no {model}-{effort}: its models are {', '.join(sorted(models))}")
+    if not any(AGY_EFFORT_SUFFIX.sub("", m) == model for m in models):
+        raise RuntimeError(f"agy lists no model {model}: its models are {', '.join(sorted(models))}")
+
+
+def agy_quota(env):
+    """What is left of the login's quota, by bucket, as `agy --print /usage` reports it: {id: {"remaining", "reset",
+    "group", "window"}}, such as gemini-5h, the Gemini models' 5-hour limit, and gemini-weekly. A plan's quota is spent
+    in proportion to what the tokens cost, shared by every machine of the login. None where agy does not say."""
+    try:
+        got = subprocess.run([agy_executable(), "--print", "/usage", "--output-format", "json"], capture_output=True,
+                             text=True, timeout=120, env=agent_env(env), stdin=subprocess.DEVNULL, cwd=env["HOME"])
+        groups = json.loads(got.stdout)["command"]["data"]["groups"]
+    except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError):
+        return None
+    return {b["id"]: {"remaining": b.get("remaining_fraction"), "reset": b.get("reset_time"), "group": g.get("name"),
+                      "window": b.get("window")}
+            for g in groups for b in g.get("buckets") or [] if b.get("id")}
+
+
+def quota_spent(before, after):
+    """The fraction of each bucket spent between two readings of agy_quota, None for a bucket that reset between
+    them, whose reset time moved."""
+    if not before or not after:
+        return None
+    return {bucket: (round(was["remaining"] - after[bucket]["remaining"], 4)
+                     if after[bucket]["reset"] == was["reset"] else None)
+            for bucket, was in before.items()
+            if bucket in after and was.get("remaining") is not None and after[bucket].get("remaining") is not None}
+
+
 def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effort=None, backend="hyprmasq"):
+    if harness in HYPRMASQ_ONLY and backend != "hyprmasq":
+        raise ValueError(hyprmasq_only(harness))
+    if harness == "agy":
+        return agy_command(model, prompt, resume, effort, backend)
     if harness == "pi":
-        if backend != "hyprmasq":
-            raise ValueError(PI_ONLY_HYPRMASQ)
         return pi_command(model, prompt, tap, resume, sessions, effort)
     if family(harness) == "claude":
         return claude_command(model, prompt, tap, resume, effort, backend)
@@ -438,9 +604,12 @@ def agent_home(harness, skill=None, name="cua-driver"):
     Claude Code, tried at 2.1.319, replaces a linked credentials file with a regular one and leaves the link's target
     with a refresh token that it has spent, and it refreshes on any 401 as well as near the expiry. Without the refresh
     token it never refreshes and a run cannot touch the user's login, and renew_claude_login leaves each run enough time.
-    Codex, tried at 0.167.0, writes a renewed login through the link, so that it reaches the user's.
+    Codex, tried at 0.167.0, writes a renewed login through the link, so that it reaches the user's. agy gets a HOME
+    with its agent and its login (agy_home).
     Returns (directory, environment)."""
     home = tempfile.mkdtemp(prefix="hyprmasq-bench-agent-home-")
+    if harness == "agy":
+        return home, agy_home(home)
     skill = os.path.realpath(skill) if skill else None
     if family(harness) == "claude":
         config = os.path.join(home, "claude")
@@ -465,11 +634,12 @@ def agent_home(harness, skill=None, name="cua-driver"):
 
 def agent_env(extra=None):
     # Nothing of a surrounding agent session: its effort, session ids and sockets would change the run. No API key
-    # either, but the one a claude-api run gives in `extra`: the others use the user's logins.
+    # either, but the one a claude-api run gives in `extra`: the others use the user's logins. agy would take a Gemini
+    # API key, Google's application credentials or a gateway in place of the login.
     env = {
         k: v for k, v in os.environ.items()
         if not k.startswith(("CLAUDE", "CODEX", "T3CODE", "AUTOREVIEW", "ANTHROPIC_", "OPENAI_", "PI_",
-                             "HYPRMASQ_BENCH_ANTHROPIC_"))
+                             "HYPRMASQ_BENCH_ANTHROPIC_", "AGY_", "ANTIGRAVITY_", "GEMINI_", "GOOGLE_"))
         and k != "AI_AGENT"
     }
     env.update({"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
@@ -594,8 +764,10 @@ def renew_claude_login(margin=LOGIN_MARGIN_SECONDS, now=time.time):
 
 
 def session_of(line):
-    """The session id in a line of the agent's events: Claude Code's, Codex's thread, or pi's session header."""
-    return line.get("session_id") or line.get("thread_id") or (line.get("id") if line.get("type") == "session" else None)
+    """The session id in a line of the agent's events: Claude Code's, Codex's thread, pi's session header, or agy's
+    conversation."""
+    return (line.get("session_id") or line.get("thread_id") or (line.get("id") if line.get("type") == "session" else None)
+            or line.get("conversation_id"))
 
 
 def is_init(line):
@@ -681,6 +853,11 @@ def move_transcript(harness, session, cwd, run_dir, sessions=None, config=None):
     project = None
     if harness == "pi":
         paths = glob.glob(os.path.join(sessions, f"*_{session}.jsonl"))
+    elif harness == "agy":
+        # The conversation's database, with every request agy made, and its directory, with the images the agent read.
+        paths = [os.path.join(config, AGY_DATA, "conversations", f"{session}.db"),
+                 os.path.join(config, AGY_DATA, "brain", session)]
+        paths = [p for p in paths if os.path.exists(p)]
     elif family(harness) == "claude":
         project = claude_project(cwd, config)
         # The transcript, and a directory of the same name with the session's tool results.
@@ -722,12 +899,15 @@ def pi_session(sessions, session):
     return path, (levels[0] if levels else None)
 
 
-def ran_effort(harness, run_dir, cwd, session, thinking, config=None):
+def ran_effort(harness, run_dir, cwd, session, thinking, config=None, model=None):
     """The effort the harness says the agent ran at, and where it says so; None where it says nothing. Codex gives it
     in the metadata of each MCP tool call, Claude Code in the requests its transcript logs (its stream-json has
-    none), and pi in its session's thinking level."""
+    none), pi in its session's thinking level, and agy in the model variant its conversation's database names."""
     if harness == "pi":
         found = [thinking] if thinking else []
+    elif harness == "agy":
+        path = os.path.join(config, AGY_DATA, "conversations", f"{session}.db")
+        found = report.agy_efforts(path, model) if session else []
     elif family(harness) == "claude":
         path = os.path.join(claude_project(cwd, config), f"{session}.jsonl")
         found = report.claude_efforts(report.load_jsonl(path)) if session else []
@@ -814,6 +994,8 @@ def reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, cid, ses
     tap = tap_command(cid, log, max_calls, spent)
     if agent_dir:
         pi_mcp_config(agent_dir, tap)
+    if harness == "agy":
+        agy_mcp_tap(agent_vars["HOME"], tap)
     print(f"{label} the agent ended without saying Done: the user replies", flush=True)
     command = agent_command(harness, model, USER_REPLY, tap, resume=resume, sessions=sessions, effort=effort,
                             backend=backend)
@@ -839,6 +1021,9 @@ def run_debrief(harness, model, effort, backend, browser, task_dir, variant, run
     with open(os.path.join(run_dir, "debrief-prompt.md"), "w") as f:
         f.write(text)
     print(f"{label} debrief", flush=True)
+    if harness == "agy":
+        # The debrief gets no tools: the home's MCP server goes, and the agent's read_file finds no new image.
+        agy_mcp_config(agent_vars["HOME"])
     command = agent_command(harness, model, text, None, resume=resume, effort=effort, backend=backend)
     told = run_agent(command, cwd, os.path.join(run_dir, "debrief.jsonl"),
                      os.path.join(run_dir, "debrief.stderr"), 900, agent_vars,
@@ -891,9 +1076,12 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         home, home_env = agent_home(harness, skill_link(out, backend) if backend in SKILLS else None,
                                     SKILLS[backend][0] if backend in SKILLS else "")
         agent_vars.update(home_env)
-    config = agent_vars.get("CLAUDE_CONFIG_DIR") or agent_vars.get("CODEX_HOME")
-    agent, leaked = {"session": None}, []
+    config = agent_vars.get("CLAUDE_CONFIG_DIR") or agent_vars.get("CODEX_HOME") or (home if harness == "agy" else None)
+    agent, leaked, eager, quota = {"session": None}, [], None, {}
     try:
+        if harness == "agy":
+            check_agy_model(model, effort, agent_vars)
+            quota["before"] = agy_quota(agent_vars)
         print(f"{label} booting the VM", flush=True)
         load = {}
         vm_env = {**({"HYPRMASQ_BENCH_CHROMIUM_OPTIONS": chromium_options} if chromium_options else {}),
@@ -901,6 +1089,9 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         with host_load(load), booted_vm(driver, run_dir, cid, timeout + 120, cpus, vm_env or None):
             prompt = task_prompt(harness, backend, open(task_file(task_dir, variant, PROMPTS[prompt_kind])).read(),
                                  browser)
+            if harness == "agy":
+                eager = server_tools(cid, os.path.join(run_dir, "mcp-tools.jsonl"))
+                agy_mcp_config(home, SERVER[backend], tap, eager)
             command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort, backend=backend)
             print(f"{label} agent running", flush=True)
             agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
@@ -929,7 +1120,8 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             "timed_out": agent["timed_out"], "session": agent["session"],
             # With --user-reply, the user's one reply to an agent that ended without saying "Done", or None.
             "user_reply_enabled": user_reply, "user_reply": reply,
-            "harness_version": version([executable(harness), "--version"]), "machine": machine(),
+            "harness_version": version([agy_executable() if harness == "agy" else executable(harness), "--version"]),
+            "machine": machine(),
             # The CPUs the VM ran on, or None where it could run on any.
             "cpus": format_cpus(cpus) if cpus else None,
             # The host's load while the VM was up: a run that shared the host with other VMs or another benchmark's
@@ -943,10 +1135,15 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             run["api_key_source"] = agent["api_key_source"]
         if auth:
             run["auth"] = auth
+        if harness == "agy":
+            # The agent agy ran, its file, and the server's tools it gave the model directly.
+            # The quota before the VM's boot, and after the debrief, which run.json gets then (run_debrief).
+            run["agy"] = {"agent": AGY_AGENT, "agent_file": AGY_AGENT_FILE, "eager_tools": eager,
+                          "settings": agy_settings(SERVER[backend]), "quota": quota}
         session_file = None
         if harness == "pi":
             session_file, run["thinking"] = pi_session(sessions, agent["session"])
-        ran_at, reported_by = ran_effort(harness, run_dir, cwd, agent["session"], run.get("thinking"), config)
+        ran_at, reported_by = ran_effort(harness, run_dir, cwd, agent["session"], run.get("thinking"), config, model)
         # The effort asked for, None for the harness's default, and the one the harness says it ran at.
         run["effort"] = {"requested": effort, "ran_at": ran_at, "reported_by": reported_by}
         with open(os.path.join(run_dir, "run.json"), "w") as f:
@@ -965,6 +1162,13 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         except Exception as e:  # noqa: BLE001: whatever else stopped it, the run stands
             print(f"{label} debrief failed: {e!r}", flush=True)
             run["debrief_error"] = repr(e)[:500]
+            with open(os.path.join(run_dir, "run.json"), "w") as f:
+                json.dump(run, f, indent=2)
+        if harness == "agy":
+            # What the run and its debrief spent of each bucket. Runs of the same login on other machines at the same
+            # time spend from it too: series pace on the quota itself (agy_quota), not on these.
+            quota["after"] = agy_quota(agent_vars)
+            summary["quota_spent"] = quota_spent(quota.get("before"), quota.get("after"))
             with open(os.path.join(run_dir, "run.json"), "w") as f:
                 json.dump(run, f, indent=2)
     finally:
@@ -1234,8 +1438,9 @@ def check_runs(args, parser):
                      "letters, digits, ., _ and -, or in the @ of an effort")
     if any(rep < 1 for rep in args.rep or []):
         parser.error("--rep counts from 1")
-    if args.backend != "hyprmasq" and any(harness == "pi" for harness, _, _ in agents):
-        parser.error(PI_ONLY_HYPRMASQ)
+    only = sorted({harness for harness, _, _ in agents if harness in HYPRMASQ_ONLY})
+    if args.backend != "hyprmasq" and only:
+        parser.error(hyprmasq_only(only[0]))
     reps = sorted(set(args.rep)) if args.rep else list(range(1, args.reps + 1))
     return agents, reps
 

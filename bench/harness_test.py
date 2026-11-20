@@ -158,8 +158,9 @@ class CuaBackend(unittest.TestCase):
         self.assertEqual(run.task_prompt("claude", "computer-use-linux", "Do it."), "/computer-use-linux Do it.")
         self.assertEqual(run.task_prompt("codex", "computer-use-linux", "Do it."), "$computer-use-linux Do it.")
         for backend in ("hypruse", "computer-use-linux"):
-            with self.assertRaisesRegex(ValueError, "pi runs only with hyprmasq"):
-                run.agent_command("pi", "p/m", "Do it.", tap, sessions="/s", backend=backend)
+            for harness in ("pi", "agy"):
+                with self.assertRaisesRegex(ValueError, f"{harness} runs only with hyprmasq"):
+                    run.agent_command(harness, "p/m", "Do it.", tap, sessions="/s", backend=backend)
 
     def test_the_agent_home_holds_the_skill_and_only_the_login_it_needs(self):
         with tempfile.TemporaryDirectory() as user, tempfile.TemporaryDirectory() as skill:
@@ -306,13 +307,13 @@ class ExportAgents(unittest.TestCase):
 class Effort(unittest.TestCase):
     def flags(self, harness, effort, **kwargs):
         command = run.agent_command(harness, "m", "Do it.", ["tap"], sessions="/s", effort=effort, **kwargs)
-        flag = {"codex": "-c", "pi": "--thinking"}.get(harness, "--effort")
+        flag = {"codex": "-c", "pi": "--thinking"}.get(harness, "--effort")  # agy's is --effort too
         return [command[i + 1] for i, a in enumerate(command[:-1])
                 if a == flag and (flag != "-c" or command[i + 1].startswith("model_reasoning_effort"))]
 
     def test_each_harness_gets_the_level_its_own_way_in_the_run_and_the_debrief(self):
         for harness, given in (("claude", "xhigh"), ("claude-api", "xhigh"),
-                               ("codex", 'model_reasoning_effort="xhigh"'), ("pi", "xhigh")):
+                               ("codex", 'model_reasoning_effort="xhigh"'), ("pi", "xhigh"), ("agy", "xhigh")):
             self.assertEqual(self.flags(harness, "xhigh"), [given], harness)
             self.assertEqual(self.flags(harness, "xhigh", resume="session"), [given], harness)
             # Without an effort, the harness's default: no flag at all.
@@ -341,6 +342,17 @@ class Effort(unittest.TestCase):
                 # A harness that says nothing records nothing, not a guess.
                 self.assertEqual(run.ran_effort("claude", run_dir, "/tmp/x", "other", None), (None, None))
             self.assertEqual(run.ran_effort("pi", run_dir, "/tmp/x", "s", "high")[0], "high")
+            # agy names the variant of each request in its conversation's database, among other models' names.
+            conversations = os.path.join(home, run.AGY_DATA, "conversations")
+            os.makedirs(conversations)
+            with open(os.path.join(conversations, "c.db"), "wb") as f:
+                f.write(b"SQLite format 3\0...\x12gemini-4-neon\x1agemini-4-neon-low\x05gemini-4-hydrogen-tiered-high"
+                        b"\x00gemini-4-neon-lower\x00gemini-4-neon-low")
+            self.assertEqual(run.ran_effort("agy", run_dir, "/tmp/x", "c", None, home, "gemini-4-neon"),
+                             ("low", report.REPORTED_BY["agy"]))
+            self.assertEqual(run.ran_effort("agy", run_dir, "/tmp/x", "c", None, home, "gemini-4-neon-low")[0], "low")
+            self.assertEqual(run.ran_effort("agy", run_dir, "/tmp/x", "other", None, home, "gemini-4-neon"),
+                             (None, None))
 
     def test_runs_at_different_efforts_are_rows_of_their_own(self):
         def summary(requested, ran_at):
@@ -437,6 +449,154 @@ class PiIsolation(unittest.TestCase):
                 shutil.rmtree(agent_dir)
         with self.assertRaises(ValueError):
             run.agent_command("pi", "tensorx/m", "@file", tap, sessions="/s")
+
+
+class Agy(unittest.TestCase):
+    """The Antigravity CLI's runs: its main agent with the backend's tools and read_file alone, in a home of its own."""
+
+    def setUp(self):
+        run.agy_executable.cache_clear()
+        self.addCleanup(run.agy_executable.cache_clear)
+        self.bin = tempfile.TemporaryDirectory()
+        self.user = tempfile.TemporaryDirectory()
+        self.addCleanup(self.bin.cleanup)
+        self.addCleanup(self.user.cleanup)
+        env = mock.patch.dict(os.environ, {"HOME": self.user.name,
+                                           "PATH": self.bin.name + os.pathsep + os.environ["PATH"]})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def test_the_agent_has_the_tap_with_eager_tools_and_its_login_and_the_debrief_no_server(self):
+        token = os.path.join(self.user.name, run.AGY_TOKEN)
+        os.makedirs(os.path.dirname(token))
+        with open(token, "w") as f:
+            f.write("{}")
+        os.makedirs(os.path.join(self.user.name, ".gemini", "config"))
+        with open(os.path.join(self.user.name, ".gemini", "config", "mcp_config.json"), "w") as f:
+            json.dump({"mcpServers": {"own": {"command": "own-server"}}}, f)
+        agy = executable(self.bin.name, "agy", "exit 0\n")
+        home, env = run.agent_home("agy")
+        self.addCleanup(shutil.rmtree, home)
+        self.assertEqual(env, {"HOME": home, "AGY_CLI_DISABLE_AUTO_UPDATE": "true"})
+        self.assertEqual(os.readlink(os.path.join(home, run.AGY_TOKEN)), token)  # linked: no copy of the login
+        config = os.path.join(home, ".gemini", "config")
+        self.assertEqual(sorted(os.listdir(config)), ["agents", "mcp_config.json"])
+        with open(os.path.join(config, "agents", f"{run.AGY_AGENT}.md")) as f:
+            agent = f.read()
+        self.assertIn("tools: [read_file]\n", agent)
+        self.assertIn("mainAgent: true\n", agent)
+
+        def servers():
+            with open(os.path.join(config, "mcp_config.json")) as f:
+                return json.load(f)["mcpServers"]
+        self.assertEqual(servers(), {})  # until the VM is up and its tools are listed
+        tap = ["python3", "mcp_tap.py", "4242", "5000", "log"]
+        run.agy_mcp_config(home, "hyprmasq", tap, ["act", "windows"])
+        self.assertEqual(servers(), {"hyprmasq": {
+            "command": tap[0], "args": tap[1:], "timeoutSeconds": run.TOOL_TIMEOUT,
+            "tools": {"act": {"eager": True}, "windows": {"eager": True}}}})
+
+        parser = argparse.ArgumentParser()
+        for flag in ("--print", "--model", "--effort", "--agent", "--settings", "--conversation", "--output-format"):
+            parser.add_argument(flag)
+        parser.add_argument("--disable-slash-commands", action="store_true")
+        command = run.agent_command("agy", "gemini-4-neon", "/act Do it.", tap, effort="low")
+        self.assertEqual(command[0], os.path.realpath(agy))
+        options, rest = parser.parse_known_args(command[1:])
+        self.assertEqual(rest, [])
+        self.assertEqual((options.print, options.model, options.effort, options.agent, options.output_format),
+                         ("/act Do it.", "gemini-4-neon", "low", run.AGY_AGENT, "stream-json"))
+        self.assertTrue(options.disable_slash_commands)
+        self.assertIsNone(options.conversation)
+        # Print mode denies what it cannot ask for: the backend's tools are allowed, nothing else.
+        self.assertEqual(json.loads(options.settings), {"permissions": {"allow": ["mcp(hyprmasq/*)"]}})
+
+        # After the user's reply, the agent goes on through a new tap, its tools as they were.
+        run.agy_mcp_tap(home, ["python3", "mcp_tap.py", "4242", "5000", "log", "20", "7"])
+        self.assertEqual(servers()["hyprmasq"]["args"], ["mcp_tap.py", "4242", "5000", "log", "20", "7"])
+        self.assertEqual(servers()["hyprmasq"]["tools"], {"act": {"eager": True}, "windows": {"eager": True}})
+        run.agy_mcp_config(home)
+        self.assertEqual(servers(), {})
+        options, _ = parser.parse_known_args(
+            run.agent_command("agy", "gemini-4-neon", "Tell me.", None, resume="conv-1", effort="low")[1:])
+        self.assertEqual((options.conversation, options.effort), ("conv-1", "low"))
+        # agy's own setup, such as a Gemini API key or Google's credentials, does not reach it.
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k", "AGY_ADC_AUTH": "true", "ANTIGRAVITY_CONVERSATION_ID": "x"}):
+            given = run.agent_env(env)
+        self.assertFalse({"GEMINI_API_KEY", "AGY_ADC_AUTH", "ANTIGRAVITY_CONVERSATION_ID"} & set(given))
+        self.assertEqual(given["AGY_CLI_DISABLE_AUTO_UPDATE"], "true")
+
+    def test_a_home_without_a_login_file_relies_on_the_keyring(self):
+        home, _ = run.agent_home("agy")
+        self.addCleanup(shutil.rmtree, home)
+        self.assertFalse(os.path.lexists(os.path.join(home, run.AGY_TOKEN)))
+
+    def test_mises_shim_resolves_to_the_installed_binary(self):
+        # Through the shim, agy in a run's HOME would make mise install it there again.
+        installed = executable(self.user.name, "antigravity", "exit 0\n")
+        mise = executable(self.bin.name, "mise", f'test "$*" = "which agy" && echo {installed}\n')
+        os.symlink(mise, os.path.join(self.bin.name, "agy"))
+        self.assertEqual(run.agy_executable(), os.path.realpath(installed))
+
+    def test_the_model_and_effort_must_be_listed(self):
+        listing = "Fetching available models...\ngemini-4-neon-high\tGemini 4 Neon (High)\n" \
+                  "gemini-4-neon-low\tGemini 4 Neon (Low)\ngpt-oss-120b-medium\tGPT-OSS 120B (Medium)\n"
+        executable(self.bin.name, "agy", f"test \"$1\" = models && printf '{listing}'\n")
+        env = {"HOME": self.user.name}
+        run.check_agy_model("gemini-4-neon", "low", env)
+        run.check_agy_model("gemini-4-neon", None, env)
+        run.check_agy_model("gemini-4-neon-low", None, env)
+        for model, effort, error in (("gemini-4-neon", "xhigh", "no gemini-4-neon-xhigh"),
+                                     ("gemini-4-neon-high", "low", "has its effort in its name"),
+                                     ("gemini-4-argon", None, "no model gemini-4-argon")):
+            with self.assertRaisesRegex(RuntimeError, error):
+                run.check_agy_model(model, effort, env)
+        executable(self.bin.name, "agy", "echo 'Error: Please sign in to view available models.'; exit 1\n")
+        with self.assertRaisesRegex(RuntimeError, "log in"):
+            run.check_agy_model("gemini-4-neon", None, env)
+
+
+    def test_the_quota_is_read_by_bucket_and_a_bucket_that_reset_counts_no_spend(self):
+        # agy 1.5.13's /usage in JSON, shortened to the Gemini models' group.
+        usage = {"status": "SUCCESS", "command": {"name": "usage", "data": {"groups": [{"name": "Gemini Models", "buckets": [
+            {"id": "gemini-weekly", "window": "weekly", "remaining_fraction": 0.89, "reset_time": "2026-11-27T03:39:42Z"},
+            {"id": "gemini-5h", "window": "5h", "remaining_fraction": 0.63, "reset_time": "2026-11-20T08:39:42Z"}]}]}}}
+        executable(self.bin.name, "agy", f"test \"$*\" = '--print /usage --output-format json' && echo '{json.dumps(usage)}'\n")
+        before = run.agy_quota({"HOME": self.user.name})
+        self.assertEqual(before["gemini-5h"], {"remaining": 0.63, "reset": "2026-11-20T08:39:42Z",
+                                               "group": "Gemini Models", "window": "5h"})
+        after = {"gemini-weekly": {**before["gemini-weekly"], "remaining": 0.87},
+                 "gemini-5h": {**before["gemini-5h"], "remaining": 0.98, "reset": "2026-11-20T13:41:00Z"}}
+        self.assertEqual(run.quota_spent(before, after), {"gemini-weekly": 0.02, "gemini-5h": None})
+        self.assertIsNone(run.quota_spent(None, after))
+        executable(self.bin.name, "agy", "echo 'Error: authentication required'; exit 1\n")
+        self.assertIsNone(run.agy_quota({"HOME": self.user.name}))
+
+
+class AgyReport(unittest.TestCase):
+    def test_usage_context_and_final_answer_of_a_recorded_agy_stream(self):
+        # agy 1.5.13's stream-json of a run whose MCP server returned an image: agy offloaded it to a file, which the
+        # agent read with read_file, three requests in all.
+        stream = report.load_jsonl(os.path.join(BENCH, "testdata", "agy-agent.jsonl"))
+        self.assertEqual(run.session_of(stream[0]["line"]), "54f99f8d-11fe-41bc-b7de-43d092e00049")
+        usage = report.agent_usage("agy", stream)
+        self.assertEqual(usage, {
+            "turns": 3, "input_tokens": 2810 + 2356 + 753 + 3500 + 1060, "cache_read_tokens": 753 + 1060,
+            "cache_write_tokens": None, "output_tokens": 75 + 275 + 32, "thinking_tokens": 49 + 138 + 23,
+            "api_seconds": 10.379, "cost_usd": None, "final": "Left is red, right is blue.\n",
+            "harness_tools": {"read_file": 1},
+        })
+        context = report.context_usage("agy", stream, [], usage)
+        self.assertEqual((context["request_count"], context["first_input_tokens"], context["peak_input_tokens"],
+                          context["compactions"]), (3, 2810, 3500 + 1060, None))
+        self.assertIsNone(report.infrastructure_failure("/nonexistent", stream, {}))
+
+    def test_a_failed_result_is_the_runs_error_and_a_login_that_ended_is_the_infrastructures(self):
+        failed = {"event": "result", "result": {"status": "ERROR", "error": "authentication required",
+                                                "response": "", "usage": {}}}
+        stream = [{"t": 0, "line": failed}]
+        self.assertEqual(report.agent_usage("agy", stream)["error"], "authentication required")
+        self.assertEqual(report.infrastructure_failure("/nonexistent", stream, {})["kind"], "auth")
 
 
 class ClaudeApi(unittest.TestCase):
