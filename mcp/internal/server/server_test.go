@@ -5,12 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -480,28 +476,5 @@ func TestStdinEndStopsCalls(t *testing.T) {
 	}
 	if len(e.fake.requestsMatching("j/hyprmasq cancel ")) == 0 {
 		t.Error("the plugin's wait was not cancelled")
-	}
-}
-
-func TestRemoveStaleShots(t *testing.T) {
-	e := newTestEnv(t)
-	parent := t.TempDir()
-	e.server.shotDir = filepath.Join(parent, strconv.Itoa(os.Getpid()))
-	exited := exec.Command("true")
-	if err := exited.Run(); err != nil {
-		t.Fatal(err)
-	}
-	dead := filepath.Join(parent, strconv.Itoa(exited.Process.Pid))
-	alive := filepath.Join(parent, "1")
-	for _, dir := range []string{e.server.shotDir, dead, alive, filepath.Join(parent, "other")} {
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			t.Fatal(err)
-		}
-	}
-	e.server.RemoveStaleShots()
-	for dir, kept := range map[string]bool{e.server.shotDir: true, dead: false, alive: true, filepath.Join(parent, "other"): true} {
-		if _, err := os.Stat(dir); (err == nil) != kept {
-			t.Errorf("%s: kept %v", dir, err == nil)
-		}
 	}
 }

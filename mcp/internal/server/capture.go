@@ -185,7 +185,7 @@ func (s *Server) waitID() string {
 // short time to draw. A new window at the address is not captured, and a zoom only while the window has the size of the shot it was
 // read from. A shot of the whole window comes from one render, which gives its image and its detail image.
 func (s *Server) capture(ctx context.Context, window, stableID string, z *zoom) (*shot, []byte, error) {
-	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
+	if err := s.makeShotDir(); err != nil {
 		return nil, nil, err
 	}
 	var region *hypr.IntRect
@@ -332,7 +332,7 @@ type frame struct {
 // renderFrame renders the whole window once, for its overview and its detail image, which the plugin writes as raw
 // pixels: they are read into memory and their files deleted.
 func (s *Server) renderFrame(ctx context.Context, window string) (*frame, error) {
-	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
+	if err := s.makeShotDir(); err != nil {
 		return nil, err
 	}
 	n := s.detailSeq.Add(1)

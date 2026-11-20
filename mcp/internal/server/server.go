@@ -45,6 +45,10 @@ type Config struct {
 	HyprlandSocket string
 	// $XDG_RUNTIME_DIR/hyprmasq/<instance>, the directory of the plugin's sockets, shared with every server.
 	StateDir string
+	// $XDG_RUNTIME_DIR, which StateDir is in. The server opens it without following a symlink, and accepts the
+	// directories from it down to its shots and locks only as directories of the user's own with mode 0700, which it
+	// creates. "" stands for the directory that StateDir is in.
+	RuntimeDir string
 	// The hyprmasq-input binary.
 	Input string
 	// Fit overview and zoom shots within this many pixels on the long side, or 0 for the monitor's scale.
@@ -69,12 +73,15 @@ type Config struct {
 }
 
 type Server struct {
-	cfg     Config
-	hypr    *hypr.Client
-	shots   *shotStore
-	shotDir string
-	owner   string
-	waitSeq atomic.Int64
+	cfg   Config
+	hypr  *hypr.Client
+	shots *shotStore
+	// StateDir, and the directory of this server's shots in it, StateDir/mcp/<pid>.
+	stateDir  privatePath
+	shotDir   string
+	shotsPath privatePath
+	owner     string
+	waitSeq   atomic.Int64
 	// Numbers the detail images of changes captures until they belong to a shot.
 	detailSeq atomic.Int64
 
@@ -119,12 +126,20 @@ func New(cfg Config) *Server {
 	if cfg.LeaseMs <= 0 {
 		cfg.LeaseMs = 60000
 	}
+	runtimeDir := cfg.RuntimeDir
+	if runtimeDir == "" {
+		runtimeDir = filepath.Dir(cfg.StateDir)
+	}
+	stateDir := newPrivatePath(runtimeDir, cfg.StateDir)
+	shots := stateDir.join("mcp", fmt.Sprint(os.Getpid()))
 	stopCalls, stop := context.WithCancel(context.Background())
 	return &Server{
 		cfg:       cfg,
 		hypr:      &hypr.Client{Socket: cfg.HyprlandSocket},
 		shots:     newShotStore(),
-		shotDir:   filepath.Join(cfg.StateDir, "mcp", fmt.Sprint(os.Getpid())),
+		stateDir:  stateDir,
+		shotDir:   shots.String(),
+		shotsPath: shots,
 		owner:     fmt.Sprintf("mcp-%d-%s", os.Getpid(), randomHex(4)),
 		leased:    map[string]bool{},
 		tokens:    map[string]int{},
@@ -173,7 +188,21 @@ func (s *Server) Shutdown(ctx context.Context) {
 	}
 	s.finishRecording()
 	s.shots.wait()
-	os.RemoveAll(s.shotDir)
+	// RemoveAll does not follow symlinks in the directory, and the directories down to it are the user's own.
+	if dir, err := s.shotsPath.open(false); err == nil {
+		dir.Close()
+		os.RemoveAll(s.shotDir)
+	}
+}
+
+// makeShotDir creates the directory of the server's shots, refusing symlinks and directories that another user can
+// reach on the way, so that the plugin writes the shots where only the user can read them.
+func (s *Server) makeShotDir() error {
+	dir, err := s.shotsPath.open(true)
+	if err != nil {
+		return err
+	}
+	return dir.Close()
 }
 
 // CancelCalls cancels the calls that are running and refuses new ones, for a server that is asked to exit.
@@ -191,21 +220,34 @@ func (s *Server) stopping() bool {
 }
 
 // RemoveStaleShots deletes the shot directories of servers that are no longer running, such as ones that were killed.
+// It reads StateDir/mcp only when it is a private directory, and skips what is not a directory of the user's own with
+// mode 0700, such as a symlink.
 func (s *Server) RemoveStaleShots() {
-	dir := filepath.Dir(s.shotDir)
-	entries, err := os.ReadDir(dir)
+	parent := s.stateDir.join("mcp")
+	dir, err := parent.open(false)
+	if err != nil {
+		return
+	}
+	defer dir.Close()
+	entries, err := dir.ReadDir(-1)
 	if err != nil {
 		return
 	}
 	for _, entry := range entries {
 		pid, err := strconv.Atoi(entry.Name())
-		if err != nil || pid <= 0 || pid == os.Getpid() {
+		if err != nil || pid <= 0 || pid == os.Getpid() || !entry.IsDir() {
 			continue
 		}
 		// Signal 0 checks that the process exists. EPERM means it exists under another user.
-		if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {
-			os.RemoveAll(filepath.Join(dir, entry.Name()))
+		if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+			continue
 		}
+		fd, err := privateDir(int(dir.Fd()), entry.Name(), false)
+		if err != nil {
+			continue
+		}
+		syscall.Close(fd)
+		os.RemoveAll(filepath.Join(parent.String(), entry.Name()))
 	}
 }
 
@@ -831,8 +873,8 @@ func goneSinceShot(err error, window, shotID, stableID string, st hypr.State, wi
 
 var unsafePathChars = regexp.MustCompile(`[^A-Za-z0-9_-]`)
 
-func (s *Server) lockPath(stableID string) string {
-	return filepath.Join(s.cfg.StateDir, "window-"+unsafePathChars.ReplaceAllString(stableID, "_")+".lock")
+func (s *Server) lockPath(stableID string) lockFile {
+	return lockFile{s.stateDir, "window-" + unsafePathChars.ReplaceAllString(stableID, "_") + ".lock"}
 }
 
 // sendLockPath is the lock that input to a window takes while it is sent, shared by the windows that input to one of
@@ -841,20 +883,20 @@ func (s *Server) lockPath(stableID string) string {
 // A connection belongs to one process, so the windows of one pid share the lock, also when the process has several
 // connections. A window whose pid Hyprland does not tell shares the lock of the other such windows. Input to windows of
 // different processes runs at the same time.
-func (s *Server) sendLockPath(pid int, xwayland bool) string {
+func (s *Server) sendLockPath(pid int, xwayland bool) lockFile {
 	switch {
 	case xwayland:
-		return filepath.Join(s.cfg.StateDir, "send-xwayland.lock")
+		return lockFile{s.stateDir, "send-xwayland.lock"}
 	case pid > 0:
-		return filepath.Join(s.cfg.StateDir, fmt.Sprintf("send-pid-%d.lock", pid))
+		return lockFile{s.stateDir, fmt.Sprintf("send-pid-%d.lock", pid)}
 	}
-	return filepath.Join(s.cfg.StateDir, "send-unknown.lock")
+	return lockFile{s.stateDir, "send-unknown.lock"}
 }
 
 // clipboardLockPath is the lock that a batch with a paste takes while it is sent: the plugin holds one agent clipboard,
 // so pastes into any windows take turns.
-func (s *Server) clipboardLockPath() string {
-	return filepath.Join(s.cfg.StateDir, "clipboard.lock")
+func (s *Server) clipboardLockPath() lockFile {
+	return lockFile{s.stateDir, "clipboard.lock"}
 }
 
 // windowArgs are the arguments of the tools that take only a window.

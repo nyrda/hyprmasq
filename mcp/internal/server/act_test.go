@@ -162,7 +162,7 @@ func TestTwoServersContend(t *testing.T) {
 }
 
 // locked tells whether someone else holds the lock.
-func locked(path string) bool {
+func locked(path lockFile) bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	l, err := acquireLock(ctx, path)

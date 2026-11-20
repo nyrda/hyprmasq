@@ -99,7 +99,7 @@ func readView(ref *detail) (view, error) {
 // captureView renders the window with the request that rendered ref, so that a window that did not change gives the
 // same pixels.
 func (s *Server) captureView(ctx context.Context, window string, ref *detail) (view, error) {
-	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
+	if err := s.makeShotDir(); err != nil {
 		return view{}, err
 	}
 	path := filepath.Join(s.shotDir, fmt.Sprintf("t%d.raw", s.detailSeq.Add(1)))

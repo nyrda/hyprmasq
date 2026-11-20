@@ -7,7 +7,7 @@ import (
 )
 
 // holdLock takes the lock at path for the test, as a call of another server would, and releases it at the end.
-func holdLock(t *testing.T, path string) {
+func holdLock(t *testing.T, path lockFile) {
 	t.Helper()
 	l, err := acquireLock(context.Background(), path)
 	if err != nil {

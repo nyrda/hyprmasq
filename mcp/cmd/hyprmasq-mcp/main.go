@@ -103,6 +103,7 @@ func main() {
 	s := server.New(server.Config{
 		HyprlandSocket:    filepath.Join(runtime, "hypr", instance, ".socket.sock"),
 		StateDir:          stateDir,
+		RuntimeDir:        runtime,
 		Input:             cfg.Input,
 		MaxImageSize:      cfg.MaxImageSize,
 		MinZoomSize:       cfg.MinZoomSize,
