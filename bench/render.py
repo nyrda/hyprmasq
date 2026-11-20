@@ -104,6 +104,7 @@ NAMES = {
     "claude-sonnet-5-5": "Sonnet 5.5",
     "claude-haiku-5-5": "Haiku 5.5",
     "gpt-6-luna": "gpt-6-luna",
+    "gemini-4-neon": "Gemini 4 Neon",
     "tensorx/deepseek/deepseek-v4.1-flash-1017": "DeepSeek v4.1 Flash",
     "opencode-go/kimi-k3.1-pro": "Kimi K3.1 Pro",
     "opencode-go/gemini-4-argon": "Gemini 4 Argon",

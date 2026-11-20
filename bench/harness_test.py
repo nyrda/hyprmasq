@@ -567,8 +567,8 @@ class Agy(unittest.TestCase):
                                                "group": "Gemini Models", "window": "5h"})
         after = {"gemini-weekly": {**before["gemini-weekly"], "remaining": 0.87},
                  "gemini-5h": {**before["gemini-5h"], "remaining": 0.98, "reset": "2026-11-20T13:41:00Z"}}
-        self.assertEqual(run.quota_spent(before, after), {"gemini-weekly": 0.02, "gemini-5h": None})
-        self.assertIsNone(run.quota_spent(None, after))
+        self.assertEqual(report.quota_spent(before, after), {"gemini-weekly": 0.02, "gemini-5h": None})
+        self.assertIsNone(report.quota_spent(None, after))
         executable(self.bin.name, "agy", "echo 'Error: authentication required'; exit 1\n")
         self.assertIsNone(run.agy_quota({"HOME": self.user.name}))
 
@@ -583,7 +583,10 @@ class AgyReport(unittest.TestCase):
         self.assertEqual(usage, {
             "turns": 3, "input_tokens": 2810 + 2356 + 753 + 3500 + 1060, "cache_read_tokens": 753 + 1060,
             "cache_write_tokens": None, "output_tokens": 75 + 275 + 32, "thinking_tokens": 49 + 138 + 23,
-            "api_seconds": 10.379, "cost_usd": None, "final": "Left is red, right is blue.\n",
+            # At Google's list prices: uncached input, cache reads and output, thinking included.
+            "api_seconds": 10.379, "cost_usd": round(((2810 + 2356 + 3500) * 3 + (753 + 1060) * 0.15
+                                                       + (75 + 275 + 32) * 15) / 1e6, 6),
+            "cost_basis": "API list prices for gemini-4-neon", "final": "Left is red, right is blue.\n",
             "harness_tools": {"read_file": 1},
         })
         context = report.context_usage("agy", stream, [], usage)

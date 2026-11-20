@@ -559,17 +559,6 @@ def agy_quota(env):
             for g in groups for b in g.get("buckets") or [] if b.get("id")}
 
 
-def quota_spent(before, after):
-    """The fraction of each bucket spent between two readings of agy_quota, None for a bucket that reset between
-    them, whose reset time moved."""
-    if not before or not after:
-        return None
-    return {bucket: (round(was["remaining"] - after[bucket]["remaining"], 4)
-                     if after[bucket]["reset"] == was["reset"] else None)
-            for bucket, was in before.items()
-            if bucket in after and was.get("remaining") is not None and after[bucket].get("remaining") is not None}
-
-
 def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effort=None, backend="hyprmasq"):
     if harness in HYPRMASQ_ONLY and backend != "hyprmasq":
         raise ValueError(hyprmasq_only(harness))
@@ -1165,10 +1154,11 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             with open(os.path.join(run_dir, "run.json"), "w") as f:
                 json.dump(run, f, indent=2)
         if harness == "agy":
-            # What the run and its debrief spent of each bucket. Runs of the same login on other machines at the same
-            # time spend from it too: series pace on the quota itself (agy_quota), not on these.
+            # What the run and its debrief spent of each bucket, which report.metrics computes again from run.json. Runs
+            # of the same login on other machines at the same time spend from it too: dispatch.py's --quota-pace paces on
+            # the quota itself (agy_quota), not on these.
             quota["after"] = agy_quota(agent_vars)
-            summary["quota_spent"] = quota_spent(quota.get("before"), quota.get("after"))
+            summary["quota_spent"] = report.quota_spent(quota.get("before"), quota.get("after"))
             with open(os.path.join(run_dir, "run.json"), "w") as f:
                 json.dump(run, f, indent=2)
     finally:

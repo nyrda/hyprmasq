@@ -538,6 +538,17 @@ REPORTED_BY = {
 AGY_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
 
+def quota_spent(before, after):
+    """The fraction of each bucket spent between two readings of run.py's agy_quota, None for a bucket that reset between
+    them, whose reset time moved."""
+    if not before or not after:
+        return None
+    return {bucket: (round(was["remaining"] - after[bucket]["remaining"], 4)
+                     if after[bucket]["reset"] == was["reset"] else None)
+            for bucket, was in before.items()
+            if bucket in after and was.get("remaining") is not None and after[bucket].get("remaining") is not None}
+
+
 def agy_efforts(path, model):
     """The efforts of the model's variants that agy's conversation database names, such as gemini-4-neon-low, in
     order. agy keeps each request's model in its gen_metadata, among other models' names, in an SQLite file that the
@@ -609,6 +620,10 @@ OPENAI_PRICES = {
     "gpt-6-luna": ((0.10, 0.01, 0.125, 0.50), (0.20, 0.02, 0.25, 0.75)),
 }
 LONG_PROMPT = 272_000
+# Google's Gemini API list prices in USD per million tokens, from https://aistudio.google.com/docs/pricing on
+# 2026-11-20, Standard tier: input, cached input and output, thinking included, the same for any length of prompt. agy
+# runs on a Google login and reports no cost, so a run's cost is what its requests would cost on the API.
+GEMINI_PRICES = {"gemini-4-neon": (3.00, 0.15, 15.00)}
 
 
 # Codex's counters of a request's usage, and the names agent_usage() gives them.
@@ -796,6 +811,7 @@ def agent_usage(harness, stream, transcript=()):
             "thinking_tokens": u.get("thinking_tokens"),
             "api_seconds": round(sum(s.get("duration_seconds") or 0 for s in responses), 3),
             "cost_usd": None,
+            "cost_basis": None,
             "final": result.get("response") or None,
             # agy's own tools that the agent used, such as read_file for the images that agy keeps out of the MCP
             # results: calls of their own, beside the server's.
@@ -803,6 +819,13 @@ def agent_usage(harness, stream, transcript=()):
                 s.get("tool_name") for s in tools if s.get("step_type") == "tool" and s.get("state") in ("DONE", "ERROR")
                 and s.get("tool_name") and not s["tool_name"].startswith("mcp_"))),
         }
+        # The model's variant of an effort, such as gemini-4-neon-medium, has the model's prices.
+        model = next((e["line"]["init"].get("model") for e in stream if e["line"].get("event") == "init"), None) or ""
+        prices = GEMINI_PRICES.get(re.sub(r"-(?:" + "|".join(AGY_EFFORTS) + r")$", "", model))
+        if prices and u.get("input_tokens") is not None:
+            usage["cost_usd"] = round((u["input_tokens"] * prices[0] + (u.get("cache_read_tokens") or 0) * prices[1]
+                                       + (u.get("output_tokens") or 0) * prices[2]) / 1e6, 6)
+            usage["cost_basis"] = f"API list prices for {model}"
         if result.get("status") not in (None, "SUCCESS"):
             usage["error"] = result.get("error") or result.get("status")
     elif harness == "pi":
@@ -1085,6 +1108,9 @@ def metrics(run_dir):
         "usage": usage,
         "context": context_usage(run["harness"], stream, transcript, usage),
         "harness_version": run.get("harness_version"),
+        # What an agy run and its debrief spent of each bucket of its login's quota (run.py's agy_quota).
+        **({"quota_spent": quota_spent(*(((run.get("agy") or {}).get("quota") or {}).get(k) for k in ("before", "after")))}
+           if run["harness"] == "agy" else {}),
         "versions": ready.get("versions"),
         "machine": run.get("machine"),
         "desktop": run.get("desktop", "bare"),
