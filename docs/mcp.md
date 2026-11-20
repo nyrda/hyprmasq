@@ -612,6 +612,7 @@ gif = true
 | `record.max-minutes` | | `10` | The minutes of video after which a recording stops, 1 to 120. |
 | `record.ffmpeg` | | `ffmpeg` on `PATH` | The ffmpeg to run, which needs libx264. The Nix package's wrapper puts one on `PATH`. |
 | | `--config FILE` | | Read this file instead of searching for one. It must exist. |
+| | `--check` | | Check the installation without starting the server, print a line for each check and exit, see below. |
 | | `--version` | | Print the version and exit. |
 
 An option overrides the key of the same name in the file. A key that the
@@ -625,6 +626,35 @@ Hyprland it drives, which it inherits when the agent runs inside the
 Hyprland session and the client passes them on (see
 [Client notes](#client-notes) for Codex), and the plugin loaded with the same
 interface version.
+
+`hyprmasq-mcp --check`, run in the Hyprland session with the options that the
+client passes, checks all of that without starting the server. It prints a
+line on stdout for each check, `ok`, `FAIL`, `warn` or `skip`, followed by a
+summary:
+
+```
+ok   configuration: /home/me/.config/hyprmasq/mcp.toml
+ok   environment: Hyprland 11cbc6c5…_1794313750_259448970 under /run/user/1000
+ok   plugin: hyprmasq 0.4.0, interface 5
+ok   hooks: all 9 groups of hooks install
+ok   hyprmasq-input: /usr/bin/hyprmasq-input, hyprmasq-input 0.4.0
+warn ffmpeg: recording needs ffmpeg with the libx264 encoder, which /usr/bin/ffmpeg does not have; everything but recordings works without it
+hyprmasq-mcp is ready, with 1 warning
+```
+
+| Check | Fails when |
+| --- | --- |
+| `configuration` | Never, since a configuration file or option that is not valid ends `--check` with status 2 before any check, as it ends the server. |
+| `environment` | `XDG_RUNTIME_DIR` or `HYPRLAND_INSTANCE_SIGNATURE` is missing, or the directory for screenshots under them contains whitespace. |
+| `plugin` | Hyprland's socket cannot be reached, the plugin is not loaded, with the reason it left in `hyprmasq-refused` when it refused to load, or its interface is not the server's. |
+| `hooks` | `hyprctl hyprmasq hooks check` reports a group of hooks that the running Hyprland refuses, which the line names with the reason. |
+| `hyprmasq-input` | The binary that `input` or `--input` names, or `hyprmasq-input` on `PATH`, is missing or does not start, as when its libraries are missing, which `--check` finds by running it with `--version`. |
+| `ffmpeg` | Never. It warns when the ffmpeg of `record.ffmpeg` cannot be run or lacks libx264, which only [recordings](#recording-a-demo) need. |
+
+A check that needs an earlier one, such as `hooks` after `plugin`, is skipped
+when that one fails. The exit status is 0 when every check passes or only
+warns, 1 when one fails, and 2 for an option or configuration file that is not
+valid.
 
 The session ends when the client closes stdin or stdout, or on SIGINT,
 SIGTERM or SIGHUP. The server then cancels running calls, releases its

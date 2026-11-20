@@ -30,8 +30,8 @@ type Client struct {
 
 // Error is a JSON error reply of the plugin.
 type Error struct {
-	Code    string
-	Message string
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 func (e *Error) Error() string {
@@ -153,6 +153,54 @@ func (c *Client) Version(ctx context.Context) (Version, error) {
 	var v Version
 	err := c.Plugin(ctx, "version", &v)
 	return v, err
+}
+
+// VersionError means that the plugin does not speak the interface this package is written against.
+type VersionError struct {
+	Message string
+}
+
+func (e *VersionError) Error() string {
+	return e.Message
+}
+
+// CheckVersion asks the plugin for its version, and fails with a VersionError when it is older than this package or
+// speaks another interface.
+func (c *Client) CheckVersion(ctx context.Context) (Version, error) {
+	v, err := c.Version(ctx)
+	if err != nil {
+		var pe *Error
+		if errors.As(err, &pe) && (pe.Code == "" || pe.Code == "invalid_arguments") {
+			return v, &VersionError{Message: "the hyprmasq plugin has no version command, so it is older than this server"}
+		}
+		return v, err
+	}
+	if v.Interface != Interface {
+		return v, &VersionError{Message: fmt.Sprintf("the hyprmasq plugin %s has interface %d, but this server needs interface %d", v.Version, v.Interface, Interface)}
+	}
+	return v, nil
+}
+
+// HookGroup is a group of the plugin's hooks as hooks check found it: installed, installs (it could be installed, and
+// was removed again) or refused, with why.
+type HookGroup struct {
+	Name    string `json:"name"`
+	State   string `json:"state"`
+	Refused *Error `json:"refused"`
+}
+
+// HooksCheck is the reply of hooks check: whether the running Hyprland takes every group of hooks.
+type HooksCheck struct {
+	All    bool        `json:"all"`
+	Groups []HookGroup `json:"groups"`
+}
+
+// HooksCheck has the plugin install each group of hooks that is not installed and remove it again, on Hyprland's main
+// thread, and reports whether each one installs.
+func (c *Client) HooksCheck(ctx context.Context) (HooksCheck, error) {
+	var h HooksCheck
+	err := c.Plugin(ctx, "hooks check", &h)
+	return h, err
 }
 
 type Size struct {
