@@ -174,10 +174,13 @@ into one `act` call, which is why runs take fewer turns and far less context:
 
 ## Benchmarks
 
-Fifteen models on ten desktop tasks in an offline VM. Current Anthropic and
-OpenAI models and Google's Gemini 4 Neon passed 90 to 100% of each task's runs
-on average, all but the small `gpt-6-luna`, and no run of any model changed the
-user's focus or workspace. See the [benchmarks](docs/benchmarks.md).
+Fifteen models on ten desktop tasks in an offline VM. Most current models of
+Anthropic and OpenAI passed 90 to 100% of each task's runs on average, and no
+run of any model changed the user's focus or workspace. Google's Gemini 4 Neon
+passed all 30 of its runs, but slowly: it runs only in the Antigravity CLI,
+which hands the model each screenshot as a file to open with a request of its
+own, and its runs took about three times as long. See the
+[benchmarks](docs/benchmarks.md).
 
 Beside three other computer use tools for Linux, hyprmasq was the one that
 left the user's view alone in every run, and the others took 1.5 to 3.4
@@ -193,9 +196,10 @@ OpenAI's and Claude's computer use and Cua Driver on a Mac.
 
 ## Limits and trust
 
-- Reliable work needs a current model from Anthropic, OpenAI or Google, such
-  as Opus 5.5 or Gemini 4 Neon. Others fail more often on anything but forms
-  and keyboard work.
+- Reliable work needs a current model from Anthropic or OpenAI, such as
+  Opus 5.5. Gemini 4 Neon passed all its runs, but is slow in the Antigravity
+  CLI, the only way to run it. Others fail more often on anything but forms and
+  keyboard work.
   See the [tested models](docs/benchmarks.md#models).
 - Wayland windows are the main target. XWayland windows work with
   [caveats](docs/automation.md#x11-windows).
