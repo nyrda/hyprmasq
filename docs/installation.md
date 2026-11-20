@@ -457,6 +457,16 @@ server. It needs:
 Its settings, in `~/.config/hyprmasq/mcp.toml` or as options such as
 `--max-image-size`, are described in [Configuration](mcp.md#configuration).
 
+Check all of that in one command, inside the Hyprland session:
+
+```sh
+hyprmasq-mcp --check
+```
+
+It prints a line for each check, and exits with status 0 when the server can
+work, also when only recordings cannot, and 1 when it cannot. See
+[Configuration](mcp.md#configuration) for what it checks.
+
 **Claude Code:**
 
 ```sh
@@ -545,6 +555,7 @@ If the client strips environment variables like Codex does, pass through
 | `the server did not offer a pointer and a keyboard` | Hyprland has no active keyboard with a keymap, which happens in some headless setups. |
 | Input arrives but the screenshot looks unchanged | The application has not drawn yet. Wait with `wait … since` before the screenshot. See [Waiting](automation.md#waiting). |
 | A launch times out and the window opens on your workspace | The application handed the request to an instance that was already running, or `hyprmasq-reaper` was not found. Start a separate instance, and check Hyprland's log for a hyprmasq warning. |
+| Something of `hyprmasq-mcp` does not work | Run `hyprmasq-mcp --check` inside the Hyprland session, with the options that the client passes. Its `FAIL` lines say which part is missing and why, also why the plugin refused to load and which hooks Hyprland refuses. |
 | `hyprmasq-mcp` tools fail with `plugin_missing` | The plugin is not loaded, or the server's `HYPRLAND_INSTANCE_SIGNATURE` names another Hyprland. Start the agent inside the Hyprland session. |
 | `hyprmasq-mcp` tools fail with `plugin_version` | The plugin and the server come from different releases. Use both from one release, and reload the plugin after updating it. |
 | `hyprmasq-input is not on PATH; pass --input` | Use the Nix package's `hyprmasq-mcp` wrapper, put `hyprmasq-input` on `PATH`, or pass `--input`. |

@@ -88,6 +88,9 @@ which then come from a clone. See [hyprpm](docs/installation.md#hyprpm).
 
 ### With an agent
 
+`hyprmasq-mcp --check`, run inside the Hyprland session, says whether the
+plugin, its hooks and the tools are ready, and what is missing if not.
+
 Register the MCP server with your agent, for example Claude Code:
 
 ```sh

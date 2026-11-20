@@ -4,6 +4,7 @@
 package record
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -114,9 +115,9 @@ type Recording struct {
 // Start begins a recording: it checks that ffmpeg runs and creates the directory, and names the files. ffmpeg starts
 // with the first frame, which sets the size of the video.
 func Start(mode Mode, opts Options, now time.Time) (*Recording, error) {
-	ffmpeg, err := exec.LookPath(opts.FFmpeg)
+	ffmpeg, err := lookFFmpeg(opts.FFmpeg)
 	if err != nil {
-		return nil, fmt.Errorf("recording needs ffmpeg, and %q cannot be run: %w", opts.FFmpeg, unwrapExec(err))
+		return nil, err
 	}
 	dir, err := ExpandDir(opts.Dir, os.Getenv)
 	if err != nil {
@@ -152,6 +153,44 @@ func Start(mode Mode, opts Options, now time.Time) (*Recording, error) {
 		r.gifPath = filepath.Join(dir, name+".gif")
 	}
 	return r, nil
+}
+
+// lookFFmpeg finds the ffmpeg binary that record.ffmpeg names, on PATH or as a path.
+func lookFFmpeg(name string) (string, error) {
+	ffmpeg, err := exec.LookPath(name)
+	if err != nil {
+		return "", fmt.Errorf("recording needs ffmpeg, and %q cannot be run: %w", name, unwrapExec(err))
+	}
+	return ffmpeg, nil
+}
+
+// CheckFFmpeg checks that recordings can run: that the ffmpeg binary that name names runs, and has the libx264 encoder
+// that the videos are written with. It returns the binary's path.
+func CheckFFmpeg(ctx context.Context, name string) (string, error) {
+	ffmpeg, err := lookFFmpeg(name)
+	if err != nil {
+		return "", err
+	}
+	cmd := exec.CommandContext(ctx, ffmpeg, "-hide_banner", "-nostdin", "-encoders")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if ctx.Err() != nil {
+			return ffmpeg, fmt.Errorf("%s did not list its encoders in time: %w", ffmpeg, ctx.Err())
+		}
+		if msg := strings.Join(strings.Fields(stderr.String()), " "); msg != "" {
+			return ffmpeg, fmt.Errorf("%s cannot list its encoders: %s", ffmpeg, msg)
+		}
+		return ffmpeg, fmt.Errorf("%s cannot list its encoders: %w", ffmpeg, err)
+	}
+	// A line of the list is its flags, the encoder's name and its description.
+	for _, line := range strings.Split(string(out), "\n") {
+		if fields := strings.Fields(line); len(fields) >= 2 && fields[1] == "libx264" {
+			return ffmpeg, nil
+		}
+	}
+	return ffmpeg, fmt.Errorf("recording needs ffmpeg with the libx264 encoder, which %s does not have", ffmpeg)
 }
 
 func unwrapExec(err error) error {

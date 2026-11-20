@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -33,6 +31,7 @@ func main() {
 	graceMs := flag.Int("new-window-grace-ms", defaults.NewWindowGraceMs, "how long act goes on watching for new windows after its wait, in milliseconds, when it delivered input")
 	structured := flag.String("structured-content", defaults.StructuredContent,
 		"give results structured content: `auto` (not to clients that show it to the model in place of the text), always or never")
+	check := flag.Bool("check", false, "check the settings, Hyprland, the plugin and its hooks, hyprmasq-input and ffmpeg, print what it found and exit, with status 1 when the server could not work")
 	version := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
 	if *version {
@@ -82,26 +81,24 @@ func main() {
 		os.Exit(2)
 	}
 
+	if *check {
+		os.Exit(runCheck(os.Stdout, path, cfg, os.Getenv))
+	}
+
 	runtime := os.Getenv("XDG_RUNTIME_DIR")
 	instance := os.Getenv("HYPRLAND_INSTANCE_SIGNATURE")
-	if runtime == "" || instance == "" {
-		log.Fatal("XDG_RUNTIME_DIR and HYPRLAND_INSTANCE_SIGNATURE must name the Hyprland to drive")
-	}
-	stateDir := filepath.Join(runtime, "hyprmasq", instanceDir(instance))
-	// The plugin splits a request into words at whitespace, and a screenshot request names a file in the directory.
-	if strings.ContainsAny(stateDir, " \t\n\v\f\r") {
-		log.Fatalf("the directory for screenshots, %q, contains whitespace, which a request to the plugin cannot carry; run Hyprland with an XDG_RUNTIME_DIR without it", stateDir)
+	socket, stateDir, err := hyprlandPaths(runtime, instance)
+	if err != nil {
+		log.Fatal(err)
 	}
 	if cfg.Input == "" {
-		path, err := exec.LookPath("hyprmasq-input")
-		if err != nil {
-			log.Fatal("hyprmasq-input is not on PATH; pass --input")
+		if cfg.Input, err = findInput(""); err != nil {
+			log.Fatal(err)
 		}
-		cfg.Input = path
 	}
 
 	s := server.New(server.Config{
-		HyprlandSocket:    filepath.Join(runtime, "hypr", instance, ".socket.sock"),
+		HyprlandSocket:    socket,
 		StateDir:          stateDir,
 		RuntimeDir:        runtime,
 		Input:             cfg.Input,

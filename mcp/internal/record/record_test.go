@@ -107,3 +107,32 @@ func TestStartReservesNames(t *testing.T) {
 		t.Errorf("the recordings are %s and %s", a.Path(), b.Path())
 	}
 }
+
+// CheckFFmpeg passes an ffmpeg that lists the libx264 encoder, which the videos are written with, and says why it
+// fails one without it, one that cannot list its encoders, and one that does not exist.
+func TestCheckFFmpeg(t *testing.T) {
+	for _, c := range []struct {
+		name, script string
+		want         string // in the error, or "" for none
+	}{
+		{name: "libx264", script: `[ "$*" = "-hide_banner -nostdin -encoders" ] || exit 1
+echo 'Encoders:'
+echo ' V....D libx264              libx264 H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10 (codec h264)'`},
+		// libx264rgb is another encoder, which the videos do not use.
+		{name: "without libx264", script: "echo ' V....D libx264rgb           libx264 H.264 RGB'\necho ' V....D libopenh264          OpenH264 H.264'",
+			want: "recording needs ffmpeg with the libx264 encoder, which FFMPEG does not have"},
+		{name: "failing", script: "echo 'Unrecognized option' >&2\nexit 1", want: "FFMPEG cannot list its encoders: Unrecognized option"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			ffmpeg := fakeFFmpeg(t, c.script).FFmpeg
+			path, err := CheckFFmpeg(context.Background(), ffmpeg)
+			want := strings.ReplaceAll(c.want, "FFMPEG", ffmpeg)
+			if path != ffmpeg || (want == "") != (err == nil) || (err != nil && !strings.Contains(err.Error(), want)) {
+				t.Errorf("%q, %v; want %q", path, err, want)
+			}
+		})
+	}
+	if _, err := CheckFFmpeg(context.Background(), "/nonexistent/ffmpeg"); err == nil || !strings.HasPrefix(err.Error(), `recording needs ffmpeg, and "/nonexistent/ffmpeg" cannot be run: `) {
+		t.Errorf("a missing ffmpeg: %v", err)
+	}
+}

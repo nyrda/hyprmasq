@@ -796,20 +796,12 @@ func canonicalWindow(window string) (string, error) {
 
 // checkPlugin makes sure that the plugin is loaded and speaks this server's interface.
 func (s *Server) checkPlugin(ctx context.Context) error {
-	v, err := s.hypr.Version(ctx)
-	if err != nil {
-		var pe *hypr.Error
-		if errors.As(err, &pe) && (pe.Code == "" || pe.Code == "invalid_arguments") {
-			return &toolError{Code: "plugin_version", Message: "the hyprmasq plugin has no version command, so it is older than this server", Hint: hintPluginUser}
-		}
-		return err
+	_, err := s.hypr.CheckVersion(ctx)
+	var ve *hypr.VersionError
+	if errors.As(err, &ve) {
+		return &toolError{Code: "plugin_version", Message: ve.Message, Hint: hintPluginUser}
 	}
-	if v.Interface != hypr.Interface {
-		return &toolError{Code: "plugin_version",
-			Message: fmt.Sprintf("the hyprmasq plugin %s has interface %d, but this server needs interface %d", v.Version, v.Interface, hypr.Interface),
-			Hint:    hintPluginUser}
-	}
-	return nil
+	return err
 }
 
 // openState returns the window's state with its socket open, so its commits are counted. Given the stable_id of the
