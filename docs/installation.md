@@ -1,6 +1,6 @@
 # Installation
 
-hyprmasq 0.4.0 is built and tested against **Hyprland v0.57.2** at the
+hyprmasq 0.5.0 is built and tested against **Hyprland v0.57.2** at the
 release commit `flake.lock` pins, and against **v0.56.2**, the release before
 it, on x86_64 Linux. Both build from the same source, see
 [Older Hyprland releases](#older-hyprland-releases).
@@ -137,7 +137,7 @@ updating Hyprland until you removed hyprmasq.
   `hyprmasq-plugin-bin` and `hyprmasq-bin` pin each by its hash, and
   `hyprmasq` the release's archive.
 - Each plugin `hyprmasq-<version>-hyprland-<release>.so` and the tools archive
-  `hyprmasq-<version>-x86_64.tar.gz` of a release after 0.4.0 carries a GitHub
+  `hyprmasq-<version>-x86_64.tar.gz` from release 0.5.0 on carries a GitHub
   build provenance attestation: a record, signed through Sigstore, of the
   file's hash and the workflow run, tag and commit that built it. Check a file
   that you downloaded from the release, or the one that your AUR helper keeps
@@ -178,8 +178,8 @@ through `proxy.golang.org`, or from their repositories with
 `GOPROXY=direct makepkg -si`. makepkg builds in `build/makepkg` of the clone,
 or under `BUILDDIR` when you set one, and writes the package files to the
 clone's root. `pacman -Q hyprmasq` shows a version such as
-`0.4.0.r12.g5e0bb2a`: the `VERSION` file, the number of commits and the
-commit. The programs report the `VERSION`, here `0.4.0`.
+`0.5.0.r12.g5e0bb2a`: the `VERSION` file, the number of commits and the
+commit. The programs report the `VERSION`, here `0.5.0`.
 
 It installs the plugin as `/usr/lib/hyprmasq/hyprmasq.so`, and as the loader
 `/etc/xdg/hypr/hyprmasq_plugin.lua` the line
