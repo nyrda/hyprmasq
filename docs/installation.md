@@ -135,8 +135,21 @@ updating Hyprland until you removed hyprmasq.
   repository's GitHub Actions from the release tag, with public logs, and
   attached to the GitHub release, where they are never replaced.
   `hyprmasq-plugin-bin` and `hyprmasq-bin` pin each by its hash, and
-  `hyprmasq` the release's archive. The project does not sign its releases
-  yet.
+  `hyprmasq` the release's archive.
+- Each plugin `hyprmasq-<version>-hyprland-<release>.so` and the tools archive
+  `hyprmasq-<version>-x86_64.tar.gz` of a release after 0.4.0 carries a GitHub
+  build provenance attestation: a record, signed through Sigstore, of the
+  file's hash and the workflow run, tag and commit that built it. Check a file
+  that you downloaded from the release, or the one that your AUR helper keeps
+  in its build directory, with the [GitHub CLI](https://cli.github.com):
+
+  ```sh
+  gh attestation verify hyprmasq-<version>-x86_64.tar.gz --repo nyrda/hyprmasq
+  ```
+
+  It fails for a file that the repository's workflow did not build. Add
+  `--source-ref refs/tags/v<version>` to require the release's tag. The
+  release tags and the archive that `hyprmasq` builds from are not signed yet.
 - `go` refuses a module whose download does not match its hash in
   `mcp/go.sum`.
 

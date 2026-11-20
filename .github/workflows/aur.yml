@@ -7,7 +7,7 @@ name: AUR
 # - A release tag builds one plugin per Hyprland release that hyprmasq targets, on the oldest userland that runs it,
 #   and the tools on the oldest of those, checks that they load their libraries on each userland, verifies the
 #   Hyprland builds that the plugins run with packaging/aur/builds.py, attaches the plugins and the tools to the GitHub
-#   release and publishes the three packages.
+#   release with a build provenance attestation for each, and publishes the three packages.
 # - Every hour it looks for Hyprland builds that Arch or Omarchy's stable channel serve and the AUR's hyprland-builds
 #   does not list, verifies them against the released plugins, and publishes the list with a new pkgrel. It also checks
 #   that the plugins and tools still load their libraries. A build that fails gets one issue, not a failed run every
@@ -268,13 +268,17 @@ jobs:
           done
 
   # The plugins and tools of a release go on its GitHub release, which the tag's push creates when it does not exist. An
-  # asset is never replaced: the AUR pins it by its hash.
+  # asset is never replaced: the AUR pins it by its hash. Each new asset gets a build provenance attestation before it
+  # is attached, which `gh attestation verify` checks, see "Checking what you install" in docs/installation.md. Only this
+  # job can write attestations.
   release:
     needs: [plan, build, tools, userlands, verify]
     if: needs.plan.outputs.mode == 'release' && github.repository == 'nyrda/hyprmasq'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -285,7 +289,9 @@ jobs:
         with:
           name: tools
           path: assets
-      - env:
+      # An asset that is attached already keeps the attestation of the run that attached it.
+      - id: new
+        env:
           GH_TOKEN: ${{ github.token }}
           TAG: v${{ needs.plan.outputs.version }}
         run: |
@@ -294,13 +300,24 @@ jobs:
               --notes "The notes follow. See docs/development.md, Releasing."
           fi
           existing=$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          mkdir new
           for asset in assets/*; do
             if grep -qx "$(basename "$asset")" <<<"$existing"; then
               echo "$(basename "$asset") is attached already, and stays"
             else
-              gh release upload "$TAG" "$asset" -R "$GITHUB_REPOSITORY"
+              mv "$asset" new/
             fi
           done
+          echo "any=$(find new -type f | grep -q . && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: steps.new.outputs.any == 'true'
+        with:
+          subject-path: new/*
+      - if: steps.new.outputs.any == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.plan.outputs.version }}
+        run: gh release upload "$TAG" new/* -R "$GITHUB_REPOSITORY"
 
   # Builds and installs the packages as the AUR has them: a PR from the plugins and tools it built, a release and the
   # hourly run from the GitHub release, which then publish to the AUR. The hourly run builds hyprmasq-plugin-bin only.
