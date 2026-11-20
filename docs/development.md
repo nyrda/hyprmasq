@@ -354,10 +354,13 @@ one.
 2. Tag the PR's commit on `main` and push the tag:
    `git tag -a vX.Y.Z -m "hyprmasq X.Y.Z" <commit>`, then
    `git push origin vX.Y.Z`. The tags are not signed yet, as
-   [Checking what you build](installation.md#checking-what-you-build) says.
+   [Checking what you install](installation.md#checking-what-you-install) says.
 3. The tag's push runs `.github/workflows/aur.yml`: it builds the prebuilt
-   plugins and tools, creates the GitHub release with them attached, and
-   publishes the three [AUR packages](#aur-packages) of the release. Check that the run passed.
+   plugins and tools, creates the GitHub release with them attached, each
+   with a build provenance attestation, and publishes the three
+   [AUR packages](#aur-packages) of the release. Check that the run passed,
+   and that `gh attestation verify <file> --repo nyrda/hyprmasq` passes for a
+   downloaded plugin and the tools archive.
 4. Write the GitHub release's notes. They are the project's changelog: what
    changed since the last release, what a user has to change, and the Hyprland
    releases it builds against. Their links go to the docs at the tag,
@@ -421,5 +424,10 @@ with the next release.
 
 The verification and the issues run without secrets. Only the step that
 publishes has the AUR key, in the repository secret `AUR_SSH_PRIVATE_KEY`.
+Only the job that attaches a release's plugins and tools has `id-token: write`
+and `attestations: write`: before it attaches a file that the release lacks, it
+attests the file's build provenance with `actions/attest-build-provenance`. A
+file that is attached already keeps the attestation of the run that attached
+it, and forks and PRs attest nothing.
 GitHub turns off a scheduled workflow after 60 days without a commit to the
 repository, so look at its runs after a quiet spell.
