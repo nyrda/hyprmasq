@@ -382,7 +382,7 @@ func recordRect(r hypr.Rect) record.Rect {
 
 // recordShot renders the whole window for the recording.
 func (s *Server) recordShot(ctx context.Context, window string) (*record.Frame, error) {
-	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
+	if err := s.makeShotDir(); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(s.shotDir, fmt.Sprintf("r%d.raw", s.detailSeq.Add(1)))

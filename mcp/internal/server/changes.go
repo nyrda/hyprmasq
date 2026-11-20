@@ -640,7 +640,7 @@ func (s *Server) keepsChanging(ctx context.Context, window string, a view, boxes
 	if err != nil || reply.Ended != "quiet" || !reply.RedrawObserved || deref(reply.SocketID) != a.at.socket || reply.Resizing {
 		return nil
 	}
-	if err := os.MkdirAll(s.shotDir, 0o700); err != nil {
+	if err := s.makeShotDir(); err != nil {
 		return nil
 	}
 	path := filepath.Join(s.shotDir, fmt.Sprintf("d%d.raw", s.detailSeq.Add(1)))

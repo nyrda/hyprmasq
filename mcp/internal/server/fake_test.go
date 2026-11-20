@@ -914,7 +914,9 @@ func (e *testEnv) newServer() *Server {
 			return !exited
 		}})
 	// Sessions in one test process share the pid, so they need their own shot directories and owners.
-	s.shotDir = filepath.Join(e.t.TempDir(), "shots")
+	shots := e.t.TempDir()
+	s.shotsPath = newPrivatePath(shots, filepath.Join(shots, "shots"))
+	s.shotDir = s.shotsPath.String()
 	s.owner = "mcp-test-" + randomHex(4)
 	e.t.Cleanup(func() { s.Shutdown(context.Background()) })
 	return s

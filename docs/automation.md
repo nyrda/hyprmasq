@@ -754,6 +754,11 @@ between you and the agent or script that drives your windows.
   `$HYPRLAND_INSTANCE_SIGNATURE` without its leading commit hash. Both
   directories must be owned by you with mode `0700`, and the socket is `0600`.
   There is no network listener.
+- `hyprmasq-mcp` keeps its shots in `mcp/<pid>/` and its lock files in the
+  instance's directory. It holds every directory from `$XDG_RUNTIME_DIR` down
+  to them to the same rule and creates missing ones with mode `0700`. It
+  refuses a symlink on the way or at a lock file, and a lock file that is not
+  a regular file of yours without access for its group and others.
 - Anyone who can connect to a window's socket controls that window, for
   example by typing commands into a terminal. This is the same user that can
   already run `hyprctl`, which can open any socket.
