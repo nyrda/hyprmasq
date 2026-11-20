@@ -65,15 +65,21 @@ they were compiled against:
 }
 ```
 
+Add `hyprland.cachix.org` to your substituters so Nix fetches Hyprland
+prebuilt instead of compiling it from source. See
+[NixOS module](docs/installation.md#nixos-module).
+
 **Load it** from `hyprland.lua`:
 
 ```lua
 dofile("/etc/xdg/hypr/hyprmasq_plugin.lua")
 ```
 
-On Arch with `hyprland.conf`, add `plugin = /usr/lib/hyprmasq/hyprmasq.so`
-instead. [Installation](docs/installation.md) covers `hyprland.conf` on NixOS,
-other Nix setups, older Hyprland releases and manual builds.
+Hyprland 0.57 reads only `hyprland.lua`. On Arch with Hyprland 0.56.2 and
+`hyprland.conf`, add `plugin = /usr/lib/hyprmasq/0.56.2/hyprmasq.so` for the
+AUR package (or `/usr/lib/hyprmasq/hyprmasq.so` for a build from a clone).
+[Installation](docs/installation.md) covers `hyprland.conf` on NixOS, other
+Nix setups, older Hyprland releases and manual builds.
 
 **hyprpm** installs the plugin alone, without the tools and the MCP server,
 which then come from a clone. See [hyprpm](docs/installation.md#hyprpm).
@@ -97,7 +103,10 @@ command = "hyprmasq-mcp"
 env_vars = ["XDG_RUNTIME_DIR", "HYPRLAND_INSTANCE_SIGNATURE"]
 ```
 
-[Installation](docs/installation.md#mcp-server) has the other clients.
+Any other stdio MCP client works the same way (`{"command": "hyprmasq-mcp"}`,
+inheriting `XDG_RUNTIME_DIR` and `HYPRLAND_INSTANCE_SIGNATURE`).
+[Installation](docs/installation.md#mcp-server) has `pi` and the other client
+options.
 
 Then ask for work that needs a window. The agent starts the app on a hidden
 workspace and you keep yours:
@@ -131,6 +140,35 @@ hyprctl hyprmasq screenshot "$addr" /tmp/foot.png      # render just that window
 hyprctl hyprmasq eis close "$addr"
 ```
 
+## How it works
+
+hyprmasq has two halves: a **Hyprland plugin** that isolates each window
+inside the compositor, and an **MCP server** built around a single `act` loop.
+
+Because the plugin runs inside Hyprland, it can render any window offscreen
+and route input directly to that window while your cursor, focus, clipboard
+and workspace stay untouched. Hidden windows keep redrawing while driven, and
+new dialogs or popups open silently on the driven window's workspace instead
+of yours.
+
+On top of that, `hyprmasq-mcp` folds the usual click → wait → screenshot cycle
+into one `act` call, which is why runs take fewer turns and far less context:
+
+- **Batch in shot pixels.** Every screenshot has a short ID (`s4`), and `act`
+  takes coordinates directly in that image's pixels (full window or zoomed
+  crop), so the model can batch visible clicks, typing, drags and scrolls in
+  one call without converting coordinates.
+- **Guard rails before input.** Before sending anything, `act` validates every
+  key and coordinate, checks that the target has not moved or resized since
+  the shot, and holds back a click that would miss an open menu or dropdown.
+- **Wait for real redraws, not fixed sleeps.** After input, it waits for the
+  window to draw its response and settle, ignoring blinking carets, spinners
+  and fading scrollbars, and reports any new dialog or popup that appeared.
+- **Return only what changed.** Instead of sending a fresh full-screen capture
+  every turn, `act` compares the window to the earlier shot and returns small
+  crops of the changed areas, switching to a full window shot only when a
+  scroll or large update needs one. See [act](docs/mcp.md#act).
+
 ## Benchmarks
 
 Fourteen models on ten desktop tasks in an offline VM. Current Anthropic and
@@ -141,7 +179,9 @@ workspace. See the [benchmarks](docs/benchmarks.md).
 Beside three other computer use tools for Linux, hyprmasq was the one that
 left the user's view alone in every run, and the others took 1.5 to 3.4
 times as long. hyprmasq's author ran that series: the
-[comparison](docs/comparison.md) has its rules, its limits and every run.
+[comparison](docs/comparison.md) has its rules, its limits and every run, and
+an [addendum on macOS](docs/comparison-macos.md) sets four of the tasks beside
+OpenAI's and Claude's computer use and Cua Driver on a Mac.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/benchmarks/glance-dark.svg">
