@@ -2,14 +2,15 @@
 
 Contributions are welcome as pull requests against `main`.
 
-hyprmasq is developed with Nix on x86_64 Linux with KVM. The build, the
-checks and the test gate all run through the flake, and there is no other
-supported setup. A pull request passes the test gate, `./dev.sh gate`, on its
-head commit before it is opened, unless it changes none of the plugin, its
-tools, the MCP server, the NixOS module and the test.
+hyprmasq is developed with Nix on x86_64 Linux with KVM. A pull request that
+changes the plugin, its tools, the MCP server, the NixOS module or the test
+passes the local test gate, `./dev.sh gate`, on its head commit before it is
+opened. Changes to docs or `bench/` alone skip the gate, and `mcp/` has a fast
+Go test suite (`go test ./...`) for local iteration without booting the test VM.
 
 [Development](docs/development.md#contributing) has the steps, the checks and
 the test gate, and the pull request template asks for their results.
 
-A bug goes to the issues, with the versions that the form asks for. A
-vulnerability is reported privately, as [Security](SECURITY.md) says.
+Bug reports are welcome from any setup: open an issue with the versions the
+form asks for. Report a vulnerability privately, as [Security](SECURITY.md)
+says.

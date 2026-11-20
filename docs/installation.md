@@ -499,6 +499,22 @@ plus about 6 seconds.
 descriptions and images. pi then shows the model none of the server's
 instructions, but the tool descriptions carry every rule, so nothing is lost.
 
+**Other stdio MCP clients** (such as OpenCode, Cursor or VS Code): configure a
+stdio server running `hyprmasq-mcp` with the Hyprland session's environment:
+
+```json
+{
+  "mcpServers": {
+    "hyprmasq": {
+      "command": "hyprmasq-mcp"
+    }
+  }
+}
+```
+
+If the client strips environment variables like Codex does, pass through
+`XDG_RUNTIME_DIR` and `HYPRLAND_INSTANCE_SIGNATURE`.
+
 ## Troubleshooting
 
 | Symptom | Check |
