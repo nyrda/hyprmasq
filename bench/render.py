@@ -2354,14 +2354,16 @@ def render_block(markdown_path, dataset, view, arg, files):
         raise SystemExit(f"render.py: {markdown_path}: two blocks draw the figure {stem}")
     for theme, suffix in (("light", ""), ("dark", "-dark")):
         files[os.path.join(doc_dir, base, stem + suffix + ".svg")] = svg.render(theme, alt)
-    # The datasets' notes, such as which build a model ran on, stand under the overview, not inside a figure.
+    # The datasets' notes, such as which build a model ran on, stand under the overview, not inside a figure: folded,
+    # a dataset's a line, as the figure's own footer says that builds and machines differ between sets.
     notes = data.get("notes", []) if view in ("scoreboard", "glance") else []
     return (
         "<picture>\n"
         f'  <source media="(prefers-color-scheme: dark)" srcset="{base}/{stem}-dark.svg">\n'
         f'  <img alt="{html.escape(alt)}" src="{base}/{stem}.svg">\n'
         "</picture>\n"
-        + (f"\n<sub>{html.escape(' '.join(notes))}</sub>\n" if notes else "")
+        + ("\n<details><summary>Which runs each model had, on which build</summary>\n\n"
+           + "".join(f"- {html.escape(note)}\n" for note in notes) + "\n</details>\n" if notes else "")
     )
 
 

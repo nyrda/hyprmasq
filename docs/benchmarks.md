@@ -18,7 +18,16 @@ disturbed the user, and every failure was the model's own.
   <img alt="Runs passed, time and cost per model. 585 of 686 runs passed. A row per model, the best first by its pass rate, the mean of its tasks&#x27; shares of runs passed, with that rate, its runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run. The runs took place from 29 Oct to 20 Nov 2026." src="benchmarks/glance.svg">
 </picture>
 
-<sub>Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026. gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026. Builds and machines differ, so times compare roughly. Qwen 3.8 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. GLM 5.3 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. gpt-6.2-astra and gpt-6.2-sol ran each task four times at medium, two on each of two machines, on main&#x27;s 0c3f8ed on 18 Nov 2026. In Forgejo, gpt-6.2-sol asked the user before it granted the dashboard access, and went on after the user&#x27;s reply. Gemini 4 Neon ran each task three times at medium through the Antigravity CLI, once on each of the three machines, on main&#x27;s 0c3f8ed on 20 Nov 2026. agy hands the model a tool&#x27;s screenshots as files, which it opens with a call of its own.</sub>
+<details><summary>Which runs each model had, on which build</summary>
+
+- gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026.
+- Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026.
+- Qwen 3.8 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026.
+- GLM 5.3 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026.
+- gpt-6.2-astra and gpt-6.2-sol ran each task four times at medium, two on each of two machines, on main&#x27;s 0c3f8ed on 18 Nov 2026. In Forgejo, gpt-6.2-sol asked the user before it granted the dashboard access, and went on after the user&#x27;s reply.
+- Gemini 4 Neon ran each task three times at medium through the Antigravity CLI, once on each of the three machines, on main&#x27;s 0c3f8ed on 20 Nov 2026.
+
+</details>
 <!-- /render -->
 
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon overview -->
@@ -915,7 +924,11 @@ The six models of the initial baseline at `9ae9280` on 19 Oct, and Terra on late
   <img alt="Runs passed and cost. 74 of 84 runs passed. A row per task shows the share of each agent&#x27;s runs of it that passed, and the rows below each agent&#x27;s runs passed and cost per passed run." src="benchmarks/scoreboard.svg">
 </picture>
 
-<sub>Terra ran on later builds than the other models: fa3f170 on 26–27 Oct 2026, and Forgejo on 05ce488, with #87, on 27 Oct. The others ran the initial baseline, 9ae9280, on 19 Oct 2026.</sub>
+<details><summary>Which runs each model had, on which build</summary>
+
+- Terra ran on later builds than the other models: fa3f170 on 26–27 Oct 2026, and Forgejo on 05ce488, with #87, on 27 Oct. The others ran the initial baseline, 9ae9280, on 19 Oct 2026.
+
+</details>
 <!-- /render -->
 
 <!-- render release-0.1.0,terra-tasks time -->

@@ -168,7 +168,9 @@ class Load(unittest.TestCase):
             main(page)
             with open(page) as f:
                 text = f.read()
-            self.assertEqual(text.count(f"<sub>{note}</sub>"), 1)
+            # Folded, a dataset's note a line.
+            self.assertEqual(text.count(f"- {note}\n"), 1)
+            self.assertLess(text.index("<details><summary>Which runs"), text.index(note))
             self.assertLess(text.index(note), text.index("render old,new time"))
 
     def test_joined_datasets_keep_every_run(self):
