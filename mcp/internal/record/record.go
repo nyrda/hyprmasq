@@ -172,6 +172,8 @@ func CheckFFmpeg(ctx context.Context, name string) (string, error) {
 		return "", err
 	}
 	cmd := exec.CommandContext(ctx, ffmpeg, "-hide_banner", "-nostdin", "-encoders")
+	// A wrapper whose child keeps the pipes open does not hold the check past its time.
+	cmd.WaitDelay = time.Second
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

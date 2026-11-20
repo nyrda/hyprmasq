@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -61,6 +62,27 @@ func findInput(input string) (string, error) {
 	return path, nil
 }
 
+// runInput checks that the hyprmasq-input binary at path starts, which a binary whose loader or libraries are missing
+// does not, by running it with --version. It returns the version line.
+func runInput(ctx context.Context, path string) (string, error) {
+	cmd := exec.CommandContext(ctx, path, "--version")
+	// A child that keeps the pipes open does not hold the check past its time.
+	cmd.WaitDelay = time.Second
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("%s --version did not finish in time", path)
+		}
+		if msg := strings.Join(strings.Fields(stderr.String()), " "); msg != "" {
+			return "", fmt.Errorf("%s does not start: %s", path, msg)
+		}
+		return "", fmt.Errorf("%s does not start: %v", path, err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // checker writes a line for each check, and counts the failures and warnings.
 type checker struct {
 	w        io.Writer
@@ -103,7 +125,17 @@ func runCheck(w io.Writer, configPath string, cfg config.Config, getenv func(str
 	if path, err := findInput(cfg.Input); err != nil {
 		c.report(checkFail, "hyprmasq-input", err.Error())
 	} else {
-		c.report(checkOK, "hyprmasq-input", path)
+		ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
+		version, err := runInput(ctx, path)
+		cancel()
+		switch {
+		case err != nil:
+			c.report(checkFail, "hyprmasq-input", err.Error())
+		case version != "":
+			c.report(checkOK, "hyprmasq-input", path+", "+version)
+		default:
+			c.report(checkOK, "hyprmasq-input", path)
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)

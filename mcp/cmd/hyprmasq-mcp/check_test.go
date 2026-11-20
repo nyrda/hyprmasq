@@ -71,7 +71,7 @@ func script(t *testing.T, name, body string) string {
 
 func TestCheck(t *testing.T) {
 	ffmpeg := script(t, "ffmpeg", "echo ' V....D libx264              libx264 H.264 / AVC / MPEG-4 AVC'\n")
-	input := script(t, "hyprmasq-input", "")
+	input := script(t, "hyprmasq-input", "echo 'hyprmasq-input 0.4.0'\n")
 	refusal := "this hyprmasq package has no plugin for the running Hyprland build 11cbc6c577b8 yet."
 	for _, c := range []struct {
 		name    string
@@ -85,7 +85,7 @@ func TestCheck(t *testing.T) {
 	}{
 		{name: "healthy", replies: map[string]string{"j/hyprmasq version": healthyVersion, "j/hyprmasq hooks check": healthyHooks},
 			want: []string{"ok   configuration: no configuration file, the defaults and options\n", "ok   plugin: hyprmasq 0.4.0, interface 5\n",
-				"ok   hooks: all 2 groups of hooks install\n", "ok   hyprmasq-input: " + input + "\n", "with libx264\n", "hyprmasq-mcp is ready\n"}},
+				"ok   hooks: all 2 groups of hooks install\n", "ok   hyprmasq-input: " + input + ", hyprmasq-input 0.4.0\n", "with libx264\n", "hyprmasq-mcp is ready\n"}},
 		{name: "no Hyprland", status: 1,
 			want: []string{"FAIL plugin: cannot connect to Hyprland at ", "; HYPRLAND_INSTANCE_SIGNATURE may name another Hyprland\n",
 				"skip hooks: needs the plugin\n", "hyprmasq-mcp is not ready: 1 check failed\n"}},
@@ -110,6 +110,10 @@ func TestCheck(t *testing.T) {
 		{name: "missing hyprmasq-input", replies: map[string]string{"j/hyprmasq version": healthyVersion, "j/hyprmasq hooks check": healthyHooks},
 			input: "/nonexistent/hyprmasq-input", status: 1,
 			want: []string{"FAIL hyprmasq-input: \"/nonexistent/hyprmasq-input\" cannot be run: ", "; pass --input\n", "hyprmasq-mcp is not ready: 1 check failed\n"}},
+		// A sender that is there but does not start, as when its libraries are missing, fails.
+		{name: "hyprmasq-input does not start", replies: map[string]string{"j/hyprmasq version": healthyVersion, "j/hyprmasq hooks check": healthyHooks},
+			input: "broken", status: 1,
+			want: []string{" does not start: hyprmasq-input: error while loading shared libraries: libei.so.1\n", "hyprmasq-mcp is not ready: 1 check failed\n"}},
 		// Recordings are optional, so ffmpeg only warns.
 		{name: "missing ffmpeg", replies: map[string]string{"j/hyprmasq version": healthyVersion, "j/hyprmasq hooks check": healthyHooks},
 			ffmpeg: "/nonexistent/ffmpeg",
@@ -129,7 +133,11 @@ func TestCheck(t *testing.T) {
 			}
 			cfg := config.Defaults()
 			cfg.Input = input
-			if c.input != "" {
+			switch c.input {
+			case "":
+			case "broken":
+				cfg.Input = script(t, "hyprmasq-input", "echo 'hyprmasq-input: error while loading shared libraries: libei.so.1' >&2\nexit 127\n")
+			default:
 				cfg.Input = c.input
 			}
 			cfg.Record.FFmpeg = ffmpeg
@@ -160,7 +168,7 @@ func TestCheckOption(t *testing.T) {
 		t.Fatal(err)
 	}
 	ffmpeg := script(t, "ffmpeg", "echo ' V....D libx264 libx264 H.264'\n")
-	input := script(t, "hyprmasq-input", "")
+	input := script(t, "hyprmasq-input", "echo 'hyprmasq-input 0.4.0'\n")
 	if err := os.WriteFile(configPath, []byte("input = \""+input+"\"\n[record]\nffmpeg = \""+ffmpeg+"\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

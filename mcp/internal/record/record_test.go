@@ -136,3 +136,17 @@ echo ' V....D libx264              libx264 H.264 / AVC / MPEG-4 AVC / MPEG-4 par
 		t.Errorf("a missing ffmpeg: %v", err)
 	}
 }
+
+// A wrapper whose child keeps ffmpeg's output open does not hold CheckFFmpeg past its time.
+func TestCheckFFmpegTimesOut(t *testing.T) {
+	ffmpeg := fakeFFmpeg(t, "sleep 30 &\nsleep 30").FFmpeg
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if _, err := CheckFFmpeg(ctx, ffmpeg); err == nil || !strings.Contains(err.Error(), "did not list its encoders in time") {
+		t.Errorf("%v", err)
+	}
+	if took := time.Since(start); took > 10*time.Second {
+		t.Errorf("took %v", took)
+	}
+}

@@ -637,7 +637,7 @@ ok   configuration: /home/me/.config/hyprmasq/mcp.toml
 ok   environment: Hyprland 11cbc6c5…_1794313750_259448970 under /run/user/1000
 ok   plugin: hyprmasq 0.4.0, interface 5
 ok   hooks: all 9 groups of hooks install
-ok   hyprmasq-input: /usr/bin/hyprmasq-input
+ok   hyprmasq-input: /usr/bin/hyprmasq-input, hyprmasq-input 0.4.0
 warn ffmpeg: recording needs ffmpeg with the libx264 encoder, which /usr/bin/ffmpeg does not have; everything but recordings works without it
 hyprmasq-mcp is ready, with 1 warning
 ```
@@ -648,7 +648,7 @@ hyprmasq-mcp is ready, with 1 warning
 | `environment` | `XDG_RUNTIME_DIR` or `HYPRLAND_INSTANCE_SIGNATURE` is missing, or the directory for screenshots under them contains whitespace. |
 | `plugin` | Hyprland's socket cannot be reached, the plugin is not loaded, with the reason it left in `hyprmasq-refused` when it refused to load, or its interface is not the server's. |
 | `hooks` | `hyprctl hyprmasq hooks check` reports a group of hooks that the running Hyprland refuses, which the line names with the reason. |
-| `hyprmasq-input` | The binary that `input` or `--input` names, or `hyprmasq-input` on `PATH`, cannot be run. |
+| `hyprmasq-input` | The binary that `input` or `--input` names, or `hyprmasq-input` on `PATH`, is missing or does not start, as when its libraries are missing, which `--check` finds by running it with `--version`. |
 | `ffmpeg` | Never. It warns when the ffmpeg of `record.ffmpeg` cannot be run or lacks libx264, which only [recordings](#recording-a-demo) need. |
 
 A check that needs an earlier one, such as `hooks` after `plugin`, is skipped
