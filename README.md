@@ -174,7 +174,7 @@ into one `act` call, which is why runs take fewer turns and far less context:
 
 ## Benchmarks
 
-Fifteen models on ten desktop tasks in an offline VM. Most current models of
+Thirteen models on ten desktop tasks in an offline VM. Most current models of
 Anthropic and OpenAI passed 90 to 100% of each task's runs on average, and no
 run of any model changed the user's focus or workspace. Google's Gemini 4 Neon
 passed all 60 of its runs, but slowly: two and a half times as long through

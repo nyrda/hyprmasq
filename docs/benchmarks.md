@@ -15,13 +15,13 @@ disturbed the user, and every failure was the model's own.
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter glance -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model. 615 of 716 runs passed. A row per model, the best first by its pass rate, the mean of its tasks&#x27; shares of runs passed, with that rate, its runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run. The runs took place from 29 Oct to 21 Nov 2026." src="benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model. 436 of 512 runs passed. A row per model, the best first by its pass rate, the mean of its tasks&#x27; shares of runs passed, with that rate, its runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run. The runs took place from 29 Oct to 21 Nov 2026." src="benchmarks/glance.svg">
 </picture>
 
 <details><summary>Which runs each model had, on which build</summary>
 
-- gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026.
-- Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026.
+- gpt-6.1-terra and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026.
+- Opus 5.5, Haiku 5.5 and gpt-6-luna ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026.
 - Qwen 3.8 Flash ran each task three times on main&#x27;s e2acd79 on 4 Nov 2026.
 - GLM 5.3 Flash ran each task three times on main&#x27;s e2acd79 on 4 Nov 2026.
 - gpt-6.2-astra and gpt-6.2-sol ran each task four times at medium on main&#x27;s 0c3f8ed on 18 Nov 2026.
@@ -43,13 +43,11 @@ disturbed the user, and every failure was the model's own.
 | Model | Runs passed | What to expect |
 | --- | --- | --- |
 | Opus 5.5 | 40/40 | Passed every run. |
-| gpt-6.2-sol | 40/40 | Passed every run, board included, as fast and cheap as gpt-6.1-sol. In Forgejo it asks the user before it grants the dashboard access to Mara's account, and goes on after the user's reply. |
+| gpt-6.2-sol | 40/40 | Passed every run, board included, fast and cheap. In Forgejo it asks the user before it grants the dashboard access to Mara's account, and goes on after the user's reply. |
 | Gemini 4 Neon | 60/60, 30 in agy and 30 through pi | Passed every run, with about as many calls as the frontier models. Through Google Vertex it takes two and a half times their time. The Antigravity CLI, the only way to run it on a Google AI subscription, hands it each screenshot as a file it opens with a request of its own, nearly half its requests, and takes over three times their time. Google AI Studio, as OpenCode Zen serves it, waits about 4 seconds longer on every request than Vertex and cancels the API's gain. |
 | Sonnet 5.5 | 59/60 | Missed one run of the form with dropdowns. |
-| gpt-6.2-astra | 38/40 | Passes every task. Its two misses were the lookalike label on board, in `dnd`. It costs two thirds of what gpt-6-astra costs per passed run, and took longer per step on its release day. |
-| gpt-6-astra | 38/40 | Passes every task. Its two misses were Sol's and Terra's lookalike label on board. |
-| gpt-6.1-terra | 71/84, 37/40 at `high` | Passes every task but board, where it labels a lookalike part in about a third of its runs, at `high` as at `medium`. |
-| gpt-6.1-sol | 68/84, 36/40 at `high` | As Terra. `high` helped it on board in the first set of reruns, not in the later one. |
+| gpt-6.2-astra | 38/40 | Passes every task. Its two misses were the lookalike label on board, in `dnd`. It took longer per step on its release day. |
+| gpt-6.1-terra | 71/84 | Passes every task but board, where it labels a lookalike part in about a third of its runs. |
 | Haiku 5.5 | 36/40 | Close to the frontier models, fast and cheap. It missed half its board-pointer runs. |
 | Kimi K3.1 Pro | 8/10 | Passes the long form, mail and web tasks, but slowly, and draws imprecisely. |
 | Qwen 3.8 Flash | 21/30 | Passed every run of files, Forgejo, Inkscape, Thunderbird and both forms, at about two cents a run, but slowly. It passed one board run and no trace run, most of them ending at the call budget. |
@@ -68,14 +66,8 @@ that hyprmasq caused was fixed. Tasks it was not developed against may still fin
 
 | Model | Task | Runs | What happened |
 | --- | --- | --- | --- |
-| gpt-6.1-sol | Board | 9 `dnd`, 5 `pointer` | Put the CPU power headers' label on the 5-pin header beside the memory slots, a part the task names as a lookalike. One `pointer` run also put the M.2 slots' label beside its part. |
-| gpt-6.1-sol | Board | 2 `dnd` | Put the M.2 slots' label beside its part, and in the other run the CPU power headers' label on the fan headers and the SATA ports' label beside their part. |
-| gpt-6.1-terra | Board | 8 `dnd`, 5 `pointer` | Put the CPU power headers' label on the lookalike. One `dnd` run also put the BMC chip's label beside its part. |
+| gpt-6.1-terra | Board | 8 `dnd`, 5 `pointer` | Put the CPU power headers' label on the 5-pin header beside the memory slots, a part the task names as a lookalike. One `dnd` run also put the BMC chip's label beside its part. |
 | Sonnet 5.5 | Form with dropdowns | 1 | Ticked Anvil instead of Kettle in question 9. |
-| gpt-6.1-sol | Board | 2 `dnd`, 1 `pointer` at `high` | Put the CPU power headers' label on the lookalike. |
-| gpt-6.1-sol | Trace | 1 at `high` | Covered 90.5% of the bank. |
-| gpt-6.1-terra | Board | 2 `dnd`, 1 `pointer` at `high` | Put the CPU power headers' label on the lookalike. |
-| gpt-6-astra | Board | 1 `dnd`, 1 `pointer` | Put the CPU power headers' label on the lookalike. |
 | gpt-6.2-astra | Board | 2 `dnd` | Put the CPU power headers' label on the lookalike. |
 | Haiku 5.5 | Board-pointer | 2 | Left the BMC chip's label on no part, and in the other run put the SATA ports' label on the memory slots. |
 | Haiku 5.5 | Calc | 1 | Averaged the wrong range and left out the growth formula. |
@@ -101,8 +93,8 @@ that hyprmasq caused was fixed. Tasks it was not developed against may still fin
 | GLM 5.3 Flash | Form without dropdowns | 2 | Clicked beside the checkbox of 7 in question 4 and did not look again, and in the other run ran out of calls before Submit. |
 | GLM 5.3 Flash | Calc | 2 | Ran out of calls with the sheet unsaved, and in the other run retyped the sheet's note in other words. |
 
-The two board variants differ only in how the page takes a drag, and every label landed where the agent aimed it. Sol
-and Terra still chose the lookalike more often in `dnd`, where a drag's result reads differently, which seems to tip a
+The two board variants differ only in how the page takes a drag, and every label landed where the agent aimed it.
+Terra and gpt-6.2-astra still chose the lookalike more often in `dnd`, where a drag's result reads differently, which seems to tip a
 close call.
 
 </details>
@@ -118,11 +110,7 @@ close call.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 2/4 | 48 (39–89) | 12 (12–13) | 7.9 (6.8–11.0) | 3 (2–5) | 9 (9–10) | 2 (2–4) |
 | gpt-6.2-sol | medium | 4/4 | 47 (43–54) | 13 (13–13) | 6.1 (4.6–6.6) | 5 (4–6) | 9 (9–9) | 4 (3–6) |
-| gpt-6.1-sol | medium | 7/18 | 55 (44–68) | 12 (12–15) | 5.8 (4.6–9.2) | 5 (4–7) | 9 (9–11) | 4 (3–8) |
-| gpt-6.1-sol | high | 2/4 | 54 (50–58) | 12 (12–14) | 6.2 (4.8–6.8) | 5 (5–6) | 9 (9–9) | 4 (4–5) |
 | gpt-6.1-terra | medium | 10/18 | 29 (25–44) | 12 (11–13) | 4.3 (3.1–5.8) | 3 (2–7) | 9 (9–10) | 6 (2–12) |
-| gpt-6.1-terra | high | 2/4 | 31 (26–40) | 12 (11–13) | 5.3 (4.8–8.7) | 2 (2–3) | 9 (9–9) | 4 (2–6) |
-| gpt-6-astra | medium | 3/4 | 57 (41–74) | 13 (12–15) | 6.8 (6.7–8.6) | 4 (4–6) | 9 (9–10) | 4 (3–5) |
 | Opus 5.5 | medium | 4/4 | 52 (45–63) | 15 (14–16) | 4.2 (4.1–4.8) | 8 (5–10) | 11 (9–12) | 16 (12–17) |
 | Sonnet 5.5 | medium | 6/6 | 32 (29–44) | 13 (12–19) | 3.3 (3.0–4.8) | 4 (3–7) | 9 (9–13) | 10 (8–12) |
 | Haiku 5.5 | high | 4/4 | 48 (42–55) | 14 (13–16) | 3.2 (3.1–3.5) | 6 (6–8) | 10 (9–11) | 6 (6–8) |
@@ -141,11 +129,7 @@ close call.
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 66 (54–90) | 76 (69–82) | 0 (0–0) | 0.170 (0.151–0.179) |
 | gpt-6.2-sol | medium | 108 (90–128) | 84 (76–91) | 1 (1–1) | 0.048 (0.041–0.069) |
-| gpt-6.1-sol | medium | 99 (81–135) | 86 (77–93) | 1 (1–1) | 0.046 (0.031–0.074) |
-| gpt-6.1-sol | high | 99 (99–117) | 84 (82–86) | 1 (1–1) | 0.051 (0.048–0.059) |
 | gpt-6.1-terra | medium | 65 (49–136) | 78 (68–88) | 1 (0–1) | 0.019 (0.016–0.045) |
-| gpt-6.1-terra | high | 50 (49–66) | 85 (74–88) | 1 (1–1) | 0.014 (0.012–0.017) |
-| gpt-6-astra | medium | 90 (81–115) | 85 (78–90) | 1 (1–1) | 0.244 (0.185–0.395) |
 | Opus 5.5 | medium | 116 (76–164) | 90 (89–93) | 3 (2–4) | 0.168 (0.126–0.192) |
 | Sonnet 5.5 | medium | 64 (42–95) | 88 (75–90) | 1 (1–2) | 0.039 (0.029–0.050) |
 | Haiku 5.5 | high | 115 (94–122) | 87 (86–89) | 6 (5–7) | 0.007 (0.006–0.008) |
@@ -169,11 +153,7 @@ close call.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 4/4 | 82 (74–123) | 12 (12–12) | 12.6 (5.9–17.3) | 4 (3–4) | 9 (9–9) | 3 (3–4) |
 | gpt-6.2-sol | medium | 4/4 | 50 (44–54) | 13 (13–13) | 6.5 (5.3–7.3) | 5 (4–5) | 9 (9–9) | 4 (4–7) |
-| gpt-6.1-sol | medium | 13/18 | 52 (38–79) | 13 (12–15) | 5.3 (3.5–8.5) | 6 (5–9) | 9 (9–11) | 5 (4–8) |
-| gpt-6.1-sol | high | 3/4 | 73 (66–76) | 13 (13–14) | 7.4 (6.6–8.7) | 6 (5–7) | 9 (9–10) | 6 (4–8) |
 | gpt-6.1-terra | medium | 13/18 | 34 (28–45) | 12 (12–14) | 3.9 (2.2–5.2) | 4 (2–8) | 9 (9–10) | 8 (3–15) |
-| gpt-6.1-terra | high | 3/4 | 50 (34–72) | 13 (12–15) | 4.9 (3.2–10.6) | 4 (4–8) | 9 (9–12) | 12 (11–17) |
-| gpt-6-astra | medium | 3/4 | 58 (52–73) | 13 (12–13) | 6.2 (5.4–10.3) | 5 (4–5) | 9 (9–9) | 4 (3–4) |
 | Opus 5.5 | medium | 4/4 | 49 (37–68) | 15 (13–16) | 4.5 (3.8–5.3) | 6 (5–8) | 10 (9–12) | 12 (8–15) |
 | Sonnet 5.5 | medium | 6/6 | 31 (26–45) | 13 (12–13) | 3.4 (2.4–5.2) | 4 (3–6) | 9 (9–10) | 10 (7–14) |
 | Haiku 5.5 | high | 2/4 | 68 (55–80) | 15 (15–18) | 3.7 (3.0–4.0) | 10 (6–10) | 10 (9–11) | 10 (6–10) |
@@ -192,11 +172,7 @@ close call.
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 74 (71–163) | 80 (75–88) | 0 (0–1) | 0.180 (0.106–0.299) |
 | gpt-6.2-sol | medium | 105 (90–108) | 87 (72–91) | 1 (1–1) | 0.047 (0.036–0.064) |
-| gpt-6.1-sol | medium | 114 (98–174) | 87 (71–93) | 1 (1–2) | 0.049 (0.034–0.074) |
-| gpt-6.1-sol | high | 119 (100–139) | 85 (82–91) | 2 (1–2) | 0.059 (0.054–0.065) |
 | gpt-6.1-terra | medium | 80 (49–157) | 82 (58–89) | 1 (1–1) | 0.023 (0.018–0.033) |
-| gpt-6.1-terra | high | 89 (79–151) | 86 (70–91) | 1 (1–2) | 0.026 (0.019–0.031) |
-| gpt-6-astra | medium | 98 (81–98) | 89 (83–91) | 1 (1–1) | 0.219 (0.197–0.284) |
 | Opus 5.5 | medium | 95 (61–131) | 90 (86–92) | 2 (2–3) | 0.140 (0.115–0.163) |
 | Sonnet 5.5 | medium | 64 (42–89) | 87 (82–89) | 1 (1–2) | 0.038 (0.026–0.065) |
 | Haiku 5.5 | high | 180 (115–222) | 88 (87–89) | 10 (7–12) | 0.011 (0.007–0.013) |
@@ -220,11 +196,7 @@ close call.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 4/4 | 177 (109–214) | 16 (14–20) | 8.1 (3.0–9.7) | 18 (14–26) | 18 (15–26) | 20 (18–22) |
 | gpt-6.2-sol | medium | 4/4 | 71 (66–84) | 16 (15–17) | 2.5 (2.2–2.9) | 17 (15–20) | 20 (16–23) | 18 (15–26) |
-| gpt-6.1-sol | medium | 6/6 | 82 (76–94) | 20 (18–22) | 3.0 (2.1–3.7) | 17 (15–17) | 28 (18–29) | 20 (18–27) |
-| gpt-6.1-sol | high | 4/4 | 93 (84–102) | 18 (17–19) | 3.0 (2.6–3.3) | 19 (18–20) | 28 (26–37) | 34 (30–35) |
 | gpt-6.1-terra | medium | 6/6 | 51 (43–62) | 16 (15–17) | 1.9 (1.5–2.6) | 13 (12–14) | 17 (15–21) | 26 (17–28) |
-| gpt-6.1-terra | high | 4/4 | 64 (56–72) | 14 (14–16) | 2.8 (2.5–3.4) | 15 (14–15) | 21 (17–21) | 26 (25–26) |
-| gpt-6-astra | medium | 4/4 | 89 (83–97) | 18 (16–21) | 3.6 (3.3–4.0) | 16 (16–17) | 26 (24–32) | 24 (24–33) |
 | Opus 5.5 | medium | 4/4 | 65 (61–67) | 19 (17–23) | 1.9 (1.7–1.9) | 20 (20–21) | 20 (18–30) | 17 (17–17) |
 | Sonnet 5.5 | medium | 6/6 | 50 (46–88) | 16 (15–28) | 2.2 (1.7–3.3) | 13 (12–16) | 16 (14–33) | 18 (15–26) |
 | Haiku 5.5 | high | 3/4 | 88 (59–111) | 22 (18–29) | 2.1 (1.3–2.3) | 21 (19–26) | 30 (21–90) | 21 (17–22) |
@@ -243,11 +215,7 @@ close call.
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 273 (223–323) | 89 (80–93) | 1 (1–1) | 0.331 (0.301–0.666) |
 | gpt-6.2-sol | medium | 344 (296–362) | 89 (81–91) | 1 (1–1) | 0.126 (0.104–0.147) |
-| gpt-6.1-sol | medium | 321 (276–330) | 89 (86–90) | 2 (2–2) | 0.116 (0.096–0.140) |
-| gpt-6.1-sol | high | 378 (335–412) | 92 (89–94) | 2 (2–3) | 0.114 (0.098–0.146) |
 | gpt-6.1-terra | medium | 261 (237–300) | 87 (84–92) | 1 (1–2) | 0.054 (0.046–0.056) |
-| gpt-6.1-terra | high | 308 (291–312) | 90 (86–94) | 2 (2–2) | 0.053 (0.041–0.065) |
-| gpt-6-astra | medium | 318 (305–332) | 91 (89–94) | 2 (2–2) | 0.636 (0.567–0.743) |
 | Opus 5.5 | medium | 403 (354–441) | 94 (93–94) | 4 (4–4) | 0.350 (0.341–0.361) |
 | Sonnet 5.5 | medium | 210 (196–311) | 91 (91–93) | 3 (3–4) | 0.094 (0.090–0.130) |
 | Haiku 5.5 | high | 507 (441–682) | 93 (93–95) | 9 (7–11) | 0.016 (0.014–0.019) |
@@ -271,11 +239,7 @@ close call.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 4/4 | 36 (31–82) | 4 (4–5) | 7.0 (5.4–14.2) | 3 (3–4) | 7 (5–7) | 7 (7–8) |
 | gpt-6.2-sol | medium | 4/4 | 29 (26–32) | 5 (5–6) | 3.1 (2.8–3.5) | 5 (4–6) | 6 (5–8) | 8 (4–9) |
-| gpt-6.1-sol | medium | 6/6 | 32 (25–64) | 6 (5–12) | 2.5 (1.9–7.2) | 6 (5–10) | 8 (8–19) | 11 (7–17) |
-| gpt-6.1-sol | high | 4/4 | 28 (22–30) | 6 (5–6) | 2.2 (2.2–2.5) | 6 (5–7) | 8 (8–9) | 11 (7–12) |
 | gpt-6.1-terra | medium | 6/6 | 23 (20–34) | 6 (5–12) | 2.0 (1.6–2.4) | 6 (5–10) | 8 (7–18) | 12 (12–19) |
-| gpt-6.1-terra | high | 4/4 | 25 (23–28) | 6 (6–7) | 2.1 (1.6–3.3) | 6 (6–7) | 8 (8–9) | 12 (12–14) |
-| gpt-6-astra | medium | 4/4 | 38 (36–40) | 6 (6–6) | 3.8 (3.4–4.2) | 6 (6–6) | 8 (8–9) | 11 (11–11) |
 | Opus 5.5 | medium | 4/4 | 33 (24–40) | 8 (8–8) | 2.5 (2.0–3.4) | 8 (7–9) | 10 (10–11) | 8 (7–8) |
 | Sonnet 5.5 | medium | 6/6 | 18 (15–19) | 5 (5–6) | 2.0 (1.6–2.1) | 5 (4–6) | 14 (7–14) | 6 (4–8) |
 | Haiku 5.5 | high | 4/4 | 26 (19–34) | 12 (8–17) | 1.5 (1.3–1.7) | 8 (6–9) | 17 (11–26) | 8 (6–8) |
@@ -294,11 +258,7 @@ close call.
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 69 (69–90) | 69 (43–80) | 0 (0–0) | 0.211 (0.159–0.339) |
 | gpt-6.2-sol | medium | 101 (86–121) | 83 (77–92) | 0 (0–0) | 0.042 (0.033–0.059) |
-| gpt-6.1-sol | medium | 110 (92–184) | 85 (75–94) | 0 (0–1) | 0.048 (0.041–0.061) |
-| gpt-6.1-sol | high | 110 (93–121) | 90 (86–92) | 0 (0–1) | 0.036 (0.033–0.044) |
 | gpt-6.1-terra | medium | 105 (92–179) | 86 (81–89) | 1 (0–1) | 0.021 (0.019–0.042) |
-| gpt-6.1-terra | high | 107 (106–119) | 85 (78–93) | 1 (1–1) | 0.024 (0.016–0.030) |
-| gpt-6-astra | medium | 110 (110–110) | 89 (85–92) | 0 (0–0) | 0.246 (0.211–0.286) |
 | Opus 5.5 | medium | 110 (107–125) | 91 (84–93) | 1 (1–1) | 0.120 (0.105–0.174) |
 | Sonnet 5.5 | medium | 66 (47–73) | 92 (91–93) | 1 (0–1) | 0.026 (0.019–0.029) |
 | Haiku 5.5 | high | 131 (102–158) | 87 (84–91) | 2 (1–2) | 0.005 (0.004–0.007) |
@@ -322,11 +282,7 @@ close call.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 4/4 | 106 (91–195) | 20 (19–36) | 5.6 (3.3–8.9) | 14 (12–16) | 24 (20–34) | 14 (11–16) |
 | gpt-6.2-sol | medium | 4/4 | 101 (99–178) | 22 (22–22) | 3.0 (2.9–3.2) | 17 (17–19) | 22 (21–22) | 16 (16–18) |
-| gpt-6.1-sol | medium | 6/6 | 74 (69–79) | 20 (18–22) | 2.8 (2.6–3.1) | 16 (14–18) | 21 (21–26) | 26 (26–29) |
-| gpt-6.1-sol | high | 4/4 | 68 (62–78) | 20 (19–22) | 2.5 (2.2–2.9) | 16 (14–16) | 22 (22–23) | 26 (26–28) |
 | gpt-6.1-terra | medium | 6/6 | 54 (51–60) | 20 (18–24) | 1.7 (1.6–2.1) | 15 (14–16) | 22 (22–25) | 26 (26–26) |
-| gpt-6.1-terra | high | 4/4 | 71 (53–87) | 22 (18–22) | 2.7 (1.6–3.1) | 16 (14–18) | 22 (22–26) | 26 (26–29) |
-| gpt-6-astra | medium | 4/4 | 86 (77–102) | 20 (19–22) | 3.9 (3.0–4.3) | 15 (15–16) | 22 (21–22) | 26 (24–28) |
 | Opus 5.5 | medium | 4/4 | 61 (45–73) | 22 (17–27) | 2.1 (1.9–2.2) | 16 (11–20) | 24 (18–29) | 16 (10–23) |
 | Sonnet 5.5 | medium | 6/6 | 57 (50–64) | 27 (24–31) | 2.3 (1.8–2.6) | 12 (12–13) | 26 (25–28) | 10 (9–11) |
 | Haiku 5.5 | high | 4/4 | 54 (43–68) | 28 (19–31) | 1.4 (1.1–2.2) | 16 (15–17) | 32 (25–35) | 24 (14–25) |
@@ -345,11 +301,7 @@ close call.
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 309 (221–437) | 85 (81–90) | 1 (1–1) | 0.487 (0.415–0.607) |
 | gpt-6.2-sol | medium | 417 (417–499) | 86 (79–89) | 1 (1–2) | 0.177 (0.140–0.219) |
-| gpt-6.1-sol | medium | 317 (274–363) | 91 (89–92) | 1 (1–1) | 0.102 (0.084–0.105) |
-| gpt-6.1-sol | high | 306 (274–319) | 92 (88–94) | 1 (1–1) | 0.089 (0.081–0.100) |
 | gpt-6.1-terra | medium | 293 (274–315) | 92 (86–92) | 1 (1–1) | 0.044 (0.044–0.059) |
-| gpt-6.1-terra | high | 307 (275–375) | 89 (88–91) | 1 (1–2) | 0.055 (0.049–0.057) |
-| gpt-6-astra | medium | 297 (293–318) | 91 (87–94) | 1 (1–1) | 0.600 (0.526–0.749) |
 | Opus 5.5 | medium | 275 (191–430) | 93 (92–94) | 2 (2–3) | 0.262 (0.193–0.356) |
 | Sonnet 5.5 | medium | 176 (160–190) | 91 (90–91) | 2 (2–2) | 0.075 (0.068–0.082) |
 | Haiku 5.5 | high | 334 (301–367) | 93 (92–94) | 4 (3–4) | 0.009 (0.009–0.010) |
@@ -373,11 +325,7 @@ close call.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 4/4 | 117 (82–260) | 32 (30–38) | 5.7 (3.6–16.5) | 12 (12–12) | 48 (48–49) | 11 (11–16) | 107 (76–244) |
 | gpt-6.2-sol | medium | 4/4 | 84 (77–86) | 41 (40–44) | 2.3 (2.3–2.9) | 12 (12–14) | 56 (49–58) | 24 (16–34) | 79 (74–80) |
-| gpt-6.1-sol | medium | 6/6 | 94 (83–119) | 34 (32–40) | 2.9 (2.6–3.5) | 17 (16–22) | 62 (57–69) | 34 (17–36) | 86 (72–100) |
-| gpt-6.1-sol | high | 4/4 | 99 (80–127) | 38 (35–40) | 2.6 (2.0–3.2) | 18 (15–21) | 64 (59–68) | 36 (34–37) | 92 (74–115) |
 | gpt-6.1-terra | medium | 6/6 | 79 (68–90) | 34 (30–35) | 2.2 (1.7–2.4) | 20 (13–20) | 64 (59–70) | 37 (18–50) | 74 (61–83) |
-| gpt-6.1-terra | high | 4/4 | 79 (74–114) | 36 (35–39) | 2.2 (1.9–3.3) | 18 (13–19) | 59 (57–66) | 34 (13–52) | 74 (70–110) |
-| gpt-6-astra | medium | 4/4 | 111 (102–118) | 36 (35–38) | 4.3 (3.9–4.6) | 15 (14–17) | 62 (59–65) | 31 (29–35) | 96 (92–109) |
 | Opus 5.5 | medium | 4/4 | 80 (78–88) | 40 (38–42) | 2.1 (1.9–2.1) | 18 (17–20) | 58 (55–61) | 32 (23–47) | 70 (68–82) |
 | Sonnet 5.5 | medium | 5/6 | 76 (71–142) | 35 (34–46) | 2.6 (2.3–2.7) | 15 (14–36) | 58 (56–74) | 37 (27–61) | 66 (65–122) |
 | Haiku 5.5 | high | 4/4 | 76 (70–90) | 41 (38–51) | 1.4 (1.4–1.7) | 20 (16–24) | 59 (58–93) | 20 (16–24) | 69 (65–79) |
@@ -396,11 +344,7 @@ close call.
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 223 (220–258) | 89 (80–94) | 1 (1–1) | 0.322 (0.223–0.446) |
 | gpt-6.2-sol | medium | 263 (248–311) | 83 (81–90) | 1 (1–1) | 0.124 (0.084–0.137) |
-| gpt-6.1-sol | medium | 356 (337–480) | 91 (89–95) | 2 (1–2) | 0.114 (0.100–0.122) |
-| gpt-6.1-sol | high | 392 (322–450) | 91 (87–92) | 2 (1–2) | 0.132 (0.112–0.138) |
 | gpt-6.1-terra | medium | 413 (276–441) | 91 (87–94) | 2 (1–2) | 0.059 (0.045–0.081) |
-| gpt-6.1-terra | high | 382 (245–428) | 91 (89–92) | 2 (1–2) | 0.059 (0.041–0.076) |
-| gpt-6-astra | medium | 308 (281–355) | 89 (86–94) | 1 (1–2) | 0.687 (0.547–0.800) |
 | Opus 5.5 | medium | 421 (389–492) | 93 (93–94) | 3 (2–3) | 0.354 (0.325–0.379) |
 | Sonnet 5.5 | medium | 312 (257–983) | 93 (92–96) | 2 (2–5) | 0.107 (0.096–0.247) |
 | Haiku 5.5 | high | 526 (399–743) | 94 (93–95) | 5 (5–7) | 0.014 (0.012–0.018) |
@@ -424,11 +368,7 @@ close call.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 4/4 | 122 (83–174) | 33 (30–38) | 5.6 (4.5–8.7) | 12 (11–13) | 48 (47–49) | 12 (10–13) | 111 (68–142) |
 | gpt-6.2-sol | medium | 4/4 | 78 (66–79) | 39 (28–41) | 2.8 (2.7–3.2) | 11 (11–12) | 52 (47–55) | 11 (11–12) | 68 (58–73) |
-| gpt-6.1-sol | medium | 6/6 | 68 (63–76) | 32 (32–34) | 3.2 (2.9–3.6) | 8 (7–12) | 61 (60–64) | 16 (13–29) | 58 (55–65) |
-| gpt-6.1-sol | high | 4/4 | 66 (62–67) | 35 (35–39) | 3.3 (2.3–3.5) | 8 (7–8) | 62 (61–63) | 13 (13–16) | 58 (54–58) |
 | gpt-6.1-terra | medium | 6/6 | 56 (53–59) | 32 (32–35) | 2.5 (2.0–2.7) | 7 (7–7) | 58 (56–59) | 12 (12–16) | 48 (46–52) |
-| gpt-6.1-terra | high | 4/4 | 75 (64–90) | 39 (31–44) | 3.0 (2.2–4.4) | 8 (7–11) | 60 (48–64) | 14 (12–28) | 60 (55–72) |
-| gpt-6-astra | medium | 4/4 | 85 (75–111) | 33 (32–34) | 4.1 (3.2–4.5) | 12 (7–14) | 58 (56–61) | 31 (12–44) | 71 (65–97) |
 | Opus 5.5 | medium | 4/4 | 65 (58–70) | 31 (31–32) | 2.8 (2.3–3.5) | 10 (10–10) | 55 (55–55) | 14 (14–24) | 57 (51–61) |
 | Sonnet 5.5 | medium | 6/6 | 60 (56–71) | 29 (27–30) | 2.6 (2.1–3.1) | 10 (9–15) | 55 (54–60) | 27 (17–33) | 52 (48–60) |
 | Haiku 5.5 | high | 4/4 | 66 (61–122) | 36 (33–41) | 1.9 (1.3–2.5) | 16 (13–28) | 64 (57–74) | 21 (14–43) | 58 (53–111) |
@@ -447,11 +387,7 @@ close call.
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 232 (203–269) | 90 (85–94) | 1 (1–1) | 0.291 (0.262–0.376) |
 | gpt-6.2-sol | medium | 215 (213–235) | 85 (80–94) | 1 (1–1) | 0.088 (0.059–0.110) |
-| gpt-6.1-sol | medium | 174 (156–244) | 87 (86–91) | 1 (1–1) | 0.066 (0.056–0.102) |
-| gpt-6.1-sol | high | 179 (159–179) | 88 (82–90) | 1 (1–1) | 0.066 (0.057–0.091) |
 | gpt-6.1-terra | medium | 157 (156–159) | 86 (76–86) | 1 (1–1) | 0.034 (0.032–0.049) |
-| gpt-6.1-terra | high | 185 (158–224) | 90 (76–90) | 1 (1–1) | 0.036 (0.033–0.049) |
-| gpt-6-astra | medium | 241 (158–282) | 93 (89–95) | 1 (1–1) | 0.446 (0.350–0.484) |
 | Opus 5.5 | medium | 182 (180–183) | 91 (91–92) | 2 (2–2) | 0.199 (0.188–0.201) |
 | Sonnet 5.5 | medium | 191 (146–255) | 92 (91–92) | 2 (1–2) | 0.075 (0.059–0.099) |
 | Haiku 5.5 | high | 375 (298–779) | 93 (92–95) | 4 (4–7) | 0.011 (0.010–0.018) |
@@ -475,11 +411,7 @@ close call.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 4/4 | 49 (28–61) | 3 (3–3) | 8.8 (5.3–11.6) | 4 (3–4) | 3 (3–3) | 7 (3–7) |
 | gpt-6.2-sol | medium | 4/4 | 25 (20–27) | 4 (4–5) | 2.5 (2.2–3.1) | 5 (4–5) | 6 (6–6) | 12 (12–12) |
-| gpt-6.1-sol | medium | 6/6 | 22 (20–24) | 3 (3–4) | 3.1 (2.2–3.4) | 4 (4–4) | 6 (6–6) | 11 (7–11) |
-| gpt-6.1-sol | high | 4/4 | 23 (20–44) | 3 (3–4) | 3.0 (2.1–4.8) | 4 (4–5) | 6 (6–6) | 11 (11–12) |
 | gpt-6.1-terra | medium | 6/6 | 16 (15–17) | 3 (3–4) | 2.5 (2.3–3.3) | 3 (3–3) | 6 (6–6) | 11 (11–11) |
-| gpt-6.1-terra | high | 4/4 | 23 (16–40) | 3 (3–4) | 4.7 (2.5–7.4) | 3 (3–3) | 6 (6–6) | 11 (11–11) |
-| gpt-6-astra | medium | 4/4 | 26 (24–30) | 3 (3–3) | 4.0 (3.1–5.5) | 4 (3–4) | 6 (6–6) | 11 (11–11) |
 | Opus 5.5 | medium | 4/4 | 26 (19–29) | 6 (4–7) | 2.6 (2.2–2.9) | 6 (4–8) | 8 (7–9) | 7 (6–12) |
 | Sonnet 5.5 | medium | 6/6 | 13 (11–18) | 3 (3–4) | 2.3 (1.7–3.1) | 3 (3–4) | 4 (3–9) | 11 (7–11) |
 | Haiku 5.5 | high | 4/4 | 25 (21–30) | 7 (6–8) | 1.7 (1.6–2.6) | 8 (7–9) | 9 (7–9) | 8 (7–9) |
@@ -498,11 +430,7 @@ close call.
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 74 (69–76) | 84 (58–90) | 0 (0–0) | 0.130 (0.088–0.285) |
 | gpt-6.2-sol | medium | 105 (89–106) | 78 (67–90) | 0 (0–0) | 0.059 (0.034–0.067) |
-| gpt-6.1-sol | medium | 80 (80–82) | 83 (70–90) | 0 (0–0) | 0.037 (0.027–0.057) |
-| gpt-6.1-sol | high | 80 (80–98) | 90 (83–90) | 0 (0–0) | 0.029 (0.026–0.037) |
 | gpt-6.1-terra | medium | 65 (65–65) | 81 (69–81) | 0 (0–0) | 0.017 (0.016–0.024) |
-| gpt-6.1-terra | high | 65 (65–65) | 82 (77–88) | 0 (0–0) | 0.016 (0.012–0.019) |
-| gpt-6-astra | medium | 80 (65–80) | 87 (71–90) | 0 (0–0) | 0.187 (0.146–0.301) |
 | Opus 5.5 | medium | 100 (62–127) | 90 (88–92) | 1 (1–1) | 0.121 (0.089–0.132) |
 | Sonnet 5.5 | medium | 43 (42–55) | 88 (85–90) | 0 (0–1) | 0.023 (0.019–0.025) |
 | Haiku 5.5 | high | 144 (115–154) | 92 (91–92) | 2 (2–3) | 0.005 (0.004–0.005) |
@@ -526,11 +454,7 @@ close call.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 4/4 | 117 (98–132) | 25 (25–31) | 4.5 (3.6–5.3) | 17 (15–22) | 25 (24–33) | 19 (15–22) |
 | gpt-6.2-sol | medium | 4/4 | 84 (82–94) | 26 (25–27) | 2.4 (2.4–2.6) | 20 (18–20) | 25 (24–26) | 20 (18–21) |
-| gpt-6.1-sol | medium | 6/6 | 129 (93–173) | 35 (27–42) | 2.8 (2.6–3.4) | 26 (19–32) | 41 (24–45) | 32 (26–46) |
-| gpt-6.1-sol | high | 4/4 | 113 (100–152) | 34 (28–41) | 2.9 (2.7–3.0) | 24 (21–28) | 32 (26–51) | 29 (27–39) |
 | gpt-6.1-terra | medium | 6/6 | 77 (65–86) | 34 (27–40) | 1.8 (1.5–2.4) | 18 (17–20) | 31 (23–33) | 23 (19–25) |
-| gpt-6.1-terra | high | 4/4 | 98 (76–129) | 38 (36–45) | 2.2 (1.8–4.5) | 18 (18–22) | 32 (29–33) | 26 (23–34) |
-| gpt-6-astra | medium | 4/4 | 101 (100–111) | 26 (24–28) | 3.5 (3.0–3.7) | 19 (17–19) | 24 (22–26) | 28 (27–34) |
 | Opus 5.5 | medium | 4/4 | 101 (94–110) | 50 (43–62) | 2.5 (2.3–2.6) | 18 (17–19) | 28 (25–30) | 19 (16–21) |
 | Sonnet 5.5 | medium | 6/6 | 91 (75–114) | 33 (30–36) | 2.5 (2.0–3.4) | 20 (17–23) | 30 (27–36) | 22 (18–28) |
 | Haiku 5.5 | high | 4/4 | 84 (70–93) | 46 (35–56) | 1.5 (1.4–1.6) | 20 (19–24) | 33 (27–47) | 22 (20–28) |
@@ -549,11 +473,7 @@ close call.
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 368 (313–503) | 93 (85–94) | 1 (1–1) | 0.469 (0.310–0.537) |
 | gpt-6.2-sol | medium | 447 (397–467) | 87 (83–89) | 1 (1–1) | 0.170 (0.132–0.212) |
-| gpt-6.1-sol | medium | 641 (450–836) | 92 (91–95) | 2 (2–3) | 0.177 (0.137–0.193) |
-| gpt-6.1-sol | high | 580 (509–774) | 92 (90–93) | 2 (2–3) | 0.173 (0.157–0.221) |
 | gpt-6.1-terra | medium | 397 (369–446) | 92 (85–93) | 2 (1–2) | 0.063 (0.053–0.087) |
-| gpt-6.1-terra | high | 408 (392–553) | 90 (89–95) | 2 (2–2) | 0.065 (0.050–0.097) |
-| gpt-6-astra | medium | 451 (395–455) | 94 (87–95) | 2 (1–2) | 0.771 (0.741–0.943) |
 | Opus 5.5 | medium | 395 (356–459) | 93 (93–94) | 3 (3–4) | 0.353 (0.320–0.393) |
 | Sonnet 5.5 | medium | 500 (332–547) | 94 (92–94) | 3 (3–4) | 0.160 (0.119–0.170) |
 | Haiku 5.5 | high | 560 (507–680) | 94 (93–95) | 6 (5–6) | 0.015 (0.014–0.017) |
@@ -577,11 +497,7 @@ close call.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 4/4 | 77 (40–101) | 3 (3–3) | 9.6 (8.9–15.9) | 4 (3–4) | 1 (1–1) | 6 (6–6) |
 | gpt-6.2-sol | medium | 4/4 | 53 (38–62) | 4 (3–4) | 5.2 (4.1–6.9) | 6 (6–6) | 1 (1–1) | 6 (5–6) |
-| gpt-6.1-sol | medium | 6/6 | 74 (42–96) | 4 (2–6) | 5.6 (3.2–6.4) | 7 (5–9) | 2 (1–3) | 6 (4–8) |
-| gpt-6.1-sol | high | 3/4 | 69 (51–75) | 3 (3–4) | 5.0 (3.4–5.6) | 8 (6–8) | 1 (1–1) | 6 (5–7) |
 | gpt-6.1-terra | medium | 6/6 | 21 (20–31) | 2 (2–6) | 4.7 (4.0–4.9) | 3 (3–5) | 1 (1–3) | 6 (3–10) |
-| gpt-6.1-terra | high | 4/4 | 31 (21–38) | 4 (2–6) | 5.5 (4.9–6.0) | 4 (3–5) | 2 (1–3) | 8 (3–10) |
-| gpt-6-astra | medium | 4/4 | 32 (29–35) | 3 (3–3) | 6.2 (4.4–7.7) | 3 (3–4) | 1 (1–1) | 3 (3–4) |
 | Opus 5.5 | medium | 4/4 | 37 (32–42) | 3 (3–3) | 4.2 (3.6–5.2) | 6 (5–7) | 1 (1–1) | 8 (8–10) |
 | Sonnet 5.5 | medium | 6/6 | 16 (14–20) | 2 (2–3) | 3.2 (2.5–3.7) | 3 (3–4) | 1 (1–2) | 6 (6–7) |
 | Haiku 5.5 | high | 3/4 | 83 (60–112) | 4 (4–7) | 4.8 (4.0–5.6) | 10 (7–14) | 2 (1–3) | 10 (7–11) |
@@ -600,11 +516,7 @@ close call.
 | --- | --- | --- | --- | --- | --- |
 | gpt-6.2-astra | medium | 73 (71–77) | 77 (68–79) | 1 (0–1) | 0.177 (0.172–0.220) |
 | gpt-6.2-sol | medium | 128 (109–132) | 79 (64–83) | 1 (1–2) | 0.071 (0.061–0.116) |
-| gpt-6.1-sol | medium | 139 (100–186) | 86 (78–93) | 2 (1–2) | 0.059 (0.044–0.092) |
-| gpt-6.1-sol | high | 145 (121–161) | 86 (82–90) | 2 (2–2) | 0.070 (0.069–0.084) |
 | gpt-6.1-terra | medium | 65 (65–98) | 80 (69–85) | 1 (1–1) | 0.019 (0.019–0.026) |
-| gpt-6.1-terra | high | 82 (65–100) | 85 (80–89) | 1 (1–1) | 0.021 (0.014–0.028) |
-| gpt-6-astra | medium | 65 (65–82) | 87 (76–89) | 1 (1–1) | 0.181 (0.166–0.235) |
 | Opus 5.5 | medium | 86 (75–110) | 89 (88–90) | 2 (2–3) | 0.143 (0.121–0.159) |
 | Sonnet 5.5 | medium | 41 (41–55) | 87 (86–88) | 1 (1–1) | 0.025 (0.024–0.031) |
 | Haiku 5.5 | high | 244 (124–291) | 89 (84–91) | 11 (9–17) | 0.012 (0.010–0.017) |
@@ -622,26 +534,22 @@ close call.
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter costs -->
 <details><summary>Tokens and cost per agent</summary>
 
-| Agent | Effort | Passed | Input M | Cached % | Output k | Cost $ | Cost per passed run $ |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| gpt-6.2-astra | medium | 38/40 | 7.33 | 86 | 23 | 11.68 | 0.31 |
-| gpt-6.2-sol | medium | 40/40 | 8.97 | 85 | 35 | 3.83 | 0.10 |
-| gpt-6.1-sol | medium | 68/84 | 16.79 | 89 | 97 | 6.09 | 0.09 |
-| gpt-6.1-sol | high | 36/40 | 9.64 | 90 | 58 | 3.36 | 0.09 |
-| gpt-6.1-terra | medium | 71/84 | 13.28 | 86 | 78 | 2.78 | 0.04 |
-| gpt-6.1-terra | high | 37/40 | 8.08 | 89 | 44 | 1.49 | 0.04 |
-| gpt-6-astra | medium | 38/40 | 8.17 | 90 | 39 | 17.29 | 0.46 |
-| Opus 5.5 | medium | 40/40 | 8.88 | 92 | 94 | 8.85 | 0.22 |
-| Sonnet 5.5 | medium | 59/60 | 10.60 | 92 | 101 | 4.11 | 0.07 |
-| Haiku 5.5 | high | 36/40 | 12.93 | 93 | 241 | 0.43 | 0.01 |
-| gpt-6-luna | high | 25/40 | 13.07 | 89 | 138 | 0.32 | 0.01 |
-| Gemini 4 Neon (agy) | medium | 30/30 | 14.87 | 86 | 211 | 11.15 | 0.37 |
-| Gemini 4 Neon (pi) | medium | 30/30 | 10.19 | 82 | 190 | 9.50 | 0.32 |
-| Kimi K3.1 Pro | high, ran max | 8/10 | 2.62 | 92 | 53 | 1.53 | 0.19 |
-| Gemini 4 Argon | medium | 6/10 | 5.41 | 83 | 45 | 2.79 | 0.46 |
-| DeepSeek v4.1 Flash | high | 17/28 | 13.13 | 90 | 360 | 0.45 | 0.03 |
-| Qwen 3.8 Flash | high | 21/30 | 12.33 | 91 | 360 | 0.56 | 0.03 |
-| GLM 5.3 Flash | high | 15/30 | 13.65 | 90 | 382 | 0.76 | 0.05 |
+| Agent | Passed | Input M | Cached % | Output k | Cost $ | Cost per passed run $ |
+| --- | --- | --- | --- | --- | --- | --- |
+| gpt-6.2-astra | 38/40 | 7.33 | 86 | 23 | 11.68 | 0.31 |
+| gpt-6.2-sol | 40/40 | 8.97 | 85 | 35 | 3.83 | 0.10 |
+| gpt-6.1-terra | 71/84 | 13.28 | 86 | 78 | 2.78 | 0.04 |
+| Opus 5.5 | 40/40 | 8.88 | 92 | 94 | 8.85 | 0.22 |
+| Sonnet 5.5 | 59/60 | 10.60 | 92 | 101 | 4.11 | 0.07 |
+| Haiku 5.5 | 36/40 | 12.93 | 93 | 241 | 0.43 | 0.01 |
+| gpt-6-luna | 25/40 | 13.07 | 89 | 138 | 0.32 | 0.01 |
+| Gemini 4 Neon (agy) | 30/30 | 14.87 | 86 | 211 | 11.15 | 0.37 |
+| Gemini 4 Neon (pi) | 30/30 | 10.19 | 82 | 190 | 9.50 | 0.32 |
+| Kimi K3.1 Pro | 8/10 | 2.62 | 92 | 53 | 1.53 | 0.19 |
+| Gemini 4 Argon | 6/10 | 5.41 | 83 | 45 | 2.79 | 0.46 |
+| DeepSeek v4.1 Flash | 17/28 | 13.13 | 90 | 360 | 0.45 | 0.03 |
+| Qwen 3.8 Flash | 21/30 | 12.33 | 91 | 360 | 0.56 | 0.03 |
+| GLM 5.3 Flash | 15/30 | 13.65 | 90 | 382 | 0.76 | 0.05 |
 
 </details>
 <!-- /render -->
@@ -650,19 +558,19 @@ close call.
 
 <details><summary>Where the time goes: per kind of question, and inside hyprmasq's tool</summary>
 
-The form's seconds per kind of question, of Sol, Terra and Sonnet:
+The form's seconds per kind of question, of Terra and Sonnet:
 
 <!-- render baseline-0.57.0 kinds form -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/baseline-0.57.0-kinds-form-dark.svg">
-  <img alt="Seconds per question by kind, a bar per model. Over all runs: checkbox 3.3 s, slider 2.2 s, text 1.6 s, dropdown 4.7 s" src="benchmarks/baseline-0.57.0-kinds-form.svg">
+  <img alt="Seconds per question by kind, a bar per model. Over all runs: checkbox 3.3 s, slider 1.7 s, text 1.7 s, dropdown 4.7 s" src="benchmarks/baseline-0.57.0-kinds-form.svg">
 </picture>
 <!-- /render -->
 
 <!-- render baseline-0.57.0 kinds form-no-dropdowns -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/baseline-0.57.0-kinds-form-no-dropdowns-dark.svg">
-  <img alt="Seconds per question by kind, a bar per model. Over all runs: checkbox 2.3 s, slider 2.9 s, text 0.8 s" src="benchmarks/baseline-0.57.0-kinds-form-no-dropdowns.svg">
+  <img alt="Seconds per question by kind, a bar per model. Over all runs: checkbox 2.1 s, slider 2.9 s, text 0.8 s" src="benchmarks/baseline-0.57.0-kinds-form-no-dropdowns.svg">
 </picture>
 <!-- /render -->
 
@@ -671,105 +579,8 @@ The time of `act`, hyprmasq's tool that sends input and returns what changed, ov
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter act -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/act-dark.svg">
-  <img alt="Time in finished act calls: Input pacing 4564 s, Settle wait 2538 s, Redraw watch 2835 s, Pauses 537 s, Rest 3044 s" src="benchmarks/act.svg">
+  <img alt="Time in finished act calls: Input pacing 3314 s, Settle wait 1929 s, Redraw watch 2125 s, Pauses 422 s, Rest 2220 s" src="benchmarks/act.svg">
 </picture>
-<!-- /render -->
-
-</details>
-
-### More reasoning
-
-Where Sol, Terra or Sonnet failed runs, it ran the task six more times at `high` effort. Opus ran the form,
-where Sonnet had failed a run, at `medium` on the same build. Sol and Terra later ran
-every task at `high` on main's 6c09d56, in [Models](#models), and put the lookalike label on board in three of eight
-runs each there.
-
-<!-- render escalation-0.57.0 time -->
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="benchmarks/escalation-0.57.0-time-dark.svg">
-  <img alt="Wall time per run of each agent, a panel per task. Each bar is the median wall time with the median time in hyprmasq&#x27;s tools inside it, and each dot one run." src="benchmarks/escalation-0.57.0-time.svg">
-</picture>
-<!-- /render -->
-
-<details><summary>Notes and numbers</summary>
-
-Terra still put the CPU power headers' label on the lookalike in three `dnd` runs at `high`, and the SATA ports'
-label on the M.2 slots in one. hyprmasq delivered every input where the agent aimed it.
-
-<!-- render escalation-0.57.0 table board-dnd -->
-<details><summary>Numbers: Board-dnd</summary>
-
-**Outcome and time**
-
-| Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 7/18 | 55 (44–68) | 12 (12–15) | 5.8 (4.6–9.2) | 5 (4–7) | 9 (9–11) | 4 (3–8) |
-| gpt-6.1-sol | high | 6/6 | 66 (57–82) | 13 (12–14) | 7.1 (5.2–8.4) | 6 (5–7) | 9 (9–9) | 5 (4–9) |
-| gpt-6.1-terra | medium | 10/18 | 29 (25–44) | 12 (11–13) | 4.3 (3.1–5.8) | 3 (2–7) | 9 (9–10) | 6 (2–12) |
-| gpt-6.1-terra | high | 2/6 | 36 (24–41) | 12 (12–13) | 4.5 (2.9–5.5) | 4 (2–7) | 9 (9–10) | 8 (3–15) |
-| Sonnet 5.5 | medium | 6/6 | 32 (29–44) | 13 (12–19) | 3.3 (3.0–4.8) | 4 (3–7) | 9 (9–13) | 10 (8–12) |
-
-**Tokens and cost**
-
-| Agent | Effort | Input k | Cached % | Output k | Cost $ |
-| --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 99 (81–135) | 86 (77–93) | 1 (1–1) | 0.046 (0.031–0.074) |
-| gpt-6.1-sol | high | 120 (99–138) | 88 (80–92) | 1 (1–2) | 0.048 (0.040–0.082) |
-| gpt-6.1-terra | medium | 65 (49–136) | 78 (68–88) | 1 (0–1) | 0.019 (0.016–0.045) |
-| gpt-6.1-terra | high | 81 (49–130) | 75 (60–88) | 1 (0–1) | 0.027 (0.023–0.038) |
-| Sonnet 5.5 | medium | 64 (42–95) | 88 (75–90) | 1 (1–2) | 0.039 (0.029–0.050) |
-
-</details>
-<!-- /render -->
-<!-- render escalation-0.57.0 table board-pointer -->
-<details><summary>Numbers: Board-pointer</summary>
-
-**Outcome and time**
-
-| Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 13/18 | 52 (38–79) | 13 (12–15) | 5.3 (3.5–8.5) | 6 (5–9) | 9 (9–11) | 5 (4–8) |
-| gpt-6.1-sol | high | 6/6 | 59 (56–65) | 13 (12–13) | 6.5 (6.0–7.6) | 5 (5–6) | 9 (9–9) | 4 (4–7) |
-| gpt-6.1-terra | medium | 13/18 | 34 (28–45) | 12 (12–14) | 3.9 (2.2–5.2) | 4 (2–8) | 9 (9–10) | 8 (3–15) |
-| gpt-6.1-terra | high | 6/6 | 31 (26–35) | 12 (12–12) | 5.1 (4.6–6.9) | 3 (2–3) | 9 (9–9) | 3 (2–7) |
-| Sonnet 5.5 | medium | 6/6 | 31 (26–45) | 13 (12–13) | 3.4 (2.4–5.2) | 4 (3–6) | 9 (9–10) | 10 (7–14) |
-
-**Tokens and cost**
-
-| Agent | Effort | Input k | Cached % | Output k | Cost $ |
-| --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 114 (98–174) | 87 (71–93) | 1 (1–2) | 0.049 (0.034–0.074) |
-| gpt-6.1-sol | high | 99 (99–117) | 87 (78–92) | 1 (1–1) | 0.049 (0.039–0.064) |
-| gpt-6.1-terra | medium | 80 (49–157) | 82 (58–89) | 1 (1–1) | 0.023 (0.018–0.033) |
-| gpt-6.1-terra | high | 65 (49–65) | 64 (56–80) | 1 (1–1) | 0.023 (0.019–0.034) |
-| Sonnet 5.5 | medium | 64 (42–89) | 87 (82–89) | 1 (1–2) | 0.038 (0.026–0.065) |
-
-</details>
-<!-- /render -->
-<!-- render escalation-0.57.0 table form -->
-<details><summary>Numbers: Form with dropdowns</summary>
-
-**Outcome and time**
-
-| Agent | Effort | Passed | Wall s | In tools s | Turn s | Calls | Actions | Images | All right at s |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 6/6 | 94 (83–119) | 34 (32–40) | 2.9 (2.6–3.5) | 17 (16–22) | 62 (57–69) | 34 (17–36) | 86 (72–100) |
-| gpt-6.1-terra | medium | 6/6 | 79 (68–90) | 34 (30–35) | 2.2 (1.7–2.4) | 20 (13–20) | 64 (59–70) | 37 (18–50) | 74 (61–83) |
-| Opus 5.5 | medium | 6/6 | 88 (76–107) | 38 (34–40) | 3.0 (2.3–3.4) | 16 (14–23) | 60 (56–64) | 25 (22–46) | 78 (67–89) |
-| Sonnet 5.5 | medium | 5/6 | 76 (71–142) | 35 (34–46) | 2.6 (2.3–2.7) | 15 (14–36) | 58 (56–74) | 37 (27–61) | 66 (65–122) |
-| Sonnet 5.5 | high | 6/6 | 81 (76–99) | 35 (33–38) | 2.5 (2.3–2.9) | 18 (14–22) | 58 (56–65) | 32 (21–49) | 72 (64–81) |
-
-**Tokens and cost**
-
-| Agent | Effort | Input k | Cached % | Output k | Cost $ |
-| --- | --- | --- | --- | --- | --- |
-| gpt-6.1-sol | medium | 356 (337–480) | 91 (89–95) | 2 (1–2) | 0.114 (0.100–0.122) |
-| gpt-6.1-terra | medium | 413 (276–441) | 91 (87–94) | 2 (1–2) | 0.059 (0.045–0.081) |
-| Opus 5.5 | medium | 349 (294–502) | 93 (90–93) | 2 (2–3) | 0.248 (0.213–0.323) |
-| Sonnet 5.5 | medium | 312 (257–983) | 93 (92–96) | 2 (2–5) | 0.107 (0.096–0.247) |
-| Sonnet 5.5 | high | 354 (285–538) | 93 (90–94) | 3 (2–3) | 0.132 (0.106–0.165) |
-
-</details>
 <!-- /render -->
 
 </details>
@@ -1201,8 +1012,8 @@ recovered.
   release set that ended at its provider's limit of 64 images, and one Forgejo attempt whose cause
   [05ce488](https://github.com/nyrda/hyprmasq/commit/05ce488) fixed. In none did hyprmasq deliver
   input elsewhere than the agent aimed it, apart from that attempt.
-- **Models:** Sol, Terra, Astra and Luna are OpenAI's `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-astra` and
-  `gpt-6-luna` through Codex, as are `gpt-6.2-astra` and `gpt-6.2-sol`, Opus, Sonnet and Haiku Anthropic's Claude
+- **Models:** Terra and Luna are OpenAI's `gpt-6.1-terra` and `gpt-6-luna` through Codex, as are `gpt-6.2-astra`
+  and `gpt-6.2-sol`, Opus, Sonnet and Haiku Anthropic's Claude
   5.5 models through Claude Code, Gemini 4 Neon through the Antigravity CLI and through pi with OpenRouter held to Google Vertex, and Kimi K3.1 Pro, Gemini 4 Argon,
   DeepSeek v4.1 Flash, Qwen 3.8 Flash and GLM 5.3 Flash run through pi. Costs are what the requests cost at the providers' API list prices, also where a subscription
   paid for them. The figures' cost is per passed run: the cost of all runs
@@ -1236,9 +1047,7 @@ requests in thousands, cache reads and writes included, and Cached % is the shar
 from the cache. Output k includes thinking. Cost $ leaves out the debrief: Claude Code
 and pi report their own, and for Codex, which runs on a ChatGPT subscription, it is what
 the same requests would cost on OpenAI's API at its list prices on the day. Codex reports
-no cache writes, so its estimate prices all uncached input at the input rate. Priced as
-cache writes, the baseline Codex runs would cost up to 16% more for Sol and 10% more for
-Astra.
+no cache writes, so its estimate prices all uncached input at the input rate.
 
 The form task's seconds per question run from the previous final answer to this one, the
 model's time included. Question 1 is a checkbox, so the checkbox column includes the time
@@ -1248,25 +1057,22 @@ a run's `act` calls waited for the window to be quiet after their input.
 
 </details>
 
-<details><summary>Models: the set of 29 Oct 2026, and more reasoning</summary>
+<details><summary>Models: the set of 29 Oct 2026</summary>
 
 hyprmasq, its MCP server and the tasks are at
 [`210dfbe`](https://github.com/nyrda/hyprmasq/commit/210dfbef3e8133907ea5ef3036493237e410edc8), main with Hyprland
-0.57.0, in [baseline-0.57.0.json](benchmarks/data/baseline-0.57.0.json) and
-[escalation-0.57.0.json](benchmarks/data/escalation-0.57.0.json), which `export.py --agent` takes from one results
-directory. The runs took place on 2026-10-29 in offline VMs at `1920x1080@1`.
+0.57.0, in [baseline-0.57.0.json](benchmarks/data/baseline-0.57.0.json). The runs took place on 2026-10-29 in offline
+VMs at `1920x1080@1`.
 
 `bench/dispatch.py` spread them over three machines, eight VMs at once, each on two physical cores of its own: three
 on an AMD Ryzen 7 5800X3D, three on a Ryzen 7 PRO 4750U and two on a Ryzen 5 5600X. `bench/calibrate.py` measured no
 slower tool calls with that many VMs at once on each. Each machine took an equal share of each agent's runs of each
-task, so that times compare between agents. 18 Codex runs failed at the start on one machine, whose login had
-expired, before any call. They were removed and ran again on any of the three, so the machines ran 85, 76 and 67 of
-the 228 runs at `medium`. Sol and Terra's twelve more runs of each board variant ran last, the same day.
+task, so that times compare between agents. Terra's twelve more runs of each board variant ran last, the same day.
 
-- Codex CLI 0.165.0 with a ChatGPT login: `gpt-6.1-sol` and `gpt-6.1-terra`.
-- Claude Code 2.1.312 with an Anthropic API key: `claude-sonnet-5-5` and `claude-opus-5-5`.
+- Codex CLI 0.165.0 with a ChatGPT login: `gpt-6.1-terra`.
+- Claude Code 2.1.312 with an Anthropic API key: `claude-sonnet-5-5`.
 
-The 228 runs at `medium` cost an estimated $12.98 at API list prices, and the 36 at `high` and with Opus $3.25.
+The 144 runs cost an estimated $6.89 at API list prices.
 
 </details>
 
@@ -1274,22 +1080,21 @@ The 228 runs at `medium` cost an estimated $12.98 at API list prices, and the 36
 
 The runs took place on 2026-11-02 at `a54734a`, with the call budget below added to the bench runner. Its plugin,
 tools and MCP server are main's [`6c09d56`](https://github.com/nyrda/hyprmasq/commit/6c09d56), with Hyprland 0.57.0.
-They are in [tested-models.json](benchmarks/data/tested-models.json). Sol and Terra at `high`, Opus, Astra, Haiku and
-Luna ran their repetitions over three machines, two or three VMs at once on each: the Ryzen 7 5800X3D, the Ryzen 7 PRO
+They are in [tested-models.json](benchmarks/data/tested-models.json). Opus, Haiku and Luna ran their repetitions over
+three machines, two or three VMs at once on each: the Ryzen 7 5800X3D, the Ryzen 7 PRO
 4750U and the Ryzen 5 5600X. DeepSeek ran on the 5800X3D, Kimi on the 4750U and Argon on the 5600X.
 
 `run.py --max-calls` set each task's budget: 20 for board, files, inkscape and trace, 30 for the form without
 dropdowns, 34 for calc, 36 for Forgejo, 64 for Thunderbird and 72 for the form with dropdowns. A call past it ends the
 run.
 
-- Codex CLI 0.165.0 and 0.166.0 with a ChatGPT login: `gpt-6.1-sol` and `gpt-6.1-terra` at `high`, `gpt-6-astra` at
-  `medium` and `gpt-6-luna` at `high`.
+- Codex CLI 0.165.0 and 0.166.0 with a ChatGPT login: `gpt-6-luna` at `high`.
 - Claude Code 2.1.312 and 2.1.316 with a Claude login: `claude-opus-5-5` at `medium` and `claude-haiku-5-5` at
   `high`.
 - pi 1.4.0: `kimi-k3.1-pro` at `high`, which pi ran at `max`, `deepseek-v4.1-flash` at `high` and
   `gemini-4-argon` at `medium`.
 
-The 288 runs cost an estimated $36.52 at API list prices, Astra's $17.29 and Opus's $8.85 of it.
+The 168 runs cost an estimated $14.38 at API list prices, Opus's $8.85 of it.
 
 </details>
 
