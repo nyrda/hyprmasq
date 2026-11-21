@@ -85,12 +85,23 @@ Claude Code keeps of a tool description.
   "window": "0x55d1c0a3e4b0",
   "shot": "s4",
   "actions": [
-    {"action": "click", "x": 412, "y": 88},
-    {"action": "type", "text": "hello world"},
-    {"action": "key", "keys": ["enter"]}
+    [412, 88],
+    ["type", "hello world"],
+    ["key", "enter"]
   ]
 }
 ```
+
+Each action is a compact array. One that starts with a number is a click:
+`[x, y]` a left click, and `[x, y, button, count, modifiers]` any other, such
+as `[x, y, "left", 2]` for a double click. Other arrays start with the
+action's name, such as `["scroll", x, y, dy, unit]`. An invalid array is
+refused with its form spelled out, such as `[scroll,x,y,dy,unit?,dx?]`, and
+an unknown action with every form.
+The schema of `act` names only this form. `act` also takes the same action as
+an object with named fields, `{"action": "click", "x": 412, "y": 88}`, but a
+schema that offers both makes Gemini's API end most turns that call `act`
+with `MALFORMED_FUNCTION_CALL`, and the models write arrays anyway.
 
 The shot identifies its window, so `window` is optional when `shot` is given.
 Without a shot, give `window`. An unavailable shot is refused before input.
@@ -196,7 +207,7 @@ back a trailing scroll after failed or unsettled input apply here too.
 Use `capture: "changes"` or `"window"`; `"none"` and a region are refused
 before input. There can be no earlier scroll in the batch. `next_page` counts
 as its last action. The equivalent explicit action is
-`{"action":"scroll","x":900,"y":600,"dy":1,"unit":"page"}`,
+`["scroll",900,600,1,"page"]`,
 with `dy` either 1 or -1, last in the batch.
 
 ### A scroll at the end of a batch
