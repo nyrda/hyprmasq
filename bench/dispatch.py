@@ -241,10 +241,12 @@ class QuotaGate:
         self.spent = collections.Counter()
         self.finished = 0
         self.seen = 0  # the runs finished at the last reading, whose spending it saw
+        # A run that finished gives back its reservation: the next admission reads the quota again, for what it spent.
+        self.stale = False
         self.said = None
 
     def quota(self):
-        if self.reading is None or self.now() - self.read_at >= self.refresh:
+        if self.reading is None or self.stale or self.now() - self.read_at >= self.refresh:
             new = self.read()
             if new:
                 for b in self.buckets:
@@ -253,6 +255,7 @@ class QuotaGate:
                         self.spent[b] += max(0.0, old["remaining"] - new[b]["remaining"])
                 self.reading = new
                 self.seen = self.finished
+                self.stale = False
             self.read_at = self.now()
         return self.reading
 
@@ -283,6 +286,7 @@ class QuotaGate:
 
     def done(self, runs):
         self.finished += runs
+        self.stale = self.stale or runs > 0
 
 
 # The buckets of agy's quota that a model spends, by the model's name, as agy's /usage groups them on a Pro plan, and

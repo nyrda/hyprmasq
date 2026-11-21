@@ -445,6 +445,20 @@ class Scheduling(unittest.TestCase):
             self.assertTrue(gate.admit(0, 3, dispatch.agy_buckets("gemini-4-neon")))
             self.assertFalse(gate.admit(1, 3, dispatch.agy_buckets("gemini-4-neon")))
 
+    def test_a_finished_run_makes_the_gate_read_the_quota_again(self):
+        reads = []
+        def read():
+            reads.append(1)
+            return {"gemini-5h": {"remaining": 0.9, "reset": "r1", "window": "5h"}}
+        gate = dispatch.QuotaGate(read, ["gemini-5h"], {"5h": 0.1}, refresh=60, now=lambda: 0)
+        with contextlib.redirect_stdout(io.StringIO()):
+            gate.admit(0)
+            gate.admit(1)
+            self.assertEqual(len(reads), 1)  # within the refresh interval
+            gate.done(1)
+            gate.admit(0)
+            self.assertEqual(len(reads), 2)  # its reservation is gone, so what it spent is read
+
     def test_the_quota_gate_waits_through_a_reset(self):
         readings = iter([0.05] * 3)
         def read():
