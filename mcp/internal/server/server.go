@@ -260,7 +260,7 @@ Read each result's summary, and its hint when it has one, before the next call.`
 
 var actDescription = `Act, wait for redraw, and show changes. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
 Coordinates are pixels of the shot you pass, as they are: a full shot, or a zoom from screenshot region, whose own pixels act takes without conversion. The shot identifies the window; pass window only without a shot.
-Use compact action arrays: [x,y] clicks, ["move",x,y], ["path",points,curve], ["scroll",x,y,dy,unit], ["type",text], ["paste",text], ["key",keys,repeat], ["hold",keys,ms], ["pause",ms]. keys: "right" or ["ctrl","l"], repeat optional. Named objects also work.
+Use compact action arrays: [x,y] clicks, ["move",x,y], ["path",points,curve], ["scroll",x,y,dy,unit], ["type",text], ["paste",text], ["key",keys,repeat], ["hold",keys,ms], ["pause",ms]. keys: "right" or ["ctrl","l"], repeat optional.
 path presses once, moves through its points [[x,y],...] and releases, as one stroke: a drag is a path of two points. curve "line", the default, goes straight from point to point. "spline" passes through every point but curves between them, so for a precise trace give points close together, and use line where the target bends sharply or the points are sparse. button "none" moves without pressing.
 The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box. A full shot comes when it serves better, saying why; capture "window" asks for one.
 Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; known keys, like arrows and enter in a menu, may follow.
@@ -320,30 +320,28 @@ func objectSchema(properties map[string]json.RawMessage, required ...string) jso
 	return out
 }
 
-var namedActionSchema = json.RawMessage(fmt.Sprintf(`{
-	"type": "object",
-	"properties": {
-		"action": {"type": "string", "enum": ["click", "move", "path", "scroll", "type", "paste", "key", "hold", "pause"]},
-		"x": {"type": "number", "description": "Shot pixels. click, move, scroll."},
-		"y": {"type": "number", "description": "Shot pixels. click, move, scroll."},
-		"button": {"type": "string", "enum": ["left", "right", "middle", "none"], "default": "left", "description": "click, path. none, for path only, moves without pressing, as for a menu that needs a diagonal move, and needs no hold capability."},
-		"count": {"type": "integer", "minimum": 1, "maximum": 3, "default": 1, "description": "click: 2 for a double click."},
-		"modifiers": {"type": "array", "items": {"type": "string"}, "description": "Held around a click or path: ctrl, alt, shift, super."},
-		"points": {"type": "array", "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}, "minItems": 2, "maxItems": %d, "description": "path: [[x, y], ...] in shot pixels. It presses once, moves through them in order and releases, as one stroke, such as drawing along a curve."},
-		"curve": {"type": "string", "enum": ["line", "spline"], "default": "line", "description": "path: line goes straight from point to point. spline passes through every point and curves between them, which suits points close together."},
-		"dx": {"type": "number", "description": "scroll: positive scrolls right."},
-		"dy": {"type": "number", "description": "scroll: positive scrolls down."},
-		"unit": {"type": "string", "enum": ["page", "notch", "px"], "default": "notch", "description": "scroll: page moves toward the next view with overlap, dy 1 or -1, last in batch; notch counts wheel clicks; px is app-scaled smooth scrolling."},
-		"text": {"type": "string", "description": "type: the text, typed as given, with no tags or escapes. A line break presses Enter and a tab presses Tab. paste: the text, inserted at once with Shift+Insert through a clipboard of its own, never the user's. Line breaks and tabs stay text, so use type to move between fields or cells. Not in terminals."},
-		"keys": {"type": "array", "items": {"type": "string"}, "description": "key, hold: pressed together in order and released in reverse, such as [\"ctrl\", \"shift\", \"t\"] or [\"ctrl+l\"], which is split at +. Names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus."},
-		"repeat": {"type": "integer", "minimum": 1, "maximum": 500, "default": 1, "description": "key: presses of the chord."},
-		"ms": {"type": "integer", "minimum": 0, "maximum": 5000, "description": "pause, hold: milliseconds. Actions after a click or path with a button already wait until the window has drawn its answer, and keys and text until 300 ms have passed since it, while the application moves the focus."}
-	},
-	"required": ["action"]
-}`, maxPathPoints))
+// actionSchema advertises the compact array form of an action only. parseAction also takes the named object form,
+// {"action":"click","x":10,"y":20}, but a schema that offers both as anyOf makes Gemini's API end most turns that
+// call act with MALFORMED_FUNCTION_CALL, and the models that know both forms write arrays.
+var actionSchema = json.RawMessage(fmt.Sprintf(`{"type":"array","minItems":1,"maxItems":6,"items":{},"description":%q}`,
+	"A point pair [x,y] is one left click. Other arrays start with an action name: [click,x,y,button?,count?,modifiers?], [move,x,y], "+
+		"[path,points,curve?,button?,modifiers?], [scroll,x,y,dy,unit?,dx?], [type,text], [paste,text], [key,keys,repeat?], [hold,keys,ms], [pause,ms]. "+
+		"Omit trailing defaults; do not use null placeholders. x and y are shot pixels.\n"+
+		"button: left, the default, right or middle; for path also none, which moves without pressing, as for a menu that needs a diagonal move, and needs no hold capability. "+
+		"count: 1 to 3, 2 for a double click. modifiers: an array of ctrl, alt, shift and super, held around the click or path.\n"+
+		fmt.Sprintf("points: 2 to %d points [[x,y],...], pressed once and released as one stroke. ", maxPathPoints)+
+		"curve: line, the default, goes straight from point to point; spline passes through every point and curves between them, which suits points close together.\n"+
+		fmt.Sprintf("scroll: positive dy scrolls down, positive dx right. unit: notch, the default, counts whole wheel clicks, up to %d; px is app-scaled smooth scrolling; ", maxNotches)+
+		"page moves toward the next view with overlap, with dy 1 or -1, last in the batch.\n"+
+		"type: the text as given, with no tags or escapes; a line break presses Enter and a tab presses Tab. "+
+		"paste: the text inserted at once with Shift+Insert through a clipboard of its own, never the user's; line breaks and tabs stay text, so use type to move between fields or cells. Not in terminals.\n"+
+		"keys: a string or an array of strings, pressed together in order and released in reverse, such as \"right\", [\"ctrl\",\"shift\",\"t\"] or \"ctrl+l\", which is split at +. "+
+		"Names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus. "+
+		fmt.Sprintf("repeat: 1 to %d presses of the chord.\n", maxRepeat)+
+		fmt.Sprintf("ms: 0 to %d, for pause and hold. ", maxPauseMs)+
+		"Actions after a click or path with a button already wait until the window has drawn its answer, and keys and text until 300 ms have passed since it, while the application moves the focus."))
 
 // actSchema is the act tool's input schema for a server that watches for new windows for grace after a wait.
-var actionSchema = json.RawMessage(`{"anyOf":[` + string(namedActionSchema) + `,{"type":"array","description":"A point pair [x,y] is one left click. Other arrays start with an action name: [click,x,y,button?,count?,modifiers?], [move,x,y], [path,points,curve?,button?,modifiers?], [scroll,x,y,dy,unit?,dx?], [type,text], [paste,text], [key,keys,repeat?], [hold,keys,ms], [pause,ms]. Omit trailing defaults; do not use null placeholders. keys is a string or an array of strings.","minItems":1,"maxItems":6,"items":{}}]}`)
 
 func actSchema(grace time.Duration) json.RawMessage {
 	watch := ""

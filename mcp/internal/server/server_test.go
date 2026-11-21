@@ -347,6 +347,24 @@ func TestProtocol(t *testing.T) {
 		if schema, _ := json.Marshal(tool.InputSchema); tool.Name == "act" && !strings.Contains(string(schema), "input has to end 2250 ms before the deadline") {
 			t.Errorf("act schema %s", schema)
 		}
+		if tool.Name == "act" {
+			// Gemini's API ends turns with MALFORMED_FUNCTION_CALL when an action may be either an object or an array.
+			var schema struct {
+				Properties struct {
+					Actions struct {
+						Items map[string]any `json:"items"`
+					} `json:"actions"`
+				} `json:"properties"`
+			}
+			raw, _ := json.Marshal(tool.InputSchema)
+			if err := json.Unmarshal(raw, &schema); err != nil {
+				t.Fatal(err)
+			}
+			items := schema.Properties.Actions.Items
+			if _, union := items["anyOf"]; union || items["type"] != "array" {
+				t.Errorf("act's actions items should be the array form alone, not %v", items)
+			}
+		}
 	}
 
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "screenshot", Arguments: map[string]any{"window": "0xa1"}})

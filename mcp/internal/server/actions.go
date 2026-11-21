@@ -201,7 +201,7 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
-		return action{}, invalidf("%s must be an object such as {\"action\":\"click\",\"x\":10,\"y\":20}", path)
+		return action{}, invalidf("%s must be an action array such as [10,20] or [\"type\",\"hello\"]", path)
 	}
 	var a action
 	kindRaw, ok := fields["action"]
