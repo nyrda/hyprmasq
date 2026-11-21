@@ -303,6 +303,9 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 		}
 		a.Modifiers = mods
 	case "scroll":
+		if unitAliases[a.Unit] != "" {
+			a.Unit = unitAliases[a.Unit]
+		}
 		switch a.Unit {
 		case "notch":
 			if a.DX != math.Trunc(a.DX) || a.DY != math.Trunc(a.DY) {
@@ -405,6 +408,9 @@ func expandAction(raw json.RawMessage, path string) (json.RawMessage, error) {
 	}
 	return json.Marshal(object)
 }
+
+// unitAliases are scroll units that models write for px, taken as it without a word, as a key's names are.
+var unitAliases = map[string]string{"pixels": "px", "pixel": "px"}
 
 var keyAliases = map[string]string{
 	"ctrl": "ctrl", "control": "ctrl",

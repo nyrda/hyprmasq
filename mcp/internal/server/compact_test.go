@@ -41,6 +41,24 @@ func TestInvalidCompactActionsSendNothing(t *testing.T) {
 	}
 }
 
+func TestPixelsScrollsAsPx(t *testing.T) {
+	var want [][]string
+	for _, actions := range []string{`[["scroll",100,100,40,"px"]]`, `[["scroll",100,100,40,"pixels"]]`, `[{"action":"scroll","x":100,"y":100,"dy":40,"unit":"pixel"}]`} {
+		e := newTestEnv(t)
+		e.window("0xa1", "1a", 320, 200)
+		e.screenshot(`{"window":"0xa1"}`)
+		res := e.act(`{"shot":"s1","capture":"none","actions":` + actions + `}`)
+		if res.IsError || get(t, res, "actions.delivery") != "complete" {
+			t.Fatal(actions, text(res))
+		}
+		if want == nil {
+			want = e.inputs()
+		} else if !reflect.DeepEqual(e.inputs(), want) {
+			t.Fatalf("%s sent %v, want %v", actions, e.inputs(), want)
+		}
+	}
+}
+
 func TestPointClicksSendNamedClickEvents(t *testing.T) {
 	var want [][]string
 	for _, actions := range []string{`[{"action":"click","x":40,"y":50}]`, `[["click",40,50]]`, `[[40,50]]`} {
