@@ -460,18 +460,31 @@ class Scheduling(unittest.TestCase):
         self.assertIn("quota: runs start again", printed.getvalue())
 
     def test_a_runs_cost_is_what_the_buckets_lost_once_runs_finished_a_reset_left_out(self):
-        readings = iter([(0.9, "r1"), (0.7, "r1"), (1.0, "r2"), (0.8, "r2")])
+        readings = iter([(0.9, "r1"), (0.7, "r1"), (1.0, "r2"), (0.8, "r2"), (0.8, "r2")])
         def read():
             left, reset = next(readings)
             return {"gemini-5h": {"remaining": left, "reset": reset, "window": "5h"}}
-        gate = dispatch.QuotaGate(read, ["gemini-5h"], {"5h": 0.1}, refresh=0)
+        gate = dispatch.QuotaGate(read, ["gemini-5h"], {"5h": 0.2}, refresh=0)
         for _ in range(4):
             gate.quota()
         self.assertAlmostEqual(gate.spent["gemini-5h"], 0.4)
         gate.done(2)
-        self.assertEqual(gate.cost("gemini-5h"), 0.1)  # the estimate, until three runs finished
+        self.assertEqual(gate.cost("gemini-5h"), 0.2)  # the estimate, until a reading saw three runs finished
         gate.done(2)
-        self.assertAlmostEqual(gate.cost("gemini-5h"), 0.1)
+        self.assertEqual(gate.cost("gemini-5h"), 0.2)
+        gate.quota()
+        self.assertAlmostEqual(gate.cost("gemini-5h"), 0.1)  # 40% over the four
+        # Runs that ended after the last reading count once a reading saw what they spent, not before.
+        left = iter([0.9, 0.9, 0.6])
+        unseen = dispatch.QuotaGate(lambda: {"gemini-5h": {"remaining": next(left), "reset": "r1", "window": "5h"}},
+                                    ["gemini-5h"], {"5h": 0.1}, refresh=0)
+        unseen.quota()
+        unseen.done(3)
+        self.assertEqual(unseen.cost("gemini-5h"), 0.1)  # no reading saw them yet
+        unseen.quota()
+        self.assertEqual(unseen.cost("gemini-5h"), 0.1)  # a reading that saw nothing spent
+        unseen.quota()
+        self.assertAlmostEqual(unseen.cost("gemini-5h"), 0.1)  # 30% over the three
         self.assertEqual(dispatch.agy_buckets("gemini-4-neon"), ("gemini-5h", "gemini-weekly"))
         self.assertEqual(dispatch.agy_buckets("gemini-4-argon"), ("gemini-argon-wtu-weekly",))
         self.assertEqual(dispatch.agy_buckets("claude-opus-5-5"), ("3p-5h", "3p-weekly"))

@@ -240,6 +240,7 @@ class QuotaGate:
         self.reading, self.read_at = None, None
         self.spent = collections.Counter()
         self.finished = 0
+        self.seen = 0  # the runs finished at the last reading, whose spending it saw
         self.said = None
 
     def quota(self):
@@ -251,13 +252,15 @@ class QuotaGate:
                     if old and b in new and new[b]["reset"] == old["reset"]:
                         self.spent[b] += max(0.0, old["remaining"] - new[b]["remaining"])
                 self.reading = new
+                self.seen = self.finished
             self.read_at = self.now()
         return self.reading
 
     def cost(self, bucket):
-        """What a run spends of the bucket: the estimate until three runs finished, then what they spent."""
-        if self.finished >= 3:
-            return self.spent[bucket] / self.finished
+        """What a run spends of the bucket: the estimate until a reading saw three finished runs and the bucket spent,
+        then what the readings saw spent over the runs finished by the last one."""
+        if self.seen >= 3 and self.spent[bucket] > 0:
+            return self.spent[bucket] / self.seen
         return self.start_cost[self.reading[bucket]["window"]]
 
     def admit(self, running, jobs=1, buckets=None):
