@@ -239,8 +239,8 @@ class QuotaGate:
         self.refresh, self.now = refresh, now
         self.reading, self.read_at = None, None
         self.spent = collections.Counter()
-        self.finished = 0
-        self.seen = 0  # the runs finished at the last reading, whose spending it saw
+        # The runs finished of each bucket's models, and those that the last reading saw, whose spending it holds.
+        self.finished, self.seen = collections.Counter(), collections.Counter()
         # A run that finished gives back its reservation: the next admission reads the quota again, for what it spent.
         self.stale = False
         self.said = None
@@ -254,16 +254,16 @@ class QuotaGate:
                     if old and b in new and new[b]["reset"] == old["reset"]:
                         self.spent[b] += max(0.0, old["remaining"] - new[b]["remaining"])
                 self.reading = new
-                self.seen = self.finished
+                self.seen = collections.Counter(self.finished)
                 self.stale = False
             self.read_at = self.now()
         return self.reading
 
     def cost(self, bucket):
-        """What a run spends of the bucket: the estimate until a reading saw three finished runs and the bucket spent,
-        then what the readings saw spent over the runs finished by the last one."""
-        if self.seen >= 3 and self.spent[bucket] > 0:
-            return self.spent[bucket] / self.seen
+        """What a run spends of the bucket: the estimate until a reading saw three finished runs of models that spend it,
+        and the bucket spent, then what the readings saw spent over those runs finished by the last one."""
+        if self.seen[bucket] >= 3 and self.spent[bucket] > 0:
+            return self.spent[bucket] / self.seen[bucket]
         return self.start_cost[self.reading[bucket]["window"]]
 
     def admit(self, running, jobs=1, buckets=None):
@@ -284,8 +284,10 @@ class QuotaGate:
         self.said = why or None
         return not why
 
-    def done(self, runs):
-        self.finished += runs
+    def done(self, runs, buckets=None):
+        """Runs of a model that spends the buckets, by default all, finished."""
+        for b in buckets or self.buckets:
+            self.finished[b] += runs
         self.stale = self.stale or runs > 0
 
 
@@ -382,7 +384,7 @@ class Queue:
             self.active -= 1
             if self.gate is not None and agent_of(unit)[0] == "agy":
                 self.gated -= len(unit.jobs)
-                self.gate.done(sum(job.outcome in ("done", "failed") for job in unit.jobs))
+                self.gate.done(sum(job.outcome in ("done", "failed") for job in unit.jobs), agy_buckets(agent_of(unit)[1]))
             for p, n in self.limits:
                 if agent_matches(p, *agent_of(unit)):
                     self.running[p] -= 1

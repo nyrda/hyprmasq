@@ -445,6 +445,19 @@ class Scheduling(unittest.TestCase):
             self.assertTrue(gate.admit(0, 3, dispatch.agy_buckets("gemini-4-neon")))
             self.assertFalse(gate.admit(1, 3, dispatch.agy_buckets("gemini-4-neon")))
 
+    def test_a_buckets_cost_is_learned_from_the_runs_of_models_that_spend_it(self):
+        left = iter([0.9, 0.6])
+        gate = dispatch.QuotaGate(lambda: {"gemini-5h": {"remaining": next(left), "reset": "r1", "window": "5h"},
+                                           "3p-5h": {"remaining": 1.0, "reset": "r1", "window": "5h"}},
+                                  ["gemini-5h", "3p-5h"], {"5h": 0.2}, refresh=0)
+        gate.quota()
+        gate.done(3, dispatch.agy_buckets("gemini-4-neon"))
+        gate.done(3, dispatch.agy_buckets("claude-opus-5-5"))
+        gate.quota()
+        # 30% over the three Gemini runs, not over all six.
+        self.assertAlmostEqual(gate.cost("gemini-5h"), 0.1)
+        self.assertEqual(gate.cost("3p-5h"), 0.2)
+
     def test_a_finished_run_makes_the_gate_read_the_quota_again(self):
         reads = []
         def read():
