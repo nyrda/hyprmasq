@@ -7,20 +7,31 @@ visible workspace. They probe how hyprmasq works with each model, and are no for
 
 ## Models
 
-Reliable work needs a current model of Anthropic or OpenAI, Haiku 5.5 included. The other models, Luna among them,
-manage forms and keyboard work but fail more often on the rest, and Kimi, Argon, Qwen, DeepSeek and GLM take several
-times as long. No run disturbed the user, and every failure was the model's own.
+Reliable work needs a current model of Anthropic, OpenAI or Google: Haiku 5.5 included, and Gemini 4 Neon, which takes
+two and a half times as long through Google Vertex and over three times through the Antigravity CLI. The other models, Luna among them, manage forms and keyboard
+work but fail more often on the rest, and Kimi, Argon, Qwen, DeepSeek and GLM take several times as long. No run
+disturbed the user, and every failure was the model's own.
 
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 glance -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter glance -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model. 555 of 656 runs passed. A row per model, the best first by its pass rate, the mean of its tasks&#x27; shares of runs passed, with that rate, its runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run. The runs took place from 29 Oct to 18 Nov 2026." src="benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model. 615 of 716 runs passed. A row per model, the best first by its pass rate, the mean of its tasks&#x27; shares of runs passed, with that rate, its runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run. The runs took place from 29 Oct to 21 Nov 2026." src="benchmarks/glance.svg">
 </picture>
 
-<sub>Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026. gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026. Builds and machines differ, so times compare roughly. Qwen 3.8 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. GLM 5.3 Flash ran each task three times, once on each of the three machines, on main&#x27;s e2acd79 on 4 Nov 2026. gpt-6.2-astra and gpt-6.2-sol ran each task four times at medium, two on each of two machines, on main&#x27;s 0c3f8ed on 18 Nov 2026. In Forgejo, gpt-6.2-sol asked the user before it granted the dashboard access, and went on after the user&#x27;s reply.</sub>
+<details><summary>Which runs each model had, on which build</summary>
+
+- gpt-6.1-sol and gpt-6.1-terra at medium and Sonnet 5.5 ran each task six times, and board eighteen, on 210dfbe on 29 Oct 2026.
+- Opus 5.5, gpt-6-astra, Haiku 5.5, gpt-6-luna, and gpt-6.1-sol and gpt-6.1-terra at high, ran each task four times, DeepSeek v4.1 Flash three, board-dnd once, and Kimi K3.1 Pro and Gemini 4 Argon once, on main&#x27;s 6c09d56 on 2 Nov 2026.
+- Qwen 3.8 Flash ran each task three times on main&#x27;s e2acd79 on 4 Nov 2026.
+- GLM 5.3 Flash ran each task three times on main&#x27;s e2acd79 on 4 Nov 2026.
+- gpt-6.2-astra and gpt-6.2-sol ran each task four times at medium on main&#x27;s 0c3f8ed on 18 Nov 2026.
+- Gemini 4 Neon ran each task three times at medium through the Antigravity CLI on main&#x27;s 0c3f8ed on 20 Nov 2026.
+- Gemini 4 Neon ran each task three times at medium through pi and OpenRouter, held to Google Vertex, on main&#x27;s af2f3f4 on 21 Nov 2026.
+
+</details>
 <!-- /render -->
 
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 overview -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter overview -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/overview-dark.svg">
   <img alt="Runs passed and wall time per run of each agent, a panel per task. Each bar is the median wall time with the median time in hyprmasq&#x27;s tools inside it, and each dot one run. Each row also gives its runs passed." src="benchmarks/overview.svg">
@@ -33,6 +44,7 @@ times as long. No run disturbed the user, and every failure was the model's own.
 | --- | --- | --- |
 | Opus 5.5 | 40/40 | Passed every run. |
 | gpt-6.2-sol | 40/40 | Passed every run, board included, as fast and cheap as gpt-6.1-sol. In Forgejo it asks the user before it grants the dashboard access to Mara's account, and goes on after the user's reply. |
+| Gemini 4 Neon | 60/60, 30 in agy and 30 through pi | Passed every run, with about as many calls as the frontier models. Through Google Vertex it takes two and a half times their time. The Antigravity CLI, the only way to run it on a Google AI subscription, hands it each screenshot as a file it opens with a request of its own, nearly half its requests, and takes over three times their time. Google AI Studio, as OpenCode Zen serves it, waits about 4 seconds longer on every request than Vertex and cancels the API's gain. |
 | Sonnet 5.5 | 59/60 | Missed one run of the form with dropdowns. |
 | gpt-6.2-astra | 38/40 | Passes every task. Its two misses were the lookalike label on board, in `dnd`. It costs two thirds of what gpt-6-astra costs per passed run, and took longer per step on its release day. |
 | gpt-6-astra | 38/40 | Passes every task. Its two misses were Sol's and Terra's lookalike label on board. |
@@ -97,7 +109,7 @@ close call.
 
 <details><summary>Numbers per task, and tokens and cost</summary>
 
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table board-dnd -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter table board-dnd -->
 <details><summary>Numbers: Board-dnd</summary>
 
 **Outcome and time**
@@ -115,6 +127,8 @@ close call.
 | Sonnet 5.5 | medium | 6/6 | 32 (29–44) | 13 (12–19) | 3.3 (3.0–4.8) | 4 (3–7) | 9 (9–13) | 10 (8–12) |
 | Haiku 5.5 | high | 4/4 | 48 (42–55) | 14 (13–16) | 3.2 (3.1–3.5) | 6 (6–8) | 10 (9–11) | 6 (6–8) |
 | gpt-6-luna | high | 0/4 | 58 (44–74) | 13 (12–15) | 5.8 (5.0–7.5) | 6 (3–8) | 9 (9–10) | 12 (7–18) |
+| Gemini 4 Neon (agy) | medium | 3/3 | 142 (134–146) | 13 (13–14) | 9.9 (7.0–11.3) | 7 (7–8) | 9 (9–9) | 13 (13–14) |
+| Gemini 4 Neon (pi) | medium | 3/3 | 110 (97–117) | 13 (13–13) | 9.0 (8.5–11.0) | 7 (7–7) | 9 (9–9) | 13 (13–13) |
 | Kimi K3.1 Pro | high, ran max | 1/1 | 270 | 16 | 12.5 | 14 | 9 | 14 |
 | Gemini 4 Argon | medium | 1/1 | 154 | 15 | 9.1 | 7 | 10 | 16 |
 | DeepSeek v4.1 Flash | high | 0/1 | 427 | 5 | 14.3 | 20 | 1 | 22 |
@@ -136,6 +150,8 @@ close call.
 | Sonnet 5.5 | medium | 64 (42–95) | 88 (75–90) | 1 (1–2) | 0.039 (0.029–0.050) |
 | Haiku 5.5 | high | 115 (94–122) | 87 (86–89) | 6 (5–7) | 0.007 (0.006–0.008) |
 | gpt-6-luna | high | 110 (64–161) | 82 (77–84) | 3 (2–4) | 0.004 (0.003–0.007) |
+| Gemini 4 Neon (agy) | medium | 190 (187–206) | 79 (78–79) | 8 (8–9) | 0.266 (0.257–0.292) |
+| Gemini 4 Neon (pi) | medium | 118 (112–127) | 70 (70–74) | 8 (6–8) | 0.229 (0.208–0.238) |
 | Kimi K3.1 Pro | high, ran max | 129 | 85 | 6 | 0.130 |
 | Gemini 4 Argon | medium | 115 | 61 | 6 | 0.158 |
 | DeepSeek v4.1 Flash | high | 353 | 83 | 19 | 0.022 |
@@ -144,7 +160,7 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table board-pointer -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter table board-pointer -->
 <details><summary>Numbers: Board-pointer</summary>
 
 **Outcome and time**
@@ -162,6 +178,8 @@ close call.
 | Sonnet 5.5 | medium | 6/6 | 31 (26–45) | 13 (12–13) | 3.4 (2.4–5.2) | 4 (3–6) | 9 (9–10) | 10 (7–14) |
 | Haiku 5.5 | high | 2/4 | 68 (55–80) | 15 (15–18) | 3.7 (3.0–4.0) | 10 (6–10) | 10 (9–11) | 10 (6–10) |
 | gpt-6-luna | high | 1/4 | 50 (45–60) | 13 (12–14) | 4.9 (4.3–8.4) | 5 (3–5) | 9 (9–9) | 12 (7–13) |
+| Gemini 4 Neon (agy) | medium | 3/3 | 148 (122–186) | 14 (13–14) | 11.2 (9.0–12.8) | 9 (7–9) | 9 (9–9) | 13 (11–15) |
+| Gemini 4 Neon (pi) | medium | 3/3 | 101 (99–113) | 14 (13–14) | 8.4 (7.9–8.9) | 7 (7–8) | 9 (9–10) | 13 (13–14) |
 | Kimi K3.1 Pro | high, ran max | 1/1 | 308 | 16 | 15.2 | 12 | 10 | 21 |
 | Gemini 4 Argon | medium | 1/1 | 368 | 31 | 8.4 | 19 | 40 | 13 |
 | DeepSeek v4.1 Flash | high | 0/3 | 213 (185–298) | 13 (7–15) | 8.5 (7.6–15.8) | 20 (20–20) | 6 (5–9) | 25 (23–29) |
@@ -183,6 +201,8 @@ close call.
 | Sonnet 5.5 | medium | 64 (42–89) | 87 (82–89) | 1 (1–2) | 0.038 (0.026–0.065) |
 | Haiku 5.5 | high | 180 (115–222) | 88 (87–89) | 10 (7–12) | 0.011 (0.007–0.013) |
 | gpt-6-luna | high | 99 (65–101) | 80 (76–87) | 3 (3–3) | 0.004 (0.003–0.005) |
+| Gemini 4 Neon (agy) | medium | 211 (184–248) | 82 (78–82) | 8 (7–9) | 0.258 (0.255–0.303) |
+| Gemini 4 Neon (pi) | medium | 115 (113–131) | 70 (67–74) | 7 (7–7) | 0.222 (0.222–0.229) |
 | Kimi K3.1 Pro | high, ran max | 156 | 91 | 5 | 0.118 |
 | Gemini 4 Argon | medium | 284 | 75 | 1 | 0.177 |
 | DeepSeek v4.1 Flash | high | 278 (274–326) | 89 (74–91) | 16 (15–19) | 0.015 (0.014–0.023) |
@@ -191,7 +211,7 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table calc -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter table calc -->
 <details><summary>Numbers: Calc</summary>
 
 **Outcome and time**
@@ -209,6 +229,8 @@ close call.
 | Sonnet 5.5 | medium | 6/6 | 50 (46–88) | 16 (15–28) | 2.2 (1.7–3.3) | 13 (12–16) | 16 (14–33) | 18 (15–26) |
 | Haiku 5.5 | high | 3/4 | 88 (59–111) | 22 (18–29) | 2.1 (1.3–2.3) | 21 (19–26) | 30 (21–90) | 21 (17–22) |
 | gpt-6-luna | high | 4/4 | 110 (106–126) | 28 (22–34) | 2.5 (2.2–2.8) | 23 (22–25) | 63 (35–94) | 42 (37–52) |
+| Gemini 4 Neon (agy) | medium | 3/3 | 257 (221–257) | 22 (22–24) | 12.2 (10.1–13.5) | 18 (17–19) | 73 (72–76) | 15 (14–16) |
+| Gemini 4 Neon (pi) | medium | 3/3 | 338 (155–504) | 27 (17–50) | 6.5 (5.2–6.6) | 39 (18–54) | 29 (14–31) | 29 (22–48) |
 | Kimi K3.1 Pro | high, ran max | 0/1 | 356 | 29 | 11.1 | 20 | 27 | 21 |
 | Gemini 4 Argon | medium | 0/1 | 126 | 14 | 7.1 | 12 | 22 | 15 |
 | DeepSeek v4.1 Flash | high | 2/3 | 152 (146–291) | 31 (24–36) | 3.6 (3.0–5.6) | 29 (29–34) | 64 (31–79) | 68 (64–79) |
@@ -230,6 +252,8 @@ close call.
 | Sonnet 5.5 | medium | 210 (196–311) | 91 (91–93) | 3 (3–4) | 0.094 (0.090–0.130) |
 | Haiku 5.5 | high | 507 (441–682) | 93 (93–95) | 9 (7–11) | 0.016 (0.014–0.019) |
 | gpt-6-luna | high | 591 (506–631) | 91 (88–94) | 6 (5–7) | 0.013 (0.012–0.016) |
+| Gemini 4 Neon (agy) | medium | 633 (567–695) | 86 (86–87) | 10 (10–11) | 0.493 (0.455–0.519) |
+| Gemini 4 Neon (pi) | medium | 1051 (305–1980) | 83 (80–91) | 16 (7–23) | 0.679 (0.333–1.621) |
 | Kimi K3.1 Pro | high, ran max | 405 | 92 | 6 | 0.210 |
 | Gemini 4 Argon | medium | 189 | 77 | 3 | 0.132 |
 | DeepSeek v4.1 Flash | high | 586 (548–856) | 94 (93–94) | 8 (7–18) | 0.012 (0.011–0.023) |
@@ -238,7 +262,7 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table files -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter table files -->
 <details><summary>Numbers: File manager</summary>
 
 **Outcome and time**
@@ -256,6 +280,8 @@ close call.
 | Sonnet 5.5 | medium | 6/6 | 18 (15–19) | 5 (5–6) | 2.0 (1.6–2.1) | 5 (4–6) | 14 (7–14) | 6 (4–8) |
 | Haiku 5.5 | high | 4/4 | 26 (19–34) | 12 (8–17) | 1.5 (1.3–1.7) | 8 (6–9) | 17 (11–26) | 8 (6–8) |
 | gpt-6-luna | high | 4/4 | 27 (24–36) | 6 (6–7) | 2.5 (2.1–3.0) | 6 (5–7) | 7 (7–8) | 12 (12–12) |
+| Gemini 4 Neon (agy) | medium | 3/3 | 85 (79–97) | 7 (7–7) | 8.3 (6.8–8.9) | 8 (8–8) | 9 (9–9) | 13 (13–13) |
+| Gemini 4 Neon (pi) | medium | 3/3 | 47 (44–54) | 5 (5–5) | 4.7 (3.8–6.7) | 6 (6–6) | 5 (5–5) | 6 (6–9) |
 | Kimi K3.1 Pro | high, ran max | 1/1 | 111 | 6 | 11.7 | 8 | 11 | 12 |
 | Gemini 4 Argon | medium | 0/1 | 410 | 25 | 9.6 | 20 | 43 | 17 |
 | DeepSeek v4.1 Flash | high | 3/3 | 90 (44–105) | 10 (8–16) | 2.8 (2.8–2.9) | 12 (11–14) | 12 (9–20) | 20 (18–23) |
@@ -277,6 +303,8 @@ close call.
 | Sonnet 5.5 | medium | 66 (47–73) | 92 (91–93) | 1 (0–1) | 0.026 (0.019–0.029) |
 | Haiku 5.5 | high | 131 (102–158) | 87 (84–91) | 2 (1–2) | 0.005 (0.004–0.007) |
 | gpt-6-luna | high | 111 (102–149) | 84 (80–88) | 1 (1–1) | 0.003 (0.003–0.005) |
+| Gemini 4 Neon (agy) | medium | 180 (178–182) | 78 (78–78) | 2 (2–2) | 0.169 (0.166–0.175) |
+| Gemini 4 Neon (pi) | medium | 63 (61–69) | 64 (45–64) | 2 (1–2) | 0.103 (0.100–0.125) |
 | Kimi K3.1 Pro | high, ran max | 62 | 85 | 2 | 0.041 |
 | Gemini 4 Argon | medium | 331 | 78 | 1 | 0.181 |
 | DeepSeek v4.1 Flash | high | 116 (99–141) | 87 (81–89) | 2 (1–2) | 0.003 (0.003–0.006) |
@@ -285,7 +313,7 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table forgejo -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter table forgejo -->
 <details><summary>Numbers: Forgejo</summary>
 
 **Outcome and time**
@@ -303,6 +331,8 @@ close call.
 | Sonnet 5.5 | medium | 6/6 | 57 (50–64) | 27 (24–31) | 2.3 (1.8–2.6) | 12 (12–13) | 26 (25–28) | 10 (9–11) |
 | Haiku 5.5 | high | 4/4 | 54 (43–68) | 28 (19–31) | 1.4 (1.1–2.2) | 16 (15–17) | 32 (25–35) | 24 (14–25) |
 | gpt-6-luna | high | 3/4 | 81 (66–138) | 22 (20–26) | 2.2 (2.0–2.7) | 19 (17–20) | 26 (22–29) | 30 (28–32) |
+| Gemini 4 Neon (agy) | medium | 3/3 | 241 (238–271) | 23 (20–25) | 11.4 (10.9–11.4) | 17 (17–18) | 24 (23–25) | 25 (17–27) |
+| Gemini 4 Neon (pi) | medium | 3/3 | 126 (117–168) | 21 (20–21) | 5.4 (5.2–8.5) | 17 (16–17) | 20 (19–20) | 28 (25–28) |
 | Kimi K3.1 Pro | high, ran max | 1/1 | 312 | 32 | 8.2 | 27 | 30 | 50 |
 | Gemini 4 Argon | medium | 0/1 | 440 | 72 | 6.2 | 36 | 25 | 19 |
 | DeepSeek v4.1 Flash | high | 3/3 | 84 (75–106) | 22 (20–27) | 3.2 (2.4–3.3) | 20 (17–24) | 26 (22–34) | 32 (26–42) |
@@ -324,6 +354,8 @@ close call.
 | Sonnet 5.5 | medium | 176 (160–190) | 91 (90–91) | 2 (2–2) | 0.075 (0.068–0.082) |
 | Haiku 5.5 | high | 334 (301–367) | 93 (92–94) | 4 (3–4) | 0.009 (0.009–0.010) |
 | gpt-6-luna | high | 426 (334–464) | 89 (86–90) | 3 (3–4) | 0.010 (0.009–0.011) |
+| Gemini 4 Neon (agy) | medium | 775 (670–838) | 86 (85–88) | 5 (5–5) | 0.462 (0.455–0.541) |
+| Gemini 4 Neon (pi) | medium | 395 (390–430) | 76 (73–86) | 3 (3–3) | 0.367 (0.277–0.412) |
 | Kimi K3.1 Pro | high, ran max | 532 | 94 | 5 | 0.221 |
 | Gemini 4 Argon | medium | 565 | 82 | 2 | 0.263 |
 | DeepSeek v4.1 Flash | high | 277 (230–377) | 92 (91–93) | 4 (3–4) | 0.006 (0.006–0.008) |
@@ -332,7 +364,7 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table form -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter table form -->
 <details><summary>Numbers: Form with dropdowns</summary>
 
 **Outcome and time**
@@ -350,6 +382,8 @@ close call.
 | Sonnet 5.5 | medium | 5/6 | 76 (71–142) | 35 (34–46) | 2.6 (2.3–2.7) | 15 (14–36) | 58 (56–74) | 37 (27–61) | 66 (65–122) |
 | Haiku 5.5 | high | 4/4 | 76 (70–90) | 41 (38–51) | 1.4 (1.4–1.7) | 20 (16–24) | 59 (58–93) | 20 (16–24) | 69 (65–79) |
 | gpt-6-luna | high | 4/4 | 130 (106–135) | 40 (39–45) | 2.5 (2.1–3.4) | 26 (25–30) | 71 (59–71) | 53 (46–55) | 122 (97–128) |
+| Gemini 4 Neon (agy) | medium | 3/3 | 277 (258–310) | 38 (38–39) | 16.6 (15.6–17.8) | 14 (13–14) | 56 (55–59) | 33 (32–43) | 236 (229–286) |
+| Gemini 4 Neon (pi) | medium | 3/3 | 155 (152–179) | 39 (38–39) | 8.1 (7.4–8.9) | 14 (12–14) | 55 (55–60) | 34 (17–34) | 142 (138–155) |
 | Kimi K3.1 Pro | high, ran max | 1/1 | 287 | 44 | 10.2 | 20 | 76 | 38 | 264 |
 | Gemini 4 Argon | medium | 1/1 | 311 | 51 | 9.7 | 21 | 84 | 53 | 288 |
 | DeepSeek v4.1 Flash | high | 2/3 | 210 (158–504) | 53 (47–56) | 3.3 (3.0–4.2) | 42 (33–66) | 65 (60–85) | 70 (68–87) | 310 (150–469) |
@@ -371,6 +405,8 @@ close call.
 | Sonnet 5.5 | medium | 312 (257–983) | 93 (92–96) | 2 (2–5) | 0.107 (0.096–0.247) |
 | Haiku 5.5 | high | 526 (399–743) | 94 (93–95) | 5 (5–7) | 0.014 (0.012–0.018) |
 | gpt-6-luna | high | 616 (570–695) | 93 (91–95) | 5 (5–7) | 0.014 (0.011–0.014) |
+| Gemini 4 Neon (agy) | medium | 950 (873–1035) | 90 (90–91) | 11 (10–12) | 0.570 (0.515–0.611) |
+| Gemini 4 Neon (pi) | medium | 384 (288–478) | 85 (77–87) | 7 (7–9) | 0.386 (0.271–0.419) |
 | Kimi K3.1 Pro | high, ran max | 360 | 93 | 5 | 0.178 |
 | Gemini 4 Argon | medium | 954 | 85 | 8 | 0.443 |
 | DeepSeek v4.1 Flash | high | 941 (676–1890) | 94 (92–95) | 9 (8–18) | 0.016 (0.012–0.037) |
@@ -379,7 +415,7 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table form-no-dropdowns -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter table form-no-dropdowns -->
 <details><summary>Numbers: Form without dropdowns</summary>
 
 **Outcome and time**
@@ -397,6 +433,8 @@ close call.
 | Sonnet 5.5 | medium | 6/6 | 60 (56–71) | 29 (27–30) | 2.6 (2.1–3.1) | 10 (9–15) | 55 (54–60) | 27 (17–33) | 52 (48–60) |
 | Haiku 5.5 | high | 4/4 | 66 (61–122) | 36 (33–41) | 1.9 (1.3–2.5) | 16 (13–28) | 64 (57–74) | 21 (14–43) | 58 (53–111) |
 | gpt-6-luna | high | 1/4 | 85 (63–134) | 39 (33–47) | 2.7 (2.0–3.7) | 14 (10–21) | 60 (51–76) | 28 (18–33) | 109 |
+| Gemini 4 Neon (agy) | medium | 3/3 | 221 (220–234) | 38 (35–38) | 14.1 (11.3–14.1) | 13 (12–13) | 54 (50–63) | 15 (14–17) | 186 (184–198) |
+| Gemini 4 Neon (pi) | medium | 3/3 | 141 (139–147) | 33 (33–35) | 6.8 (5.7–7.5) | 13 (11–13) | 50 (50–51) | 16 (12–29) | 122 (118–128) |
 | Kimi K3.1 Pro | high, ran max | 1/1 | 221 | 38 | 9.8 | 16 | 83 | 16 | 143 |
 | Gemini 4 Argon | medium | 1/1 | 162 | 30 | 9.3 | 11 | 56 | 27 | 144 |
 | DeepSeek v4.1 Flash | high | 2/3 | 202 (167–214) | 38 (31–42) | 3.8 (3.6–3.9) | 26 (25–30) | 60 (47–62) | 57 (53–59) | 170 (152–188) |
@@ -418,6 +456,8 @@ close call.
 | Sonnet 5.5 | medium | 191 (146–255) | 92 (91–92) | 2 (1–2) | 0.075 (0.059–0.099) |
 | Haiku 5.5 | high | 375 (298–779) | 93 (92–95) | 4 (4–7) | 0.011 (0.010–0.018) |
 | gpt-6-luna | high | 288 (216–621) | 90 (79–91) | 3 (2–5) | 0.008 (0.005–0.015) |
+| Gemini 4 Neon (agy) | medium | 538 (450–573) | 86 (84–87) | 9 (7–9) | 0.403 (0.397–0.423) |
+| Gemini 4 Neon (pi) | medium | 248 (223–302) | 83 (82–84) | 6 (5–7) | 0.245 (0.234–0.283) |
 | Kimi K3.1 Pro | high, ran max | 278 | 91 | 4 | 0.139 |
 | Gemini 4 Argon | medium | 276 | 67 | 6 | 0.257 |
 | DeepSeek v4.1 Flash | high | 460 (423–537) | 94 (85–95) | 10 (6–14) | 0.013 (0.013–0.015) |
@@ -426,7 +466,7 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table inkscape -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter table inkscape -->
 <details><summary>Numbers: Inkscape</summary>
 
 **Outcome and time**
@@ -444,6 +484,8 @@ close call.
 | Sonnet 5.5 | medium | 6/6 | 13 (11–18) | 3 (3–4) | 2.3 (1.7–3.1) | 3 (3–4) | 4 (3–9) | 11 (7–11) |
 | Haiku 5.5 | high | 4/4 | 25 (21–30) | 7 (6–8) | 1.7 (1.6–2.6) | 8 (7–9) | 9 (7–9) | 8 (7–9) |
 | gpt-6-luna | high | 4/4 | 25 (22–34) | 6 (4–8) | 3.1 (2.6–4.1) | 4 (4–7) | 6 (6–14) | 13 (8–14) |
+| Gemini 4 Neon (agy) | medium | 3/3 | 68 (49–68) | 4 (4–5) | 6.9 (5.7–9.2) | 6 (6–6) | 7 (6–7) | 13 (13–13) |
+| Gemini 4 Neon (pi) | medium | 3/3 | 109 (42–120) | 17 (4–19) | 5.6 (5.4–6.4) | 13 (6–14) | 30 (6–32) | 30 (13–30) |
 | Kimi K3.1 Pro | high, ran max | 1/1 | 71 | 5 | 7.9 | 5 | 7 | 8 |
 | Gemini 4 Argon | medium | 1/1 | 348 | 10 | 13.7 | 10 | 18 | 28 |
 | DeepSeek v4.1 Flash | high | 2/3 | 89 (40–163) | 7 (6–10) | 3.5 (3.0–4.7) | 11 (7–20) | 12 (11–12) | 19 (17–22) |
@@ -465,6 +507,8 @@ close call.
 | Sonnet 5.5 | medium | 43 (42–55) | 88 (85–90) | 0 (0–1) | 0.023 (0.019–0.025) |
 | Haiku 5.5 | high | 144 (115–154) | 92 (91–92) | 2 (2–3) | 0.005 (0.004–0.005) |
 | gpt-6-luna | high | 148 (77–308) | 80 (79–86) | 1 (1–2) | 0.004 (0.003–0.008) |
+| Gemini 4 Neon (agy) | medium | 115 (114–116) | 75 (74–75) | 2 (2–3) | 0.132 (0.129–0.141) |
+| Gemini 4 Neon (pi) | medium | 314 (102–333) | 81 (73–83) | 3 (2–4) | 0.253 (0.116–0.274) |
 | Kimi K3.1 Pro | high, ran max | 44 | 85 | 1 | 0.025 |
 | Gemini 4 Argon | medium | 218 | 61 | 2 | 0.210 |
 | DeepSeek v4.1 Flash | high | 140 (71–221) | 81 (78–91) | 5 (2–6) | 0.007 (0.004–0.008) |
@@ -473,7 +517,7 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table thunderbird -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter table thunderbird -->
 <details><summary>Numbers: Thunderbird</summary>
 
 **Outcome and time**
@@ -491,6 +535,8 @@ close call.
 | Sonnet 5.5 | medium | 6/6 | 91 (75–114) | 33 (30–36) | 2.5 (2.0–3.4) | 20 (17–23) | 30 (27–36) | 22 (18–28) |
 | Haiku 5.5 | high | 4/4 | 84 (70–93) | 46 (35–56) | 1.5 (1.4–1.6) | 20 (19–24) | 33 (27–47) | 22 (20–28) |
 | gpt-6-luna | high | 4/4 | 106 (77–145) | 30 (25–39) | 2.9 (2.0–4.2) | 22 (17–27) | 27 (23–33) | 24 (19–36) |
+| Gemini 4 Neon (agy) | medium | 3/3 | 302 (263–336) | 27 (26–30) | 12.0 (10.7–14.2) | 21 (19–21) | 26 (26–27) | 26 (26–28) |
+| Gemini 4 Neon (pi) | medium | 3/3 | 176 (174–198) | 28 (27–30) | 6.5 (6.0–7.2) | 21 (21–22) | 26 (25–26) | 33 (28–36) |
 | Kimi K3.1 Pro | high, ran max | 1/1 | 262 | 46 | 10.3 | 20 | 54 | 21 |
 | Gemini 4 Argon | medium | 0/1 | 1168 | 167 | 7.0 | 64 | 472 | 38 |
 | DeepSeek v4.1 Flash | high | 3/3 | 177 (116–260) | 30 (26–77) | 4.1 (3.0–4.5) | 25 (23–42) | 28 (23–68) | 34 (22–49) |
@@ -512,6 +558,8 @@ close call.
 | Sonnet 5.5 | medium | 500 (332–547) | 94 (92–94) | 3 (3–4) | 0.160 (0.119–0.170) |
 | Haiku 5.5 | high | 560 (507–680) | 94 (93–95) | 6 (5–6) | 0.015 (0.014–0.017) |
 | gpt-6-luna | high | 586 (390–1309) | 90 (88–95) | 5 (3–5) | 0.013 (0.010–0.021) |
+| Gemini 4 Neon (agy) | medium | 1073 (979–1135) | 89 (89–90) | 7 (6–7) | 0.583 (0.563–0.608) |
+| Gemini 4 Neon (pi) | medium | 563 (556–577) | 88 (88–89) | 4 (4–5) | 0.336 (0.336–0.339) |
 | Kimi K3.1 Pro | high, ran max | 383 | 92 | 4 | 0.169 |
 | Gemini 4 Argon | medium | 2228 | 89 | 6 | 0.757 |
 | DeepSeek v4.1 Flash | high | 372 (291–935) | 93 (86–96) | 4 (3–10) | 0.009 (0.008–0.015) |
@@ -520,7 +568,7 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 table trace -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter table trace -->
 <details><summary>Numbers: Trace</summary>
 
 **Outcome and time**
@@ -538,6 +586,8 @@ close call.
 | Sonnet 5.5 | medium | 6/6 | 16 (14–20) | 2 (2–3) | 3.2 (2.5–3.7) | 3 (3–4) | 1 (1–2) | 6 (6–7) |
 | Haiku 5.5 | high | 3/4 | 83 (60–112) | 4 (4–7) | 4.8 (4.0–5.6) | 10 (7–14) | 2 (1–3) | 10 (7–11) |
 | gpt-6-luna | high | 0/4 | 44 (23–56) | 3 (2–6) | 6.6 (5.0–7.8) | 4 (3–6) | 1 (1–3) | 7 (6–11) |
+| Gemini 4 Neon (agy) | medium | 3/3 | 138 (114–240) | 7 (3–11) | 13.6 (10.1–14.4) | 10 (8–13) | 4 (1–6) | 10 (7–12) |
+| Gemini 4 Neon (pi) | medium | 3/3 | 126 (82–132) | 6 (3–6) | 7.7 (6.3–9.3) | 8 (7–9) | 4 (1–4) | 8 (6–9) |
 | Kimi K3.1 Pro | high, ran max | 0/1 | 699 | 5 | 36.0 | 15 | 1 | 15 |
 | Gemini 4 Argon | medium | 1/1 | 307 | 13 | 16.7 | 14 | 7 | 13 |
 | DeepSeek v4.1 Flash | high | 0/3 | 675 (373–850) | 4 (4–6) | 18.1 (12.2–25.0) | 20 (20–20) | 0 (0–1) | 20 (20–22) |
@@ -559,6 +609,8 @@ close call.
 | Sonnet 5.5 | medium | 41 (41–55) | 87 (86–88) | 1 (1–1) | 0.025 (0.024–0.031) |
 | Haiku 5.5 | high | 244 (124–291) | 89 (84–91) | 11 (9–17) | 0.012 (0.010–0.017) |
 | gpt-6-luna | high | 86 (62–125) | 85 (75–86) | 4 (1–5) | 0.004 (0.002–0.006) |
+| Gemini 4 Neon (agy) | medium | 287 (250–436) | 83 (82–85) | 9 (8–10) | 0.310 (0.299–0.396) |
+| Gemini 4 Neon (pi) | medium | 136 (89–144) | 77 (70–79) | 8 (5–10) | 0.224 (0.167–0.257) |
 | Kimi K3.1 Pro | high, ran max | 274 | 91 | 15 | 0.304 |
 | Gemini 4 Argon | medium | 248 | 80 | 9 | 0.212 |
 | DeepSeek v4.1 Flash | high | 510 (456–744) | 75 (72–87) | 44 (25–76) | 0.049 (0.033–0.062) |
@@ -567,7 +619,7 @@ close call.
 
 </details>
 <!-- /render -->
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 costs -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter costs -->
 <details><summary>Tokens and cost per agent</summary>
 
 | Agent | Effort | Passed | Input M | Cached % | Output k | Cost $ | Cost per passed run $ |
@@ -583,6 +635,8 @@ close call.
 | Sonnet 5.5 | medium | 59/60 | 10.60 | 92 | 101 | 4.11 | 0.07 |
 | Haiku 5.5 | high | 36/40 | 12.93 | 93 | 241 | 0.43 | 0.01 |
 | gpt-6-luna | high | 25/40 | 13.07 | 89 | 138 | 0.32 | 0.01 |
+| Gemini 4 Neon (agy) | medium | 30/30 | 14.87 | 86 | 211 | 11.15 | 0.37 |
+| Gemini 4 Neon (pi) | medium | 30/30 | 10.19 | 82 | 190 | 9.50 | 0.32 |
 | Kimi K3.1 Pro | high, ran max | 8/10 | 2.62 | 92 | 53 | 1.53 | 0.19 |
 | Gemini 4 Argon | medium | 6/10 | 5.41 | 83 | 45 | 2.79 | 0.46 |
 | DeepSeek v4.1 Flash | high | 17/28 | 13.13 | 90 | 360 | 0.45 | 0.03 |
@@ -614,10 +668,10 @@ The form's seconds per kind of question, of Sol, Terra and Sonnet:
 
 The time of `act`, hyprmasq's tool that sends input and returns what changed, over all runs:
 
-<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2 act -->
+<!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter act -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/act-dark.svg">
-  <img alt="Time in finished act calls: Input pacing 4195 s, Settle wait 2326 s, Redraw watch 2587 s, Pauses 534 s, Rest 2741 s" src="benchmarks/act.svg">
+  <img alt="Time in finished act calls: Input pacing 4564 s, Settle wait 2538 s, Redraw watch 2835 s, Pauses 537 s, Rest 3044 s" src="benchmarks/act.svg">
 </picture>
 <!-- /render -->
 
@@ -892,7 +946,11 @@ The six models of the initial baseline at `9ae9280` on 19 Oct, and Terra on late
   <img alt="Runs passed and cost. 74 of 84 runs passed. A row per task shows the share of each agent&#x27;s runs of it that passed, and the rows below each agent&#x27;s runs passed and cost per passed run." src="benchmarks/scoreboard.svg">
 </picture>
 
-<sub>Terra ran on later builds than the other models: fa3f170 on 26–27 Oct 2026, and Forgejo on 05ce488, with #87, on 27 Oct. The others ran the initial baseline, 9ae9280, on 19 Oct 2026.</sub>
+<details><summary>Which runs each model had, on which build</summary>
+
+- Terra ran on later builds than the other models: fa3f170 on 26–27 Oct 2026, and Forgejo on 05ce488, with #87, on 27 Oct. The others ran the initial baseline, 9ae9280, on 19 Oct 2026.
+
+</details>
 <!-- /render -->
 
 <!-- render release-0.1.0,terra-tasks time -->
@@ -1145,8 +1203,8 @@ recovered.
   input elsewhere than the agent aimed it, apart from that attempt.
 - **Models:** Sol, Terra, Astra and Luna are OpenAI's `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-astra` and
   `gpt-6-luna` through Codex, as are `gpt-6.2-astra` and `gpt-6.2-sol`, Opus, Sonnet and Haiku Anthropic's Claude
-  5.5 models through Claude Code, and Kimi K3.1 Pro, Gemini 4 Argon, DeepSeek v4.1 Flash, Qwen 3.8 Flash and GLM 5.3
-  Flash run through pi. Costs are what the requests cost at the providers' API list prices, also where a subscription
+  5.5 models through Claude Code, Gemini 4 Neon through the Antigravity CLI and through pi with OpenRouter held to Google Vertex, and Kimi K3.1 Pro, Gemini 4 Argon,
+  DeepSeek v4.1 Flash, Qwen 3.8 Flash and GLM 5.3 Flash run through pi. Costs are what the requests cost at the providers' API list prices, also where a subscription
   paid for them. The figures' cost is per passed run: the cost of all runs
   over those that passed.
 
@@ -1290,6 +1348,50 @@ again on the same machine until no response took longer than a minute, two of th
 reruns change Astra's times and not its runs passed. No response of Sol's took longer than 26 seconds.
 
 The 80 runs cost an estimated $15.51 at API list prices, Astra's $11.68 of it.
+
+</details>
+
+<details><summary>Models: Gemini 4 Neon, 20 and 21 Nov 2026</summary>
+
+The runs took place on 2026-11-20 at main's [`0c3f8ed`](https://github.com/nyrda/hyprmasq/commit/0c3f8ed), the build
+of gpt-6.2's set, with Hyprland 0.57.2, from the same VM drivers. They are in
+[gemini-4-neon.json](benchmarks/data/gemini-4-neon.json). Gemini 4 Neon ran each task three times, once on each of the
+three machines of the set of 2 Nov: the Ryzen 7 5800X3D, the Ryzen 7 PRO 4750U and the Ryzen 5 5600X, one VM at once on
+each, on two physical cores of its own. The call budgets are those of the set of 2 Nov.
+
+- Antigravity CLI 1.5.13 with a Google login on its Pro plan, from a copy pinned on each machine: `gemini-4-neon` at
+  `medium`, which agy runs as its variant `gemini-4-neon-medium`. agy's own default is `high`.
+
+On a Google AI subscription, Neon runs only in the Antigravity CLI, `agy`, which has no option to turn off its own tools. Each run
+gives it an agent of its own, with agy's default prompt, hyprmasq's tools and `read_file` alone (see
+[bench/README.md](../bench/README.md#antigravity)). agy does not hand the model an MCP tool's images: it saves each to a
+file and the model opens it with `read_file`, a request of its own. 298 of the 646 requests opened a screenshot, and
+the model's requests, about 7 seconds each, took 82% of the wall time.
+
+`dispatch.py --quota-pace` started each run only while the login's quota covered it and the runs in flight. The
+30 runs took 52% of the plan's 5-hour limit for Gemini models and 14% of its weekly one, and the quota never held a
+run back. They would cost an estimated $11.15 at Google's API list prices, and their agent time totalled 95.4 minutes,
+9.7 of them in tools.
+
+Google's API has no such restriction. A second set ran Neon through pi and OpenRouter on 2026-11-21 at main's
+[`af2f3f4`](https://github.com/nyrda/hyprmasq/commit/af2f3f4), the build whose `act` schema Gemini's API takes without
+`MALFORMED_FUNCTION_CALL`. It ran each task three times on the Ryzen 7 5800X3D, two VMs at once, without call budgets,
+and is in [gemini-4-neon-openrouter.json](benchmarks/data/gemini-4-neon-openrouter.json).
+
+- pi 1.6.0 with an OpenRouter key: `openrouter/google/gemini-4-neon` at `medium`, held to the provider
+  `google-vertex` without fallbacks. OpenRouter's record of each of the 463 requests, debriefs included, names Vertex.
+
+pi hands the model each screenshot within the tool's result, so the 30 runs took 14 requests a run against agy's 22,
+each about as long as agy's, 8.4 seconds against 8.0, and the runs took three quarters of agy's time. The runs cost
+$9.50 at OpenRouter's prices, the same as Google's list prices, and their agent time totalled 71.0 minutes, 10.2 of
+them in tools.
+
+Google AI Studio is the slower way to the same model for this work. An earlier set ran each task twice through pi and
+OpenCode Zen, which serves Neon from AI Studio, and is in
+[gemini-4-neon-zen.json](benchmarks/data/gemini-4-neon-zen.json). Neon generated about 117 tokens a second on each
+route, but each request waited about 8.8 seconds before it, against 4.6 through Vertex and 4.5 in agy. That took up
+what the API saves on requests: the Zen runs took as long as agy's, 1926 seconds over the tasks' medians against 1878,
+and 1428 through Vertex. A Thunderbird run there that a request timing out at Zen held up for 330 seconds ran again.
 
 </details>
 

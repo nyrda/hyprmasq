@@ -400,10 +400,11 @@ def walk_split(calls):
 # tool's, do not match: they are in its tool results, which this does not read.
 INFRASTRUCTURE = {
     "rate_limit": r"usage_limit_reached|hit your (?:usage |session |weekly |[0-9a-z-]+ )?limit|usage limit|rate_limit_exceeded"
-                  r"|too many requests|rate limit reached|out of extra usage|limit will reset|quota exceeded",
+                  r"|too many requests|rate limit reached|out of extra usage|limit will reset|quota exceeded"
+                  r"|resource_exhausted|credits balance is too low",
     "auth": r"please run /login|invalid_grant|refresh token|authentication_failed|failed to authenticate"
             r"|oauth session expired|not logged in|oauth token has expired"
-            r"|401 unauthorized|token_expired|sign in again",
+            r"|401 unauthorized|token_expired|sign in again|authentication required|not logged into antigravity",
     "provider": r"overloaded_error|api_error_status\W+5\d\d|internal server error|stream disconnected|bad gateway"
                 r"|service unavailable|connection error|econnreset",
 }
@@ -422,7 +423,8 @@ def infrastructure_failure(run_dir, stream, run):
     texts = []
     for entry in stream[-20:]:
         line = entry.get("line") or {}
-        if line.get("type") in ("error", "turn.failed") or (line.get("type") == "result" and line.get("is_error")):
+        if line.get("type") in ("error", "turn.failed") or (line.get("type") == "result" and line.get("is_error")) or (
+                line.get("event") == "result" and (line.get("result") or {}).get("status") not in (None, "SUCCESS")):
             texts.append(json.dumps(line)[:2000])
     with contextlib.suppress(OSError), open(os.path.join(run_dir, "agent.stderr"), errors="replace") as f:
         if run.get("agent_exit"):
@@ -529,7 +531,39 @@ REPORTED_BY = {
     "codex": "x-codex-turn-metadata of the tool calls in mcp.jsonl",
     "claude": "output_config of the requests in Claude Code's transcript",
     "pi": "thinking_level_change in pi's session",
+    "agy": "the model variant in the requests of agy's conversation database",
 }
+
+
+AGY_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+
+def quota_spent(before, after):
+    """The fraction of each bucket spent between two readings of run.py's agy_quota, None for a bucket that reset between
+    them, whose reset time moved."""
+    if not before or not after:
+        return None
+    return {bucket: (round(was["remaining"] - after[bucket]["remaining"], 4)
+                     if after[bucket]["reset"] == was["reset"] else None)
+            for bucket, was in before.items()
+            if bucket in after and was.get("remaining") is not None and after[bucket].get("remaining") is not None}
+
+
+def agy_efforts(path, model):
+    """The efforts of the model's variants that agy's conversation database names, such as gemini-4-neon-low, in
+    order. agy keeps each request's model in its gen_metadata, among other models' names, in an SQLite file that the
+    machines' Python may lack the module for; the variants of the run's own model are read from its bytes."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return []
+    levels = "|".join(AGY_EFFORTS)
+    base = re.sub(rf"-(?:{levels})$", "", model or "")
+    if not base:
+        return []
+    pattern = rb"(?<![\w.-])" + re.escape(base.encode()) + rb"-(" + levels.encode() + rb")(?![\w.-])"
+    return distinct(m.decode() for m in re.findall(pattern, data))
 
 
 def run_effort(run, run_dir, tap):
@@ -586,6 +620,10 @@ OPENAI_PRICES = {
     "gpt-6-luna": ((0.10, 0.01, 0.125, 0.50), (0.20, 0.02, 0.25, 0.75)),
 }
 LONG_PROMPT = 272_000
+# Google's Gemini API list prices in USD per million tokens, from https://aistudio.google.com/docs/pricing on
+# 2026-11-20, Standard tier: input, cached input and output, thinking included, the same for any length of prompt. agy
+# runs on a Google login and reports no cost, so a run's cost is what its requests would cost on the API.
+GEMINI_PRICES = {"gemini-4-neon": (3.00, 0.15, 15.00)}
 
 
 # Codex's counters of a request's usage, and the names agent_usage() gives them.
@@ -685,6 +723,20 @@ def pi_context(stream):
     return request_context("pi stream assistant message_end usage", sizes, compactions)
 
 
+def agy_responses(stream):
+    """The model's requests in an agy stream: each agent_response step that ended, with the usage of its request."""
+    steps = [(e["line"].get("step_update") or {}) for e in stream if e["line"].get("event") == "step_update"]
+    return [s for s in steps if s.get("step_type") == "agent_response" and s.get("state") == "DONE" and s.get("usage")]
+
+
+def agy_context(stream):
+    """The context of an agy run: the prompt of each request, its cache reads included, as its agent_response steps
+    give it. agy's stream says nothing of compactions. The debrief writes a stream of its own."""
+    sizes = [(s["usage"].get("input_tokens") or 0) + (s["usage"].get("cache_read_tokens") or 0)
+             for s in agy_responses(stream)]
+    return request_context("agy stream-json agent_response usage", sizes, None)
+
+
 def context_usage(harness, stream, transcript, usage):
     """How large the agent's context got in a run, from the harness's own logs, the debrief's requests left out.
     None where they do not give the size of every request."""
@@ -692,6 +744,8 @@ def context_usage(harness, stream, transcript, usage):
         return claude_context(stream)
     if harness == "pi":
         return pi_context(stream)
+    if harness == "agy":
+        return agy_context(stream)
     return codex_context(usage, transcript)
 
 
@@ -737,6 +791,54 @@ def agent_usage(harness, stream, transcript=()):
             usage = turn if not usage else {k: add(usage[k], v) for k, v in turn.items()}
         if results:
             usage["final"] = results[-1].get("result")
+    elif harness == "agy":
+        # Each request is an agent_response step with its usage; each process's result has their sums, and the final
+        # answer, and after the user's reply (run.py --user-reply) the run's usage is the sum of both processes, each
+        # starting at its init. A process ended before its result, as by a timeout, counts the requests it finished.
+        # agy's input_tokens leave out the cache reads, its output_tokens hold the thinking, and it reports no cache
+        # writes.
+        responses = agy_responses(stream)
+        results = [e["line"].get("result") or {} for e in stream if e["line"].get("event") == "result"]
+        result = results[-1] if results else {}
+        keys = ("input_tokens", "cache_read_tokens", "output_tokens", "thinking_tokens")
+        processes = [[]]
+        for e in stream:
+            if e["line"].get("event") == "init" and processes[-1]:
+                processes.append([])
+            processes[-1].append(e)
+        u = {k: 0 for k in keys}
+        for process in processes:
+            ended = [e["line"].get("result") or {} for e in process if e["line"].get("event") == "result"]
+            for k in keys:
+                u[k] += (sum((r.get("usage") or {}).get(k) or 0 for r in ended) if ended
+                         else sum((s["usage"].get(k) or 0) for s in agy_responses(process)))
+        tools = [(e["line"].get("step_update") or {}) for e in stream if e["line"].get("event") == "step_update"]
+        usage = {
+            "turns": len(responses),
+            "input_tokens": (u.get("input_tokens") or 0) + (u.get("cache_read_tokens") or 0),
+            "cache_read_tokens": u.get("cache_read_tokens"),
+            "cache_write_tokens": None,
+            "output_tokens": u.get("output_tokens"),
+            "thinking_tokens": u.get("thinking_tokens"),
+            "api_seconds": round(sum(s.get("duration_seconds") or 0 for s in responses), 3),
+            "cost_usd": None,
+            "cost_basis": None,
+            "final": result.get("response") or None,
+            # agy's own tools that the agent used, such as read_file for the images that agy keeps out of the MCP
+            # results: calls of their own, beside the server's.
+            "harness_tools": dict(collections.Counter(
+                s.get("tool_name") for s in tools if s.get("step_type") == "tool" and s.get("state") in ("DONE", "ERROR")
+                and s.get("tool_name") and not s["tool_name"].startswith("mcp_"))),
+        }
+        # The model's variant of an effort, such as gemini-4-neon-medium, has the model's prices.
+        model = next((e["line"]["init"].get("model") for e in stream if e["line"].get("event") == "init"), None) or ""
+        prices = GEMINI_PRICES.get(re.sub(r"-(?:" + "|".join(AGY_EFFORTS) + r")$", "", model))
+        if prices and u.get("input_tokens") is not None:
+            usage["cost_usd"] = round((u["input_tokens"] * prices[0] + (u.get("cache_read_tokens") or 0) * prices[1]
+                                       + (u.get("output_tokens") or 0) * prices[2]) / 1e6, 6)
+            usage["cost_basis"] = f"API list prices for {model}"
+        if result.get("status") not in (None, "SUCCESS"):
+            usage["error"] = result.get("error") or result.get("status")
     elif harness == "pi":
         # Each assistant message's message_end carries the usage of its request; a turn is one of them.
         replies = [e["line"]["message"] for e in stream
@@ -1017,6 +1119,9 @@ def metrics(run_dir):
         "usage": usage,
         "context": context_usage(run["harness"], stream, transcript, usage),
         "harness_version": run.get("harness_version"),
+        # What an agy run and its debrief spent of each bucket of its login's quota (run.py's agy_quota).
+        **({"quota_spent": quota_spent(*(((run.get("agy") or {}).get("quota") or {}).get(k) for k in ("before", "after")))}
+           if run["harness"] == "agy" else {}),
         "versions": ready.get("versions"),
         "machine": run.get("machine"),
         "desktop": run.get("desktop", "bare"),

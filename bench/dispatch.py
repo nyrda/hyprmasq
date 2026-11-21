@@ -5,7 +5,8 @@
                        [,api-keys][,bin=DIR][,label=NAME]...
                 [--source DIR]... [--out DIR]... [--task TASK[:VARIANT]]... [--variant NAME] [--display WxH@S]
                 [--agent HARNESS:MODEL[@EFFORT]]... [--reps N | --rep N...] [--timeout SECONDS] [--no-debrief]
-                [--balance] [--max-concurrent PATTERN=N[,PATTERN=N]...]
+                [--balance] [--max-concurrent PATTERN=N[,PATTERN=N]...] [--task-max-calls TASK[:VARIANT]=N]...
+                [--quota-pace]
                 [--backend hyprmasq|cua|hypruse|computer-use-linux] [--prompt task|comparison]
                 [--browser firefox|chromium] [--desktop bare|omarchy]
 
@@ -21,7 +22,9 @@ directory TASK[-VARIANT] under each --out. cores= runs each slot's VM on that ma
 --balance gives each host an equal share of every task's and agent's runs, and --max-concurrent limits the runs at
 once of the agents that match a pattern, over all hosts and tasks. --backend, --prompt, --browser and --desktop go to
 every run, as run.py takes them. bin= puts a directory first on the host's PATH, where a series keeps the harnesses it
-pinned, and label= names the machine in its runs' data. See bench/README.md.
+pinned, and label= names the machine in its runs' data. --task-max-calls gives a task variant its own budget of tool
+calls in place of --max-calls. --quota-pace starts agy's runs only while the login's quota covers them and the runs
+in flight (QuotaGate). See bench/README.md.
 """
 
 import argparse
@@ -223,6 +226,83 @@ def plan(builds, agents, reps):
     return units
 
 
+class QuotaGate:
+    """Paces agy's runs on the quota of its login, which every machine shares: a run starts only while what is left of
+    each bucket that its models spend covers it and every run in flight, at what a run costs; otherwise it waits, through
+    a reset if it must. A run's cost starts at the estimate given, by the bucket's window, and once runs have finished
+    is what the buckets lost between readings, a reset left out, over the runs that finished: what the runs in flight
+    and any other use of the login spent counts too, which errs on the side of waiting. read() gives agy_quota's
+    buckets, or None; it is read at most every refresh seconds."""
+
+    def __init__(self, read, buckets, cost, refresh=60, now=time.monotonic):
+        self.read, self.buckets, self.start_cost = read, list(buckets), dict(cost)
+        self.refresh, self.now = refresh, now
+        self.reading, self.read_at = None, None
+        self.spent = collections.Counter()
+        # The runs finished of each bucket's models, and those that the last reading saw, whose spending it holds.
+        self.finished, self.seen = collections.Counter(), collections.Counter()
+        # A run that finished gives back its reservation: the next admission reads the quota again, for what it spent.
+        self.stale = False
+        self.said = None
+
+    def quota(self):
+        if self.reading is None or self.stale or self.now() - self.read_at >= self.refresh:
+            new = self.read()
+            if new:
+                for b in self.buckets:
+                    old = (self.reading or {}).get(b)
+                    if old and b in new and new[b]["reset"] == old["reset"]:
+                        self.spent[b] += max(0.0, old["remaining"] - new[b]["remaining"])
+                self.reading = new
+                self.seen = collections.Counter(self.finished)
+                self.stale = False
+            self.read_at = self.now()
+        return self.reading
+
+    def cost(self, bucket):
+        """What a run spends of the bucket: the estimate until a reading saw three finished runs of models that spend it,
+        and the bucket spent, then what the readings saw spent over those runs finished by the last one."""
+        if self.seen[bucket] >= 3 and self.spent[bucket] > 0:
+            return self.spent[bucket] / self.seen[bucket]
+        return self.start_cost[self.reading[bucket]["window"]]
+
+    def admit(self, running, jobs=1, buckets=None):
+        """Whether jobs more runs may start beside the running ones, in the buckets that their model spends, by default
+        all; says why not, once a reason. A unit's runs follow each other without asking again, so it asks for all."""
+        quota = self.quota()
+        if quota is None:
+            why = "agy does not report its quota"
+        else:
+            n = running + jobs
+            short = [b for b in (buckets or self.buckets) if b in quota and quota[b]["remaining"] < self.cost(b) * n]
+            why = "; ".join(f"{b} {quota[b]['remaining']:.0%} left, {n} runs take {self.cost(b) * n:.0%}, "
+                            f"resets {quota[b]['reset']}" for b in short)
+        if why and why.split(",")[0] != (self.said or "").split(",")[0]:
+            say(f"quota: waiting, {why}")
+        elif not why and self.said:
+            say("quota: runs start again")
+        self.said = why or None
+        return not why
+
+    def done(self, runs, buckets=None):
+        """Runs of a model that spends the buckets, by default all, finished."""
+        for b in buckets or self.buckets:
+            self.finished[b] += runs
+        self.stale = self.stale or runs > 0
+
+
+# The buckets of agy's quota that a model spends, by the model's name, as agy's /usage groups them on a Pro plan, and
+# what a run spends of a bucket of each window until runs have finished: the probes of 20 Nov 2026 spent about 8% of the
+# 5-hour limit and 2% of the weekly one in a run of the form or Forgejo with Gemini 4 Neon.
+AGY_BUCKETS = (("gemini-4-argon", ("gemini-argon-wtu-weekly",)), ("gemini", ("gemini-5h", "gemini-weekly")),
+               ("", ("3p-5h", "3p-weekly")))
+AGY_RUN_COST = {"5h": 0.10, "weekly": 0.03}
+
+
+def agy_buckets(model):
+    return next(buckets for prefix, buckets in AGY_BUCKETS if model.startswith(prefix))
+
+
 class Queue:
     """The units still to run. A slot waits while units remain that only other hosts may take but jobs still run,
     since a failure there can give it work.
@@ -231,9 +311,10 @@ class Queue:
     which are split equally over the live hosts that take the agent, the remainder to the first that come for it: so
     a faster host does not run more of one agent's runs, whose times depend on the machine. A unit that failed
     elsewhere before its run goes
-    to any host. limits are (pattern, n): at most n units of the agents that match the pattern run at once."""
+    to any host. limits are (pattern, n): at most n units of the agents that match the pattern run at once. gate, a
+    QuotaGate, holds back agy's units."""
 
-    def __init__(self, units, hosts=(), balance=False, limits=()):
+    def __init__(self, units, hosts=(), balance=False, limits=(), gate=None):
         self.units = collections.deque(units)
         self.cond = threading.Condition()
         self.active = 0
@@ -243,6 +324,7 @@ class Queue:
         self.running = collections.Counter()  # units running per pattern of limits
         self.planned = collections.Counter(share_of(u) for u in self.units)
         self.taken = collections.defaultdict(collections.Counter)  # per task and agent, the units each host took
+        self.gate, self.gated = gate, 0  # the agy runs of the units running
 
     def fair(self, host, unit):
         """Whether the host's share of the unit's task and agent has room for it; units that ran on dropped hosts
@@ -275,6 +357,12 @@ class Queue:
                     if self.full(unit):
                         unit.blocked = unit.blocked or time.monotonic()
                         continue
+                    gated = len(unit.jobs) if self.gate is not None and agent_of(unit)[0] == "agy" else 0
+                    if gated and not self.gate.admit(self.gated, gated, agy_buckets(agent_of(unit)[1])):
+                        unit.blocked = unit.blocked or time.monotonic()
+                        held = True
+                        continue
+                    self.gated += gated
                     self.units.remove(unit)
                     self.active += 1
                     if not unit.excluded:  # a unit that failed elsewhere counts for no share
@@ -294,6 +382,9 @@ class Queue:
         """A slot of the host finished the unit; `back` are units it gives back, first in line."""
         with self.cond:
             self.active -= 1
+            if self.gate is not None and agent_of(unit)[0] == "agy":
+                self.gated -= len(unit.jobs)
+                self.gate.done(sum(job.outcome in ("done", "failed") for job in unit.jobs), agy_buckets(agent_of(unit)[1]))
             for p, n in self.limits:
                 if agent_matches(p, *agent_of(unit)):
                     self.running[p] -= 1
@@ -528,7 +619,7 @@ class Remote:
         command += ["--variant", b.variant] if b.variant else []
         command += ["--no-debrief"] if self.args.no_debrief else []
         command += ["--user-reply"] if self.args.user_reply else []
-        command += ["--max-calls", str(self.args.max_calls)] if self.args.max_calls else []
+        command += ["--max-calls", str(b.config["max_calls"])] if b.config.get("max_calls") else []
         command += ["--lock", host.lock] if host.lock else []
         command += ["--cpus", run.format_cpus(host.cpus[slot])] if host.cpus else []
         # What run.json records of the dispatch: the slot, the limits on the agent and how long it waited for them.
@@ -671,6 +762,19 @@ def parse_tasks(args, parser):
     return tasks
 
 
+def parse_budgets(specs, tasks, parser):
+    """--task-max-calls as {(task, variant): budget}, for task variants of --task: TASK alone names its default variant."""
+    budgets = {}
+    for spec in specs:
+        name, sep, n = spec.rpartition("=")
+        task, colon, variant = name.partition(":")
+        matches = [t for t in tasks if t[0] == task and (t[1] == (variant or None) if colon else True)]
+        if not sep or not n.isdigit() or len(matches) != 1:
+            parser.error(f"--task-max-calls {spec} is not TASK[:VARIANT]=N of one --task")
+        budgets[matches[0]] = int(n)
+    return budgets
+
+
 def results_out(out, task, variant, tasks, suffix=""):
     """The results directory of a task variant in a dispatch of that many tasks: out itself for one task, as run.py
     takes it, or else a new directory under bench/results; and out/TASK[-VARIANT] for several."""
@@ -700,12 +804,17 @@ def main():
                              "directory of their results directories")
     parser.add_argument("--balance", action="store_true",
                         help="give each host an equal share of every agent's runs, instead of to whichever is free")
+    parser.add_argument("--task-max-calls", action="append", metavar="TASK[:VARIANT]=N",
+                        help="the budget of tool calls of a task variant, in place of --max-calls; repeatable")
+    parser.add_argument("--quota-pace", action="store_true",
+                        help="start agy's runs only while its login's quota covers them and the runs in flight")
     parser.add_argument("--max-concurrent", action="append", metavar="PATTERN=N[,PATTERN=N]",
                         help="at most N runs at once, over all hosts, of the agents that match PATTERN, such as "
                              "codex=4,claude-api=3; repeatable")
     args = parser.parse_args()
     agents, reps = run.check_runs(args, parser)
     tasks = parse_tasks(args, parser)
+    budgets = parse_budgets(args.task_max_calls or [], tasks, parser)
     try:
         limits = parse_limits(args.max_concurrent or [], agents)
     except ValueError as e:
@@ -737,7 +846,8 @@ def main():
         if not out and len(tasks) > 1:
             out = run.results_dir(f"{len(tasks)}-tasks{suffix}")
         for task, variant in tasks:
-            config = {**run.run_config(source, task, variant, args), "bench_commit": harness["commit"]}
+            budget = argparse.Namespace(**{**vars(args), "max_calls": budgets.get((task, variant), args.max_calls)})
+            config = {**run.run_config(source, task, variant, budget), "bench_commit": harness["commit"]}
             builds.append(Build(results_out(out, task, variant, len(tasks), suffix), config))
     if len({b.out for b in builds}) < len(builds):
         parser.error("two builds have the same --out")
@@ -760,7 +870,17 @@ def main():
     say(f"{sum(len(u.jobs) for u in units)} runs" + (f" of {len(tasks)} tasks" if len(tasks) > 1 else "") + " on "
         + ", ".join(f"{h} ({h.slots} slots" + (f" of {h.cores} cores" if h.cores else "") + ")" for h in hosts)
         + (", each agent's runs in equal shares" if args.balance else ""))
-    queue = Queue(units, hosts, args.balance, limits)
+    gate = None
+    if args.quota_pace:
+        models = {model for harness, model, effort in agents if harness == "agy"}
+        if not models:
+            parser.error("--quota-pace paces agy's runs, and no agent is agy's")
+        # This machine's agy reads the quota: it must be logged in to the hosts' login.
+        gate = QuotaGate(lambda: run.agy_quota({"HOME": os.path.expanduser("~")}),
+                         sorted({b for m in models for b in agy_buckets(m)}), AGY_RUN_COST)
+        if gate.quota() is None:
+            parser.error("agy here does not report its quota: log in with `agy`")
+    queue = Queue(units, hosts, args.balance, limits, gate)
     with tempfile.TemporaryDirectory(prefix="hyprmasq-dispatch-") as ctl:
         remote = Remote(harness, builds, agents, args, ctl, queue, keys)
         dispatch(hosts, queue, remote.prepare, remote.execute)

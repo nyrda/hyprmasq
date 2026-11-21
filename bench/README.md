@@ -144,6 +144,9 @@ slot such a list.
   (see [API keys](#api-keys));
 - `pi`: pi, with MODEL as `PROVIDER/MODEL` of the user's pi setup, such as
   `pi:tensorx/deepseek/deepseek-v4.1-flash-1017`. A run's directory has `_` for every `/` in the model.
+- `agy`: the Antigravity CLI, with the user's Google login, such as `agy:gemini-4-neon@high`. MODEL is a model that
+  `agy models` lists without its effort, and `@EFFORT` picks its variant, such as `gemini-4-neon-high`. See
+  [Antigravity](#antigravity).
 
 `@EFFORT` sets the reasoning effort, such as `codex:gpt-6.1-sol@high`; see [Effort](#effort). The default is
 `codex:gpt-6.1-sol`, `codex:gpt-6.1-terra`, `codex:gpt-6-astra`, `claude:claude-opus-5-5` and
@@ -424,6 +427,40 @@ a machine that is named to get the key (see [API keys on other machines](#api-ke
 - `pi` reads its keys itself, from `~/.pi/agent/auth.json` (or `$PI_CODING_AGENT_DIR`), which a run links to and does
   not copy.
 
+### Antigravity
+
+`agy` runs the Antigravity CLI in print mode, `agy --print PROMPT --output-format stream-json`, with the user's Google
+login. agy keeps the login in the system keyring, or in `~/.gemini/antigravity-cli/antigravity-oauth-token` after
+`agy acp --login`, the way to log in over SSH: it prints a link and reads the code that the browser shows.
+
+agy has no option that removes its built-in tools, such as its shell, file editing, browser and web search. A run
+selects an agent of its own instead, a custom agent file in its home's `~/.gemini/config/agents` that keeps agy's
+default prompt and lists `read_file` as its only tool (`run.py`'s `AGY_AGENT_FILE`):
+
+- `read_file` stays because agy does not give the model an MCP tool's images. It saves each to a file in the
+  conversation's directory and puts `[Resource offloaded to file://...]` in the tool's result, and the agent reads
+  that file with `read_file` to see the screenshot. Each image the agent looks at is a call of agy's own, outside
+  the tap, and a request more: `usage.harness_tools` in `summary.json` counts them.
+- agy lets the agent read its conversation's directory and the run's empty working directory, and print mode
+  denies what it cannot ask for, which ends the run: `--settings` allows the backend's MCP tools,
+  `mcp(hyprmasq/*)`, and nothing else.
+- agy also keeps `manage_task` for every agent that keeps its default prompt, for background tasks that nothing here
+  can start.
+- agy gives an MCP server's tools to the model through its own `call_mcp_tool` unless the configuration names each
+  tool eager. Once the VM is up, `run.py` lists the server's tools through the tap, in a session of their own logged
+  to `mcp-tools.jsonl`, and names them eager in `mcp_config.json`, with the tool timeout as `timeoutSeconds`. The
+  model then has them as `mcp_hyprmasq_act` and so on, as Claude Code and Codex have them.
+
+`run.json` records the agent file, the eager tools and the settings as `agy`, and its `quota`: what
+`agy --print /usage --output-format json` said was left of each bucket of the login's quota before the VM's boot and
+after the debrief, such as `gemini-5h`, the Gemini models' 5-hour limit, and `gemini-weekly`. `summary.json` has the
+difference as `quota_spent`, `null` for a bucket that reset in between. The quota is the login's, shared by every
+machine and every other use of it, so runs that overlap spend from the same buckets. Before the VM boots, `agy models` must
+list the model, or its variant of the effort given. agy's stream reports each request's prompt without its cache
+reads, which `summary.json` adds as for the other harnesses, and no cache writes and no cost: its runs go against
+the login's quota. agy runs only with hyprmasq. Where mise provides agy, as on Omarchy, `run.py` runs the binary
+that `mise which agy` names, since mise's shim would install agy again into the run's `HOME`.
+
 ## On several machines
 
 Runs are independent, so `bench/dispatch.py` spreads them over several machines, one fresh VM per run as before,
@@ -484,6 +521,15 @@ Two more options apply to all hosts:
   limits do not stall runs and inflate their wall time. An agent counts against every pattern it matches. A slot that
   comes for an agent whose limit is full takes another agent's unit, or waits. A pattern that matches none of the
   agents is refused.
+- `--quota-pace`: agy's units start only while the quota of its login covers them and every agy unit in flight,
+  as `agy --print /usage` on this machine reports it, which must be logged in to the hosts' login. A unit of a Gemini
+  model takes from the Gemini models' 5-hour and weekly buckets, of Argon from Argon's weekly one, and of a Claude or
+  GPT model from theirs. What a run takes starts at 10% of a 5-hour bucket and 3% of a weekly one, about what the
+  probes of Gemini 4 Neon on the form and Forgejo took, and once three runs have finished is what the buckets lost
+  over the runs that finished, a reset left out. That counts what the runs in flight and any other use of the login
+  spent so far, so it errs on the side of waiting. A slot that comes for an agy unit the quota does not cover takes
+  another agent's unit, or waits, through a reset if it must, and the dispatcher says why and until when. The
+  quota is read at most once a minute.
 
 `run.json` of a dispatched run records `dispatch`: its `slot`, `balance`, the limits that applied to its agent
 (`max_concurrent`) and `waited_seconds`, how long a full limit held its unit back from free slots before it started.
@@ -504,6 +550,8 @@ into one queue, so that no slot waits for the other tasks' last runs before the 
 round the tasks and each task's round goes round the agents, so that an agent's runs, and a provider's, spread over
 the whole dispatch. `--balance` gives each machine an equal share of every agent's runs of every task, and
 `--max-concurrent` counts the runs of all tasks. Every machine builds the drivers of all tasks before it takes runs.
+`--task-max-calls TASK[:VARIANT]=N`, repeatable, gives a task variant its own budget of tool calls in place of
+`--max-calls`, as the set of 2 Nov 2026 had: TASK alone names a task given once.
 
 Each task gets a results directory of its own, `TASK` or `TASK-VARIANT` under `--out`, such as
 `bench/results/suite/board-dnd/`, laid out as a dispatch of that task alone lays out its `--out`, with its
@@ -769,6 +817,9 @@ any agent session around it (`CLAUDE*`, `CODEX*`, `T3CODE*`, …).
   `--tools 'mcp__hyprmasq__*'` (no read, bash, edit or write), `--no-extensions -e builtin:mcp` (the MCP client
   alone), `--no-skills --no-context-files --no-prompt-templates --no-themes --no-approve --offline`, and a session
   directory of the run's own. The debrief resumes the session with `--no-tools` and no MCP client.
+- agy: a `HOME` of the run's own, with its own agent, a link to the user's login if it is in a file, and the tap as
+  its only MCP server, as [Antigravity](#antigravity) describes, and `AGY_CLI_DISABLE_AUTO_UPDATE=true`. The
+  variables that would replace the login, `GEMINI_*`, `GOOGLE_*` and `AGY_*`, stay out.
 
 ### Effort
 
@@ -781,12 +832,14 @@ starts.
 | `claude`, `claude-api` | `--effort` | `low`, `medium`, `high`, `xhigh`, `max` |
 | `codex` | `-c model_reasoning_effort=…` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, the levels the OpenAI API takes; a model may take fewer |
 | `pi` | `--thinking` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
+| `agy` | `--effort` | `low`, `medium`, `high`, `xhigh`, `max`, the variants the model has in `agy models` |
 
 The debrief resumes at the same effort. Without `@EFFORT`, the harness runs at
 its default for the model: Codex, which ignores the user's config, at its own (`low` for `gpt-6.1-sol`), and Claude
 Code at its own (`medium` for Sonnet 5.5 and Haiku 5.5). pi has no default of the model's own: it starts at its
 `medium`. pi clamps any level, its default or the one given, to what the model's `thinkingLevelMap` in `models.json`
-supports: the DeepSeek models have only `high` and `max`, so a lower level runs at `high`.
+supports: the DeepSeek models have only `high` and `max`, so a lower level runs at `high`. agy runs a model's
+`high` variant by default, as `gemini-4-neon` without `@EFFORT` runs `gemini-4-neon-high`.
 
 `run.json` records `effort`: `requested`, the level given or `null` for the default, `ran_at`, what the harness says
 it ran at, and `reported_by`, where it says so:
@@ -795,7 +848,8 @@ it ran at, and `reported_by`, where it says so:
   have none;
 - Claude Code, the `output_config.effort` of each request its transcript logs; its stream-json has none, only
   `per_turn_effort_active` in the init event;
-- pi, the session's `thinking_level_change`, also recorded as `thinking`.
+- pi, the session's `thinking_level_change`, also recorded as `thinking`;
+- agy, the model variant, such as `gemini-4-neon-low`, that its conversation's database names for the requests.
 
 `ran_at` is `null` where the harness says nothing, such as Codex in a run without tool calls, and has the levels
 joined with `/` where they changed during the run. The report shows the effort beside the agent, such as `high` or
@@ -806,7 +860,9 @@ resumes. A model whose name ends in a level shares those names, as `codex:gpt-hi
 results directory that holds a run of one refuses the other.
 
 The sessions' transcripts are moved from `~/.claude/projects`, `~/.codex/sessions` and pi's session directory into
-the run's directory after the debrief, and pi's MCP log, if it wrote one, to `pi-mcp.log`.
+the run's directory after the debrief, and pi's MCP log, if it wrote one, to `pi-mcp.log`. agy's are its
+conversation's SQLite database, `transcript-ID.db`, with every request it made, and the conversation's directory,
+`transcript-ID`, with the screenshots it saved for the agent.
 
 ## Measures
 
