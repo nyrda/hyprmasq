@@ -6,6 +6,10 @@
   # that changes the derivation, and nothing has it prebuilt.
   inputs.hyprland.url = "github:hyprwm/Hyprland/11cbc6c577b84ffb1edf4df3fc5b6128c3ae6947";
 
+  # Hyprland's own flake at a commit of its main branch, the next release, which the plugin also builds against and
+  # which hyprland.cachix.org has prebuilt, see "Hyprland main" in docs/development.md.
+  inputs.hyprland-main.url = "github:hyprwm/Hyprland/9927f2eb87beae7f2cc623567eeb0ffa56842aca";
+
   # Only for Go: hyprmasq-mcp talks to Hyprland through its socket, so it does not have to share Hyprland's
   # package set, and mcp/go.mod needs a newer Go than some Hyprland tags pin.
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/39ad350a0602fa0a58a544344e3e9187526ea45c";
@@ -14,6 +18,7 @@
     {
       self,
       hyprland,
+      hyprland-main,
       nixpkgs,
     }:
     let
@@ -27,6 +32,16 @@
         inherit system goPkgs;
         pkgs = goPkgs;
       };
+      # The plugin and its test on Hyprland main, from Hyprland's package set at that commit.
+      pkgsMain = import ./nix/pkgs.nix {
+        inherit system;
+        hyprland = hyprland-main;
+      };
+      vmTestMain = import ./nix/hyprmasq-vm-test.nix {
+        inherit system goPkgs;
+        pkgs = pkgsMain;
+        hyprlandMain = true;
+      };
     in
     {
       # Built against the pinned Hyprland. To build against your own compositor package:
@@ -39,6 +54,9 @@
         # The plugin for Hyprland 0.56.2, and that Hyprland. The MCP server is the same for both.
         hyprmasq-hyprland056 = vmTest056.plugin;
         hyprland-hyprland056 = goPkgs.hyprland;
+        # The plugin for Hyprland main, and that Hyprland.
+        hyprmasq-hyprland-main = vmTestMain.plugin;
+        hyprland-hyprland-main = pkgsMain.hyprland;
         # The exact Hyprland the plugin above is built and VM-tested against. Running these guarantees a match.
         inherit (pkgs) hyprland xdg-desktop-portal-hyprland;
       };
@@ -58,6 +76,13 @@
         container-test-hyprland056 = import ./nix/container-test.nix {
           inherit system goPkgs;
           pkgs = goPkgs;
+        };
+        # Both on Hyprland main.
+        vm-test-hyprland-main = vmTestMain;
+        container-test-hyprland-main = import ./nix/container-test.nix {
+          inherit system goPkgs;
+          pkgs = pkgsMain;
+          hyprlandMain = true;
         };
         module-compatibility = import ./nix/module-test.nix { inherit self pkgs; };
         # The subtest tables of docs/vm-test.md against the VM test's areas, without a VM.
@@ -89,6 +114,15 @@
             goPkgs.go
             goPkgs.clang-tools
             goPkgs.ffmpeg-headless
+          ];
+        };
+        # The same against Hyprland main: nix develop .#hyprland-main -c make
+        hyprland-main = pkgsMain.mkShell.override { inherit (pkgsMain.hyprland) stdenv; } {
+          inputsFrom = [ self.packages.${system}.hyprmasq-hyprland-main ];
+          packages = [
+            goPkgs.go
+            goPkgs.clang-tools
+            pkgsMain.ffmpeg-headless
           ];
         };
       };

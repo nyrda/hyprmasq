@@ -12,13 +12,15 @@ Run `./dev.sh` from the repository root.
 
 `--hyprland 0.56` after the command builds or tests against Hyprland 0.56.2,
 the older of the [two Hyprland releases](#two-hyprland-releases), as in
-`./dev.sh gate --hyprland 0.56`. The VM commands need Nix and KVM, and pass
+`./dev.sh gate --hyprland 0.56`, and `--hyprland main` against
+[Hyprland main](#hyprland-main). The VM commands need Nix and KVM, and pass
 extra arguments to `nix build`.
 `vm-test` builds `.#checks.x86_64-linux.vm-test -L`, and `vm-test-interactive`
 builds its `driverInteractive` attribute and opens the driver.
 
 CI runs `nix flake check --no-build` and builds `hyprmasq`, the plugin for
-Hyprland 0.56.2 `hyprmasq-hyprland056`, and `hyprmasq-mcp` with the Go tests
+Hyprland 0.56.2 `hyprmasq-hyprland056`, the plugin for Hyprland main
+`hyprmasq-hyprland-main`, and `hyprmasq-mcp` with the Go tests
 that do not wait on real time. It builds the flake's checks
 `mcp-tests`, which runs all Go tests, `format`, which checks C/C++ formatting
 with clang-format and Go formatting with gofmt, `vm-test-docs`, which checks the
@@ -47,8 +49,9 @@ PR that changes how the test itself runs in the VM or the container passes both
 tests. A PR that changes none of the plugin, its tools, the MCP server, the NixOS
 module and the test, such as one of docs or `bench/` alone, skips it. A PR that
 touches what differs between the two Hyprland releases also passes the gate on
-Hyprland 0.56.2, see [when 0.56 is tested](#when-056-is-tested). The PR template
-asks for each run.
+Hyprland 0.56.2, see [when 0.56 is tested](#when-056-is-tested), and a PR that
+moves `hyprland-main` or changes code that only Hyprland main builds passes it
+on [Hyprland main](#hyprland-main). The PR template asks for each run.
 
 The flake's dev shell, `nix develop`, has the build inputs of the plugin and
 `hyprmasq-input`, Go for `hyprmasq-mcp`, and clang-format from `clang-tools`.
@@ -89,7 +92,8 @@ through the flake, and there is no other supported setup.
    [subtest tables](vm-test.md#subtests).
    A PR that changes none of the plugin, its tools, the MCP server, the NixOS
    module and the test skips it. Run `./dev.sh gate --hyprland 0.56` as well
-   when [the PR needs it](#when-056-is-tested).
+   when [the PR needs it](#when-056-is-tested), and
+   `./dev.sh gate --hyprland main` when [that one does](#hyprland-main).
 4. Fill in `.github/pull_request_template.md`, including the commit the test
    passed on and which test ran.
 
@@ -277,6 +281,56 @@ Other changes, such as to the MCP server, the tools, the docs or plugin logic
 that uses Hyprland as before, pass the gate on 0.57.2 alone. A release commit
 passes both.
 
+## Hyprland main
+
+hyprmasq's `main` follows the Hyprland releases. The branch
+`port-hyprland-main`, a draft PR, also builds the plugin against Hyprland's
+`main` branch, so that a change on the way to the next Hyprland release finds
+hyprmasq ready, and so that the plugin runs on a Hyprland built from `main`,
+such as the AUR's `hyprland-git`. On that branch the flake
+locks a commit of it as its `hyprland-main` input, which hyprland.cachix.org
+has prebuilt, and builds the plugin against it as `hyprmasq-hyprland-main`,
+the Hyprland as `hyprland-hyprland-main`, and the test as
+`vm-test-hyprland-main` and `container-test-hyprland-main`. The dev shell
+`nix develop .#hyprland-main` and `./dev.sh ... --hyprland main` build against it.
+
+Hyprland main reports the version of the last release until the next one, and
+`HYPRLAND_MAIN_VERSION` names it. The Makefile takes that version as well as
+those of `HYPRLAND_VERSION`, so a build from a clone works on `hyprland-git`,
+and also on the release of that version, which it cannot tell from `main`.
+
+Support for Hyprland main never costs the releases theirs. Hyprland main builds
+as the pinned release, `HYPRMASQ_HYPRLAND` 57, until a commit of `main` changes
+something that the plugin uses. Then `src/HyprlandVersion.hpp` tells it apart
+by the first header that changed and sets `HYPRMASQ_HYPRLAND` to the next minor
+version, 58, and the code for it goes behind `#if HYPRMASQ_HYPRLAND >= 58` or
+into a helper of `src/Hyprland.hpp`, as for 0.56. The releases keep their code
+and their test.
+
+Where Hyprland main draws differently but through the same API, the plugin
+follows the drawing for every release without a version check.
+`drawnOffset()` in `src/Windows.cpp` is the place of a window's surface as the
+renderer puts it: centered in the window when the surface is smaller, on
+Hyprland main, and at 0 on the releases, whose `correctSmallVec()` returns
+nothing there. Emulated input and the waits place the window's surface by it,
+and the test's drag probe, whose 400×200 surface is smaller than its window,
+is addressed through `dnd_point()` of `nix/vm-test/common.py`.
+
+The branch moves `hyprland-main` to newer commits of Hyprland main and is
+rebased onto hyprmasq's `main` as both move. Each move checks the commits since
+the last one as [a new release](#moving-to-a-new-hyprland-release) would be
+checked: the hooked functions and their page offsets, and the private members,
+against the new source and build. It passes the gate on Hyprland main, and on
+both releases too when it adds code for Hyprland main. A change on Hyprland
+main that breaks hyprmasq is handled on the branch at Hyprland main's head,
+never by leaving `hyprland-main` on a commit before it, and the fix keeps both
+releases working.
+
+When Hyprland tags the next release, the branch becomes the port to it and the
+PR becomes ready. What it merges builds against the new release and the one
+before it, and leaves out the Hyprland main target, which the next branch
+brings back.
+
 ## Moving to a new Hyprland release
 
 hyprmasq reaches into Hyprland internals. The compiler checks their types
@@ -331,8 +385,11 @@ against a new release, but not what they do:
 - Update the pin in `flake.nix` and `HYPRLAND_VERSION`. The release that was
   pinned becomes the older of the [two releases](#two-hyprland-releases): its
   differences go behind `#if HYPRMASQ_HYPRLAND` and the helpers of
-  `src/Hyprland.hpp`, and the flake's `nixpkgs` input moves to a revision
-  whose Hyprland is that release. The release before it drops out with its
+  `src/Hyprland.hpp`, and the plugin builds it from the flake's `nixpkgs`
+  input at a revision whose Hyprland is that release, or else from an input
+  that pins its release commit. The port is the branch of [Hyprland main](#hyprland-main):
+  the code it already has for the new release becomes the pinned release's,
+  and the Hyprland main target leaves the port. The release before it drops out with its
   code, once neither Arch nor Omarchy's stable channel ships it. Run the
   whole test on both, and add a `commit_pins` entry in `hyprpm.toml` for a
   patch release that `main` moved past, mapping its Hyprland commit to the

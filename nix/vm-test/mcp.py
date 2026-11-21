@@ -500,7 +500,7 @@ with subtest("hyprmasq-mcp drags in a hidden app's own drag-and-drop, and says h
     entry, line = listed(mcp, m_dnd)
     assert entry["capabilities"] == {"lease": True, "hold": True, "dnd": True, "keyboard": "yes"} and "lacks" not in line, (entry, line)
     dnd_shot = mcp.call("screenshot", {"window": m_dnd}).data["shot"]["id"]
-    dropped = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [["path", [[50, 100], [300, 100]]]]})
+    dropped = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [["path", [list(dnd_point(m_dnd, 50, 100)), list(dnd_point(m_dnd, 300, 100))]]]})
     assert not dropped.is_error and dropped.data["actions"]["drag_and_drop"] == {"outcome": "finished", "private": True}, dropped
     assert dropped.text.startswith("1/1 delivered · drag-and-drop finished · redraw observed · "), dropped
     events = dnd_events("m-dnd")
@@ -510,7 +510,7 @@ with subtest("hyprmasq-mcp drags in a hidden app's own drag-and-drop, and says h
     # A drop that the app refuses is cancelled, and the hint says why.
     m_dnd, _ = dnd_probe("m-dnd-refused", "hm-m-dnd-refused", "accept=none", workspace=83)
     dnd_shot = mcp.call("screenshot", {"window": m_dnd}).data["shot"]["id"]
-    refused_drop = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [["path", [[50, 100], [300, 100]]]]})
+    refused_drop = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [["path", [list(dnd_point(m_dnd, 50, 100)), list(dnd_point(m_dnd, 300, 100))]]]})
     assert refused_drop.data["actions"]["drag_and_drop"] == {"outcome": "cancelled", "private": True, "reason": "rejected"}, refused_drop
     assert " · drag-and-drop cancelled (rejected) · " in refused_drop.text, refused_drop
     assert refused_drop.data["hint"].startswith("The app's drag-and-drop was cancelled, since it ended over a place that took none of its types or actions"), refused_drop
@@ -519,7 +519,7 @@ with subtest("hyprmasq-mcp drags in a hidden app's own drag-and-drop, and says h
     # the summary says so, the hint says what to do instead, and the wait ends without waiting for a redraw.
     m_dnd, _ = dnd_probe("m-dnd-serial", "hm-m-dnd-serial", "serial=enter", workspace=83)
     dnd_shot = mcp.call("screenshot", {"window": m_dnd}).data["shot"]["id"]
-    protected = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [["path", [[50, 100], [300, 100]]]]})
+    protected = mcp.call("act", {"window": m_dnd, "shot": dnd_shot, "actions": [["path", [list(dnd_point(m_dnd, 50, 100)), list(dnd_point(m_dnd, 300, 100))]]]})
     assert protected.data["actions"]["drag_and_drop"] == {"outcome": "cancelled", "private": False, "reason": "serial"}, protected
     assert protected.text.startswith("1/1 delivered · drag-and-drop cancelled to protect the user's input · no redraw · quiet "), protected
     assert protected.data["wait"]["ended"] == "quiet" and protected.data["wait"]["elapsed_ms"] < 900, protected

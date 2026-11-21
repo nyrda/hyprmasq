@@ -91,9 +91,11 @@ namespace hyprmasq::input {
 
         // The surface at a window-local point, and the point in that surface's coordinates.
         SP<CWLSurfaceResource> surfaceAt(const PHLWINDOW& w, const Vector2D& point, Vector2D& local) {
+            // Where Hyprland draws the window's own surface, which only Hyprland main moves (see drawnOffset).
+            const auto drawn = drawnOffset(w);
             // Like Hyprland, address X11 windows through their one surface, in XWayland's scale.
             if (hl::isX11(w)) {
-                local = point * hl::x11SurfaceScale(w);
+                local = (point - drawn) * hl::x11SurfaceScale(w);
                 return w->resource();
             }
             if (const auto popup = popupAt(w, point)) {
@@ -103,9 +105,22 @@ namespace hyprmasq::input {
             const auto surface = w->resource();
             if (!surface)
                 return nullptr;
-            const auto [found, at] = surface->at(point, true);
-            local                  = at;
-            return found;
+            if (drawn == Vector2D{}) {
+                const auto [found, at] = surface->at(point, true);
+                local                  = at;
+                return found;
+            }
+            // As CWLSurfaceResource::at with input finds it, with the window's own surface where Hyprland draws it and
+            // its subsurfaces where they are. Hyprland's own pointer still finds the surface at 0.
+            std::vector<std::pair<SP<CWLSurfaceResource>, Vector2D>> surfaces;
+            surface->breadthfirst([&](SP<CWLSurfaceResource> s, const Vector2D& offset, void*) { surfaces.emplace_back(s, s == surface ? offset + drawn : offset); }, nullptr);
+            for (const auto& [s, at] : surfaces | std::views::reverse) {
+                if (s->m_current.effectiveInputRegion().translate(at).containsPoint(point)) {
+                    local = point - at;
+                    return s;
+                }
+            }
+            return nullptr;
         }
 
         // The modifiers of the user's keyboards as the window with the user's keyboard focus has them: those of

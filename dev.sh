@@ -3,13 +3,15 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 cmd="${1:-build}"
 if [[ $# -gt 0 ]]; then shift; fi
-# --hyprland 0.56 builds and tests against the older Hyprland release of HYPRLAND_VERSION instead of the pinned one.
+# --hyprland 0.56 builds and tests against the older Hyprland release of HYPRLAND_VERSION instead of the pinned one, and
+# --hyprland main against Hyprland main.
 suffix="" shell=""
 if [[ ${1:-} == --hyprland ]]; then
     case "${2:-}" in
         0.57) ;;
         0.56) suffix="-hyprland056" shell="#hyprland056" ;;
-        *) echo "dev.sh: --hyprland takes 0.57 or 0.56" >&2; exit 2 ;;
+        main) suffix="-hyprland-main" shell="#hyprland-main" ;;
+        *) echo "dev.sh: --hyprland takes 0.57, 0.56 or main" >&2; exit 2 ;;
     esac
     shift 2
 fi
@@ -30,5 +32,5 @@ case "$cmd" in
         nix build ".#checks.x86_64-linux.vm-test$suffix.driverInteractive" "$@"
         exec ./result/bin/nixos-test-driver
         ;;
-    *) printf 'Usage: %s {build|gate|vm-test|container-test|vm-test-interactive} [--hyprland 0.57|0.56] [nix options]\n' "$0" >&2; exit 2 ;;
+    *) printf 'Usage: %s {build|gate|vm-test|container-test|vm-test-interactive} [--hyprland 0.57|0.56|main] [nix options]\n' "$0" >&2; exit 2 ;;
 esac

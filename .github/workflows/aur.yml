@@ -18,7 +18,7 @@ name: AUR
 
 on:
   pull_request:
-    paths: [PKGBUILD, HYPRLAND_VERSION, VERSION, Makefile, src/**, tools/**, mcp/**, packaging/aur/**, .github/workflows/aur.yml]
+    paths: [PKGBUILD, HYPRLAND_VERSION, HYPRLAND_MAIN_VERSION, VERSION, Makefile, src/**, tools/**, mcp/**, packaging/aur/**, .github/workflows/aur.yml]
   push:
     tags: ['v*']
   schedule:

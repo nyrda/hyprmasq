@@ -11,6 +11,9 @@
   # Hyprland's package set at the commit locked in flake.lock, or for the older release that HYPRLAND_VERSION names
   # (0.56.2), the flake's nixpkgs, whose Hyprland it is.
   pkgs ? import ./pkgs.nix { inherit system; },
+  # pkgs is Hyprland's package set at the commit of its main branch that flake.lock locks as hyprland-main, whose
+  # version is the one HYPRLAND_MAIN_VERSION names.
+  hyprlandMain ? false,
   # The nixpkgs whose Go builds hyprmasq-mcp: the flake's nixpkgs input, read from flake.lock.
   goPkgs ?
     let
@@ -24,7 +27,9 @@
 }:
 let
   # Hyprland's flake versions its package "<release>+date=<date>_<commit>".
-  targetVersions = pkgs.lib.splitString "\n" (pkgs.lib.fileContents ../HYPRLAND_VERSION);
+  targetVersions = pkgs.lib.splitString "\n" (
+    pkgs.lib.fileContents (if hyprlandMain then ../HYPRLAND_MAIN_VERSION else ../HYPRLAND_VERSION)
+  );
   pinnedVersion = builtins.head (pkgs.lib.splitString "+" pkgs.hyprland.version);
 
   # Bumping a pin is a port: the pinned Hyprland has to be a release that the plugin targets.
@@ -32,9 +37,11 @@ let
     if builtins.elem pinnedVersion targetVersions then
       pkgs.hyprland
     else
-      throw "hyprmasq targets Hyprland ${toString targetVersions} (HYPRLAND_VERSION), the test pins ${pkgs.hyprland.version}";
-  # 0.57 or 0.56, which the areas read as hyprland_release where Hyprland itself behaves differently.
-  release = pkgs.lib.versions.majorMinor pinnedVersion;
+      throw "hyprmasq targets Hyprland ${toString targetVersions} (${
+        if hyprlandMain then "HYPRLAND_MAIN_VERSION" else "HYPRLAND_VERSION"
+      }), the test pins ${pkgs.hyprland.version}";
+  # 0.57, 0.56 or main, which the areas read as hyprland_release where Hyprland itself behaves differently.
+  release = if hyprlandMain then "main" else pkgs.lib.versions.majorMinor pinnedVersion;
 
   # Same compiler as Hyprland, so the plugin shares its C++ runtime.
   plugin = pkgs.callPackage ./package.nix {
