@@ -793,14 +793,25 @@ def agent_usage(harness, stream, transcript=()):
             usage["final"] = results[-1].get("result")
     elif harness == "agy":
         # Each request is an agent_response step with its usage; each process's result has their sums, and the final
-        # answer, and after the user's reply (run.py --user-reply) the run's usage is the sum of both. agy's input_tokens
-        # leave out the cache reads, its output_tokens hold the thinking, and it reports no cache writes.
+        # answer, and after the user's reply (run.py --user-reply) the run's usage is the sum of both processes, each
+        # starting at its init. A process ended before its result, as by a timeout, counts the requests it finished.
+        # agy's input_tokens leave out the cache reads, its output_tokens hold the thinking, and it reports no cache
+        # writes.
         responses = agy_responses(stream)
         results = [e["line"].get("result") or {} for e in stream if e["line"].get("event") == "result"]
         result = results[-1] if results else {}
         keys = ("input_tokens", "cache_read_tokens", "output_tokens", "thinking_tokens")
-        u = ({k: sum((r.get("usage") or {}).get(k) or 0 for r in results) for k in keys} if results
-             else {k: sum((s["usage"].get(k) or 0) for s in responses) for k in keys})
+        processes = [[]]
+        for e in stream:
+            if e["line"].get("event") == "init" and processes[-1]:
+                processes.append([])
+            processes[-1].append(e)
+        u = {k: 0 for k in keys}
+        for process in processes:
+            ended = [e["line"].get("result") or {} for e in process if e["line"].get("event") == "result"]
+            for k in keys:
+                u[k] += (sum((r.get("usage") or {}).get(k) or 0 for r in ended) if ended
+                         else sum((s["usage"].get(k) or 0) for s in agy_responses(process)))
         tools = [(e["line"].get("step_update") or {}) for e in stream if e["line"].get("event") == "step_update"]
         usage = {
             "turns": len(responses),

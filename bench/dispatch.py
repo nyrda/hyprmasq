@@ -260,14 +260,16 @@ class QuotaGate:
             return self.spent[bucket] / self.finished
         return self.start_cost[self.reading[bucket]["window"]]
 
-    def admit(self, running):
-        """Whether another run may start beside the running ones; says why not, once a reason."""
+    def admit(self, running, jobs=1, buckets=None):
+        """Whether jobs more runs may start beside the running ones, in the buckets that their model spends, by default
+        all; says why not, once a reason. A unit's runs follow each other without asking again, so it asks for all."""
         quota = self.quota()
         if quota is None:
             why = "agy does not report its quota"
         else:
-            short = [b for b in self.buckets if b in quota and quota[b]["remaining"] < self.cost(b) * (running + 1)]
-            why = "; ".join(f"{b} {quota[b]['remaining']:.0%} left, {running + 1} runs take {self.cost(b) * (running + 1):.0%}, "
+            n = running + jobs
+            short = [b for b in (buckets or self.buckets) if b in quota and quota[b]["remaining"] < self.cost(b) * n]
+            why = "; ".join(f"{b} {quota[b]['remaining']:.0%} left, {n} runs take {self.cost(b) * n:.0%}, "
                             f"resets {quota[b]['reset']}" for b in short)
         if why and why.split(",")[0] != (self.said or "").split(",")[0]:
             say(f"quota: waiting, {why}")
@@ -313,7 +315,7 @@ class Queue:
         self.running = collections.Counter()  # units running per pattern of limits
         self.planned = collections.Counter(share_of(u) for u in self.units)
         self.taken = collections.defaultdict(collections.Counter)  # per task and agent, the units each host took
-        self.gate, self.gated = gate, 0  # the units of agy running
+        self.gate, self.gated = gate, 0  # the agy runs of the units running
 
     def fair(self, host, unit):
         """Whether the host's share of the unit's task and agent has room for it; units that ran on dropped hosts
@@ -346,8 +348,8 @@ class Queue:
                     if self.full(unit):
                         unit.blocked = unit.blocked or time.monotonic()
                         continue
-                    gated = self.gate is not None and agent_of(unit)[0] == "agy"
-                    if gated and not self.gate.admit(self.gated):
+                    gated = len(unit.jobs) if self.gate is not None and agent_of(unit)[0] == "agy" else 0
+                    if gated and not self.gate.admit(self.gated, gated, agy_buckets(agent_of(unit)[1])):
                         unit.blocked = unit.blocked or time.monotonic()
                         held = True
                         continue
@@ -372,7 +374,7 @@ class Queue:
         with self.cond:
             self.active -= 1
             if self.gate is not None and agent_of(unit)[0] == "agy":
-                self.gated -= 1
+                self.gated -= len(unit.jobs)
                 self.gate.done(sum(job.outcome in ("done", "failed") for job in unit.jobs))
             for p, n in self.limits:
                 if agent_matches(p, *agent_of(unit)):

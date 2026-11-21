@@ -594,6 +594,21 @@ class AgyReport(unittest.TestCase):
                           context["compactions"]), (3, 2810, 3500 + 1060, None))
         self.assertIsNone(report.infrastructure_failure("/nonexistent", stream, {}))
 
+    def test_a_follow_up_process_ended_before_its_result_counts_the_requests_it_finished(self):
+        # run.py --user-reply appends a second agy process to the stream. One that a timeout ended has no result.
+        stream = report.load_jsonl(os.path.join(BENCH, "testdata", "agy-agent.jsonl"))
+        first = report.agent_usage("agy", stream)
+        follow_up = [{"t": 0, "line": {"event": "init", "conversation_id": "c", "init": {"model": "gemini-4-neon"}}},
+                     {"t": 0, "line": {"event": "step_update", "step_update": {
+                         "step_type": "agent_response", "state": "DONE", "duration_seconds": 2.0,
+                         "usage": {"input_tokens": 400, "cache_read_tokens": 5000, "output_tokens": 60,
+                                   "thinking_tokens": 20}}}}]
+        usage = report.agent_usage("agy", stream + follow_up)
+        self.assertEqual(usage["turns"], first["turns"] + 1)
+        self.assertEqual(usage["input_tokens"], first["input_tokens"] + 400 + 5000)
+        self.assertEqual(usage["output_tokens"], first["output_tokens"] + 60)
+        self.assertEqual(usage["final"], first["final"])
+
     def test_a_failed_result_is_the_runs_error_and_a_login_that_ended_is_the_infrastructures(self):
         failed = {"event": "result", "result": {"status": "ERROR", "error": "authentication required",
                                                 "response": "", "usage": {}}}

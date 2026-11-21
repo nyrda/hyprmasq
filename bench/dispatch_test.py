@@ -433,6 +433,18 @@ class Scheduling(unittest.TestCase):
         self.assertGreater(most["codex"], 0)
         self.assertEqual(sum(n for (host, harness), n in ran.items() if harness == "agy"), 4)
 
+    def test_the_quota_gate_checks_only_the_models_buckets_and_reserves_every_run_of_a_unit(self):
+        quota = {"gemini-5h": {"remaining": 0.35, "reset": "r1", "window": "5h"},
+                 "3p-5h": {"remaining": 0.0, "reset": "r1", "window": "5h"}}
+        gate = dispatch.QuotaGate(lambda: quota, ["gemini-5h", "3p-5h"], {"5h": 0.1}, refresh=0)
+        with contextlib.redirect_stdout(io.StringIO()):
+            # An empty 3p bucket does not hold back a Gemini run, which does not spend it.
+            self.assertTrue(gate.admit(0, 1, dispatch.agy_buckets("gemini-4-neon")))
+            self.assertFalse(gate.admit(0, 1, dispatch.agy_buckets("claude-opus-5-5")))
+            # A unit of three builds' runs needs 30% beside one run in flight's 10%: 35% is short.
+            self.assertTrue(gate.admit(0, 3, dispatch.agy_buckets("gemini-4-neon")))
+            self.assertFalse(gate.admit(1, 3, dispatch.agy_buckets("gemini-4-neon")))
+
     def test_the_quota_gate_waits_through_a_reset(self):
         readings = iter([0.05] * 3)
         def read():
