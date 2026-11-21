@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -193,12 +194,24 @@ func parseActions(raw []json.RawMessage) ([]action, error) {
 }
 
 func parseAction(raw json.RawMessage, path string) (action, error) {
-	if b := bytes.TrimSpace(raw); len(b) > 0 && b[0] == '[' {
-		var err error
-		if raw, err = expandAction(b, path); err != nil {
-			return action{}, err
-		}
+	b := bytes.TrimSpace(raw)
+	if len(b) == 0 || b[0] != '[' {
+		return parseNamedAction(raw, path)
 	}
+	expanded, form, err := expandAction(b, path)
+	if err != nil {
+		return action{}, err
+	}
+	a, err := parseNamedAction(expanded, path)
+	// The checks name the fields of the named form, which an array has no names for: say which item is which.
+	var te *toolError
+	if errors.As(err, &te) && te.Code == "invalid_arguments" {
+		te.Message += "; the array is " + form
+	}
+	return a, err
+}
+
+func parseNamedAction(raw json.RawMessage, path string) (action, error) {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
 		return action{}, invalidf("%s must be an action array such as [10,20] or [\"type\",\"hello\"]", path)
@@ -363,41 +376,81 @@ func parseAction(raw json.RawMessage, path string) (action, error) {
 	return a, nil
 }
 
+// compactForms are the array forms of the actions, the names of their items in order after the action name.
+var compactForms = map[string][]string{
+	"click":  {"x", "y", "button", "count", "modifiers"},
+	"move":   {"x", "y"},
+	"path":   {"points", "curve", "button", "modifiers"},
+	"scroll": {"x", "y", "dy", "unit", "dx"},
+	"type":   {"text"},
+	"paste":  {"text"},
+	"key":    {"keys", "repeat"},
+	"hold":   {"keys", "ms"},
+	"pause":  {"ms"},
+}
+
+// compactOptional are the items an array may leave out at its end.
+var compactOptional = map[string]bool{"button": true, "count": true, "modifiers": true, "curve": true, "unit": true, "dx": true, "repeat": true}
+
+// pointForm is the form of a click without its name, which starts with x, as no action name is a number.
+const pointForm = "[x,y,button?,count?,modifiers?], such as [10,20] for a left click or [10,20,\"left\",2] for a double click"
+
+// compactForm spells kind's array form, such as [move,x,y].
+func compactForm(kind string) string {
+	items := []string{kind}
+	for _, name := range compactForms[kind] {
+		if compactOptional[name] {
+			name += "?"
+		}
+		items = append(items, name)
+	}
+	return "[" + strings.Join(items, ",") + "]"
+}
+
+// allCompactForms lists every array form, for an action whose name is missing or unknown.
+func allCompactForms() string {
+	forms := []string{"[x,y,button?,count?,modifiers?]"}
+	for _, kind := range []string{"click", "move", "path", "scroll", "type", "paste", "key", "hold", "pause"} {
+		forms = append(forms, compactForm(kind))
+	}
+	return strings.Join(forms, ", ")
+}
+
 // Arrays are a shorter spelling of named actions. Expanding them first keeps
 // validation, coordinate checks and input delivery identical for both forms.
-func expandAction(raw json.RawMessage, path string) (json.RawMessage, error) {
+// expandAction also returns the array's form, for the errors of the later checks.
+func expandAction(raw json.RawMessage, path string) (json.RawMessage, string, error) {
 	var parts []json.RawMessage
 	if err := json.Unmarshal(raw, &parts); err != nil || len(parts) == 0 {
-		return nil, invalidf("%s must start with an action name", path)
+		return nil, "", invalidf("%s is an empty action; an action is one of %s", path, allCompactForms())
 	}
-	// A point pair is a single left click. Expand it before the ordinary
-	// click parser, so bounds, required numbers and stale checks are shared.
-	if len(parts) == 2 {
-		var x *float64
-		if json.Unmarshal(parts[0], &x) == nil && x != nil {
-			return json.Marshal(map[string]json.RawMessage{"action": json.RawMessage(`"click"`), "x": parts[0], "y": parts[1]})
+	// An array that starts with a number is a click: [x,y] a left click, and [x,y,button,count,modifiers] any other.
+	// It goes through the ordinary click parser, so bounds, required numbers and stale checks are shared.
+	var x *float64
+	if json.Unmarshal(parts[0], &x) == nil && x != nil {
+		if len(parts) < 2 || len(parts) > 5 {
+			return nil, "", invalidf("%s has %d items: a click is %s", path, len(parts), pointForm)
 		}
+		object := map[string]json.RawMessage{"action": json.RawMessage(`"click"`)}
+		for i, p := range parts {
+			object[compactForms["click"][i]] = p
+		}
+		out, err := json.Marshal(object)
+		return out, pointForm, err
 	}
 	var kind string
 	if err := json.Unmarshal(parts[0], &kind); err != nil {
-		return nil, invalidf("%s[0] must be an action name", path)
+		return nil, "", invalidf("%s[0] must be an action name or a click's x, not %s; an action is one of %s", path, parts[0], allCompactForms())
 	}
 	if dragNames[kind] {
-		return nil, dragRefused(path, kind)
+		return nil, "", dragRefused(path, kind)
 	}
-	fields := map[string][]string{
-		"click":  {"x", "y", "button", "count", "modifiers"},
-		"move":   {"x", "y"},
-		"path":   {"points", "curve", "button", "modifiers"},
-		"scroll": {"x", "y", "dy", "unit", "dx"},
-		"type":   {"text"},
-		"paste":  {"text"},
-		"key":    {"keys", "repeat"},
-		"hold":   {"keys", "ms"},
-		"pause":  {"ms"},
-	}[kind]
-	if fields == nil || len(parts) > len(fields)+1 {
-		return nil, invalidf("%s has an unknown action or too many arguments", path)
+	fields := compactForms[kind]
+	if fields == nil {
+		return nil, "", invalidf("%s[0] is no action: %q; an action is one of %s", path, kind, allCompactForms())
+	}
+	if len(parts) > len(fields)+1 {
+		return nil, "", invalidf("%s has %d items, too many for %s", path, len(parts), compactForm(kind))
 	}
 	object := map[string]json.RawMessage{"action": parts[0]}
 	for i, p := range parts[1:] {
@@ -406,7 +459,8 @@ func expandAction(raw json.RawMessage, path string) (json.RawMessage, error) {
 		}
 		object[fields[i]] = p
 	}
-	return json.Marshal(object)
+	out, err := json.Marshal(object)
+	return out, compactForm(kind), err
 }
 
 // unitAliases are scroll units that models write for px, taken as it without a word, as a key's names are.

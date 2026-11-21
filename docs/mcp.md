@@ -92,8 +92,12 @@ Claude Code keeps of a tool description.
 }
 ```
 
-Each action is a compact array: a point pair `[x, y]` is a left click, and
-other arrays start with the action's name, such as `["scroll", x, y, dy, unit]`.
+Each action is a compact array. One that starts with a number is a click:
+`[x, y]` a left click, and `[x, y, button, count, modifiers]` any other, such
+as `[x, y, "left", 2]` for a double click. Other arrays start with the
+action's name, such as `["scroll", x, y, dy, unit]`. An invalid array is
+refused with its form spelled out, such as `[scroll,x,y,dy,unit?,dx?]`, and
+an unknown action with every form.
 The schema of `act` names only this form. `act` also takes the same action as
 an object with named fields, `{"action": "click", "x": 412, "y": 88}`, but a
 schema that offers both makes Gemini's API end most turns that call `act`

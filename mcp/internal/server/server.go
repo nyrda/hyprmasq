@@ -260,7 +260,7 @@ Read each result's summary, and its hint when it has one, before the next call.`
 
 var actDescription = `Act, wait for redraw, and show changes. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.
 Coordinates are pixels of the shot you pass, as they are: a full shot, or a zoom from screenshot region, whose own pixels act takes without conversion. The shot identifies the window; pass window only without a shot.
-Use compact action arrays: [x,y] clicks, ["move",x,y], ["path",points,curve], ["scroll",x,y,dy,unit], ["type",text], ["paste",text], ["key",keys,repeat], ["hold",keys,ms], ["pause",ms]. keys: "right" or ["ctrl","l"], repeat optional.
+Use compact action arrays: [x,y] clicks, [x,y,button,count], ["move",x,y], ["path",points,curve], ["scroll",x,y,dy,unit], ["type",text], ["paste",text], ["key",keys,repeat], ["hold",keys,ms], ["pause",ms]. keys: "right" or ["ctrl","l"], repeat optional.
 path presses once, moves through its points [[x,y],...] and releases, as one stroke: a drag is a path of two points. curve "line", the default, goes straight from point to point. "spline" passes through every point but curves between them, so for a precise trace give points close together, and use line where the target bends sharply or the points are sparse. button "none" moves without pressing.
 The result shows what changed since "shot" or your last shot: "shot s7 = s5 + 2 changes" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box. A full shot comes when it serves better, saying why; capture "window" asks for one.
 Batch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; known keys, like arrows and enter in a menu, may follow.
@@ -324,7 +324,8 @@ func objectSchema(properties map[string]json.RawMessage, required ...string) jso
 // {"action":"click","x":10,"y":20}, but a schema that offers both as anyOf makes Gemini's API end most turns that
 // call act with MALFORMED_FUNCTION_CALL, and the models that know both forms write arrays.
 var actionSchema = json.RawMessage(fmt.Sprintf(`{"type":"array","minItems":1,"maxItems":6,"items":{},"description":%q}`,
-	"A point pair [x,y] is one left click. Other arrays start with an action name: [click,x,y,button?,count?,modifiers?], [move,x,y], "+
+	"An array that starts with a number is a click, [x,y,button?,count?,modifiers?]: [x,y] is one left click, [x,y,\"left\",2] a double click. "+
+		"Other arrays start with an action name: [click,x,y,button?,count?,modifiers?], [move,x,y], "+
 		"[path,points,curve?,button?,modifiers?], [scroll,x,y,dy,unit?,dx?], [type,text], [paste,text], [key,keys,repeat?], [hold,keys,ms], [pause,ms]. "+
 		"Omit trailing defaults; do not use null placeholders. x and y are shot pixels.\n"+
 		"button: left, the default, right or middle; for path also none, which moves without pressing, as for a menu that needs a diagonal move, and needs no hold capability. "+
