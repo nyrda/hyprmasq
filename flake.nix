@@ -8,7 +8,7 @@
 
   # Hyprland's own flake at a commit of its main branch, the next release, which the plugin also builds against and
   # which hyprland.cachix.org has prebuilt, see "Hyprland main" in docs/development.md.
-  inputs.hyprland-main.url = "github:hyprwm/Hyprland/9927f2eb87beae7f2cc623567eeb0ffa56842aca";
+  inputs.hyprland-main.url = "github:hyprwm/Hyprland/6d6e935c3a0397483c75c4b689c15bde37c66cab";
 
   # Only for Go: hyprmasq-mcp talks to Hyprland through its socket, so it does not have to share Hyprland's
   # package set, and mcp/go.mod needs a newer Go than some Hyprland tags pin.
