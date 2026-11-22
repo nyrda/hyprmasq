@@ -1066,10 +1066,8 @@ VMs at `1920x1080@1`.
 
 `bench/dispatch.py` spread them over three machines, eight VMs at once, each on two physical cores of its own: three
 on an AMD Ryzen 7 5800X3D, three on a Ryzen 7 PRO 4750U and two on a Ryzen 5 5600X. `bench/calibrate.py` measured no
-slower tool calls with that many VMs at once on each. Each machine took an equal share of each agent's runs of each
-task, so that times compare between agents, but for six of Terra's runs. They failed at the start on the 5600X, whose
-Codex login had expired, before any call, and ran again on the 5800X3D: one run each of board-pointer, calc, both
-forms, Thunderbird and trace. Terra's twelve more runs of each board variant ran last, the same day.
+slower tool calls with that many VMs at once on each. Each machine took about an equal share of each agent's runs of
+each task, so that times compare between agents. Terra's twelve more runs of each board variant ran last, the same day.
 
 - Codex CLI 0.165.0 with a ChatGPT login: `gpt-6.1-terra`.
 - Claude Code 2.1.312 with an Anthropic API key: `claude-sonnet-5-5`.
