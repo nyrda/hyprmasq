@@ -15,7 +15,7 @@ disturbed the user, and every failure was the model's own.
 <!-- render baseline-0.57.0,tested-models,qwen3.8-flash,glm-5.3-flash,gpt-6.2,gemini-4-neon,gemini-4-neon-openrouter glance -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model. 436 of 512 runs passed. A row per model, the best first by its pass rate, the mean of its tasks&#x27; shares of runs passed, with that rate, its runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run. The runs took place from 29 Oct to 21 Nov 2026." src="benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model. 436 of 512 runs passed. A row per model, the best first by its pass rate, the mean of its tasks&#x27; shares of runs passed, and at the same rate the fastest first, with that rate, its runs passed, each task&#x27;s share, the sums of its tasks&#x27; median wall times for board and trace, which ask to understand a photo, and for the other tasks, and its cost per passed run. The runs took place from 29 Oct to 21 Nov 2026." src="benchmarks/glance.svg">
 </picture>
 
 <details><summary>Which runs each model had, on which build</summary>

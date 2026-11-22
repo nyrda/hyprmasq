@@ -22,9 +22,10 @@ has that name: then the last of the datasets names it too. Views:
   the tasks' counts differ, and the median wall time, and the cost per passed run. Where the tasks do not fit as
   columns, a row per task and a column per agent instead, with each agent's runs passed and cost below, and without
   the times where those columns are too narrow for them. A task an agent did not run reads "not run".
-- glance: a row per agent, the best first by its pass rate, the mean of its tasks' shares of runs passed, with that
-  rate and its runs passed, each task's share, the sum of its tasks' median wall times and its cost per passed run.
-  It says what it shows, when the runs took place and where they are published, since it is shared without the page.
+- glance: a row per agent, the best first by its pass rate, the mean of its tasks' shares of runs passed, and at the
+  same rate the fastest first, with that rate and its runs passed, each task's share, the sum of its tasks' median
+  wall times and its cost per passed run. It says what it shows, when the runs took place and where they are
+  published, since it is shared without the page.
 - overview: time with each row's runs passed beside its median, to set agents side by side on every task, each
   panel's scale fitting the agents whose median is at most 2.5 times the panel's typical one.
 - time: each run's wall time and the medians of the time in hyprmasq's tools and outside them, a panel per task,
@@ -631,10 +632,11 @@ def date_span(runs):
 
 
 def glance(data):
-    """A row per agent, the best pass rate first: a bar of its pass rate, the mean of its tasks' shares of runs passed,
-    with that rate and its runs passed, a cell per task with the share of that task's runs, the sum of its tasks'
-    median wall times with the time in hyprmasq's tools, and its cost per passed run. Its text says what the pass
-    rate is, when the runs took place and where they are published, since the figure is shared without the page."""
+    """A row per agent, the best pass rate first, and at the same rate the shortest time over all tasks: a bar of its
+    pass rate, the mean of its tasks' shares of runs passed, with that rate and its runs passed, a cell per task with
+    the share of that task's runs, the sum of its tasks' median wall times with the time in hyprmasq's tools, and its
+    cost per passed run. Its text says what the pass rate is, when the runs took place and where they are published,
+    since the figure is shared without the page."""
     runs = data["runs"]
     def is_photo(task):
         return task.split("-")[0] in PHOTO_TASKS
@@ -651,14 +653,15 @@ def glance(data):
         return sum(sum(r["passed"] for r in rs if r["task"] == t) / len([r for r in rs if r["task"] == t])
                    for t in ts_of) / len(ts_of)
 
-    share_of = {k: task_share(of[k]) for k in of}
-    keys = sorted(of, key=lambda k: (-share_of[k], order.index(k[0])))
-    efforts = several_efforts(runs)
-    total, passed = len(runs), sum(r["passed"] for r in runs)
-
     def per_task(rs, key, photo):
         return sum(median(r[key] for r in rs if r["task"] == t)
                    for t in {r["task"] for r in rs} if is_photo(t) == photo)
+
+    share_of = {k: task_share(of[k]) for k in of}
+    time_of = {k: per_task(of[k], "wall_s", False) + per_task(of[k], "wall_s", True) for k in of}
+    keys = sorted(of, key=lambda k: (-share_of[k], time_of[k], order.index(k[0])))
+    efforts = several_efforts(runs)
+    total, passed = len(runs), sum(r["passed"] for r in runs)
 
     wall = {photo: {k: per_task(of[k], "wall_s", photo) for k in keys} for photo in (False, True)}
     tools = {photo: {k: per_task(of[k], "tools_s", photo) for k in keys} for photo in (False, True)}
@@ -671,10 +674,11 @@ def glance(data):
     top = header(
         svg, "Runs passed, time and cost per model",
         [f"{passed} of {total} runs passed. A row per model, the best first by its pass rate: the share of each task's",
-         f"runs that passed, averaged over the {len(ts)} tasks, so that a task run more often does not weigh more. Where",
-         "a model ran some tasks more often, its pass rate differs from its share of runs passed. Each time is the sum",
-         "of its tasks' median wall times, the part in hyprmasq's tools in blue. Board and trace stand apart: they also",
-         "ask to understand a photo, and a model that cannot spends its calls there. Its cost is per passed run."]
+         f"runs that passed, averaged over the {len(ts)} tasks, so that a task run more often does not weigh more, and at",
+         "the same rate the fastest first. Where a model ran some tasks more often, its pass rate differs from its",
+         "share of runs passed. Each time is the sum of its tasks' median wall times, the part in hyprmasq's tools in",
+         "blue. Board and trace stand apart: they also ask to understand a photo, and a model that cannot spends its",
+         "calls there. Its cost is per passed run."]
         + [line for line in [effort_note(runs)] if line],
         [("swatch", "pass", "passed"), ("swatch", "fail", "failed"), ("swatch", "tools", "in hyprmasq's tools"),
          ("swatch", "out", "rest of the time")],
@@ -771,7 +775,8 @@ def glance(data):
         svg.text(PAD, foot + 17 * n, line, cls="m", size=11.5)
     svg.height = foot + 17 * (len(lines) - 1) + 18
     alt = (f"Runs passed, time and cost per model. {passed} of {total} runs passed. A row per model, the best first by "
-           "its pass rate, the mean of its tasks' shares of runs passed, with that rate, its runs passed, each task's "
+           "its pass rate, the mean of its tasks' shares of runs passed, and at the same rate the fastest first, with "
+           "that rate, its runs passed, each task's "
            "share, the sums of its tasks' median wall times for board and trace, which ask to understand a photo, and "
            "for the other tasks, and its cost per passed run"
            + (f". The runs took place from {span}" if span and " to " in span else f". The runs took place on {span}" if span else "")
