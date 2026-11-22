@@ -38,8 +38,8 @@ def named_actions(arguments):
     }
     out = []
     for action in arguments.get("actions") or []:
-        if isinstance(action, list) and len(action) == 2 and isinstance(action[0], (int, float)) and not isinstance(action[0], bool):
-            action = dict(action="click", x=action[0], y=action[1])
+        if isinstance(action, list) and action and isinstance(action[0], (int, float)) and not isinstance(action[0], bool):
+            action = dict(zip(fields["click"], action), action="click")
         elif isinstance(action, list) and action and isinstance(action[0], str):
             action = dict(zip(fields.get(action[0], ()), action[1:]), action=action[0])
             if action["action"] in ("key", "hold") and isinstance(action.get("keys"), str):

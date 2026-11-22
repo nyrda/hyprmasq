@@ -168,7 +168,6 @@ func TestRecordingRefusals(t *testing.T) {
 	e.window("0xa1", "1a", 320, 200)
 	key := `"actions":[["key","a"]]`
 	for _, c := range []struct{ args, code, message string }{
-		{`{"window":"0xa1",` + key + `,"caption":"Open the file"}`, "invalid_arguments", `caption needs a recording: start one with record "slides" or "video"`},
 		{`{"window":"0xa1",` + key + `,"record":"stop"}`, "invalid_arguments", `record "stop": no recording is running`},
 		{`{"window":"0xa1",` + key + `,"record":"film"}`, "invalid_arguments", `record must be slides, video or stop, not "film"`},
 		{`{"window":"0xa1",` + key + `,"caption":"` + strings.Repeat("x", 121) + `"}`, "invalid_arguments", "caption has 121 characters, at most 120"},
@@ -312,6 +311,26 @@ func TestVideoRecordsTheActAtRealSpeed(t *testing.T) {
 	}
 }
 
+// A caption without a recording is ignored: the act runs as it would without one and records nothing. Its length is
+// still checked.
+func TestCaptionWithoutRecording(t *testing.T) {
+	e, dir := recordingEnv(t)
+	e.window("0xa1", "1a", 320, 200)
+	res := e.act(`{"window":"0xa1","actions":[["key","a"]],"caption":"Open the file"}`)
+	if res.IsError || get(t, res, "actions.delivery") != "complete" || e.inputs() == nil {
+		t.Fatal(text(res), e.inputs())
+	}
+	if strings.Contains(text(res), "recording") {
+		t.Errorf("the result mentions a recording: %s", text(res))
+	}
+	if e.server.recording() != nil {
+		t.Error("the caption started a recording")
+	}
+	if files, _ := os.ReadDir(dir); len(files) != 0 {
+		t.Errorf("files in the recording directory: %v", files)
+	}
+}
+
 // An act that waited for its turn while another stopped the recording is refused as it would have been without the
 // wait, before it sends anything.
 func TestQueuedActCheckedAgain(t *testing.T) {
@@ -324,14 +343,14 @@ func TestQueuedActCheckedAgain(t *testing.T) {
 	e.server.recTurn <- struct{}{}
 	queued := make(chan string, 1)
 	go func() {
-		res := callTool(e.server, context.Background(), actOn, `{"window":"0xa1","actions":[["key","a"]],"caption":"Type a"}`)
+		res := callTool(e.server, context.Background(), actOn, `{"window":"0xa1","actions":[["key","a"]],"record":"stop"}`)
 		queued <- errorCode(t, res) + ": " + text(res)
 	}()
 	// It has passed the check before it waits for its turn.
 	time.Sleep(200 * time.Millisecond)
 	e.server.stopRecording(context.Background(), e.server.recording(), "")
 	<-e.server.recTurn
-	if got := <-queued; !strings.HasPrefix(got, "invalid_arguments: ") || !strings.Contains(got, "caption needs a recording") {
+	if got := <-queued; !strings.HasPrefix(got, "invalid_arguments: ") || !strings.Contains(got, `record "stop": no recording is running`) {
 		t.Errorf("the queued act: %s", got)
 	}
 	if e.inputs() != nil {

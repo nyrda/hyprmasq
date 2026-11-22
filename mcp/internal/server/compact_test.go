@@ -61,13 +61,18 @@ func TestClicksWithoutTheirNameSendNamedClickEvents(t *testing.T) {
 
 func TestInvalidCompactActionsNameTheirForm(t *testing.T) {
 	for action, want := range map[string]string{
-		`[10,20,"double"]`:        `actions[0].button must be left, right or middle, not "double"; the array is [x,y,button?,count?,modifiers?], such as [10,20] for a left click or [10,20,"left",2] for a double click`,
-		`[10,20,"left",2,[],7]`:   `actions[0] has 6 items: a click is [x,y,button?,count?,modifiers?]`,
-		`["scroll",10,20,"down"]`: `; the array is [scroll,x,y,dy,unit?,dx?]`,
-		`["move",10,20,30]`:       `actions[0] has 4 items, too many for [move,x,y]`,
-		`["clik",10,20]`:          `actions[0][0] is no action: "clik"; an action is one of [x,y,button?,count?,modifiers?], [click,x,y,button?,count?,modifiers?], [move,x,y],`,
-		`[true,20]`:               `actions[0][0] must be an action name or a click's x, not true; an action is one of`,
-		`[]`:                      `actions[0] is an empty action; an action is one of`,
+		`[10,20,"double"]`:                `actions[0].button must be left, right or middle, not "double"; the array is [x,y,button?,count?,modifiers?], such as [10,20] for a left click or [10,20,"left",2] for a double click`,
+		`[10,20,0]`:                       `actions[0].button must be left, right or middle, not 0; the array is [x,y,button?,count?,modifiers?]`,
+		`[10,20,4]`:                       `actions[0].button must be left, right or middle, not 4`,
+		`[10,20,1.5]`:                     `actions[0].button must be left, right or middle, not 1.5`,
+		`["path",[[1,1],[5,5]],"line",0]`: `actions[0].button must be left, right, middle or none, not 0; the array is [path,points,curve?,button?,modifiers?]`,
+		`{"action":"click","x":10,"y":20,"button":-1}`: `actions[0].button must be left, right or middle, not -1`,
+		`[10,20,"left",2,[],7]`:                        `actions[0] has 6 items: a click is [x,y,button?,count?,modifiers?]`,
+		`["scroll",10,20,"down"]`:                      `; the array is [scroll,x,y,dy,unit?,dx?]`,
+		`["move",10,20,30]`:                            `actions[0] has 4 items, too many for [move,x,y]`,
+		`["clik",10,20]`:                               `actions[0][0] is no action: "clik"; an action is one of [x,y,button?,count?,modifiers?], [click,x,y,button?,count?,modifiers?], [move,x,y],`,
+		`[true,20]`:                                    `actions[0][0] must be an action name or a click's x, not true; an action is one of`,
+		`[]`:                                           `actions[0] is an empty action; an action is one of`,
 	} {
 		e := newTestEnv(t)
 		e.window("0xa1", "1a", 320, 200)
@@ -93,6 +98,50 @@ func TestPixelsScrollsAsPx(t *testing.T) {
 			want = e.inputs()
 		} else if !reflect.DeepEqual(e.inputs(), want) {
 			t.Fatalf("%s sent %v, want %v", actions, e.inputs(), want)
+		}
+	}
+}
+
+func TestNotchesScrollsAsNotch(t *testing.T) {
+	var want [][]string
+	for _, actions := range []string{`[["scroll",100,100,3,"notch"]]`, `[["scroll",100,100,3,"notches"]]`, `[{"action":"scroll","x":100,"y":100,"dy":3,"unit":"notches"}]`} {
+		e := newTestEnv(t)
+		e.window("0xa1", "1a", 320, 200)
+		e.screenshot(`{"window":"0xa1"}`)
+		res := e.act(`{"shot":"s1","capture":"none","actions":` + actions + `}`)
+		if res.IsError || get(t, res, "actions.delivery") != "complete" {
+			t.Fatal(actions, text(res))
+		}
+		if want == nil {
+			want = e.inputs()
+		} else if !reflect.DeepEqual(e.inputs(), want) {
+			t.Fatalf("%s sent %v, want %v", actions, e.inputs(), want)
+		}
+	}
+}
+
+// Models write buttons as their X11 numbers, 1 left, 2 middle and 3 right, such as [x,y,1,2] for a double click.
+func TestButtonNumbersAreTheirNames(t *testing.T) {
+	for _, group := range [][]string{
+		{`[[40,50,"left",2]]`, `[[40,50,1,2]]`, `[["click",40,50,1,2]]`, `[{"action":"click","x":40,"y":50,"button":1,"count":2}]`},
+		{`[[40,50,"middle"]]`, `[[40,50,2]]`, `[{"action":"click","x":40,"y":50,"button":2.0}]`},
+		{`[[40,50,"right",1,["ctrl"]]]`, `[[40,50,3,1,["ctrl"]]]`},
+		{`[["path",[[20,20],[80,90]],"line","right"]]`, `[["path",[[20,20],[80,90]],"line",3]]`, `[{"action":"path","points":[[20,20],[80,90]],"button":3}]`},
+	} {
+		var want [][]string
+		for _, actions := range group {
+			e := newTestEnv(t)
+			e.window("0xa1", "1a", 320, 200)
+			e.screenshot(`{"window":"0xa1"}`)
+			res := e.act(`{"shot":"s1","capture":"none","actions":` + actions + `}`)
+			if res.IsError || get(t, res, "actions.delivery") != "complete" {
+				t.Fatal(actions, text(res))
+			}
+			if want == nil {
+				want = e.inputs()
+			} else if !reflect.DeepEqual(e.inputs(), want) {
+				t.Fatalf("%s sent %v, want %v", actions, e.inputs(), want)
+			}
 		}
 	}
 }

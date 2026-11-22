@@ -19,6 +19,19 @@ import report  # noqa: E402
 from laptop import analyze as laptop_analyze  # noqa: E402
 
 
+class NamedActions(unittest.TestCase):
+    def test_click_arrays_of_every_length(self):
+        actions = report.named_actions({"actions": [
+            [1, 2], [1, 2, "right"], [1, 2, "left", 2], [1, 2, 1, 2, ["shift"]], ["click", 1, 2, "left", 3],
+        ]})
+        self.assertEqual(actions, [
+            dict(action="click", x=1, y=2), dict(action="click", x=1, y=2, button="right"),
+            dict(action="click", x=1, y=2, button="left", count=2),
+            dict(action="click", x=1, y=2, button=1, count=2, modifiers=["shift"]),
+            dict(action="click", x=1, y=2, button="left", count=3),
+        ])
+
+
 class MacWindowVisibility(unittest.TestCase):
     def measure(self, observations):
         with tempfile.TemporaryDirectory() as root:
