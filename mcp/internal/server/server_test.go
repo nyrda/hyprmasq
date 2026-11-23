@@ -77,7 +77,7 @@ func TestArgumentErrors(t *testing.T) {
 		{"act", `{"window":161}`, "window must be a string, not a number"},
 		{"act", act(`{"action":"click","x":"1","y":1}`), "actions[0].x must be a number, not a string"},
 		{"act", act(`{"action":"click","x":1,"y":1,"count":1.5}`), "actions[0].count must be an integer, not 1.5"},
-		{"act", act(`{"action":"click","x":1,"y":1,"button":1}`), "actions[0].button must be a string, not a number"},
+		{"act", act(`{"action":"click","x":1,"y":1,"button":4}`), "actions[0].button must be left, right or middle, not 4"},
 		{"act", act(`{"action":"path","points":[[100],[200,50]]}`), "actions[0].points[0] must be [x, y] in shot pixels, not [100]"},
 		{"act", act(`{"action":"path","points":[[1,2],[200,50,7]]}`), "actions[0].points[1] must be [x, y] in shot pixels, not [200,50,7]"},
 		{"act", act(`{"action":"path","points":[["1",2],[200,50]]}`), "actions[0].points[0][0] must be a number, not a string"},

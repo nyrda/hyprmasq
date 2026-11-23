@@ -82,7 +82,8 @@ func (rs *recStep) finishing() {
 	})
 }
 
-// recordCheck refuses a record or caption that does not fit the session's recording, before anything is sent.
+// recordCheck refuses a record that does not fit the session's recording, before anything is sent. A caption without
+// a recording is only logged: models caption their steps out of habit, and the act runs as it would without one.
 func (s *Server) recordCheck(r *actRequest) error {
 	running := s.recording() != nil
 	switch starting := r.record == "slides" || r.record == "video"; {
@@ -91,7 +92,7 @@ func (s *Server) recordCheck(r *actRequest) error {
 	case r.record == "stop" && !running:
 		return invalidf("record \"stop\": no recording is running")
 	case r.caption != nil && !running && !starting:
-		return invalidf("caption needs a recording: start one with record \"slides\" or \"video\"")
+		log.Printf("act: caption %q without a recording, ignored", *r.caption)
 	}
 	return nil
 }
@@ -115,7 +116,7 @@ func (s *Server) takeRecording(rec *record.Recording) bool {
 
 // recordsAct tells whether an act takes part in a recording.
 func (s *Server) recordsAct(r *actRequest) bool {
-	return r.record != "" || r.caption != nil || s.recording() != nil
+	return r.record != "" || s.recording() != nil
 }
 
 // recordedAct runs an act that takes part in a recording: it starts the recording, records the act as a step, and

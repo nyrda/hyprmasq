@@ -244,6 +244,15 @@ func parseNamedAction(raw json.RawMessage, path string) (action, error) {
 			return a, invalidf("%s.%s is not a field of %s, which takes %s", path, name, named, strings.Join(allowed, ", "))
 		}
 	}
+	if b, ok := fields["button"]; ok {
+		name, err := buttonNumber(b, a.Kind, path)
+		if err != nil {
+			return a, err
+		}
+		if name != "" {
+			fields["button"] = json.RawMessage(strconv.Quote(name))
+		}
+	}
 	required := actionRequired[a.Kind]
 	for _, name := range required {
 		if _, ok := fields[name]; !ok {
@@ -463,8 +472,28 @@ func expandAction(raw json.RawMessage, path string) (json.RawMessage, string, er
 	return out, compactForm(kind), err
 }
 
-// unitAliases are scroll units that models write for px, taken as it without a word, as a key's names are.
-var unitAliases = map[string]string{"pixels": "px", "pixel": "px"}
+// buttonNames are the X11 numbers of the buttons, which models write for them, taken as their names without a word,
+// as the scroll units' aliases are.
+var buttonNames = map[float64]string{1: "left", 2: "middle", 3: "right"}
+
+// buttonNumber returns the name of a button given as its X11 number, or "" for a button given otherwise.
+func buttonNumber(raw json.RawMessage, kind, path string) (string, error) {
+	var n float64
+	if t := bytes.TrimSpace(raw); len(t) == 0 || (t[0] != '-' && (t[0] < '0' || t[0] > '9')) || json.Unmarshal(t, &n) != nil {
+		return "", nil
+	}
+	if name := buttonNames[n]; name != "" {
+		return name, nil
+	}
+	names := "left, right or middle"
+	if kind == "path" {
+		names = "left, right, middle or none"
+	}
+	return "", invalidf("%s.button must be %s, not %s", path, names, bytes.TrimSpace(raw))
+}
+
+// unitAliases are scroll units that models write for px and notch, taken as them without a word, as a key's names are.
+var unitAliases = map[string]string{"pixels": "px", "pixel": "px", "notches": "notch"}
 
 var keyAliases = map[string]string{
 	"ctrl": "ctrl", "control": "ctrl",

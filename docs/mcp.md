@@ -506,9 +506,10 @@ recording saved: /home/me/Videos/hyprmasq/20261030-141203.mp4 (0:31, 6 steps, 2.
 
 One recording runs per session, and its acts record one at a time: an act
 that waits for another one's step counts the wait towards its `deadline_ms`,
-as it does for the window lock. Starting a second recording, a `caption`
-without a recording and a `stop` without one fail with `invalid_arguments`
-before anything is sent. A start that cannot run ffmpeg or create the directory fails
+as it does for the window lock. Starting a second recording and a `stop`
+without one fail with `invalid_arguments` before anything is sent. A
+`caption` without a recording is ignored, and the act runs as it would
+without it. A start that cannot run ffmpeg or create the directory fails
 with `recording_failed`. A recording stops itself after `record.max-steps`
 steps or `record.max-minutes` minutes of video and says so in that act's
 result, and when the session ends, the server saves it as a stop would.
