@@ -174,7 +174,7 @@ into one `act` call, which is why runs take fewer turns and far less context:
 
 ## Benchmarks
 
-Fifteen models on ten desktop tasks in an offline VM. Most current models of
+Thirteen models on ten desktop tasks in an offline VM. Most current models of
 Anthropic and OpenAI passed 90 to 100% of each task's runs on average, and no
 run of any model changed the user's focus or workspace. Google's Gemini 4 Neon
 passed all 60 of its runs, but slowly: two and a half times as long through
@@ -190,7 +190,7 @@ OpenAI's and Claude's computer use and Cua Driver on a Mac.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/benchmarks/glance-dark.svg">
-  <img alt="Runs passed, time and cost per model on ten desktop tasks, the highest pass rate first: the share of each task&#x27;s runs that passed, averaged over the tasks." src="docs/benchmarks/glance.svg">
+  <img alt="Runs passed, time and cost per model on ten desktop tasks, the highest pass rate first, and at the same rate the fastest: the share of each task&#x27;s runs that passed, averaged over the tasks." src="docs/benchmarks/glance.svg">
 </picture>
 
 ## Limits and trust
