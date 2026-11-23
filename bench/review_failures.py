@@ -405,7 +405,30 @@ def bundles_of(directory):
                   if os.path.exists(os.path.join(directory, n, "meta.json")))
 
 
+def reviewers_config_path(bundles):
+    return os.path.join(os.path.abspath(bundles), "reviewers.json")
+
+
+def save_reviewers(bundles):
+    path = reviewers_config_path(bundles)
+    with open(path + ".tmp", "w") as f:
+        json.dump({r: {"model": m, "effort": e} for r, (m, e) in REVIEWERS.items()}, f, indent=1)
+    os.replace(path + ".tmp", path)
+
+
+def load_reviewers(bundles):
+    path = reviewers_config_path(bundles)
+    if not os.path.exists(path):
+        return
+    with open(path) as f:
+        saved = json.load(f)
+    for r, cfg in saved.items():
+        if r in REVIEWERS and isinstance(cfg, dict) and cfg.get("model"):
+            REVIEWERS[r] = (cfg["model"], cfg.get("effort") or REVIEWERS[r][1])
+
+
 def run_reviews(args):
+    save_reviewers(args.bundles)
     bundles = [b for b in bundles_of(args.bundles) if not args.only or os.path.basename(b) in args.only]
     jobs = [(b, r) for b in bundles for r in REVIEWERS]
     counts = {}
@@ -507,22 +530,29 @@ def main():
     p.add_argument("--no-capability", action="store_true",
                    help="do not copy bench/capability-results.md into bundles (symmetric evidence across all tools)")
     p.set_defaults(go=bundle)
+    def add_reviewer_args(sub):
+        sub.add_argument("--claude-model", default=None)
+        sub.add_argument("--codex-model", default=None)
+
     p = commands.add_parser("run")
     p.add_argument("bundles")
     p.add_argument("--only", action="append", default=[])
     p.add_argument("--workers", type=int, default=4, help="reviews at once per reviewer")
-    p.add_argument("--claude-model", default=REVIEWERS["claude"][0])
-    p.add_argument("--codex-model", default=REVIEWERS["codex"][0])
+    add_reviewer_args(p)
     p.set_defaults(go=run_reviews)
     p = commands.add_parser("status")
     p.add_argument("bundles")
+    add_reviewer_args(p)
     p.set_defaults(go=status)
     p = commands.add_parser("collect")
     p.add_argument("bundles")
     p.add_argument("out")
     p.add_argument("--rules", default="bench/comparison-series.json")
+    add_reviewer_args(p)
     p.set_defaults(go=collect)
     args = parser.parse_args()
+    if args.command in ("status", "collect"):
+        load_reviewers(args.bundles)
     if getattr(args, "claude_model", None):
         REVIEWERS["claude"] = (args.claude_model, REVIEWERS["claude"][1])
     if getattr(args, "codex_model", None):

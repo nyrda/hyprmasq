@@ -1086,6 +1086,35 @@ class FailureReview(unittest.TestCase):
         with open(os.path.join(self.dir.name, "mcp.jsonl"), "w") as f:
             f.write("{}\n{}\n")
 
+    def test_custom_reviewer_models_persist_for_status_and_collect(self):
+        bundles = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, bundles)
+        bundle = os.path.join(bundles, "b1")
+        os.makedirs(bundle)
+        with open(os.path.join(bundle, "meta.json"), "w") as f:
+            json.dump({"setup": "cua", "set": "apps", "series": "main", "task_dir": "form", "run": "r1",
+                       "harness": "codex", "model": "gpt-6.2-sol"}, f)
+        with open(os.path.join(bundle, "facts.json"), "w") as f:
+            json.dump({"browser": "firefox", "failures": []}, f)
+        with open(os.path.join(bundle, "mcp.jsonl"), "w") as f:
+            f.write("{}\n")
+        ev_hash = review_failures.evidence_hash(bundle)
+        with open(review_failures.verdict_path(bundle, "claude"), "w") as f:
+            json.dump({**self.verdict(), "evidence_sha256": ev_hash,
+                       "reviewer": {"harness": "claude", "model": "claude-custom-1", "effort": "medium"}}, f)
+        orig = dict(review_failures.REVIEWERS)
+        try:
+            review_failures.REVIEWERS["claude"] = ("claude-custom-1", "medium")
+            review_failures.save_reviewers(bundles)
+            # Reset to defaults as a fresh `status` or `collect` process would.
+            review_failures.REVIEWERS.update(orig)
+            self.assertIsNone(review_failures.current_verdict(bundle, "claude"))
+            review_failures.load_reviewers(bundles)
+            self.assertIsNotNone(review_failures.current_verdict(bundle, "claude"))
+        finally:
+            review_failures.REVIEWERS.clear()
+            review_failures.REVIEWERS.update(orig)
+
     def test_the_same_verdict_stands_and_any_disagreement_is_unclear(self):
         tool, model = ("tool_problem", None), ("model_mistake", None)
         self.assertEqual(review_failures.resolve(tool, tool), tool)
