@@ -98,7 +98,7 @@ def sender_steps(actions):
             points = a.get("points") or []
             seq = [["path", [math.dist(p, q) for p, q in zip(points, points[1:])], a.get("button") != "none"]]
         elif kind == "scroll":
-            if a.get("unit", "notch") == "notch":
+            if a.get("unit", "notch") in ("notch", "notches"):
                 seq = [["move"], ["wheel", int(abs(a.get("dx", 0)) + abs(a.get("dy", 0)))]]
             else:
                 seq = [["move"], ["scroll"]]

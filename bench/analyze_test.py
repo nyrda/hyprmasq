@@ -31,6 +31,17 @@ class NamedActions(unittest.TestCase):
             dict(action="click", x=1, y=2, button="left", count=3),
         ])
 
+    def test_scroll_notches_alias_matches_notch(self):
+        actions = report.named_actions({"actions": [
+            ["scroll", 100, 100, 10, "notches"],
+            {"action": "scroll", "x": 100, "y": 100, "dy": 10, "unit": "notches"},
+        ]})
+        self.assertEqual([a["unit"] for a in actions], ["notch", "notch"])
+        self.assertEqual(
+            analyze.sender_steps([{"action": "scroll", "x": 100, "y": 100, "dy": 10, "unit": "notches"}]),
+            analyze.sender_steps([{"action": "scroll", "x": 100, "y": 100, "dy": 10, "unit": "notch"}]),
+        )
+
 
 class MacWindowVisibility(unittest.TestCase):
     def measure(self, observations):

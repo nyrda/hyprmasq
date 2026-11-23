@@ -45,6 +45,8 @@ def named_actions(arguments):
             if action["action"] in ("key", "hold") and isinstance(action.get("keys"), str):
                 action["keys"] = [action["keys"]]
         if isinstance(action, dict):
+            if action.get("action") == "scroll" and action.get("unit") == "notches":
+                action = {**action, "unit": "notch"}
             out.append(action)
     if isinstance(arguments.get("next_page"), dict):
         next_page = arguments["next_page"]
