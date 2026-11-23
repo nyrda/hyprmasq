@@ -508,7 +508,7 @@ class Registered(unittest.TestCase):
         # The failed run took the focus too, and does not count: a run that did nothing would count as polite.
         runs = [run(1, True, 40.0, True), run(2, True, 0.0, False), run(3, False, 90.0, False)]
         svg = render.user_view_figure({"runs": runs})[0].render("light", "x")
-        for text in ("1 of 2", "20 s", "2 of 3", "200 px"):
+        for text in ("1 of 2", "20 s", "2 of 3"):
             self.assertIn(f">{text}</text>", svg)
 
     def test_the_usage_figure_takes_medians_of_every_run_and_cuts_a_value_far_above_the_rest(self):

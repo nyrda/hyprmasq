@@ -16,6 +16,7 @@ goes on after the user's reply.
 
 import hashlib
 import json
+import os
 import socket
 import sys
 import threading
@@ -49,9 +50,19 @@ def budget_reply(message, calls, max_calls):
 
 def main(cid, port, log_path, max_calls="0", spent="0"):
     max_calls = int(max_calls)
-    sock = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
-    sock.connect((int(cid), int(port)))
     log = open(log_path, "a", buffering=1)
+    if cid.startswith("unix:") or cid.startswith("/"):
+        sock_path = os.path.realpath(cid.removeprefix("unix:"))
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        prev = os.getcwd()
+        try:
+            os.chdir(os.path.dirname(sock_path))
+            sock.connect(os.path.basename(sock_path))
+        finally:
+            os.chdir(prev)
+    else:
+        sock = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+        sock.connect((int(cid), int(port)))
     lock = threading.Lock()
     out = threading.Lock()
     calls = int(spent)
@@ -91,9 +102,16 @@ def main(cid, port, log_path, max_calls="0", spent="0"):
             sock.sendall(line)
         sock.shutdown(socket.SHUT_WR)
 
+    rewrite = os.environ.get("HYPRMASQ_BENCH_REWRITE_PATH", "")
+    old_prefix, sep, new_prefix = rewrite.partition("=")
+    old_b = old_prefix.encode() if sep and old_prefix else b""
+    new_b = new_prefix.encode() if sep and old_prefix else b""
+
     threading.Thread(target=upstream, daemon=True).start()
     reader = sock.makefile("rb")
     for line in reader:
+        if old_b and old_b in line:
+            line = line.replace(old_b, new_b)
         record("response", line)
         send(line)
 

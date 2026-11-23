@@ -588,7 +588,7 @@ class Remote:
             driver_dir = self.driver_dir(host, b)
             call = (f"run.build_driver({driver_dir!r}, {self.tree(host, b.commit)!r}, {b.task!r}, "
                     f"{b.variant!r}, {self.args.display!r}, {self.args.backend!r}, {self.args.browser!r}, "
-                    f"{self.args.desktop!r})")
+                    f"{self.args.desktop!r}, container={bool(getattr(self.args, 'container', False))!r})")
             identity = (f"print(json.dumps(run.driver_identity({driver_dir + '/driver'!r}, {driver_dir!r}, "
                         f"{self.args.backend!r})))")
             built = self.sh(host, f"""
@@ -614,6 +614,7 @@ class Remote:
             "--backend", self.args.backend, "--prompt", self.args.prompt, "--browser", self.args.browser,
             "--desktop", self.args.desktop,
         ]
+        command += ["--container"] if getattr(self.args, "container", False) else []
         command += ["--chromium-options=" + self.args.chromium_options] if self.args.chromium_options else []
         command += ["--mcp-args=" + self.args.mcp_args] if self.args.mcp_args else []
         command += ["--variant", b.variant] if b.variant else []

@@ -119,13 +119,16 @@ CLAUDE_SETTINGS = {
 }
 
 
-def build_driver(out, source, task, variant, display, backend="hyprmasq", browser="firefox", desktop="bare"):
-    """Builds the VM's test driver into OUT/driver, and with a backend that has a skill (SKILLS) the skill into
-    OUT/BACKEND-skill."""
+def build_driver(out, source, task, variant, display, backend="hyprmasq", browser="firefox", desktop="bare",
+                 container=False):
+    """Builds the VM's (or container's) test driver into OUT/driver, and with a backend that has a skill (SKILLS) the
+    skill into OUT/BACKEND-skill."""
     link = os.path.join(out, "driver")
     command = ["nix-build", os.path.join(BENCH, "default.nix"), "-A", "driver", "-o", link, "--argstr", "task", task,
                "--argstr", "variant", variant or "", "--argstr", "display", display, "--argstr", "backend", backend,
                "--argstr", "browser", browser, "--argstr", "desktop", desktop]
+    if container:
+        command += ["--arg", "container", "true"]
     if source:
         command += ["--arg", "source", source]
     subprocess.run(command, check=True, stdout=subprocess.DEVNULL, env=without_api_keys(os.environ))
@@ -283,28 +286,40 @@ def tap_command(cid, log, max_calls=0, spent=0):
 # session with its tools.
 USER_REPLY = "Yes, go ahead."
 DONE = re.compile(r"\bDone\b")
+NOT_DONE = re.compile(
+    r"""(?:not(?:\s+(?:yet|saying))?|isn['’]t(?:\s+yet)?|is\s+not(?:\s+yet)?|aren['’]t|are\s+not|wasn['’]t|haven['’]t(?:\s+said)?|(?:won['’]t|can['’]t|didn['’]t)\s+say|without\s+saying|before\s+saying)\s+["'“‘`*_]*Done\b""",
+    re.IGNORECASE,
+)
 
 
 def needs_reply(agent, final):
     """Whether the user answers the agent: it ended its turn by itself, without saying "Done"."""
+    cleaned = NOT_DONE.sub("", final or "")
     return (agent["exit"] == 0 and not agent["timed_out"] and not agent["budget_exhausted"] and not agent["refused"]
-            and bool(agent["session"]) and not DONE.search(final or ""))
+            and bool(agent["session"]) and not DONE.search(cleaned))
 
 
-def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprmasq"):
+def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprmasq", read_dir=None, tap_env=None):
     server = SERVER[backend]
     # A backend's skill (Cua's or computer-use-linux's) runs through Claude Code's Skill tool, from its own agent home
     # (skill_home), when the prompt names it as a slash command, as on the laptop; the debrief gets no tools. Claude Code
     # reads a user's skills only with the user's settings, which in that fresh home are the skill alone.
     skill = backend in SKILLS and tap is not None
+    read_only_dir = read_dir if tap is not None else None
+    tools = list(SKILL_TOOLS) if skill else []
+    if read_only_dir and "Read" not in tools:
+        tools.append("Read")
     command = [
         "claude", "-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose",
         # Only the backend's tools, and none of the user's CLAUDE.md, settings, hooks, skills or MCP servers. With a
         # skill, the resource tools as well, as a skill's guides are files that a real agent reads: here they are the
-        # server's resources, for a server that has them.
-        "--tools", ",".join(SKILL_TOOLS) if skill else "", "--setting-sources", "user" if skill else "",
+        # server's resources, for a server that has them. With read_dir (hypruse file mode in a container), Read scoped
+        # strictly to the shared screenshot directory.
+        "--tools", ",".join(tools), "--setting-sources", "user" if skill else "",
         "--strict-mcp-config", "--settings", json.dumps(CLAUDE_SETTINGS),
     ]
+    if read_only_dir:
+        command += ["--add-dir", read_only_dir]
     if not skill:
         command += ["--disable-slash-commands"]
     if effort:
@@ -313,9 +328,17 @@ def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprma
         command += ["--resume", resume]
     # The run's tools, also when the agent goes on in its session after the user's reply; the debrief gets none.
     if tap:
-        config = {"mcpServers": {server: {"command": tap[0], "args": tap[1:]}}}
-        command += ["--mcp-config", json.dumps(config),
-                    "--allowedTools", " ".join(SKILL_TOOLS) + f" mcp__{server}" if skill else f"mcp__{server}"]
+        srv = {"command": tap[0], "args": tap[1:]}
+        if tap_env:
+            srv["env"] = tap_env
+        config = {"mcpServers": {server: srv}}
+        allowed = []
+        if skill:
+            allowed += list(SKILL_TOOLS)
+        if read_only_dir:
+            allowed.append(f"Read({read_only_dir}/*)")
+        allowed.append(f"mcp__{server}")
+        command += ["--mcp-config", json.dumps(config), "--allowedTools", " ".join(allowed)]
     return command
 
 
@@ -559,7 +582,8 @@ def agy_quota(env):
             for g in groups for b in g.get("buckets") or [] if b.get("id")}
 
 
-def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effort=None, backend="hyprmasq"):
+def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effort=None, backend="hyprmasq",
+                  read_dir=None, tap_env=None):
     if harness in HYPRMASQ_ONLY and backend != "hyprmasq":
         raise ValueError(hyprmasq_only(harness))
     if harness == "agy":
@@ -567,7 +591,7 @@ def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effor
     if harness == "pi":
         return pi_command(model, prompt, tap, resume, sessions, effort)
     if family(harness) == "claude":
-        return claude_command(model, prompt, tap, resume, effort, backend)
+        return claude_command(model, prompt, tap, resume, effort, backend, read_dir=read_dir, tap_env=tap_env)
     return codex_command(model, prompt, tap, resume, effort, backend)
 
 
@@ -860,17 +884,27 @@ def move_transcript(harness, session, cwd, run_dir, sessions=None, config=None):
         os.rmdir(project)
 
 
-def vm_runtime_dir(cid):
-    """A directory of its own for the VM of the run on vsock CID cid. The test driver keeps the VM's disk and sockets
-    in $XDG_RUNTIME_DIR/vm-state-machine, which runs on one machine would share, and the run that starts second
-    would remove the first's. The CID tells the runs on a machine apart, and keeps the sockets' paths short."""
-    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir(), f"hyprmasq-bench-vm-{cid}")
+def _rmtree(path, container=False):
     shutil.rmtree(path, ignore_errors=True)
+    if container and os.path.exists(path):
+        subprocess.run(["unshare", "--user", "--map-auto", "--map-root-user", "rm", "-rf", path],
+                       check=False, env=without_api_keys(os.environ))
+
+
+def vm_runtime_dir(cid, container=False):
+    """A directory of its own for the VM or container of the run on vsock CID cid. The test driver keeps the VM's disk
+    and sockets in $XDG_RUNTIME_DIR/vm-state-machine, which runs on one machine would share, and the run that starts
+    second would remove the first's. In container mode, driver.py mounts a fresh tmpfs over /run, so keep the runtime
+    dir under /tmp instead of /run/user/..."""
+    # /tmp directly (not tempfile.gettempdir()): nix-shell sets a long TMPDIR that exceeds the 108-byte AF_UNIX limit.
+    base = "/tmp" if container else (os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir())
+    path = os.path.join(base, f"hyprmasq-bench-{'c' if container else 'vm'}-{cid}")
+    _rmtree(path, container=container)
     os.makedirs(path, mode=0o700)
     return path
 
 
-def stop_driver(proc, run_dir, timeout=300):
+def stop_driver(proc, run_dir, timeout=300, container=False):
     """Waits for the driver to grade and stop the VM; kills the VM if it does not."""
     deadline = time.time() + timeout
     while proc.poll() is None and time.time() < deadline:
@@ -878,7 +912,7 @@ def stop_driver(proc, run_dir, timeout=300):
     if proc.poll() is None:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
-    shutil.rmtree(os.path.join(run_dir, "tmp"), ignore_errors=True)
+    _rmtree(os.path.join(run_dir, "tmp"), container=container)
 
 
 def pi_session(sessions, session):
@@ -934,18 +968,33 @@ def task_file(task_dir, variant, name):
 
 
 @contextlib.contextmanager
-def booted_vm(driver, run_dir, cid, timeout, cpus=None, env=None):
-    """Boots the VM of a run directory that has tmp/ and driver-out/, and yields its driver once the VM is ready;
-    then has it grade and stop. timeout is how long the VM waits for agent-done. With cpus, the driver and QEMU,
-    every thread of theirs, run on those CPUs alone; env adds to the driver's environment."""
-    runtime = vm_runtime_dir(cid)
+def booted_vm(driver, run_dir, cid, timeout, cpus=None, env=None, container=False):
+    """Boots the VM (or systemd-nspawn container) of a run directory that has tmp/ and driver-out/, and yields its
+    driver once ready; then has it grade and stop. timeout is how long the guest waits for agent-done. With cpus, the
+    driver and guest run on those CPUs alone; env adds to the driver's environment."""
+    runtime = vm_runtime_dir(cid, container=container)
     env = dict(without_api_keys(os.environ), HYPRMASQ_BENCH_OUT=run_dir, HYPRMASQ_BENCH_CID=str(cid),
-               TMPDIR=os.path.join(run_dir, "tmp"), XDG_RUNTIME_DIR=runtime, HYPRMASQ_BENCH_TIMEOUT=str(timeout),
+               TMPDIR=os.path.join(run_dir, "tmp"), HYPRMASQ_BENCH_TIMEOUT=str(timeout),
                **(env or {}))
+    driver_cmd = [os.path.join(driver, "bin", "nixos-test-driver"), "-o", os.path.join(run_dir, "driver-out")]
+    if container:
+        # systemd-run --user --scope -p Delegate=yes creates a user-owned delegated cgroup2 subtree (required over SSH
+        # where session-N.scope is root-owned), and needs the host XDG_RUNTIME_DIR before switching it to `runtime`.
+        env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+        driver_cmd = [
+            "systemd-run", "--user", "--scope", "-p", "Delegate=yes", "--quiet",
+            "unshare", "--user", "--mount", "--pid", "--fork", "--net", "--cgroup",
+            "--map-auto", "--map-root-user", "--mount-proc",
+            "sh", "-c",
+            'mount -t cgroup2 none /sys/fs/cgroup && mount -t tmpfs none /run && export XDG_RUNTIME_DIR="$1" && shift && exec "$@"',
+            "_", runtime, *driver_cmd,
+        ]
+    else:
+        env["XDG_RUNTIME_DIR"] = runtime
     with open(os.path.join(run_dir, "driver.log"), "w") as log:
-        # The affinity is set in the child before it runs the driver, so that QEMU and its threads inherit it.
+        # The affinity is set in the child before it runs the driver, so that QEMU / nspawn threads inherit it.
         driver_proc = subprocess.Popen(
-            [os.path.join(driver, "bin", "nixos-test-driver"), "-o", os.path.join(run_dir, "driver-out")],
+            driver_cmd,
             cwd=run_dir, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
             preexec_fn=(lambda: os.sched_setaffinity(0, cpus)) if cpus else None,
         )
@@ -953,19 +1002,20 @@ def booted_vm(driver, run_dir, cid, timeout, cpus=None, env=None):
         deadline = time.time() + 900
         while not os.path.exists(os.path.join(run_dir, "ready.json")):
             if driver_proc.poll() is not None or time.time() > deadline:
-                raise RuntimeError(f"the VM did not get ready, see {run_dir}/driver.log")
+                raise RuntimeError(f"the {'container' if container else 'VM'} did not get ready, see {run_dir}/driver.log")
             time.sleep(1)
         yield driver_proc
     finally:
         open(os.path.join(run_dir, "agent-done"), "w").close()
-        stop_driver(driver_proc, run_dir)
+        stop_driver(driver_proc, run_dir, container=container)
         # A driver that failed can leave its QEMU running; the run's own directory names it.
-        subprocess.run(["pkill", "-KILL", "-f", f"{runtime}/vm-state-"], check=False, env=without_api_keys(os.environ))
-        shutil.rmtree(runtime, ignore_errors=True)
+        if not container:
+            subprocess.run(["pkill", "-KILL", "-f", f"{runtime}/vm-state-"], check=False, env=without_api_keys(os.environ))
+        _rmtree(runtime, container=container)
 
 
 def reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, cid, sessions, agent_dir, agent_vars, timeout,
-                  max_calls, label):
+                  max_calls, label, read_dir=None, tap_env=None):
     """The user's one reply to an agent that ended its turn without saying "Done" (needs_reply), and the agent going on
     in its session, with its tools, a tap that counts the calls made before against the budget, and the rest of its
     time: an agent with none left gets no reply. Its events follow the turn's in agent.jsonl, so that the run's time, usage and final answer are the two
@@ -987,7 +1037,7 @@ def reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, cid, ses
         agy_mcp_tap(agent_vars["HOME"], tap)
     print(f"{label} the agent ended without saying Done: the user replies", flush=True)
     command = agent_command(harness, model, USER_REPLY, tap, resume=resume, sessions=sessions, effort=effort,
-                            backend=backend)
+                            backend=backend, read_dir=read_dir, tap_env=tap_env)
     more = run_agent(command, cwd, stream, os.path.join(run_dir, "agent.stderr"), left, agent_vars,
                      api_key=harness == "claude-api",
                      budget=os.path.join(run_dir, "mcp.jsonl.budget") if max_calls > 0 else None)
@@ -1036,7 +1086,7 @@ class DebriefKeyError(RuntimeError):
 
 def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief, cpus=None,
             dispatched=None, backend="hyprmasq", prompt_kind="task", browser="firefox", max_calls=0, desktop="bare",
-            chromium_options="", mcp_args="", user_reply=False):
+            chromium_options="", mcp_args="", user_reply=False, container=False):
     task_dir = os.path.join(BENCH, "tasks", task)
     run_dir = os.path.join(out, run_name(harness, model, rep, effort))
     label = f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}]"
@@ -1051,7 +1101,8 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
     # A fresh directory outside any project: harnesses load instructions such as AGENTS.md from the directory
     # they run in and its parents, and a run directory inside this checkout would give the agent hyprmasq's.
     cwd = tempfile.mkdtemp(prefix="hyprmasq-bench-agent-")
-    tap = tap_command(cid, os.path.join(run_dir, "mcp.jsonl"), max_calls)
+    mcp_target = f"unix:{os.path.join(run_dir, 'mcp.sock')}" if container else cid
+    tap = tap_command(mcp_target, os.path.join(run_dir, "mcp.jsonl"), max_calls)
     agent_dir = sessions = home = None
     if harness == "pi":
         sessions = os.path.join(tempfile.mkdtemp(prefix="hyprmasq-bench-pi-sessions-"), "sessions")
@@ -1071,17 +1122,22 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         if harness == "agy":
             check_agy_model(model, effort, agent_vars)
             quota["before"] = agy_quota(agent_vars)
-        print(f"{label} booting the VM", flush=True)
+        print(f"{label} booting the {'container' if container else 'VM'}", flush=True)
         load = {}
+        hypruse_file_mode = backend == "hypruse" and container and family(harness) == "claude"
         vm_env = {**({"HYPRMASQ_BENCH_CHROMIUM_OPTIONS": chromium_options} if chromium_options else {}),
-                  **({"HYPRMASQ_BENCH_MCP_ARGS": mcp_args} if mcp_args else {})}
-        with host_load(load), booted_vm(driver, run_dir, cid, timeout + 120, cpus, vm_env or None):
+                  **({"HYPRMASQ_BENCH_MCP_ARGS": mcp_args} if mcp_args else {}),
+                  **({"HYPRMASQ_BENCH_HYPRUSE_MODE": "file"} if hypruse_file_mode else {})}
+        with host_load(load), booted_vm(driver, run_dir, cid, timeout + 120, cpus, vm_env or None, container=container):
+            read_dir = os.path.realpath(os.path.join(run_dir, "hypruse-shots")) if hypruse_file_mode else None
+            tap_env = {"HYPRMASQ_BENCH_REWRITE_PATH": f"/run/user/1000/hypruse={read_dir}"} if read_dir else None
             prompt = task_prompt(harness, backend, open(task_file(task_dir, variant, PROMPTS[prompt_kind])).read(),
                                  browser)
             if harness == "agy":
-                eager = server_tools(cid, os.path.join(run_dir, "mcp-tools.jsonl"))
+                eager = server_tools(mcp_target, os.path.join(run_dir, "mcp-tools.jsonl"))
                 agy_mcp_config(home, SERVER[backend], tap, eager)
-            command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort, backend=backend)
+            command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort, backend=backend,
+                                    read_dir=read_dir, tap_env=tap_env)
             print(f"{label} agent running", flush=True)
             agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
                               os.path.join(run_dir, "agent.stderr"), timeout, agent_vars,
@@ -1090,12 +1146,14 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             reply = None
             if user_reply:
                 check_api_key_used(agent, "agent")
-                agent, reply = reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, cid, sessions,
-                                             agent_dir, agent_vars, timeout, max_calls, label)
+                agent, reply = reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, mcp_target, sessions,
+                                             agent_dir, agent_vars, timeout, max_calls, label,
+                                             read_dir=read_dir, tap_env=tap_env)
 
         run = {
             "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
             "backend": backend, "prompt": prompt_kind, "browser": browser, "desktop": desktop,
+            "container": container,
             # What built the run: the VM's driver, with the plugin and the server in it, and the skill.
             "identity": driver_identity(driver, out, backend),
             # The VM's session has the AT-SPI bus and toolkit-accessibility on (default.nix), which runs before
@@ -1305,7 +1363,8 @@ def run_config(source, task, variant, args):
     bench = source_commit(None)
     return {**source_commit(source), "bench_commit": bench["commit"], "bench_dirty": bench["dirty"], "task": task,
             "variant": variant, "display": args.display, "backend": args.backend, "prompt": args.prompt,
-            "browser": args.browser, "desktop": args.desktop, "chromium_options": args.chromium_options, "mcp_args": args.mcp_args,
+            "browser": args.browser, "desktop": args.desktop, "container": bool(getattr(args, "container", False)),
+            "chromium_options": args.chromium_options, "mcp_args": args.mcp_args,
             "prompt_sha256": file_sha256([task_file(task_dir, variant, PROMPTS[args.prompt]),
                                           task_file(task_dir, variant, "debrief.md")]),
             "timeout": args.timeout, "max_calls": args.max_calls, "debrief": not args.no_debrief,
@@ -1353,12 +1412,13 @@ def check_resume(out, config, parser, agents):
 
 
 # What results directories from before the backend and prompt options ran with.
-DEFAULT_CONFIG = {"backend": "hyprmasq", "prompt": "task", "browser": "firefox", "desktop": "bare", "chromium_options": "",
-                  "mcp_args": "", "user_reply": False}
+DEFAULT_CONFIG = {"backend": "hyprmasq", "prompt": "task", "browser": "firefox", "desktop": "bare", "container": False,
+                  "chromium_options": "", "mcp_args": "", "user_reply": False}
 # What must be the same for runs to go into one results directory. The driver and the skill are the run's own (run.json's
 # identity, check_identity), and bench_dirty says a commit does not name the benchmark's code.
-IDENTITY_KEYS = ("commit", "task", "variant", "display", "backend", "prompt", "browser", "desktop", "chromium_options", "mcp_args",
-                 "bench_commit", "bench_dirty", "prompt_sha256", "timeout", "max_calls", "debrief", "user_reply")
+IDENTITY_KEYS = ("commit", "task", "variant", "display", "backend", "prompt", "browser", "desktop", "container",
+                 "chromium_options", "mcp_args", "bench_commit", "bench_dirty", "prompt_sha256", "timeout", "max_calls",
+                 "debrief", "user_reply")
 
 
 def pending_runs(out, reps, agents):
@@ -1402,6 +1462,8 @@ def add_run_options(parser, tasks=False):
                         help="the user's browser, in the tasks that list it in tasks/TASK/browsers")
     parser.add_argument("--desktop", choices=DESKTOPS, default="bare",
                         help="the VM's desktop: bare, or omarchy, with Omarchy's key binds, portals and packages")
+    parser.add_argument("--container", action="store_true",
+                        help="run the benchmark in a systemd-nspawn container on the host's GPU instead of a QEMU VM")
     parser.add_argument("--mcp-args", default="", help="options of hyprmasq-mcp in the VM, such as --max-image-size 1920")
     parser.add_argument("--chromium-options", default="",
                         help="more options of the user's Chromium, as the user started it, such as "
@@ -1499,7 +1561,8 @@ def main():
     source = os.path.abspath(args.source) if args.source else None
     config = run_config(source, args.task, args.variant, args)
     check_resume(out, config, parser, agents)
-    driver = build_driver(out, source, args.task, args.variant, args.display, args.backend, args.browser, args.desktop)
+    driver = build_driver(out, source, args.task, args.variant, args.display, args.backend, args.browser, args.desktop,
+                          container=args.container)
     differ = check_identity(out, driver_identity(driver, out, args.backend))
     if differ:
         parser.error(f"{out} has runs that another build ran: "
@@ -1512,7 +1575,8 @@ def main():
             with vm_lock(args.lock):
                 run_one(driver, args.task, args.variant, harness, model, effort, rep, out, args.cid, args.timeout,
                         not args.no_debrief, cpus, args.dispatch, args.backend, args.prompt, args.browser,
-                        args.max_calls, args.desktop, args.chromium_options, args.mcp_args, args.user_reply)
+                        args.max_calls, args.desktop, args.chromium_options, args.mcp_args, args.user_reply,
+                        container=args.container)
         except Exception as e:  # one broken run does not end the benchmark
             print(f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}] error: {e}", flush=True)
     print(report.report(out))

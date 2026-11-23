@@ -731,6 +731,10 @@ class UserReply(unittest.TestCase):
     def test_only_an_agent_that_ended_by_itself_without_done_gets_a_reply(self):
         self.assertTrue(run.needs_reply(self.AGENT, "Forgejo asks for access. Do you approve?"))
         self.assertTrue(run.needs_reply(self.AGENT, "I left the prompt open for your decision."))
+        self.assertTrue(run.needs_reply(self.AGENT, 'Task 2 is paused, so this isn\'t "Done" yet.'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'Nothing changed, so I\'m not saying "Done".'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'I haven\'t said "Done" because the labels aren\'t placed.'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'The task is not yet "Done".'))
         self.assertFalse(run.needs_reply(self.AGENT, "Done. I uploaded the file."))
         for stopped in ({"timed_out": True}, {"budget_exhausted": True}, {"exit": 1}, {"refused": True},
                         {"session": None}):

@@ -106,6 +106,20 @@ class Plan(unittest.TestCase):
             s = r["series"][name]
             self.assertEqual(sum(1 for _ in series.planned_runs(r, s, s["tools"], series.rounds_of(s, None))), count)
 
+    def test_a_container_series_with_own_agents_forwards_both(self):
+        r = rules()
+        r["series"]["c"] = {"tools": ["one"], "machine": "a", "reps": 1, "results": "test-c",
+                            "container": True, "user_reply": True, "agents": ["claude:opus@medium"]}
+        s = r["series"]["c"]
+        command = series.dispatch_command(r, s, "one", "apps", r["tools"]["one"]["sets"]["apps"], [1])
+        self.assertIn("--container", command)
+        self.assertIn("--user-reply", command)
+        self.assertEqual([command[i + 1] for i, a in enumerate(command) if a == "--agent"], ["claude:opus@medium"])
+        self.assertEqual(sum(1 for _ in series.planned_runs(r, s, ["one"], [1])), 3)
+        main = series.dispatch_command(r, r["series"]["main"], "one", "apps", r["tools"]["one"]["sets"]["apps"], [1])
+        self.assertNotIn("--container", main)
+        self.assertNotIn("--user-reply", main)
+
 
 class Reruns(unittest.TestCase):
     def setUp(self):
@@ -168,11 +182,17 @@ class Reruns(unittest.TestCase):
             self.assertEqual(sum(1 for _ in f), series.MAX_PASSES + 2)
 
     def test_a_run_that_shared_its_host_runs_again_whatever_its_tool(self):
-        for load, kind in (({"max_other_qemu": 1, "guard": False}, "other_load"), ({"max_other_qemu": 0, "guard": True}, "other_load"),
-                           ({"max_other_qemu": 0, "guard": False}, None)):
+        for extra, load, kind in (
+            ({}, {"max_other_qemu": 1, "guard": False}, "other_load"),
+            ({}, {"max_other_qemu": 0, "guard": True}, "other_load"),
+            ({}, {"max_other_qemu": 0, "guard": False, "max_load1": 45.0}, "other_load"),
+            ({"container": True}, {"max_other_qemu": 0, "max_own_qemu": 1, "guard": False}, "other_load"),
+            ({"container": False}, {"max_other_qemu": 0, "max_own_qemu": 1, "guard": False}, None),
+            ({}, {"max_other_qemu": 0, "guard": False}, None),
+        ):
             entry = self.run_dir({"passed": True, "infrastructure": None})
             with open(os.path.join(entry[5], "run.json"), "w") as f:
-                json.dump({"host_load": load}, f)
+                json.dump({**extra, "host_load": load}, f)
             self.assertEqual((series.infrastructure(entry[5]) or {}).get("kind"), kind)
             shutil.rmtree(entry[5])
 

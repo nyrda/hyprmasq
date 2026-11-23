@@ -64,6 +64,11 @@ class Grade(unittest.TestCase):
         for point in ([1373.8, 490.8], [1375.2, 507.8], [1399.2, 493.7], [1324.4, 662.9]):
             self.assertTrue(check.grade({**CORRECT, "M.2 slots": point})["passed"], point)
 
+    def test_sata_ports_spanning_the_top_pair(self):
+        # Opus 5.5's drops centered between the two adjacent top SATA ports so the label spans both.
+        for point in ([1330, 735], [1379.3, 737.9], [1387.8, 733.0], [1445, 732]):
+            self.assertTrue(check.grade({**CORRECT, "SATA ports": point})["passed"], point)
+
     def test_no_point_is_correct_for_two_labels(self):
         boxes = [(label, box) for label, label_boxes in check.REGIONS["labels"].items() for box in label_boxes]
         for i, (a, (ax0, ay0, ax1, ay1)) in enumerate(boxes):

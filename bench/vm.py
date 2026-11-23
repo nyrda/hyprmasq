@@ -27,6 +27,9 @@ import shlex
 import threading
 import time
 
+from test_driver.machine import CHAR_TO_KEY
+
+CONTAINER = globals().get("CONTAINER", False)
 OUT = os.environ["HYPRMASQ_BENCH_OUT"]
 AGENT_TIMEOUT = float(os.environ.get("HYPRMASQ_BENCH_TIMEOUT", "2400"))
 MEMORY_SECONDS = float(os.environ.get("HYPRMASQ_BENCH_MEMORY_SECONDS", "0"))
@@ -50,8 +53,11 @@ def out_path(name):
 
 
 def write_json(name, data):
-    with open(out_path(name), "w") as f:
+    path = out_path(name)
+    part = path + ".part"
+    with open(part, "w") as f:
         json.dump(data, f, indent=2)
+    os.rename(part, path)
 
 
 def alice(command):
@@ -75,11 +81,67 @@ exec(open(os.path.join(TASK_DIR, "setup.py")).read())
 machine.start()
 machine.wait_for_unit("multi-user.target")
 # The autologin starts alice's manager some time after multi-user.target: wait_for_unit would fail on a unit that has
-# not been queued yet.
+# not been queued yet. In a container, getty@tty1 does not run, so start user@1000.service explicitly if needed.
+if CONTAINER:
+    machine.succeed("systemctl start user@1000.service")
 machine.wait_until_succeeds("systemctl is-active user@1000.service", timeout=300)
+if CONTAINER:
+    # Ensure systemd --user has dconf/gsettings paths from alice's profile before at-spi-dbus-bus activates.
+    alice(f"XDG_RUNTIME_DIR={RUNTIME} DBUS_SESSION_BUS_ADDRESS={SESSION_BUS} "
+          "systemctl --user import-environment GIO_EXTRA_MODULES XDG_DATA_DIRS XDG_CONFIG_DIRS")
+# Enable org.a11y.Status before prepare() starts apps: at-spi2-core 2.62 starts with IsEnabled=false until enabled or a
+# listener connects, which would otherwise happen after Chromium has already launched.
+alice(f"XDG_RUNTIME_DIR={RUNTIME} DBUS_SESSION_BUS_ADDRESS={SESSION_BUS} "
+      "busctl --user set-property org.a11y.Bus /org/a11y/bus org.a11y.Status IsEnabled b true")
 machine.succeed(f"install -d -o alice -g users -m 700 {RUNTIME}")
+parent_env = "HYPRLAND_HEADLESS_ONLY=1 "
+if CONTAINER:
+    # In a container, Hyprland runs nested in labwc on the host's GPU render node, with hyprmasq-parent-seat
+    # providing a virtual keyboard/pointer for user input (such as Forgejo's during()).
+    parent_fifo = f"{RUNTIME}/parent-seat.fifo"
+    alice(
+        f"XDG_RUNTIME_DIR={RUNTIME} WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 WLR_RENDERER=gles2 "
+        "WLR_RENDER_DRM_DEVICE=$(ls /dev/dri/renderD* | head -1) WLR_LIBINPUT_NO_DEVICES=1 "
+        "LABWC_UPDATE_ACTIVATION_ENV=0 nohup labwc > /tmp/hyprmasq-bench-labwc.log 2>&1 &"
+    )
+    machine.wait_until_succeeds(f"test -S {RUNTIME}/wayland-0", timeout=60)
+    alice(f"mkfifo -m 600 {parent_fifo}")
+    alice(
+        f"XDG_RUNTIME_DIR={RUNTIME} WAYLAND_DISPLAY=wayland-0 "
+        f"nohup hyprmasq-parent-seat {parent_fifo} > /tmp/hyprmasq-bench-parent-seat.log 2>&1 &"
+    )
+    machine.wait_until_succeeds("grep -q ' ready$' /tmp/hyprmasq-bench-parent-seat.log", timeout=60)
+    parent_env = "WAYLAND_DISPLAY=wayland-0 "
+
+    _qemu_key_codes = {
+        **{letter: code for row, first in (("qwertyuiop", 16), ("asdfghjkl", 30), ("zxcvbnm", 44))
+           for code, letter in enumerate(row, first)},
+        **{digit: code for code, digit in enumerate("1234567890", 2)},
+        "esc": 1, "backspace": 14, "tab": 15, "ret": 28, "ctrl": 29, "shift": 42, "shift_r": 54, "alt": 56, "spc": 57,
+        "kp_8": 72, "ctrl_r": 97, "alt_r": 100, "up": 103, "left": 105, "right": 106, "down": 108, "insert": 110,
+        "delete": 111, "meta_l": 125, "meta_r": 126,
+    }
+
+    def _container_send_key(key, delay=0.01):
+        mapped = CHAR_TO_KEY.get(key, key)
+        codes = " ".join(
+            str(int(part, 16) if part.startswith("0x") else _qemu_key_codes[part])
+            for part in mapped.split("-")
+        )
+        with SHELL_LOCK:
+            machine.succeed(f"echo 'sendkey 0 {codes}' > {parent_fifo}")
+        if delay:
+            time.sleep(delay)
+
+    def _container_send_chars(chars, delay=0.01):
+        for ch in chars:
+            _container_send_key(ch, delay=delay)
+
+    machine.send_key = _container_send_key
+    machine.send_chars = _container_send_chars
+
 alice(
-    f"XDG_RUNTIME_DIR={RUNTIME} DBUS_SESSION_BUS_ADDRESS={SESSION_BUS} HYPRLAND_HEADLESS_ONLY=1 "
+    f"XDG_RUNTIME_DIR={RUNTIME} DBUS_SESSION_BUS_ADDRESS={SESSION_BUS} {parent_env}"
     f"{globals().get('HYPRLAND_ENV', '')} "
     "nohup Hyprland --config /etc/hyprmasq-bench/hyprland.lua > /tmp/hyprmasq-bench-hyprland.log 2>&1 &"
 )
@@ -195,6 +257,19 @@ def wait_for(description, predicate, timeout=120):
 
 hypr("output create headless HYPRMASQ-BENCH")
 wait_for("headless monitor", lambda: any(m["name"] == "HYPRMASQ-BENCH" for m in json.loads(hypr("-j monitors"))))
+if CONTAINER:
+    # labwc sends keys from hyprmasq-parent-seat to Hyprland's window, which exists only while WAYLAND-1 is enabled.
+    # Mirroring HYPRMASQ-BENCH keeps WAYLAND-1 out of Hyprland's layout, active monitors and workspaces.
+    hypr("eval " + shlex.quote(
+        'hl.monitor({ output = "WAYLAND-1", mode = "640x480", position = "0x0", scale = "1", mirror = "HYPRMASQ-BENCH" })'
+    ))
+    wait_for(
+        "the mirror in labwc",
+        lambda: any(
+            m["name"] == "WAYLAND-1" and m["mirrorOf"] != "none" for m in json.loads(hypr("-j monitors all"))
+        ),
+        timeout=30,
+    )
 
 
 def cua_status():
@@ -232,7 +307,9 @@ def doctor():
         return None
     merge = " 2>&1" if BACKEND != "computer-use-linux" else ""
     tool = "cua-driver" if BACKEND == "cua" else BACKEND
-    status, out = machine.execute(f"su - alice -c {shlex.quote(f'{session_env} CUA_DRIVER_RS_ENABLE_WAYLAND=1 {tool} doctor')}{merge}")
+    status, out = machine.execute(
+        f"su - alice -c {shlex.quote(f'{session_env} CUA_DRIVER_RS_ENABLE_WAYLAND=1 CUA_DRIVER_RS_TELEMETRY_ENABLED=false {tool} doctor')}{merge}"
+    )
     if BACKEND != "computer-use-linux":
         return {"exit": status, "lines": out.strip().splitlines()}
     try:
@@ -336,11 +413,38 @@ task_window = prepare()
 # Options of hyprmasq-mcp for this run (run.py's --mcp-args), which its launcher reads.
 if os.environ.get("HYPRMASQ_BENCH_MCP_ARGS"):
     machine.succeed("cat > /tmp/hyprmasq-bench-mcp-args <<'EOF'\n" + os.environ["HYPRMASQ_BENCH_MCP_ARGS"] + "\nEOF")
-alice(
-    f"nohup socat VSOCK-LISTEN:{MCP_PORT},fork,reuseaddr EXEC:/etc/hyprmasq-bench/mcp "
-    "> /tmp/hyprmasq-bench-socat.log 2>&1 &"
-)
-machine.wait_until_succeeds(f"ss -H -l --vsock | grep -q ':{MCP_PORT}'", timeout=30)
+if os.environ.get("HYPRMASQ_BENCH_HYPRUSE_MODE"):
+    machine.succeed(
+        "cat > /tmp/hyprmasq-bench-hypruse-mode <<'EOF'\n" + os.environ["HYPRMASQ_BENCH_HYPRUSE_MODE"] + "\nEOF"
+    )
+mcp_socket = None
+if CONTAINER:
+    machine.succeed("chmod 755 /tmp/shared && install -d -o alice -g users -m 755 /tmp/shared/mcp")
+    if BACKEND == "hypruse":
+        # Share hypruse's file-mode screenshot directory with the host so Claude Code can use Read natively.
+        machine.succeed(
+            f"install -d -o alice -g users -m 755 /tmp/shared/hypruse && "
+            f"rm -rf {RUNTIME}/hypruse && ln -s /tmp/shared/hypruse {RUNTIME}/hypruse"
+        )
+        shots_link = out_path("hypruse-shots")
+        if os.path.lexists(shots_link):
+            os.unlink(shots_link)
+        os.symlink(os.path.join(str(machine.shared_dir), "hypruse"), shots_link)
+    alice(
+        "nohup socat UNIX-LISTEN:/tmp/shared/mcp/mcp.sock,fork,reuseaddr,mode=0666 EXEC:/etc/hyprmasq-bench/mcp "
+        "> /tmp/hyprmasq-bench-socat.log 2>&1 &"
+    )
+    machine.wait_until_succeeds("test -S /tmp/shared/mcp/mcp.sock", timeout=30)
+    mcp_socket = out_path("mcp.sock")
+    if os.path.lexists(mcp_socket):
+        os.unlink(mcp_socket)
+    os.symlink(os.path.join(str(machine.shared_dir), "mcp", "mcp.sock"), mcp_socket)
+else:
+    alice(
+        f"nohup socat VSOCK-LISTEN:{MCP_PORT},fork,reuseaddr EXEC:/etc/hyprmasq-bench/mcp "
+        "> /tmp/hyprmasq-bench-socat.log 2>&1 &"
+    )
+    machine.wait_until_succeeds(f"ss -H -l --vsock | grep -q ':{MCP_PORT}'", timeout=30)
 
 # What ran, which the source commit in source.json does not tell of Cua: the commit gives Hyprland, and the bench's
 # own checkout the driver.
@@ -368,6 +472,8 @@ write_json("ready.json", {
     "versions": versions,
     "identity": identity,
     "desktop": DESKTOP,
+    "container": CONTAINER,
+    "mcp_socket": mcp_socket,
     "start_state": start_state,
 })
 

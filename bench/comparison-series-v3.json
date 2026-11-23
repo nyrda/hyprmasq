@@ -1,0 +1,572 @@
+{
+ "about": "The rules of the v3 comparison series (Hyprland 0.57.2 on machine C, Opus 5.5 and GPT-6.2 Sol: hyprmasq, Cua Driver 0.56.0 and hypruse 0.15.1 in rootless GPU containers, and computer-use-linux 0.7.59 in KVM VMs because it requires kernel /dev/uinput on Hyprland). Initial 2-tool rules (hyprmasq vs Cua Driver) were committed before main; expanding to 4 tools and subsequent fixes are recorded as new series with their own results directories and entries in amendments. series.py carries them out with --rules bench/comparison-series-v3.json.",
+ "prompt": "comparison",
+ "desktop": "omarchy",
+ "display": "1920x1080@1",
+ "agent_timeout_seconds": 1800,
+ "tool_timeout_seconds": 600,
+ "sources": {
+  "hyprland-0.57": {
+   "path": "../comparison-source-057",
+   "commit": "d9fe7385ada3d70973329a678e4baa1e8c0c26dd",
+   "hyprland": "0.57.2",
+   "note": "Clean detached worktree: main and forgejo-user-reply ran at 4271e6e, cua-attach at 85fce3b, computer-use-linux at a7ad504, cua-firefox-r1-clean, hypruse-v2 and hyprmasq-vm at de524fa, and hypruse-forgejo-opus-fix (1 run) at d9fe738 (identical compositor, plugin, Cua Driver, hypruse, browsers, apps and toolkits across commits)."
+  }
+ },
+ "harnesses": {
+  "claude": "2.1.330 (Claude Code)",
+  "codex": "codex-cli 0.170.0",
+  "where": "~/.cache/hyprmasq-bench/harness-v3/bin on machine C, through dispatch.py's bin=: symlinks to Nix store binaries so self-updates cannot drift mid-series."
+ },
+ "agents": [
+  "codex:gpt-6.2-sol@medium",
+  "claude:claude-opus-5-5@medium"
+ ],
+ "subscriptions": "The harness `claude` and `codex` with the user's logins, not API keys.",
+ "tools": {
+  "cua": {
+   "backend": "cua",
+   "source": "hyprland-0.57",
+   "version": "Cua Driver 0.56.0, tag cua-driver-rs-v0.56.0, commit 9c75001355f777c102c7eea66b14c0a45868153d, with its default agent cursor overlay on (host GPU in container mode) and --grant existing-profile where the user's browser is Chromium",
+   "sets": {
+    "apps": {
+     "tasks": [
+      "form:25",
+      "form:25-no-dropdowns",
+      "form:qt-25",
+      "form:qt-25-no-dropdowns",
+      "files",
+      "inkscape",
+      "thunderbird",
+      "forgejo:reacting"
+     ]
+    },
+    "firefox": {
+     "browser": "firefox",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "calc"
+     ]
+    },
+    "chromium": {
+     "browser": "chromium",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "calc"
+     ]
+    }
+   }
+  },
+  "hyprmasq": {
+   "backend": "hyprmasq",
+   "source": "hyprland-0.57",
+   "version": "hyprmasq at 4271e6e (origin/main af2f3f4, v0.5.0 + #157) on Hyprland 0.57.2",
+   "sets": {
+    "apps": {
+     "tasks": [
+      "form:25",
+      "form:25-no-dropdowns",
+      "form:qt-25",
+      "form:qt-25-no-dropdowns",
+      "files",
+      "inkscape",
+      "thunderbird",
+      "forgejo:reacting"
+     ]
+    },
+    "firefox": {
+     "browser": "firefox",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "calc"
+     ]
+    },
+    "chromium": {
+     "browser": "chromium",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "calc"
+     ]
+    }
+   }
+  },
+  "hypruse": {
+   "backend": "hypruse",
+   "source": "hyprland-0.57",
+   "version": "hypruse 0.15.1 (PyPI sdist) pinned to mcp 1.30.0 (<2), in file screenshot mode with scoped Read for Claude Code and image mode for Codex",
+   "sets": {
+    "apps": {
+     "tasks": [
+      "form:25",
+      "form:25-no-dropdowns",
+      "form:qt-25",
+      "form:qt-25-no-dropdowns",
+      "files",
+      "inkscape",
+      "thunderbird",
+      "forgejo:reacting"
+     ]
+    },
+    "firefox": {
+     "browser": "firefox",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "calc"
+     ]
+    },
+    "chromium": {
+     "browser": "chromium",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "calc"
+     ]
+    }
+   }
+  },
+  "computer-use-linux": {
+   "backend": "computer-use-linux",
+   "source": "hyprland-0.57",
+   "version": "computer-use-linux 0.7.59 (tag v0.7.59, commit 34bee240fcadea5f50956fa2303f077a44364941), with its skill and COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1",
+   "sets": {
+    "apps": {
+     "tasks": [
+      "form:25",
+      "form:25-no-dropdowns",
+      "form:qt-25",
+      "form:qt-25-no-dropdowns",
+      "files",
+      "inkscape",
+      "thunderbird",
+      "forgejo:reacting"
+     ]
+    },
+    "firefox": {
+     "browser": "firefox",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "calc"
+     ]
+    },
+    "chromium": {
+     "browser": "chromium",
+     "tasks": [
+      "board:dnd",
+      "board:pointer",
+      "trace:river",
+      "calc"
+     ]
+    }
+   }
+  }
+ },
+ "machines": {
+  "machine-c": {
+   "name": "machine C (Ryzen 7 5800X3D, host GPU, rootless nspawn containers)",
+   "target": "local",
+   "options": "slots=4,lock=/tmp/vm.lock,bin=.cache/hyprmasq-bench/harness-v3/bin,label=5800X3D",
+   "workers": 4,
+   "max_concurrent": {
+    "codex": 2,
+    "claude": 2
+   },
+   "time_factor": 1.0,
+   "note": "Ryzen 7 5800X3D (8C/16T, 32 GiB) with real host GPU (/dev/dri) passed into rootless systemd-nspawn containers. Pre-series parallel probe (15 walks per app per container): 4 unpinned containers gave 0/180 Cua AT-SPI walks over the 1,000 ms budget (medians: 589 ms GTK 4, 274 ms Chromium, 470 ms Inkscape; steady 4.0 to 4.3 GHz at 66 to 74 C), whereas pinning 3x2 cores pushed GTK 4 p90 to 1,272 ms (15/45 over 1 s). hyprmasq, Cua Driver and hypruse run here in containers."
+  },
+  "machine-c-vm": {
+   "name": "machine C (Ryzen 7 5800X3D, KVM VMs)",
+   "target": "local",
+   "options": "slots=3,cores=2,lock=/tmp/vm.lock,bin=.cache/hyprmasq-bench/harness-v3/bin,label=5800X3D",
+   "workers": 3,
+   "cores": 2,
+   "max_concurrent": {
+    "codex": 2,
+    "claude": 2
+   },
+   "time_factor": 1.0,
+   "note": "Same machine C (Ryzen 7 5800X3D) running KVM VMs (3 slots x 2 pinned cores) for computer-use-linux alone, because on Hyprland its absolute pointer uses kernel /dev/uinput which cannot be isolated inside a systemd-nspawn container without injecting pointer events into the host desktop."
+  }
+ },
+ "not_used": {
+  "machine-b": "Ryzen 7 PRO 4750U laptop: even in rootless container mode on its host GPU, CPU frequency dropped to 1.8 to 2.1 GHz at 1 container (10/15 GTK 4 and 15/15 Inkscape walks over 1,000 ms) and thermally throttled at 93 to 97 C at 2 to 4 containers (60/60 GTK 4 walks over 1,000 ms at 4 containers)."
+ },
+ "concurrency": "hyprmasq, Cua Driver and hypruse run on machine C in 4 unpinned rootless GPU containers; computer-use-linux and the 1-round hyprmasq-vm calibration run on machine C in 3 x 2-core KVM VMs; at most 2 Codex and 2 Claude runs run at once.",
+ "order": "main and forgejo-user-reply interleaved hyprmasq and Cua Driver round by round (rotating tool order). cua-attach, cua-firefox-r1-clean, hypruse-v2, hypruse-forgejo-opus-fix, computer-use-linux and hyprmasq-vm ran as standalone slices on the same machine C.",
+ "reruns": "A run runs again only after a logged infrastructure failure, on the same machine, the same rule for every tool: a harness that stopped for a subscription's limit, a login or the provider's failure, as report.infrastructure_failure reads them from the harness's own events; a run with no summary.json; or a run that shared its host with outside VM/benchmark load (run.json host_load, series.other_load). series.py moves the run to excluded/ and logs it in exclusions.jsonl with why. Every exclusion is listed with the results. A run that the agent failed stands, whatever the reason, and a tool's refusal or a timeout are the agent's run's, not a reason to rerun.",
+ "estimate": {
+  "overhead_seconds": 30,
+  "note": "Agent seconds per run: v2 means as baseline (Opus 5.5 and GPT-6.2 Sol may differ in wall time, and container AT-SPI walks are 3 to 5x faster than v2's VMs). overhead_seconds is the container's boot (~10 to 15 s) and the debrief.",
+  "agent_seconds": {
+   "cua": {
+    "board:dnd": 94,
+    "board:pointer": 78,
+    "calc": 188,
+    "files": 88,
+    "forgejo:reacting": 180,
+    "form:25": 220,
+    "form:25-no-dropdowns": 112,
+    "form:qt-25": 91,
+    "form:qt-25-no-dropdowns": 40,
+    "inkscape": 49,
+    "thunderbird": 180,
+    "trace:river": 76
+   },
+   "hyprmasq": {
+    "board:dnd": 38,
+    "board:pointer": 38,
+    "calc": 64,
+    "files": 27,
+    "forgejo:reacting": 62,
+    "form:25": 88,
+    "form:25-no-dropdowns": 62,
+    "form:qt-25": 54,
+    "form:qt-25-no-dropdowns": 45,
+    "inkscape": 17,
+    "thunderbird": 99,
+    "trace:river": 37
+   },
+   "hypruse": {
+    "board:dnd": 60,
+    "board:pointer": 43,
+    "calc": 114,
+    "files": 37,
+    "forgejo:reacting": 134,
+    "form:25": 141,
+    "form:25-no-dropdowns": 137,
+    "form:qt-25": 189,
+    "form:qt-25-no-dropdowns": 164,
+    "inkscape": 84,
+    "thunderbird": 110,
+    "trace:river": 46
+   },
+   "computer-use-linux": {
+    "board:dnd": 46,
+    "board:pointer": 47,
+    "calc": 120,
+    "files": 37,
+    "forgejo:reacting": 72,
+    "form:25": 117,
+    "form:25-no-dropdowns": 101,
+    "form:qt-25": 86,
+    "form:qt-25-no-dropdowns": 38,
+    "inkscape": 37,
+    "thunderbird": 135,
+    "trace:river": 38
+   },
+   "default": {}
+  }
+ },
+ "frozen": "Cua Driver 0.56.0 (tag cua-driver-rs-v0.56.0, commit 9c75001355f777c102c7eea66b14c0a45868153d) and hyprmasq on Hyprland 0.57.2, pinned on 21 November 2026 before any v3 run.",
+ "series": {
+  "main": {
+   "tools": [
+    "cua",
+    "hyprmasq"
+   ],
+   "machine": "machine-c",
+   "container": true,
+   "reps": 6,
+   "results": "comparison-2026-11-v3/main",
+   "about": "Cua Driver 0.56.0 against hyprmasq in rootless NixOS containers with host GPU on machine C: all 16 task units, Opus 5.5 and GPT-6.2 Sol at medium effort, 6 repetitions each (384 runs total), alternating tool order per round."
+  },
+  "forgejo-user-reply": {
+   "tools": [
+    "cua",
+    "hyprmasq"
+   ],
+   "machine": "machine-c",
+   "container": true,
+   "user_reply": true,
+   "reps": 6,
+   "results": "comparison-2026-11-v3/forgejo-user-reply",
+   "sets": {
+    "cua": {
+     "forgejo": {
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     }
+    },
+    "hyprmasq": {
+     "forgejo": {
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     }
+    }
+   },
+   "about": "All 6 rounds of forgejo:reacting for both tools and models with --user-reply (PR #151), replacing main's forgejo:reacting runs where series.py did not forward --user-reply and GPT-6.2 Sol stopped on Forgejo's broad OAuth consent screen to ask for approval."
+  },
+  "cua-attach": {
+   "tools": [
+    "cua"
+   ],
+   "machine": "machine-c",
+   "container": true,
+   "user_reply": true,
+   "reps": 6,
+   "results": "comparison-2026-11-v3/cua-attach",
+   "chromium_options": "--remote-debugging-port=0",
+   "sets": {
+    "cua": {
+     "chromium": {
+      "browser": "chromium",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     },
+     "forgejo": {
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     }
+    }
+   },
+   "about": "Cua Driver 0.56.0 with the user's Chromium started with --remote-debugging-port=0 in container mode on machine C, on the 5 Chromium task units where attaching applies (60 runs total). Reported beside main, never pooled with it."
+  },
+  "hypruse": {
+   "tools": [
+    "hypruse"
+   ],
+   "machine": "machine-c",
+   "container": true,
+   "user_reply": true,
+   "reps": 6,
+   "results": "comparison-2026-11-v3/hypruse",
+   "about": "hypruse 0.15.1 in rootless NixOS containers with host GPU on machine C: all 16 task units, Opus 5.5 and GPT-6.2 Sol at medium effort, 6 repetitions each with --user-reply (192 runs total)."
+  },
+  "computer-use-linux": {
+   "tools": [
+    "computer-use-linux"
+   ],
+   "machine": "machine-c-vm",
+   "container": false,
+   "user_reply": true,
+   "reps": 6,
+   "results": "comparison-2026-11-v3/computer-use-linux",
+   "about": "computer-use-linux 0.7.59 in KVM VMs on machine C (3 slots x 2 cores): all 16 task units, Opus 5.5 and GPT-6.2 Sol at medium effort, 6 repetitions each with --user-reply (192 runs total; user_reply triggered only on Forgejo). Uses KVM VMs rather than containers because its Hyprland pointer backend writes to kernel /dev/uinput."
+  },
+  "cua-firefox-r1-clean": {
+   "tools": [
+    "cua"
+   ],
+   "machine": "machine-c",
+   "container": true,
+   "user_reply": false,
+   "reps": 1,
+   "rounds": [
+    1
+   ],
+   "results": "comparison-2026-11-v3/cua-firefox-r1-clean",
+   "sets": {
+    "cua": {
+     "firefox": {
+      "browser": "firefox",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     }
+    }
+   },
+   "about": "Clean replacement for round 1 of main/cua/firefox (8 runs) where an outside host load storm hit load1 = 78.05 without tripping the QEMU-only check."
+  },
+  "hypruse-v2": {
+   "tools": [
+    "hypruse"
+   ],
+   "machine": "machine-c",
+   "container": true,
+   "reps": 6,
+   "results": "comparison-2026-11-v3/hypruse-v2",
+   "sets": {
+    "hypruse": {
+     "apps": {
+      "tasks": [
+       "form:25",
+       "form:25-no-dropdowns",
+       "form:qt-25",
+       "form:qt-25-no-dropdowns",
+       "files",
+       "inkscape",
+       "thunderbird"
+      ]
+     },
+     "forgejo": {
+      "user_reply": true,
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     },
+     "firefox": {
+      "browser": "firefox",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     },
+     "chromium": {
+      "browser": "chromium",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     }
+    }
+   },
+   "about": "Replacement for hypruse (192 runs) after independent audits caught three setup defects: mcp 1.30.0 pinning to stop mcp 2.3.0 from stripping 112/120 error/refusal messages, container-shared file mode + scoped Read for Claude Code (per hypruse's README), and restricting --user-reply to Forgejo only (matching hyprmasq and Cua Driver; computer-use-linux and cua-attach had --user-reply enabled on all units with 0 non-Forgejo triggers)."
+  },
+  "hypruse-forgejo-opus-fix": {
+   "tools": [
+    "hypruse"
+   ],
+   "machine": "machine-c",
+   "container": true,
+   "rounds": [
+    5
+   ],
+   "agents": [
+    "claude:claude-opus-5-5@medium"
+   ],
+   "results": "comparison-2026-11-v3/hypruse-forgejo-opus-fix",
+   "sets": {
+    "hypruse": {
+     "forgejo": {
+      "user_reply": true,
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     }
+    }
+   },
+   "about": "Single clean replacement for hypruse-v2 Forgejo Opus rep 5 at d9fe738 after fixing run.py's needs_reply() regex so negated mentions such as `isn't \"Done\" yet` do not suppress --user-reply."
+  },
+  "hyprmasq-vm": {
+   "tools": [
+    "hyprmasq"
+   ],
+   "machine": "machine-c-vm",
+   "container": false,
+   "reps": 1,
+   "results": "comparison-2026-11-v3/hyprmasq-vm",
+   "sets": {
+    "hyprmasq": {
+     "apps": {
+      "tasks": [
+       "form:25",
+       "form:25-no-dropdowns",
+       "form:qt-25",
+       "form:qt-25-no-dropdowns",
+       "files",
+       "inkscape",
+       "thunderbird"
+      ]
+     },
+     "forgejo": {
+      "user_reply": true,
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     },
+     "firefox": {
+      "browser": "firefox",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     },
+     "chromium": {
+      "browser": "chromium",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     }
+    }
+   },
+   "about": "One full round (32 runs) of hyprmasq in the exact same KVM VM setup on machine C (3 slots x 2 cores) as computer-use-linux, measuring VM vs container overhead directly. Reported as a side check, never pooled with main."
+  }
+ },
+ "analysis": {
+  "fixed": "Initial 2-tool rules (hyprmasq vs Cua Driver) committed 21 November 2026 before main; expanded to 4 tools and amended as logged in amendments below.",
+  "unit": "A task unit is a task, variant and browser as the rules' sets list them: 16 in main (8 apps, 4 Firefox, 4 Chromium). Results are per task unit, per tool and per model (Opus 5.5 and GPT-6.2 Sol), each task unit weighted once.",
+  "pass_rate": "Passes over runs per task unit, with a Wilson 95 % interval, for every pass rate shown. A difference between the tools on a task unit is stated only where the intervals do not overlap, and otherwise as within the noise.",
+  "time": "Wall time and time in tools over passed runs only, as medians with the range, per task unit, and only where a tool passed at least 3 runs of that unit with that model; otherwise its time is not shown. Failed runs' times are reported apart.",
+  "user": "The task's result and the user's own work are reported apart: user_work.kept where the task has the user working (Forgejo), with lost characters. no_view_change, desktop_input_to_user_window and cursor_moved_px are reported beside the result.",
+  "walks": "Cua Driver's AT-SPI walks are reported per app, split by why they stopped (time budget, element budget, container cap). In container mode on machine C, all 9 apps walk well below Cua's 1,000 ms budget.",
+  "frames": "frames.first_small and frames.unchanged_after_input are reported per tool and task. They are flags, not failures.",
+  "machines": "All four tools run on machine C: hyprmasq, Cua Driver and hypruse in rootless GPU containers, and computer-use-linux in 3 x 2-core KVM VMs (with a 1-round hyprmasq-vm calibration on the same VM setup so VM overhead is measured directly and never conflated with GPU containers).",
+  "export_fail": "Same prompt-requirement checks as v2: Forgejo extra changes, Thunderbird extra/wrong-room reply, file manager extra file/folder change, Calc closed/moved tab, extra app window opened in forms/files/Inkscape, trace river stopping short of photo bottom. Checked uniformly across all four tools and published with evidence.",
+  "exclusions": "Every excluded run is listed with why, and every completed non-excluded run is published, failures included.",
+  "headline_pass_rate": "Unweighted mean over the 16 task units per model (96 runs per model per tool, Wilson 95 % interval), plus splits by accessibility-friendly apps (10 units), image tasks (6 units), and browser (4 Firefox vs 4 Chromium).",
+  "headline_time": "Geometric mean, over task units where both tools passed at least 3 of 6 runs with that model, of each tool's median wall time of passed runs over hyprmasq's (and likewise for time in tools), with included and excluded units listed. computer-use-linux (KVM VM) is flagged apart from GPU-container ratios.",
+  "scope": {
+   "claims": "Scoped to Hyprland 0.57.2 with Omarchy config on machine C (rootless GPU containers for hyprmasq, Cua Driver and hypruse; KVM VMs for computer-use-linux due to /dev/uinput).",
+   "against_cua": [
+    "6 of the 16 task units are image tasks (board drag-and-drop and river trace).",
+    "4 task units run in Firefox, where Cua Driver's foreground is refused and its browser tools do not apply.",
+    "main starts Chromium without remote debugging; cua-attach, with it, is shown next to main's Chromium units."
+   ],
+   "for_cua": [
+    "In the nested Hyprland container, Cua Driver's screenshots of a hidden Chromium window stay fresh.",
+    "Cua Driver's AT-SPI walks run on a fast desktop CPU (5800X3D) in host-GPU containers: 36 of 2,502 walks hit its 1,000 ms budget, 0 first walks were cut, median 176–182 ms."
+   ]
+  },
+  "failure_attribution": {
+   "fixed": "Initial scope committed 21 November 2026 before main; reviewer pair and --no-capability updated in Amendment 5 on 22 November 2026.",
+   "scope": "Each failed non-excluded run gets one verdict (tool_problem, model_mistake, unclear) from two independent non-series reviewers (Claude Fable 5.2 and GPT-6.1 Sol) with identical prompts, no v2 capability table, and evidence citations; any disagreement becomes unclear with no tie-break."
+  }
+ },
+ "amendments": [
+  {
+   "date": "2026-11-21",
+   "what": "v3 rules written before any run: Cua Driver 0.56.0 vs hyprmasq on Hyprland 0.57.2, rootless systemd-nspawn containers on host GPU (default Cua overlay on), machine C (5800X3D, 4 unpinned containers), Opus 5.5 and GPT-6.2 Sol at medium effort."
+  },
+  {
+   "date": "2026-11-21",
+   "what": "series.py did not forward --user-reply (PR #151) during main, so GPT-6.2 Sol stopped on Forgejo's broad OAuth consent prompt to ask for approval on every forgejo:reacting run (0/6 on both hyprmasq and Cua, after committing release-notes-1.4.md cleanly). Added user_reply support to series.py and a dedicated forgejo-user-reply slice (6 reps for both tools and models at the same pinned commit 4271e6e) to replace main's forgejo:reacting unit, and enabled user_reply on cua-attach before it starts. No other task had an agent stop to ask for confirmation."
+  },
+  {
+   "date": "2026-11-21",
+   "what": "Merged the two adjacent top SATA port boxes ([1292, 718, 1368, 752] and [1402, 715, 1487, 750]) into one box [1292, 715, 1487, 752] in bench/tasks/board/regions.json (85fce3b), matching Memory slots and M.2 slots so a label centered between the adjacent SATA pair passes. Re-grading all 96 board runs of main against the merged box flips exactly 2 runs from failed to passed (hyprmasq/chromium/board-dnd Opus rep 5 at (1387.8, 733) and hyprmasq/chromium/board-pointer Opus rep 1 at (1379.3, 737.9)), bringing hyprmasq to 96/96 Opus 5.5 and 96/96 GPT-6.2 Sol (192/192). Updated source hyprland-0.57 to this commit before starting cua-attach."
+  },
+  {
+   "date": "2026-11-22",
+   "what": "Added hypruse 0.15.1 (series hypruse, rootless GPU containers on machine C) and computer-use-linux 0.7.59 (series computer-use-linux, KVM VMs on machine C because its Hyprland absolute pointer uses kernel /dev/uinput which cannot be isolated in systemd-nspawn), both at commit a7ad504 with --user-reply and 6 repetitions x 16 units x 2 models (192 runs each), completing the 4-tool v3 comparison."
+  },
+  {
+   "date": "2026-11-22",
+   "what": "Audit-driven fixes at de524fa: (1) replaced hypruse with hypruse-v2 after audits found nixpkgs's mcp 2.3.0 stripped 112/120 hypruse error/refusal messages (fixed by pinning mcp 1.30.0), forced image mode on Claude Code against hypruse's README (fixed by sharing the container's screenshot dir with scoped Read for Claude Code), and applied --user-reply outside Forgejo (restricted to Forgejo only on hypruse-v2, matching hyprmasq and Cua Driver; computer-use-linux and cua-attach kept user_reply enabled on all units with 0 non-Forgejo triggers); (2) replaced main/cua/firefox round 1 (8 runs) with cua-firefox-r1-clean after audits caught an outside host load storm (load1 = 78.05) and added max_load1 > 40 to series.py other_load(); (3) added 1-round hyprmasq-vm calibration (32 runs) on machine-c-vm to quantify KVM VM vs GPU container overhead directly; (4) dropped the post-hoc SATA --pass-override on main's 2 hyprmasq board runs so main stands as originally graded (190/192: 96/96 Sol, 94/96 Opus) with zero pass overrides (noting hypruse-v2 Firefox board-pointer Opus rep 3 passed at (1387.9, 733.4) under the merged box), and corrected Amendment 2's main Forgejo note (Sol was 1/6 on hyprmasq and 0/6 on Cua, Opus 5/6 on Cua); (5) switched failure attribution to two non-series models (claude-fable-5-2 and gpt-6.1-sol) without bundling stale v2 capability-results.md."
+  },
+  {
+   "date": "2026-11-22",
+   "what": "Round 2 audit fix at d9fe738: fixed bench/run.py needs_reply() so negated mentions like `isn't \"Done\" yet` do not suppress --user-reply, excluded the single regex-bugged hypruse-v2 Forgejo Opus rep 5 run in v3-exclusions.json with its outcome, and replaced it with 1 clean repetition (hypruse-forgejo-opus-fix). Recorded retained outcomes on all excluded runs in v3-exclusions.json."
+  }
+ ]
+}

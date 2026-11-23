@@ -32,7 +32,7 @@ import dispatch
 import report
 
 
-def run_record(results_dir, name, fail, variant):
+def run_record(results_dir, name, fail, variant, pass_override=None):
     run_dir = os.path.join(results_dir, name)
     with open(os.path.join(run_dir, "run.json")) as f:
         run = json.load(f)
@@ -52,6 +52,7 @@ def run_record(results_dir, name, fail, variant):
         "backend": s["backend"],
         "prompt": s["prompt"],
         "browser": s["browser"],
+        "container": bool(run.get("container", False)),
         "harness": s["harness"],
         "model": s["model"],
         # The harness's default when the run asked for none.
@@ -132,6 +133,11 @@ def run_record(results_dir, name, fail, variant):
         record["vm_passed"] = record["passed"]
         record["passed"] = False
         record["counted_failed"] = reason
+    pass_reason = (pass_override or {}).get(record["run"]) or (pass_override or {}).get(name)
+    if pass_reason:
+        record["vm_passed"] = record["passed"]
+        record["passed"] = True
+        record["counted_passed"] = pass_reason
     machine = s.get("machine") or {}
     record["cpu"] = machine.get("cpu")
     return record, tuple(machine.get(k) for k in ("cpu", "threads", "memory_gib"))
@@ -143,7 +149,8 @@ def wanted(record, agents):
     return not agents or any(dispatch.agent_matches(p, record["harness"], record["model"], effort) for p in agents)
 
 
-def export(results_dirs, fail, several_machines=False, agents=()):
+def export(results_dirs, fail, several_machines=False, agents=(), pass_override=None, allow_source_commits=False):
+    pass_override = pass_override or {}
     names = [os.path.basename(os.path.normpath(d)) for d in results_dirs]
     if len(set(names)) < len(names):
         sys.exit("export.py: the results directories' names must differ, as runs are named by them: "
@@ -155,13 +162,14 @@ def export(results_dirs, fail, several_machines=False, agents=()):
         sources.append({**{k: source.get(k) for k in ("commit", "dirty", "task", "variant", "display")},
                         "backend": source.get("backend", "hyprmasq"), "prompt": source.get("prompt", "task"),
                         "browser": source.get("browser", "firefox"), "desktop": source.get("desktop", "bare"),
+                        "container": bool(source.get("container", False)),
                         # How the user's browser started and what hyprmasq-mcp was given: a slice such as Chromium with a
                         # debugging port, or the image size probe, is a configuration of its own.
                         "chromium_options": source.get("chromium_options", ""), "mcp_args": source.get("mcp_args", "")})
     for results_dir, s in zip(results_dirs, sources):
         for name in sorted(os.listdir(results_dir)):
             if os.path.exists(os.path.join(results_dir, name, "summary.json")):
-                record, machine = run_record(results_dir, name, fail, s["variant"])
+                record, machine = run_record(results_dir, name, fail, s["variant"], pass_override)
                 if not wanted(record, agents):
                     continue
                 runs.append(record)
@@ -169,9 +177,11 @@ def export(results_dirs, fail, several_machines=False, agents=()):
     # Times depend on the build and the machine: a dataset holds one of each per task. Its runs name their variant,
     # by which render.py tells a task's variants apart.
     builds = {}
+    keys = (("dirty", "display", "backend", "prompt", "browser", "desktop", "container", "chromium_options", "mcp_args")
+            if allow_source_commits else
+            ("commit", "dirty", "display", "backend", "prompt", "browser", "desktop", "container", "chromium_options", "mcp_args"))
     for s in sources:
-        build = tuple(s[k] for k in ("commit", "dirty", "display", "backend", "prompt", "browser", "desktop",
-                                     "chromium_options", "mcp_args"))
+        build = tuple(s[k] for k in keys)
         builds.setdefault(s["task"], set()).add(build)
     mixed = sorted(task for task, b in builds.items() if len(b) > 1)
     if mixed:
@@ -181,14 +191,15 @@ def export(results_dirs, fail, several_machines=False, agents=()):
         sys.exit("export.py: the runs ran on several machines, whose times differ. Export each machine's runs to "
                  "its own dataset, or pass --several-machines.")
     used = {r["run"] for r in runs} | {r["run"].split("/", 1)[1] for r in runs}
-    unknown = sorted(set(fail) - used)
-    if unknown:
-        sys.exit(f"export.py: --fail names no finished run: {', '.join(unknown)}")
-    names = [r["run"].split("/", 1)[1] for r in runs]
-    ambiguous = sorted(name for name in fail if names.count(name) > 1)
-    if ambiguous:
-        sys.exit(f"export.py: --fail names a run of several results directories, name its directory too: "
-                 f"{', '.join(ambiguous)}")
+    for flag, mapping in (("--fail", fail), ("--pass-override", pass_override)):
+        unknown = sorted(set(mapping) - used)
+        if unknown:
+            sys.exit(f"export.py: {flag} names no finished run: {', '.join(unknown)}")
+        names = [r["run"].split("/", 1)[1] for r in runs]
+        ambiguous = sorted(name for name in mapping if names.count(name) > 1)
+        if ambiguous:
+            sys.exit(f"export.py: {flag} names a run of several results directories, name its directory too: "
+                     f"{', '.join(ambiguous)}")
     return {"sources": sources, "runs": runs}
 
 
@@ -204,6 +215,7 @@ def main(argv):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", required=True)
     parser.add_argument("--fail", action="append", default=[], metavar="RUN=REASON")
+    parser.add_argument("--pass-override", action="append", default=[], metavar="RUN=REASON")
     parser.add_argument("--several-machines", action="store_true")
     parser.add_argument("--agent", action="append", default=[], metavar="AGENT",
                         help="keep only the runs of the agents that match, HARNESS[:MODEL[@EFFORT]] with *; repeatable")
@@ -212,17 +224,22 @@ def main(argv):
                              "(comparison-series.json, analysis): render.py then gives pass rates with Wilson intervals, "
                              "times only with at least MIN_PASSES passes, failed runs' times apart, and the user's view "
                              "and work")
+    parser.add_argument("--rules", default="bench/comparison-series.json",
+                        help="rules path recorded with --registered (default bench/comparison-series.json)")
+    parser.add_argument("--allow-source-commits", action="store_true",
+                        help="allow combining results directories whose repo commit differs when the tool build is identical")
     parser.add_argument("results", nargs="+")
     args = parser.parse_args(argv)
-    fail = {}
-    for item in args.fail:
-        run, sep, reason = item.partition("=")
-        if not sep or not reason:
-            parser.error(f"--fail {item}: expected RUN=REASON")
-        fail[run] = reason
-    data = export(args.results, fail, args.several_machines, args.agent)
+    fail, pass_override = {}, {}
+    for flag, items, target in (("--fail", args.fail, fail), ("--pass-override", args.pass_override, pass_override)):
+        for item in items:
+            run, sep, reason = item.partition("=")
+            if not sep or not reason:
+                parser.error(f"{flag} {item}: expected RUN=REASON")
+            target[run] = reason
+    data = export(args.results, fail, args.several_machines, args.agent, pass_override, args.allow_source_commits)
     if args.registered:
-        data["analysis"] = {"rules": "bench/comparison-series.json", "min_passes": 3, "interval": "wilson-95"}
+        data["analysis"] = {"rules": args.rules, "min_passes": 3, "interval": "wilson-95"}
     with open(args.out, "w", encoding="utf-8", newline="") as f:
         f.write(dumps(data))
     print(f"{args.out}: {len(data['runs'])} runs")
