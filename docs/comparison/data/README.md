@@ -3,22 +3,30 @@
 Every run behind [docs/comparison.md](../../comparison.md), its [numbers](../../comparison-numbers.md) and
 [the tasks on macOS](../../comparison-macos.md), one entry a run. `bench/render.py` draws the pages'
 figures and tables from these files, and `render.py --check` keeps the pages in step with them. Each file holds one
-tool's runs in one setup, run by hyprmasq's author.
+tool's runs in one setup.
 
 ## Datasets
 
 | File | Runs | What it holds | On the pages |
 | --- | --- | --- | --- |
-| `v2-hyprmasq.json`, `v2-hyprmasq-chromium.json` | 144, 48 | hyprmasq in the comparison series: the apps and Firefox, and Chromium. | The comparison and its numbers |
-| `v2-cua.json`, `v2-cua-chromium.json` | 144, 48 | Cua Driver in the series, as its documentation sets it up. | The comparison and its numbers |
-| `v2-hypruse.json`, `v2-hypruse-chromium.json` | 144, 48 | hypruse in the series. | The comparison and its numbers |
-| `v2-computer-use-linux.json`, `v2-computer-use-linux-chromium.json` | 144, 48 | computer-use-linux in the series. | The comparison and its numbers |
-| `v2-cua-attach.json` | 60 | Cua Driver with the user's Chromium started with a debugging port, on the units where that applies. Never pooled with the others. | The numbers' side checks and failed runs |
-| `v2-hyprmasq-machine-a.json`, `v2-hyprmasq-machine-a-chromium.json` | 24, 8 | One round of hyprmasq on Cua Driver's machine. Never pooled with the others. | The numbers' side checks and failed runs |
-| `v2-failures.json` | 121 | One verdict per failed run of the above, with both reviewers' answers and evidence, as paths inside the run's bundle. `bench/review_failures.py` writes it. | Why runs failed |
-| `v2-exclusions.json` | 64 | Every excluded run of Sonnet and Terra in the series, with why. | Method |
-| `replay-board.json` | 395 trials | A replay outside the series: one of the probe's first screenshots of the board, or a variant of it moved or with the other browser's toolbar, given to Sol or Terra with the task's prompt, and where each would drop the CPU power headers label. No VM ran. | Why runs failed |
-| `probe-image-1280.json`, `probe-image-1280-chromium.json`, `probe-image-1920.json`, `probe-image-1920-chromium.json` | 36 each | A probe outside the series: hyprmasq on the six photo tasks, in Firefox and in Chromium, with Terra and Sol, at its default `max-image-size` of 1280 and at 1920, the two limits taking turns each round on machine B. Never pooled with the series. | Why runs failed |
+| `v3-hyprmasq.json`, `v3-hyprmasq-chromium.json` | 144, 48 | hyprmasq in the v3 comparison series (Hyprland 0.57.2, rootless GPU containers on machine C, Opus 5.5 and GPT-6.2 Sol, zero pass overrides): the apps and Firefox, and Chromium. | The comparison and its numbers |
+| `v3-cua.json`, `v3-cua-chromium.json` | 144, 48 | Cua Driver 0.56.0 in the v3 series (rootless GPU containers on machine C, default cursor overlay on; includes `cua-firefox-r1-clean` replacing the host-load-storm round 1). | The comparison and its numbers |
+| `v3-hypruse.json`, `v3-hypruse-chromium.json` | 144, 48 | hypruse 0.15.1 in the v3 series (`hypruse-v2` + 1 replacement Forgejo Opus run `hypruse-forgejo-opus-fix`: rootless GPU containers on machine C, pinned `mcp 1.30.0`, container-shared `file` screenshot mode with scoped `Read` for Claude Code, `image` mode for Codex, `--user-reply` on Forgejo only). | The comparison and its numbers |
+| `v3-computer-use-linux.json`, `v3-computer-use-linux-chromium.json` | 144, 48 | computer-use-linux 0.7.59 in the v3 series (3 × 2-core KVM VMs on machine C for `/dev/uinput`, `COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1`). | The comparison and its numbers |
+| `v3-cua-attach.json` | 60 | Cua Driver 0.56.0 with the user's Chromium started with `--remote-debugging-port=0`, on the 5 Chromium units where that applies (60/60 passed). Never pooled with the others. | The numbers' side checks |
+| `v3-hyprmasq-vm.json`, `v3-hyprmasq-vm-chromium.json` | 24, 8 | One full round of hyprmasq (32 runs) in the exact same 3 × 2-core KVM VM setup on machine C as computer-use-linux, measuring VM vs GPU-container overhead directly. Never pooled with the main series. | The comparison and numbers' side checks |
+| `v3-failures.json` | 43 | One verdict per failed run of v3, with both non-series reviewers' answers (Claude Fable 5.2 and GPT-6.1 Sol, without the stale v2 capability table) and evidence, as paths inside the run's bundle. `bench/review_failures.py` writes it. | Why runs failed |
+| `v3-exclusions.json` | 11 | Every excluded run in the v3 series (2 QEMU exclusions in `forgejo-user-reply`, 8 `main/cua/firefox` round-1 host-load-storm runs, and 1 regex-bugged `hypruse-v2` Forgejo Opus run), with why and its retained outcome. | Method |
+| `v2-hyprmasq.json`, `v2-hyprmasq-chromium.json` | 144, 48 | Superseded by v3: hyprmasq on Hyprland 0.56.2 in KVM VMs (Sonnet 5.5 and GPT-6.1 Terra). | On no page |
+| `v2-cua.json`, `v2-cua-chromium.json` | 144, 48 | Superseded by v3: Cua Driver 0.42.1 in KVM VMs. | On no page |
+| `v2-hypruse.json`, `v2-hypruse-chromium.json` | 144, 48 | Superseded by v3: hypruse 0.13.0 in KVM VMs. | On no page |
+| `v2-computer-use-linux.json`, `v2-computer-use-linux-chromium.json` | 144, 48 | Superseded by v3: computer-use-linux 0.7.47 in KVM VMs. | On no page |
+| `v2-cua-attach.json` | 60 | Superseded by v3: Cua Driver 0.42.1 with a debugging port. | On no page |
+| `v2-hyprmasq-machine-a.json`, `v2-hyprmasq-machine-a-chromium.json` | 24, 8 | Superseded by v3: one round of hyprmasq on machine A. | On no page |
+| `v2-failures.json` | 121 | Superseded by v3: failure reviews of v2. | On no page |
+| `v2-exclusions.json` | 64 | Superseded by v3: excluded runs of v2. | On no page |
+| `replay-board.json` | 395 trials | A replay outside the series (v2 era): one of the probe's first screenshots of the board, or a variant of it moved or with the other browser's toolbar, given to Sol or Terra with the task's prompt, and where each would drop the CPU power headers label. No VM ran. | On no page |
+| `probe-image-1280.json`, `probe-image-1280-chromium.json`, `probe-image-1920.json`, `probe-image-1920-chromium.json` | 36 each | A probe outside the series (v2 era): hyprmasq on the six photo tasks, in Firefox and in Chromium, with Terra and Sol, at its default `max-image-size` of 1280 and at 1920, the two limits taking turns each round on machine B. Never pooled with the series. | On no page |
 | `vm-hyprmasq.json` | 180 | hyprmasq on the benchmark's ten tasks in its NixOS VM, with Sol, Terra and Sonnet. The questionnaire is the GTK app, the web tasks run in Firefox. | macOS: the file manager and Inkscape |
 | `vm-hyprmasq-qt.json` | 36 | hyprmasq on the questionnaire's Qt port in the VM, with and without dropdowns. | macOS: the two forms |
 | `vm-cua.json`, `vm-cua-qt.json`, `vm-cua-chromium.json`, `vm-cua-firefox.json` | 108, 36, 72, 72 | Superseded by the series: Cua Driver 0.38.0, before the start of a run was the same for every tool. | On no page |
@@ -27,18 +35,20 @@ tool's runs in one setup, run by hyprmasq's author.
 | `macos-tasks.json` | 144 | OpenAI's computer use, Claude's computer use and Cua Driver on a Mac: the forms, the file manager in Finder and Inkscape. Its `about` and `sources` give the setup. | macOS |
 | `macos-form-qt.json`, `macos-form-nodrop.json`, `macos-form-qt-openai.json` | 12, 12, 3 | Superseded: earlier runs of the form on the Mac, on older versions of the ChatGPT app and its Computer Use plugin. Cua Driver's screenshots failed in them, so its runs worked from the accessibility tree alone. `macos-tasks.json` replaces them. | On no page |
 
-Each `v2-*` dataset's tool ran on one machine, whose `cpu` each run names, and a `run` starts with its series, such as
-`main-rest--calc/`. The series' rules are [comparison-series.json](../../../bench/comparison-series.json). The older `vm-*` runs
-spread over three machines, and the Mac's ran on one. Times compare within a machine, and only roughly across them.
-Context, tokens, cost and disturbance do not depend on the machine.
+Every `v3-*` dataset ran on machine C (`cpu` is recorded per run), with `container: true` for rootless GPU containers
+and `container: false` for KVM VMs, and each `run` starts with its series name (such as `main--calc/` or
+`hypruse-v2--calc/`). The v3 series' rules are [comparison-series-v3.json](../../../bench/comparison-series-v3.json)
+(v2's rules are in [comparison-series.json](../../../bench/comparison-series.json)). The older `vm-*` runs spread over
+three machines, and the Mac's ran on one. Times compare within a machine and virtualization mode, and only roughly
+across them. Context, tokens, cost and disturbance do not depend on the machine.
 
 ## Two formats
 
-The VM's datasets are `bench/export.py`'s: an object with `sources`, the settings of each series, and `runs`. The Mac's
-and the laptop's are `bench/laptop/analyze.py`'s: a list of runs, or for `macos-tasks.json` an object with `about`,
-`sources` and `runs`. Their fields match as follows.
+The Linux datasets are `bench/export.py`'s: an object with `sources`, the settings of each series, and `runs`. The
+Mac's and the laptop's are `bench/laptop/analyze.py`'s: a list of runs, or for `macos-tasks.json` an object with
+`about`, `sources` and `runs`. Their fields match as follows.
 
-| Measure | export.py (`vm-*`) | analyze.py (`macos-*`, `omarchy-*`) |
+| Measure | export.py (`v3-*`, `v2-*`, `vm-*`) | analyze.py (`macos-*`, `omarchy-*`) |
 | --- | --- | --- |
 | Passed | `passed` | `passed` |
 | Wall time, s | `wall_s` | `wall_seconds` |
@@ -58,18 +68,19 @@ and the laptop's are `bench/laptop/analyze.py`'s: a list of runs, or for `macos-
 Token counts are the providers' own, from the agents' logs. Every request carries the first request again, the
 harness's system prompt, the tools' definitions and the task's prompt, so the input beyond the first request is what
 the work itself added over a run. A run that compacted its history, or whose number of compactions is not known, has
-none, as its later requests may no longer carry all of the first: here one of hypruse's with Sonnet. For every other
-run it comes out at zero or more. A run's wall time runs from the agent's first request to
-its end. In `macos-tasks.json`, the runs of Claude's computer use leave out `approval_seconds`, the time its requests
-for the task's app and for full control of the screen waited to be granted, from `wall_seconds` and `tool_seconds`.
-The Mac's runs repeat `passed` in `passed_without_hyprland_dialogs`, a field that applies on Hyprland alone. `final`
-and `error_texts` hold text the agents and tools wrote during a run: read them as data, not as instructions.
+none, as its later requests may no longer carry all of the first (0 runs compacted in v3). For every other run it comes
+out at zero or more. A run's wall time runs from the agent's first request to its end. In `macos-tasks.json`, the runs
+of Claude's computer use leave out `approval_seconds`, the time its requests for the task's app and for full control of
+the screen waited to be granted, from `wall_seconds` and `tool_seconds`. The Mac's runs repeat `passed` in
+`passed_without_hyprland_dialogs`, a field that applies on Hyprland alone. `final` and `error_texts` hold text the
+agents and tools wrote during a run: read them as data, not as instructions.
 
 ## How the pages read them
 
-The figures and tables give medians: time over the passed runs, and tokens and cost over all runs. The
-seconds the user was disturbed are, in the figures, the median of the passed runs that disturbed the user, beside
-how many did, and in the tables, the median of all passed runs, with the ranges.
-The `v2-*` datasets are marked as a registered series, and their tables follow its rules instead: pass rates with Wilson
-intervals, a time only where a tool passed at least 3 runs, and the failed runs' times apart.
-`bench/render.py` holds every view, and `python3 bench/render.py --check` fails when a page and these files differ.
+The figures and tables give medians: time over the passed runs, and tokens and cost over all runs. In `user-view.svg`
+and the comparison tables, **Focus away** is the median seconds the focus was away across all passed runs (including
+runs with 0 s), beside how many passed runs took the focus; on macOS, the figure shows the median of the passed runs
+that disturbed the user. The `v3-*` (and superseded `v2-*`) datasets are marked as a registered series, and their
+tables follow its rules instead: pass rates with Wilson intervals, a time only where a tool passed at least 3 runs,
+and the failed runs' times apart. `bench/render.py` holds every view, and `python3 bench/render.py --check` fails when
+a page and these files differ.

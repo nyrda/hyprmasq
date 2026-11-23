@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="389" viewBox="0 0 880 389" role="img" aria-label="Per tool and agent: the pass rate as a dot on its 95 % interval, the runs that left the user&#x27;s view alone as a bar, the runs that failed because of the tool, and the time and cost as multiples of hyprmasq&#x27;s.">
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="407" viewBox="0 0 880 407" role="img" aria-label="Per tool and agent: the pass rate as a dot on its 95 % interval, the runs that left the user&#x27;s view alone as a bar, the runs that failed because of the tool, and the time and cost as multiples of hyprmasq&#x27;s.">
 <title>Per tool and agent: the pass rate as a dot on its 95 % interval, the runs that left the user&#x27;s view alone as a bar, the runs that failed because of the tool, and the time and cost as multiples of hyprmasq&#x27;s.</title>
 <style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.tools{fill:#3987e5}.out{fill:#454c56}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.miss{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.pass{fill:#3fb950}.fail{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.cut{stroke:#0d1117;stroke-width:2}.whisker{stroke:#f0f6fc;stroke-width:1.5}.s0{fill:#3987e5}.s1{fill:#d95926}.s2{fill:#199e70}.s3{fill:#c98500}.s4{fill:#d55181}.s5{fill:#008300}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
-<rect x="0.5" y="0.5" width="879" height="388" rx="6" class="bg"/>
+<rect x="0.5" y="0.5" width="879" height="406" rx="6" class="bg"/>
 <text x="24" y="34" class="t" font-size="15" font-weight="600">Four tools, the same 16 tasks</text>
 <text x="24" y="53" class="t2" font-size="12.5">Six runs per task and agent. The dot is the pass rate and the line its 95 % interval: where two lines</text>
 <text x="24" y="72" class="t2" font-size="12.5">overlap, the difference may be chance. Under each tool is where it is built to work. Time and cost are</text>
@@ -24,22 +24,22 @@
 <rect x="24" y="141" width="4" height="44" class="s0" rx="2"/>
 <text x="36" y="157" class="t" font-size="13.5" font-weight="600">hyprmasq</text>
 <text x="36" y="173" class="m" font-size="10.5">background</text>
-<text x="182" y="155" class="t2" font-size="12">gpt-6.1-terra</text>
-<line x1="373.5" y1="151" x2="404.8" y2="151" class="whisker"/>
-<circle cx="393.2" cy="151" r="4.5" class="dot"/>
-<text x="432" y="155.5" class="t" font-size="13">91 %</text>
-<text x="469" y="155.5" class="m" font-size="11">87/96</text>
+<text x="182" y="155" class="t2" font-size="12">gpt-6.2-sol</text>
+<line x1="407.8" y1="151" x2="418" y2="151" class="whisker"/>
+<circle cx="418" cy="151" r="4.5" class="dot"/>
+<text x="432" y="155.5" class="t" font-size="13">100 %</text>
+<text x="469" y="155.5" class="m" font-size="11">96/96</text>
 <rect x="544" y="147" width="84" height="8" class="out" rx="2"/>
 <rect x="544" y="147" width="84" height="8" class="pass" rx="2"/>
 <text x="636" y="155.5" class="t" font-size="12.5">96/96</text>
 <text x="722" y="155.5" class="t" font-size="13" text-anchor="middle">0</text>
 <text x="786" y="155.5" class="m" font-size="13" text-anchor="middle">1×</text>
 <text x="838" y="155.5" class="m" font-size="13" text-anchor="middle">1×</text>
-<text x="182" y="180" class="t2" font-size="12">Sonnet 5.5</text>
-<line x1="387.3" y1="176" x2="412.1" y2="176" class="whisker"/>
-<circle cx="404.2" cy="176" r="4.5" class="dot"/>
-<text x="432" y="180.5" class="t" font-size="13">95 %</text>
-<text x="469" y="180.5" class="m" font-size="11">91/96</text>
+<text x="182" y="180" class="t2" font-size="12">Opus 5.5</text>
+<line x1="398.8" y1="176" x2="416.5" y2="176" class="whisker"/>
+<circle cx="412.5" cy="176" r="4.5" class="dot"/>
+<text x="432" y="180.5" class="t" font-size="13">98 %</text>
+<text x="469" y="180.5" class="m" font-size="11">94/96</text>
 <rect x="544" y="172" width="84" height="8" class="out" rx="2"/>
 <rect x="544" y="172" width="84" height="8" class="pass" rx="2"/>
 <text x="636" y="180.5" class="t" font-size="12.5">96/96</text>
@@ -50,78 +50,79 @@
 <rect x="24" y="202" width="4" height="44" class="s1" rx="2"/>
 <text x="36" y="218" class="t" font-size="13.5" font-weight="600">Cua Driver</text>
 <text x="36" y="234" class="m" font-size="10.5">background first</text>
-<text x="182" y="216" class="t2" font-size="12">gpt-6.1-terra</text>
-<line x1="329.8" y1="212" x2="374.4" y2="212" class="whisker"/>
-<circle cx="354.8" cy="212" r="4.5" class="dot"/>
-<text x="432" y="216.5" class="t" font-size="13">76 %</text>
-<text x="469" y="216.5" class="m" font-size="11">73/96</text>
+<text x="182" y="216" class="t2" font-size="12">gpt-6.2-sol</text>
+<line x1="360.4" y1="212" x2="396.6" y2="212" class="whisker"/>
+<circle cx="382.2" cy="212" r="4.5" class="dot"/>
+<text x="432" y="216.5" class="t" font-size="13">86 %</text>
+<text x="469" y="216.5" class="m" font-size="11">83/96</text>
 <rect x="544" y="208" width="84" height="8" class="out" rx="2"/>
-<rect x="544" y="208" width="25.4" height="8" class="pass" rx="2"/>
-<text x="636" y="216.5" class="t" font-size="12.5">29/96</text>
-<text x="722" y="216.5" class="t" font-size="13" text-anchor="middle">6</text>
-<text x="786" y="216.5" class="t" font-size="13" text-anchor="middle">1.8×</text>
-<text x="838" y="216.5" class="t" font-size="13" text-anchor="middle">3.8×</text>
-<text x="182" y="241" class="t2" font-size="12">Sonnet 5.5</text>
-<line x1="303.8" y1="237" x2="352.8" y2="237" class="whisker"/>
-<circle cx="330" cy="237" r="4.5" class="dot"/>
-<text x="432" y="241.5" class="t" font-size="13">67 %</text>
-<text x="469" y="241.5" class="m" font-size="11">64/96</text>
+<rect x="544" y="208" width="39.4" height="8" class="pass" rx="2"/>
+<text x="636" y="216.5" class="t" font-size="12.5">45/96</text>
+<text x="722" y="216.5" class="t" font-size="13" text-anchor="middle">10</text>
+<text x="786" y="216.5" class="t" font-size="13" text-anchor="middle">1.7×</text>
+<text x="838" y="216.5" class="t" font-size="13" text-anchor="middle">2.6×</text>
+<text x="182" y="241" class="t2" font-size="12">Opus 5.5</text>
+<line x1="376.8" y1="237" x2="406.7" y2="237" class="whisker"/>
+<circle cx="396" cy="237" r="4.5" class="dot"/>
+<text x="432" y="241.5" class="t" font-size="13">92 %</text>
+<text x="469" y="241.5" class="m" font-size="11">88/96</text>
 <rect x="544" y="233" width="84" height="8" class="out" rx="2"/>
-<rect x="544" y="233" width="38.5" height="8" class="pass" rx="2"/>
-<text x="636" y="241.5" class="t" font-size="12.5">44/96</text>
-<text x="722" y="241.5" class="t" font-size="13" text-anchor="middle">7</text>
+<rect x="544" y="233" width="45.5" height="8" class="pass" rx="2"/>
+<text x="636" y="241.5" class="t" font-size="12.5">52/96</text>
+<text x="722" y="241.5" class="t" font-size="13" text-anchor="middle">6</text>
 <text x="786" y="241.5" class="t" font-size="13" text-anchor="middle">2.0×</text>
-<text x="838" y="241.5" class="t" font-size="13" text-anchor="middle">5.3×</text>
+<text x="838" y="241.5" class="t" font-size="13" text-anchor="middle">4.8×</text>
 <line x1="24" y1="255" x2="856" y2="255" class="grid"/>
 <rect x="24" y="263" width="4" height="44" class="s3" rx="2"/>
 <text x="36" y="279" class="t" font-size="13.5" font-weight="600">hypruse</text>
 <text x="36" y="295" class="m" font-size="10.5">pointer in the foreground</text>
-<text x="182" y="277" class="t2" font-size="12">gpt-6.1-terra</text>
-<line x1="351" y1="273" x2="390.2" y2="273" class="whisker"/>
-<circle cx="374" cy="273" r="4.5" class="dot"/>
-<text x="432" y="277.5" class="t" font-size="13">83 %</text>
-<text x="469" y="277.5" class="m" font-size="11">80/96</text>
+<text x="182" y="277" class="t2" font-size="12">gpt-6.2-sol</text>
+<line x1="398.8" y1="273" x2="416.5" y2="273" class="whisker"/>
+<circle cx="412.5" cy="273" r="4.5" class="dot"/>
+<text x="432" y="277.5" class="t" font-size="13">98 %</text>
+<text x="469" y="277.5" class="m" font-size="11">94/96</text>
 <rect x="544" y="269" width="84" height="8" class="out" rx="2"/>
-<rect x="544" y="269" width="0" height="8" class="pass" rx="2"/>
-<text x="636" y="277.5" class="t" font-size="12.5">0/96</text>
-<text x="722" y="277.5" class="t" font-size="13" text-anchor="middle">7</text>
-<text x="786" y="277.5" class="t" font-size="13" text-anchor="middle">2.1×</text>
-<text x="838" y="277.5" class="t" font-size="13" text-anchor="middle">3.3×</text>
-<text x="182" y="302" class="t2" font-size="12">Sonnet 5.5</text>
-<line x1="370.2" y1="298" x2="402.8" y2="298" class="whisker"/>
-<circle cx="390.5" cy="298" r="4.5" class="dot"/>
-<text x="432" y="302.5" class="t" font-size="13">90 %</text>
-<text x="469" y="302.5" class="m" font-size="11">86/96</text>
+<rect x="544" y="269" width="4.4" height="8" class="pass" rx="2"/>
+<text x="636" y="277.5" class="t" font-size="12.5">5/96</text>
+<text x="722" y="277.5" class="t" font-size="13" text-anchor="middle">2</text>
+<text x="786" y="277.5" class="t" font-size="13" text-anchor="middle">1.7×</text>
+<text x="838" y="277.5" class="t" font-size="13" text-anchor="middle">2.2×</text>
+<text x="182" y="302" class="t2" font-size="12">Opus 5.5</text>
+<line x1="373.5" y1="298" x2="404.8" y2="298" class="whisker"/>
+<circle cx="393.2" cy="298" r="4.5" class="dot"/>
+<text x="432" y="302.5" class="t" font-size="13">91 %</text>
+<text x="469" y="302.5" class="m" font-size="11">87/96</text>
 <rect x="544" y="294" width="84" height="8" class="out" rx="2"/>
-<rect x="544" y="294" width="0.9" height="8" class="pass" rx="2"/>
-<text x="636" y="302.5" class="t" font-size="12.5">1/96</text>
-<text x="722" y="302.5" class="t" font-size="13" text-anchor="middle">4</text>
-<text x="786" y="302.5" class="t" font-size="13" text-anchor="middle">3.4×</text>
-<text x="838" y="302.5" class="t" font-size="13" text-anchor="middle">46×</text>
+<rect x="544" y="294" width="2.6" height="8" class="pass" rx="2"/>
+<text x="636" y="302.5" class="t" font-size="12.5">3/96</text>
+<text x="722" y="302.5" class="t" font-size="13" text-anchor="middle">6</text>
+<text x="786" y="302.5" class="t" font-size="13" text-anchor="middle">1.9×</text>
+<text x="838" y="302.5" class="t" font-size="13" text-anchor="middle">2.6×</text>
 <line x1="24" y1="316" x2="856" y2="316" class="grid"/>
 <rect x="24" y="324" width="4" height="44" class="s4" rx="2"/>
 <text x="36" y="340" class="t" font-size="13.5" font-weight="600">computer-use-linux</text>
-<text x="36" y="356" class="m" font-size="10.5">pointer in the foreground</text>
-<text x="182" y="338" class="t2" font-size="12">gpt-6.1-terra</text>
-<line x1="403" y1="334" x2="417.5" y2="334" class="whisker"/>
-<circle cx="415.2" cy="334" r="4.5" class="dot"/>
-<text x="432" y="338.5" class="t" font-size="13">99 %</text>
-<text x="469" y="338.5" class="m" font-size="11">95/96</text>
+<text x="36" y="356" class="m" font-size="10.5">fg pointer · KVM VM</text>
+<text x="182" y="338" class="t2" font-size="12">gpt-6.2-sol</text>
+<line x1="407.8" y1="334" x2="418" y2="334" class="whisker"/>
+<circle cx="418" cy="334" r="4.5" class="dot"/>
+<text x="432" y="338.5" class="t" font-size="13">100 %</text>
+<text x="469" y="338.5" class="m" font-size="11">96/96</text>
 <rect x="544" y="330" width="84" height="8" class="out" rx="2"/>
-<rect x="544" y="330" width="3.5" height="8" class="pass" rx="2"/>
-<text x="636" y="338.5" class="t" font-size="12.5">4/96</text>
+<rect x="544" y="330" width="20.1" height="8" class="pass" rx="2"/>
+<text x="636" y="338.5" class="t" font-size="12.5">23/96</text>
 <text x="722" y="338.5" class="t" font-size="13" text-anchor="middle">0</text>
-<text x="786" y="338.5" class="t" font-size="13" text-anchor="middle">1.6×</text>
-<text x="838" y="338.5" class="t" font-size="13" text-anchor="middle">3.8×</text>
-<text x="182" y="363" class="t2" font-size="12">Sonnet 5.5</text>
-<line x1="366.9" y1="359" x2="400.8" y2="359" class="whisker"/>
-<circle cx="387.8" cy="359" r="4.5" class="dot"/>
-<text x="432" y="363.5" class="t" font-size="13">89 %</text>
-<text x="469" y="363.5" class="m" font-size="11">85/96</text>
+<text x="786" y="338.5" class="t" font-size="13" text-anchor="middle">2.1×†</text>
+<text x="838" y="338.5" class="t" font-size="13" text-anchor="middle">2.6×</text>
+<text x="182" y="363" class="t2" font-size="12">Opus 5.5</text>
+<line x1="373.5" y1="359" x2="404.8" y2="359" class="whisker"/>
+<circle cx="393.2" cy="359" r="4.5" class="dot"/>
+<text x="432" y="363.5" class="t" font-size="13">91 %</text>
+<text x="469" y="363.5" class="m" font-size="11">87/96</text>
 <rect x="544" y="355" width="84" height="8" class="out" rx="2"/>
-<rect x="544" y="355" width="8.8" height="8" class="pass" rx="2"/>
-<text x="636" y="363.5" class="t" font-size="12.5">10/96</text>
-<text x="722" y="363.5" class="t" font-size="13" text-anchor="middle">1</text>
-<text x="786" y="363.5" class="t" font-size="13" text-anchor="middle">1.5×</text>
-<text x="838" y="363.5" class="t" font-size="13" text-anchor="middle">4.5×</text>
+<rect x="544" y="355" width="24.5" height="8" class="pass" rx="2"/>
+<text x="636" y="363.5" class="t" font-size="12.5">28/96</text>
+<text x="722" y="363.5" class="t" font-size="13" text-anchor="middle">0</text>
+<text x="786" y="363.5" class="t" font-size="13" text-anchor="middle">1.8×†</text>
+<text x="838" y="363.5" class="t" font-size="13" text-anchor="middle">5.2×</text>
+<text x="24" y="389" class="m" font-size="10.5">† Ran in 2-core KVM VMs (/dev/uinput), not GPU containers; its time multiple includes VM overhead.</text>
 </svg>

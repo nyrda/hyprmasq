@@ -182,11 +182,12 @@ Google Vertex, and over three times in the Antigravity CLI, the only way to
 run it on a Google AI subscription. See the [benchmarks](docs/benchmarks.md).
 
 Beside three other computer use tools for Linux, hyprmasq was the one that
-left the user's view alone in every run, and the others took 1.5 to 3.4
-times as long. hyprmasq's author ran that series: the
-[comparison](docs/comparison.md) has its rules, its limits and every run, and
-an [addendum on macOS](docs/comparison-macos.md) sets four of the tasks beside
-OpenAI's and Claude's computer use and Cua Driver on a Mac.
+left the user's view alone in every run, while the other two GPU-container
+tools took 1.7 to 2.0 times as long (and `computer-use-linux` took 1.8 to 2.1
+times in KVM VMs against hyprmasq in containers) at 2.2 to 5.2 times the cost.
+The [comparison](docs/comparison.md) has its rules, its limits and every run,
+and an [addendum on macOS](docs/comparison-macos.md) sets four of the tasks
+beside OpenAI's and Claude's computer use and Cua Driver on a Mac.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/benchmarks/glance-dark.svg">
