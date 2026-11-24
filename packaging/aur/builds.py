@@ -10,10 +10,12 @@ file. It runs as root in an Arch container (archlinux:base-devel), and changes /
                                         to the oldest userland
   builds.py plan [--list FILE]          the prebuilt plugins with their references, snapshots and userlands, and the
                                         served builds that the list lacks
-  builds.py snapshot VERSION            the first archive.archlinux.org snapshot that has VERSION, and the archlinux image
+  builds.py snapshot VERSION            the first Arch archive snapshot that has VERSION, and the archlinux image
                                         from before it to build on
+  builds.py fetch-packages [--list FILE] [--prune-cache]
+                                        downloads and verifies the archive packages of the served builds into the cache
   builds.py verify --source DIR --binary LABEL=FILE... [--list FILE] [--accept VERSION] [--candidate VERSION]...
-            --out FILE --held FILE
+            --out FILE --held FILE [--prune-cache]
                                         verifies every served build against the prebuilt plugins, and writes the new list
 
 A served build goes in the list when the plugin compiled against its headers is byte for byte the plugin compiled
@@ -29,9 +31,12 @@ accepted.
 """
 
 import argparse
+import contextlib
 import datetime
+import fcntl
 import functools
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -39,15 +44,22 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
-ARCHIVE = "https://archive.archlinux.org"
+# Official Arch Linux Archive mirrors, tried in order. umea.archive.pkgbuild.com is the official Arch DevOps archive
+# mirror and avoids archive.archlinux.org timeouts; archive.archlinux.org is the fallback when a same-day build or
+# snapshot has not synced to umea yet.
+ARCHIVES = ("https://umea.archive.pkgbuild.com", "https://archive.archlinux.org")
 OMARCHY_STABLE = "https://stable-mirror.omarchy.org"
 # The libraries whose major.minor __hyprland_api_get_hash() names, with the prefix it gives them.
 ABI_LIBRARIES = [("aquamarine", "aq"), ("hyprutils", "hu"), ("hyprgraphics", "hg"), ("hyprcursor", "hc"), ("hyprlang", "hlg")]
 WORK = Path(os.environ.get("BUILDS_WORK", "/var/tmp/hyprmasq-builds"))
 REPO = Path(__file__).resolve().parents[2]
+RETRYABLE_HTTP = frozenset({408, 429, 500, 502, 503, 504})
+USED_CACHE = set()
 
 
 def log(*args):
@@ -58,10 +70,63 @@ def run(*args, **kwargs):
     return subprocess.run(args, check=True, text=True, **kwargs)
 
 
-def fetch(url):
+def write_atomic(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.part")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def fetch(url, attempts=3, timeout=30):
     request = urllib.request.Request(url, headers={"User-Agent": "hyprmasq-ci"})
-    with urllib.request.urlopen(request, timeout=120) as response:
-        return response.read()
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.read()
+        except urllib.error.HTTPError as err:
+            if err.code not in RETRYABLE_HTTP or attempt == attempts:
+                raise
+            reason = f"HTTP {err.code}"
+        except (urllib.error.URLError, http.client.HTTPException, OSError) as err:
+            if attempt == attempts:
+                raise
+            reason = str(err)
+        delay = 2 * attempt
+        log(f"fetch {url} failed ({reason}), retrying in {delay}s ({attempt}/{attempts})")
+        time.sleep(delay)
+
+
+def fetch_archive(path, attempts=3, timeout=30):
+    """Fetches a path from the Arch archive mirrors, failing over across mirrors and retrying transient errors."""
+    last_err = None
+    non_404_err = None
+    for attempt in range(1, attempts + 1):
+        all_not_found = True
+        non_404_err = None
+        for base in ARCHIVES:
+            url = f"{base}{path}"
+            try:
+                return fetch(url, attempts=1, timeout=timeout)
+            except urllib.error.HTTPError as err:
+                last_err = err
+                if err.code != 404:
+                    all_not_found = False
+                    non_404_err = err
+                    log(f"archive fetch {url} failed (HTTP {err.code})")
+            except (urllib.error.URLError, http.client.HTTPException, OSError) as err:
+                last_err = err
+                all_not_found = False
+                non_404_err = err
+                log(f"archive fetch {url} failed ({err})")
+        if all_not_found or attempt == attempts:
+            raise non_404_err or last_err
+        delay = 2 * attempt
+        log(f"archive fetch {path} failed on all mirrors, retrying in {delay}s ({attempt}/{attempts})")
+        time.sleep(delay)
 
 
 def releases():
@@ -112,36 +177,77 @@ def references(builds):
 
 
 @functools.cache
-def archive_listing(name):
-    return fetch(f"{ARCHIVE}/packages/{name[0]}/{name}/").decode()
+def archive_listing(base, name):
+    return fetch(f"{base}/packages/{name[0]}/{name}/", attempts=1, timeout=30).decode()
+
+
+def _find_archive_file(name, version):
+    """(filename, listing) for name at version, or at the highest pkgrel of version when it has none."""
+    last_err = None
+    for attempt in range(1, 4):
+        saw_listing = False
+        last_err = None
+        for base in ARCHIVES:
+            try:
+                listing = archive_listing(base, name)
+            except (urllib.error.URLError, http.client.HTTPException, OSError) as err:
+                last_err = err
+                log(f"archive listing {base}/packages/{name[0]}/{name}/ failed ({err})")
+                continue
+            saw_listing = True
+            if "-" in version:
+                files = [f"{name}-{version}-x86_64.pkg.tar.zst"]
+            else:
+                files = sorted(set(re.findall(rf'"({re.escape(name)}-{re.escape(version)}-(\d+)-x86_64\.pkg\.tar\.zst)"', listing)), key=lambda m: int(m[1]))
+                files = [files[-1][0]] if files else []
+            if files and f'"{files[0]}"' in listing:
+                return files[0], listing
+        if saw_listing and last_err is None:
+            raise SystemExit(f"{name} {version} is not in the Arch archive")
+        if attempt == 3:
+            if last_err is not None:
+                raise last_err
+            raise SystemExit(f"{name} {version} is not in the Arch archive")
+        delay = 2 * attempt
+        log(f"archive lookup for {name} {version} failed, retrying in {delay}s ({attempt}/3)")
+        time.sleep(delay)
 
 
 def archive_file(name, version):
     """The package file of name at version, or at the highest pkgrel of version when it has none."""
-    listing = archive_listing(name)
-    if "-" in version:
-        files = [f"{name}-{version}-x86_64.pkg.tar.zst"]
-    else:
-        files = sorted(set(re.findall(rf'"({re.escape(name)}-{re.escape(version)}-(\d+)-x86_64\.pkg\.tar\.zst)"', listing)), key=lambda m: int(m[1]))
-        files = [files[-1][0]] if files else []
-    if not files or f'"{files[0]}"' not in listing:
-        raise SystemExit(f"{name} {version} is not in the Arch archive")
-    return files[0]
+    return _find_archive_file(name, version)[0]
 
 
 def snapshot(version):
-    """{day, image}: the first archive.archlinux.org snapshot whose extra lists hyprland-VERSION, and the newest
+    """{day, image}: the first Arch archive snapshot whose extra lists hyprland-VERSION, and the newest
     archlinux/archlinux base-devel image from before it, which pacman upgrades to that snapshot."""
-    file = archive_file("hyprland", version)
-    m = re.search(rf'"{re.escape(file)}">[^<]*</a>\s+(\d\d-[A-Za-z]{{3}}-\d{{4}})', archive_listing("hyprland"))
+    cache = WORK / "snapshots" / f"{version}.json"
+    if cache.exists():
+        try:
+            data = json.loads(cache.read_text())
+        except (OSError, json.JSONDecodeError) as err:
+            log(f"ignoring unreadable snapshot cache {cache}: {err}")
+        else:
+            if isinstance(data, dict) and isinstance(data.get("day"), str) and isinstance(data.get("image"), str):
+                return {"day": data["day"], "image": data["image"]}
+            log(f"ignoring malformed snapshot cache {cache}")
+    file, listing = _find_archive_file("hyprland", version)
+    m = re.search(rf'"{re.escape(file)}">[^<]*</a>\s+(\d\d-[A-Za-z]{{3}}-\d{{4}})', listing)
     if not m:
         raise SystemExit(f"no date for {file}")
     day = datetime.datetime.strptime(m.group(1), "%d-%b-%Y").date()
     for _ in range(21):
         path = day.strftime("%Y/%m/%d")
+        try:
+            db_bytes = fetch_archive(f"/repos/{path}/extra/os/x86_64/extra.db")
+        except urllib.error.HTTPError as err:
+            if err.code == 404:
+                day += datetime.timedelta(days=1)
+                continue
+            raise
         with tempfile.TemporaryDirectory() as tmp:
             db = Path(tmp) / "extra.db"
-            db.write_bytes(fetch(f"{ARCHIVE}/repos/{path}/extra/os/x86_64/extra.db"))
+            db.write_bytes(db_bytes)
             if f"hyprland-{version}/" in run("tar", "-tzf", db, capture_output=True).stdout.split():
                 break
         day += datetime.timedelta(days=1)
@@ -153,22 +259,43 @@ def snapshot(version):
     images = sorted(t["name"] for t in tags if re.fullmatch(r"base-devel-\d{8}\.\d+\.\d+", t["name"]) and t["name"][11:19] <= stamp)
     if not images:
         raise SystemExit(f"no archlinux image from before {stamp}")
-    return {"day": path, "image": images[-1]}
+    result = {"day": path, "image": images[-1]}
+    write_atomic(cache, (json.dumps(result) + "\n").encode())
+    return result
 
 
 def package(name, version):
     """Downloads a package from the Arch archive, checks its signature, and returns its extracted root."""
-    file = archive_file(name, version)
+    if "-" in version:
+        file = f"{name}-{version}-x86_64.pkg.tar.zst"
+        cached_archive = WORK / "cache" / "packages" / file
+        if not (cached_archive.exists() and Path(f"{cached_archive}.sig").exists()):
+            file = archive_file(name, version)
+    else:
+        file = archive_file(name, version)
     root = WORK / "packages" / file.removesuffix(".pkg.tar.zst")
+    rel = f"/packages/{name[0]}/{name}/{file}"
+    archive = WORK / "cache" / "packages" / file
+    signature = Path(f"{archive}.sig")
+    USED_CACHE.add(archive)
+    USED_CACHE.add(signature)
+    cached = archive.exists() or signature.exists()
+    if not archive.exists():
+        write_atomic(archive, fetch_archive(rel))
+    if not signature.exists():
+        write_atomic(signature, fetch_archive(rel + ".sig"))
+    try:
+        run("pacman-key", "--verify", signature, archive, capture_output=True)
+    except subprocess.CalledProcessError:
+        if not cached:
+            raise
+        log(f"cached {file} failed signature check, downloading again")
+        write_atomic(archive, fetch_archive(rel))
+        write_atomic(signature, fetch_archive(rel + ".sig"))
+        run("pacman-key", "--verify", signature, archive, capture_output=True)
     if (root / ".done").exists():
         return root
     root.mkdir(parents=True, exist_ok=True)
-    url = f"{ARCHIVE}/packages/{name[0]}/{name}/{file}"
-    archive = WORK / "packages" / file
-    archive.write_bytes(fetch(url))
-    signature = Path(f"{archive}.sig")
-    signature.write_bytes(fetch(url + ".sig"))
-    run("pacman-key", "--verify", signature, archive, capture_output=True)
     run("tar", "--zstd", "-xf", archive, "-C", root, "usr")
     (root / ".done").touch()
     return root
@@ -266,15 +393,48 @@ def missing_symbols(binary, build):
 @functools.cache
 def hyprland_tree(commit):
     root = WORK / "hyprland-src" / commit
+    archive = WORK / "cache" / "hyprland-src" / f"{commit}.tar.gz"
+    USED_CACHE.add(archive)
     # A download or extraction that failed leaves no marker, so a retry starts over.
     if not (root / ".done").exists():
         shutil.rmtree(root, ignore_errors=True)
         root.mkdir(parents=True)
-        archive = WORK / "hyprland-src" / f"{commit}.tar.gz"
-        archive.write_bytes(fetch(f"https://github.com/hyprwm/Hyprland/archive/{commit}.tar.gz"))
-        run("tar", "-xzf", archive, "-C", root, "--strip-components=1")
+        if not archive.exists():
+            write_atomic(archive, fetch(f"https://github.com/hyprwm/Hyprland/archive/{commit}.tar.gz"))
+        try:
+            run("tar", "-xzf", archive, "-C", root, "--strip-components=1")
+        except subprocess.CalledProcessError:
+            log(f"cached {archive.name} failed to extract, downloading again")
+            write_atomic(archive, fetch(f"https://github.com/hyprwm/Hyprland/archive/{commit}.tar.gz"))
+            run("tar", "-xzf", archive, "-C", root, "--strip-components=1")
         (root / ".done").touch()
     return root
+
+
+@contextlib.contextmanager
+def cache_lock():
+    """Holds a shared lock on WORK/.cache.lock while using the cache so pruning does not race concurrent commands."""
+    WORK.mkdir(parents=True, exist_ok=True)
+    with open(WORK / ".cache.lock", "a+") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_SH)
+        try:
+            yield lock_file
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+
+def prune_cache(lock_file):
+    cache_dir = WORK / "cache"
+    if not cache_dir.exists():
+        return
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        log("skipping cache prune while another builds.py process uses BUILDS_WORK")
+        return
+    for path in list(cache_dir.rglob("*")):
+        if path.is_file() and not path.name.startswith(".") and path not in USED_CACHE:
+            path.unlink()
 
 
 def definition(tree, qualified):
@@ -376,56 +536,76 @@ def write_list(path, entries):
 
 
 def verify(args):
-    WORK.mkdir(parents=True, exist_ok=True)
-    source = Path(args.source).resolve()
-    binaries = dict(b.split("=", 1) for b in args.binary)
-    listed = read_list(args.list)
-    builds = served()
-    # The reference of each plugin: from the list when it has one, else the build that references() chooses now.
-    refs = {e["label"]: e["version"] for e in listed if e["how"] == "reference"} or references(builds)
-    builds += [{"version": v, "sources": ["asked"]} for v in args.candidate]
-    missing = set(binaries) ^ set(refs)
-    if missing:
-        raise SystemExit(f"the plugins {sorted(binaries)} and the references {sorted(refs)} differ")
-    entries = {e["version"]: e for e in listed}
-    held = []
-    for label, version in refs.items():
-        reference = Build(version)
-        entries[version] = {"abi": reference.abi, "label": label, "version": version, "how": "reference"}
-        expected, error = compile_plugin(source, reference, reference, WORK / f"reference-{label}.so")
-        if not expected:
-            raise SystemExit(f"the plugin does not compile against its reference {version}:\n{error}")
-        accepted = {Build(e["version"]).commit for e in entries.values() if e["label"] == label and e["how"] in ("reference", "accepted")}
-        for b in builds:
-            if minor(b["version"]) != minor(version) or b["version"] == version:
-                continue
-            build = Build(b["version"])
-            reasons = []
-            got, error = compile_plugin(source, build, reference, WORK / f"candidate-{b['version']}.so")
-            if got != expected:
-                reasons.append("the plugin compiles to other code against its headers" + (f": {error}" if error else ""))
-            if missing_syms := missing_symbols(binaries[label], build):
-                reasons.append(f"its Hyprland or libraries do not export {', '.join(missing_syms[:10])}")
-            # A build accepted by hand stays so, while its commit, now accepted, skips the source check.
-            how = "accepted" if entries.get(b["version"], {}).get("how") == "accepted" else "identical"
-            if not reasons and build.commit not in accepted:
-                if changes := source_changes(source, binaries[label], reference, build):
-                    if args.accept == b["version"]:
-                        how = "accepted"
-                    else:
-                        reasons.append("Hyprland's commit moved and these sources changed: " + "; ".join(changes[:20]))
-            if reasons:
-                if b["version"] in entries:
-                    raise SystemExit(f"{b['version']} is in the list, but {'; '.join(reasons)}")
-                held.append({"version": b["version"], "label": label, "abi": build.abi, "sources": b["sources"], "reasons": reasons})
-                log(f"held {b['version']}: {reasons}")
-            else:
-                entries[b["version"]] = {"abi": build.abi, "label": label, "version": b["version"], "how": how}
-                log(f"{how} {b['version']}")
-        if missing_syms := missing_symbols(binaries[label], reference):
-            raise SystemExit(f"the plugin {label} imports what its reference {version} does not export: {missing_syms[:10]}")
-    write_list(args.out, entries.values())
-    Path(args.held).write_text(json.dumps(held, indent=2) + "\n")
+    with cache_lock() as lock_file:
+        source = Path(args.source).resolve()
+        binaries = dict(b.split("=", 1) for b in args.binary)
+        listed = read_list(args.list)
+        builds = served()
+        # The reference of each plugin: from the list when it has one, else the build that references() chooses now.
+        refs = {e["label"]: e["version"] for e in listed if e["how"] == "reference"} or references(builds)
+        builds += [{"version": v, "sources": ["asked"]} for v in args.candidate]
+        missing = set(binaries) ^ set(refs)
+        if missing:
+            raise SystemExit(f"the plugins {sorted(binaries)} and the references {sorted(refs)} differ")
+        entries = {e["version"]: e for e in listed}
+        held = []
+        for label, version in refs.items():
+            reference = Build(version)
+            entries[version] = {"abi": reference.abi, "label": label, "version": version, "how": "reference"}
+            expected, error = compile_plugin(source, reference, reference, WORK / f"reference-{label}.so")
+            if not expected:
+                raise SystemExit(f"the plugin does not compile against its reference {version}:\n{error}")
+            accepted = {Build(e["version"]).commit for e in entries.values() if e["label"] == label and e["how"] in ("reference", "accepted")}
+            for b in builds:
+                if minor(b["version"]) != minor(version) or b["version"] == version:
+                    continue
+                build = Build(b["version"])
+                reasons = []
+                got, error = compile_plugin(source, build, reference, WORK / f"candidate-{b['version']}.so")
+                if got != expected:
+                    reasons.append("the plugin compiles to other code against its headers" + (f": {error}" if error else ""))
+                if missing_syms := missing_symbols(binaries[label], build):
+                    reasons.append(f"its Hyprland or libraries do not export {', '.join(missing_syms[:10])}")
+                # A build accepted by hand stays so, while its commit, now accepted, skips the source check.
+                how = "accepted" if entries.get(b["version"], {}).get("how") == "accepted" else "identical"
+                if not reasons and build.commit not in accepted:
+                    if changes := source_changes(source, binaries[label], reference, build):
+                        if args.accept == b["version"]:
+                            how = "accepted"
+                        else:
+                            reasons.append("Hyprland's commit moved and these sources changed: " + "; ".join(changes[:20]))
+                if reasons:
+                    if b["version"] in entries:
+                        raise SystemExit(f"{b['version']} is in the list, but {'; '.join(reasons)}")
+                    held.append({"version": b["version"], "label": label, "abi": build.abi, "sources": b["sources"], "reasons": reasons})
+                    log(f"held {b['version']}: {reasons}")
+                else:
+                    entries[b["version"]] = {"abi": build.abi, "label": label, "version": b["version"], "how": how}
+                    log(f"{how} {b['version']}")
+            if missing_syms := missing_symbols(binaries[label], reference):
+                raise SystemExit(f"the plugin {label} imports what its reference {version} does not export: {missing_syms[:10]}")
+        write_list(args.out, entries.values())
+        Path(args.held).write_text(json.dumps(held, indent=2) + "\n")
+        if args.prune_cache:
+            prune_cache(lock_file)
+
+
+def fetch_packages(args):
+    """Downloads and verifies the archive packages of the served (and listed reference/accepted) builds."""
+    with cache_lock() as lock_file:
+        listed = read_list(args.list)
+        versions = {b["version"] for b in served()}
+        versions.update(e["version"] for e in listed if e["how"] in ("reference", "accepted"))
+        for version in sorted(versions, key=version_key):
+            log(f"fetching {version}")
+            Build(version)
+        if args.prune_cache:
+            prune_cache(lock_file)
+
+
+def plan_references(list_path):
+    listed = read_list(list_path)
+    return {e["label"]: e["version"] for e in listed if e["how"] == "reference"} or references(served())
 
 
 def plan(list_path):
@@ -440,7 +620,13 @@ def plan(list_path):
         userlands = (["arch"] if sources - {"omarchy-stable"} else []) + (["omarchy-stable"] if "omarchy-stable" in sources else [])
         plugins.append({"label": label, "version": version, **snapshot(version), "userlands": userlands})
     known = {e["version"] for e in listed}
-    return {"plugins": plugins, "new": [b["version"] for b in builds if b["version"] not in known]}
+    verify_versions = {b["version"] for b in builds} | {e["version"] for e in listed if e["how"] in ("reference", "accepted")}
+    return {
+        "plugins": plugins,
+        "served": sorted((b["version"] for b in builds), key=version_key),
+        "verify_versions": sorted(verify_versions, key=version_key),
+        "new": [b["version"] for b in builds if b["version"] not in known],
+    }
 
 
 def main():
@@ -449,9 +635,13 @@ def main():
     sub.add_parser("served")
     p = sub.add_parser("plan")
     p.add_argument("--list", help="the hyprland-builds that the AUR has")
-    sub.add_parser("references")
+    p = sub.add_parser("references")
+    p.add_argument("--list", help="the hyprland-builds that the AUR has")
     p = sub.add_parser("snapshot")
     p.add_argument("version")
+    p = sub.add_parser("fetch-packages")
+    p.add_argument("--list", help="the hyprland-builds that the AUR has")
+    p.add_argument("--prune-cache", action="store_true", help="remove files in WORK/cache that this run did not use")
     p = sub.add_parser("verify")
     p.add_argument("--source", required=True)
     p.add_argument("--binary", action="append", required=True, help="LABEL=FILE of a prebuilt plugin")
@@ -460,15 +650,18 @@ def main():
     p.add_argument("--candidate", action="append", default=[], help="a build to verify as if it were served")
     p.add_argument("--out", required=True)
     p.add_argument("--held", required=True)
+    p.add_argument("--prune-cache", action="store_true", help="remove files in WORK/cache that this run did not use")
     args = parser.parse_args()
     if args.command == "served":
         print(json.dumps(served(), indent=2))
     elif args.command == "references":
-        print(json.dumps(references(served())))
+        print(json.dumps(plan_references(args.list)))
     elif args.command == "plan":
         print(json.dumps(plan(args.list)))
     elif args.command == "snapshot":
         print(json.dumps(snapshot(args.version)))
+    elif args.command == "fetch-packages":
+        fetch_packages(args)
     else:
         verify(args)
 

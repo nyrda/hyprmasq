@@ -46,20 +46,25 @@ jobs:
     runs-on: ubuntu-24.04
     container: archlinux:base-devel
     outputs:
-      mode: ${{ steps.plan.outputs.mode }}
+      mode: ${{ steps.plan.outputs.mode || steps.prep.outputs.mode }}
       version: ${{ steps.plan.outputs.version }}
       plugins: ${{ steps.plan.outputs.plugins }}
       tools-image: ${{ steps.plan.outputs.tools-image }}
       tools-day: ${{ steps.plan.outputs.tools-day }}
+      tools-day-key: ${{ steps.plan.outputs.tools-day-key }}
+      verify-key: ${{ steps.plan.outputs.verify-key }}
       userlands: ${{ steps.plan.outputs.userlands }}
     steps:
-      - run: pacman -Syu --noconfirm --needed git jq python
+      - run: |
+          for attempt in 1 2 3; do
+            pacman -Syu --noconfirm --needed git jq python && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # release: a tag. test: a PR. refresh: the hourly run or workflow_dispatch, with new builds or an accept.
-      # userlands: the same without either, which checks the libraries only. none: nothing is published yet.
-      - id: plan
-        env:
-          ACCEPT: ${{ inputs.accept }}
+      # Determine mode, AUR list, and exact reference versions before restoring the snapshot cache so restore and save
+      # use the same key.
+      - id: prep
         run: |
           git config --global --add safe.directory '*'
           list=()
@@ -68,7 +73,13 @@ jobs:
             pull_request) mode=test version=$(cat VERSION) ;;
             *)
               mode=refresh
-              if ! git clone -q https://aur.archlinux.org/hyprmasq-plugin-bin.git /tmp/aur || [[ ! -f /tmp/aur/.SRCINFO ]]; then
+              for attempt in 1 2 3; do
+                rm -rf /tmp/aur
+                git clone -q https://aur.archlinux.org/hyprmasq-plugin-bin.git /tmp/aur && break
+                [[ $attempt == 3 ]] && exit 1
+                sleep $((5 * attempt))
+              done
+              if [[ ! -f /tmp/aur/.SRCINFO ]]; then
                 echo mode=none >> "$GITHUB_OUTPUT"
                 exit 0
               fi
@@ -76,24 +87,196 @@ jobs:
               list=(--list /tmp/aur/hyprland-builds)
               ;;
           esac
-          python3 packaging/aur/builds.py plan "${list[@]}" > /tmp/plan.json
-          cat /tmp/plan.json
-          if [[ $mode == refresh && $(jq '.new | length' /tmp/plan.json) == 0 && -z $ACCEPT ]]; then
-            mode=userlands
-          fi
+          refs=$(python3 packaging/aur/builds.py references "${list[@]}")
+          snapshots_versions=$(jq -r '[.[]] | sort | join("_")' <<<"$refs")
+          snapshots_key=${snapshots_versions:+aur-snapshots-v1-$snapshots_versions}
           {
             echo "mode=$mode"
             echo "version=$version"
-            echo "plugins=$(jq -c .plugins /tmp/plan.json)"
+            echo "snapshots-key=$snapshots_key"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: snapshots-cache
+        if: steps.prep.outputs.mode != 'none' && steps.prep.outputs.snapshots-key != ''
+        with:
+          path: /var/tmp/hyprmasq-builds/snapshots
+          key: ${{ steps.prep.outputs.snapshots-key }}
+          restore-keys: |
+            aur-snapshots-v1-
+      # release: a tag. test: a PR. refresh: the hourly run or workflow_dispatch, with new builds or an accept.
+      # userlands: the same without either, which checks the libraries only. none: nothing is published yet.
+      - id: plan
+        if: steps.prep.outputs.mode != 'none'
+        env:
+          ACCEPT: ${{ inputs.accept }}
+          MODE: ${{ steps.prep.outputs.mode }}
+          VERSION: ${{ steps.prep.outputs.version }}
+        run: |
+          list=()
+          [[ -f /tmp/aur/hyprland-builds ]] && list=(--list /tmp/aur/hyprland-builds)
+          python3 packaging/aur/builds.py plan "${list[@]}" > /tmp/plan.json
+          cat /tmp/plan.json
+          mode=$MODE
+          if [[ $mode == refresh && $(jq '.new | length' /tmp/plan.json) == 0 && -z $ACCEPT ]]; then
+            mode=userlands
+          fi
+          # Keep only the active reference snapshots in the cache so its key stays exact.
+          if [[ -d /var/tmp/hyprmasq-builds/snapshots ]]; then
+            active=$(jq -r '.plugins[].version + ".json"' /tmp/plan.json)
+            for f in /var/tmp/hyprmasq-builds/snapshots/*.json; do
+              [[ -e $f ]] || continue
+              grep -qx "$(basename "$f")" <<<"$active" || rm -f "$f"
+            done
+          fi
+          tools_day=$(jq -r '.plugins | min_by(.day).day // ""' /tmp/plan.json)
+          tools_day_key=${tools_day//\//-}
+          verify_versions=$(jq -r '.verify_versions | join("_")' /tmp/plan.json)
+          verify_key=${verify_versions:+aur-verify-v1-$verify_versions}
+          {
+            echo "mode=$mode"
+            echo "version=$VERSION"
+            echo "plugins=$(jq -c '.plugins | map(. + {day_key: (.day | gsub("/"; "-"))})' /tmp/plan.json)"
             # The tools build on the oldest userland of the plugins, and run on all of them.
-            echo "tools-image=$(jq -r '.plugins | min_by(.day).image' /tmp/plan.json)"
-            echo "tools-day=$(jq -r '.plugins | min_by(.day).day' /tmp/plan.json)"
+            echo "tools-image=$(jq -r '.plugins | min_by(.day).image // ""' /tmp/plan.json)"
+            echo "tools-day=$tools_day"
+            echo "tools-day-key=$tools_day_key"
+            echo "verify-key=$verify_key"
             echo "userlands=$(jq -c '(.plugins | min_by(.day).image) as $oldest | [
               (.plugins[] as $p | $p.userlands[] | {name: "the plugin for Hyprland \($p.label)", artifact: "plugin-\($p.label)",
                 asset: "hyprland-\($p.label).so", image: (if . == "arch" then "base-devel" else $p.image end), userland: .}),
               ([.plugins[].userlands[]] | unique[] | {name: "the tools", artifact: "tools", asset: "x86_64.tar.gz",
                 image: (if . == "arch" then "base-devel" else $oldest end), userland: .})]' /tmp/plan.json)"
           } >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: >-
+          steps.prep.outputs.mode != 'none' && steps.prep.outputs.snapshots-key != '' &&
+          steps.snapshots-cache.outputs.cache-hit != 'true' &&
+          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          path: /var/tmp/hyprmasq-builds/snapshots
+          key: ${{ steps.prep.outputs.snapshots-key }}
+
+  # Main-only check of which immutable package caches are missing on refs/heads/main. Runs outside plan so PRs never
+  # receive actions: read.
+  cache-plan:
+    needs: plan
+    if: needs.plan.outputs.mode != 'none' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      warm-pacman: ${{ steps.check.outputs.warm-pacman }}
+      warm-verify: ${{ steps.check.outputs.warm-verify }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLUGINS: ${{ needs.plan.outputs.plugins }}
+          VERIFY_KEY: ${{ needs.plan.outputs.verify-key }}
+        run: |
+          warm_pacman='[]'
+          warm_verify=false
+          if curl -fsSL --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            -o /tmp/caches.json \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/caches?ref=refs/heads/main&key=aur-&per_page=100" && \
+            jq -e '.actions_caches | type == "array"' /tmp/caches.json > /dev/null; then
+            existing=$(jq -c '[.actions_caches[].key]' /tmp/caches.json)
+            warm_pacman=$(jq -c --argjson existing "$existing" '
+              [(.[] | {
+                 name: "plugin-\(.label)",
+                 key: "aur-pacman-v1-plugin-\(.label)-\(.day_key)",
+                 day: .day,
+                 image: .image,
+                 packages: "base-devel git hyprland libei libglvnd libpng libxcb libxkbcommon"
+               }),
+               ((min_by(.day)) | select(. != null) | {
+                 name: "tools",
+                 key: "aur-pacman-v1-tools-\(.day_key)",
+                 day: .day,
+                 image: .image,
+                 packages: "base-devel ffmpeg git go jq libei libxkbcommon"
+               })
+              ] | map(select(.key as $k | ($existing | index($k)) == null))
+            ' <<<"$PLUGINS")
+            if [[ -n $VERIFY_KEY ]] && jq -e --arg k "$VERIFY_KEY" 'index($k) == null' <<<"$existing" > /dev/null; then
+              warm_verify=true
+            fi
+          fi
+          {
+            echo "warm-pacman=$warm_pacman"
+            echo "warm-verify=$warm_verify"
+          } >> "$GITHUB_OUTPUT"
+
+  # Populates the immutable snapshot pacman caches on main when a new snapshot appears or a cache expires, so PRs and
+  # releases inherit them without downloading ~500 MiB from the archive on every run. Skipped when already cached.
+  warm-pacman:
+    needs: [plan, cache-plan]
+    if: >-
+      needs.plan.outputs.mode != 'none' && github.ref == 'refs/heads/main' &&
+      needs.cache-plan.outputs.warm-pacman != '[]' && needs.cache-plan.outputs.warm-pacman != ''
+    runs-on: ubuntu-24.04
+    container: archlinux/archlinux:${{ matrix.target.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.cache-plan.outputs.warm-pacman) }}
+    steps:
+      - run: |
+          cat > /etc/pacman.d/mirrorlist <<'EOF'
+          Server = https://umea.archive.pkgbuild.com/repos/${{ matrix.target.day }}/$repo/os/$arch
+          Server = https://archive.archlinux.org/repos/${{ matrix.target.day }}/$repo/os/$arch
+          EOF
+          for attempt in 1 2 3; do
+            pacman -Syyuuw --noconfirm --needed ${{ matrix.target.packages }} && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /var/cache/pacman/pkg
+          key: ${{ matrix.target.key }}
+
+  # Populates the archive package cache used by verify on main when verify itself does not run. Skipped when cached.
+  warm-verify:
+    needs: [plan, cache-plan]
+    if: >-
+      needs.plan.outputs.mode == 'userlands' && github.ref == 'refs/heads/main' &&
+      needs.cache-plan.outputs.warm-verify == 'true' && needs.plan.outputs.verify-key != ''
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    steps:
+      - run: |
+          for attempt in 1 2 3; do
+            pacman -Syu --noconfirm --needed git python && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: verify-cache
+        with:
+          path: /var/tmp/hyprmasq-builds/cache
+          key: ${{ needs.plan.outputs.verify-key }}
+          restore-keys: |
+            aur-verify-v1-
+      - if: steps.verify-cache.outputs.cache-hit != 'true'
+        run: |
+          for attempt in 1 2 3; do
+            rm -rf /tmp/aur
+            git clone -q https://aur.archlinux.org/hyprmasq-plugin-bin.git /tmp/aur && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
+          args=(--prune-cache)
+          [[ -f /tmp/aur/hyprland-builds ]] && args+=(--list /tmp/aur/hyprland-builds)
+          python3 packaging/aur/builds.py fetch-packages "${args[@]}"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.verify-cache.outputs.cache-hit != 'true'
+        with:
+          path: /var/tmp/hyprmasq-builds/cache
+          key: ${{ needs.plan.outputs.verify-key }}
 
   # Each plugin on the dated image from before its snapshot, which build-plugin.sh moves to that snapshot.
   build:
@@ -105,15 +288,33 @@ jobs:
       matrix:
         plugin: ${{ fromJSON(needs.plan.outputs.plugins) }}
     steps:
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: pacman-cache
+        with:
+          path: /var/cache/pacman/pkg
+          key: aur-pacman-v1-plugin-${{ matrix.plugin.label }}-${{ matrix.plugin.day_key }}
       - run: |
-          # shellcheck disable=SC2016 # pacman expands $repo and $arch.
-          echo 'Server = https://archive.archlinux.org/repos/${{ matrix.plugin.day }}/$repo/os/$arch' > /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm git
+          cat > /etc/pacman.d/mirrorlist <<'EOF'
+          Server = https://umea.archive.pkgbuild.com/repos/${{ matrix.plugin.day }}/$repo/os/$arch
+          Server = https://archive.archlinux.org/repos/${{ matrix.plugin.day }}/$repo/os/$arch
+          EOF
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm git && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: |
           git config --global --add safe.directory '*'
           packaging/aur/build-plugin.sh ${{ matrix.plugin.version }} ${{ matrix.plugin.day }} \
             "/tmp/plugins/hyprmasq-${{ needs.plan.outputs.version }}-hyprland-${{ matrix.plugin.label }}.so"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: >-
+          steps.pacman-cache.outputs.cache-hit != 'true' &&
+          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          path: /var/cache/pacman/pkg
+          key: aur-pacman-v1-plugin-${{ matrix.plugin.label }}-${{ matrix.plugin.day_key }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: plugin-${{ matrix.plugin.label }}
@@ -127,15 +328,33 @@ jobs:
     runs-on: ubuntu-24.04
     container: archlinux/archlinux:${{ needs.plan.outputs.tools-image }}
     steps:
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: pacman-cache
+        with:
+          path: /var/cache/pacman/pkg
+          key: aur-pacman-v1-tools-${{ needs.plan.outputs.tools-day-key }}
       - run: |
-          # shellcheck disable=SC2016 # pacman expands $repo and $arch.
-          echo 'Server = https://archive.archlinux.org/repos/${{ needs.plan.outputs.tools-day }}/$repo/os/$arch' > /etc/pacman.d/mirrorlist
-          pacman -Syyuu --noconfirm git
+          cat > /etc/pacman.d/mirrorlist <<'EOF'
+          Server = https://umea.archive.pkgbuild.com/repos/${{ needs.plan.outputs.tools-day }}/$repo/os/$arch
+          Server = https://archive.archlinux.org/repos/${{ needs.plan.outputs.tools-day }}/$repo/os/$arch
+          EOF
+          for attempt in 1 2 3; do
+            pacman -Syyuu --noconfirm git && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: |
           git config --global --add safe.directory '*'
           packaging/aur/build-tools.sh ${{ needs.plan.outputs.version }} ${{ needs.plan.outputs.tools-day }} \
             "/tmp/tools/hyprmasq-${{ needs.plan.outputs.version }}-x86_64.tar.gz"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: >-
+          steps.pacman-cache.outputs.cache-hit != 'true' &&
+          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          path: /var/cache/pacman/pkg
+          key: aur-pacman-v1-tools-${{ needs.plan.outputs.tools-day-key }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tools
@@ -159,8 +378,13 @@ jobs:
       matrix:
         check: ${{ fromJSON(needs.plan.outputs.userlands) }}
     steps:
-      - run: pacman -Syu --noconfirm --needed git github-cli
-        if: matrix.check.userland == 'arch'
+      - if: matrix.check.userland == 'arch'
+        run: |
+          for attempt in 1 2 3; do
+            pacman -Syu --noconfirm --needed git github-cli && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: needs.build.result == 'success'
@@ -199,10 +423,23 @@ jobs:
       contents: read
       issues: write
     steps:
-      - run: pacman -Syu --noconfirm --needed base-devel binutils git github-cli hyprland jq libei libglvnd libpng libxcb libxkbcommon python
+      - run: |
+          for attempt in 1 2 3; do
+            pacman -Syu --noconfirm --needed base-devel binutils git github-cli hyprland jq libei libglvnd libpng libxcb libxkbcommon python && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.plan.outputs.mode == 'refresh' && format('v{0}', needs.plan.outputs.version) || '' }}
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: verify-cache
+        if: needs.plan.outputs.verify-key != ''
+        with:
+          path: /var/tmp/hyprmasq-builds/cache
+          key: ${{ needs.plan.outputs.verify-key }}
+          restore-keys: |
+            aur-verify-v1-
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: needs.build.result == 'success'
         with:
@@ -219,15 +456,25 @@ jobs:
             name=hyprmasq-${{ needs.plan.outputs.version }}-hyprland-$label.so
             curl -fsSL --retry 3 -o "/tmp/plugins/$name" "https://github.com/$GITHUB_REPOSITORY/releases/download/v${{ needs.plan.outputs.version }}/$name"
           done
-          git clone -q https://aur.archlinux.org/hyprmasq-plugin-bin.git /tmp/aur
+          for attempt in 1 2 3; do
+            rm -rf /tmp/aur
+            git clone -q https://aur.archlinux.org/hyprmasq-plugin-bin.git /tmp/aur && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
       # Network errors at the archive or GitHub are retried. A build that fails a check is held, not an error.
       - name: Verify the served Hyprland builds
+        id: verify
         env:
           PLUGINS: ${{ needs.plan.outputs.plugins }}
           ACCEPT: ${{ inputs.accept }}
         run: |
           git config --global --add safe.directory '*'
           args=(--source . --out /tmp/list/hyprland-builds --held /tmp/list/held.json)
+          # Refresh checks out the published release tag, which may predate --prune-cache and WORK/cache.
+          if python3 packaging/aur/builds.py verify --help | grep -q -- --prune-cache; then
+            args+=(--prune-cache)
+          fi
           for label in $(jq -r '.[].label' <<<"$PLUGINS"); do
             args+=(--binary "$label=/tmp/plugins/hyprmasq-${{ needs.plan.outputs.version }}-hyprland-$label.so")
           done
@@ -240,6 +487,17 @@ jobs:
             sleep 60
           done
           cat /tmp/list/hyprland-builds /tmp/list/held.json
+          if [[ -d /var/tmp/hyprmasq-builds/cache ]] && find /var/tmp/hyprmasq-builds/cache -type f | grep -q .; then
+            echo "has-cache=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: >-
+          needs.plan.outputs.verify-key != '' && steps.verify.outputs.has-cache == 'true' &&
+          steps.verify-cache.outputs.cache-hit != 'true' &&
+          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          path: /var/tmp/hyprmasq-builds/cache
+          key: ${{ needs.plan.outputs.verify-key }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: list
@@ -329,7 +587,12 @@ jobs:
     runs-on: ubuntu-24.04
     container: archlinux:base-devel
     steps:
-      - run: pacman -Syu --noconfirm --needed git go jq openssh pacman-contrib
+      - run: |
+          for attempt in 1 2 3; do
+            pacman -Syu --noconfirm --needed git go jq openssh pacman-contrib && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.plan.outputs.mode == 'refresh' && format('v{0}', needs.plan.outputs.version) || '' }}
@@ -388,7 +651,12 @@ jobs:
         if: needs.plan.outputs.mode != 'refresh'
         run: |
           for pkg in hyprmasq-plugin-bin hyprmasq; do
-            git clone -q "https://aur.archlinux.org/$pkg.git" "/tmp/published/$pkg"
+            for attempt in 1 2 3; do
+              rm -rf "/tmp/published/$pkg"
+              git clone -q "https://aur.archlinux.org/$pkg.git" "/tmp/published/$pkg" && break
+              [[ $attempt == 3 ]] && exit 1
+              sleep $((5 * attempt))
+            done
           done
           srcinfo=/tmp/published/hyprmasq/.SRCINFO
           if [[ ! -f $srcinfo ]] || grep -q $'^\tdepends = hyprmasq-plugin=' "$srcinfo"; then

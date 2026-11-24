@@ -15,9 +15,17 @@ case $userland in
   omarchy-stable) echo 'Server = https://stable-mirror.omarchy.org/$repo/os/$arch' > /etc/pacman.d/mirrorlist ;;
   *) echo "check-userland.sh: unknown userland $userland" >&2; exit 2 ;;
 esac
+retry() {
+  local attempt
+  for attempt in 1 2 3; do
+    "$@" && return 0
+    [[ $attempt == 3 ]] && return 1
+    sleep $((5 * attempt))
+  done
+}
 # -yy: the databases of an image from after the snapshot are newer than its own.
-pacman -Syyuu --noconfirm
-pacman -S --noconfirm --needed hyprland libei libglvnd libpng libxcb libxkbcommon
+retry pacman -Syyuu --noconfirm
+retry pacman -S --noconfirm --needed hyprland libei libglvnd libpng libxcb libxkbcommon
 on="$userland (hyprland $(pacman -Q hyprland | cut -d' ' -f2))"
 status=0
 check() {

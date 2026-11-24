@@ -7,10 +7,21 @@
 set -euo pipefail
 version=$1 day=$2 out=$(realpath -m "$3")
 repo=$(cd "$(dirname "$0")/../.." && pwd)
-echo "Server = https://archive.archlinux.org/repos/$day/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist
+cat > /etc/pacman.d/mirrorlist <<EOF
+Server = https://umea.archive.pkgbuild.com/repos/$day/\$repo/os/\$arch
+Server = https://archive.archlinux.org/repos/$day/\$repo/os/\$arch
+EOF
+retry() {
+  local attempt
+  for attempt in 1 2 3; do
+    "$@" && return 0
+    [[ $attempt == 3 ]] && return 1
+    sleep $((5 * attempt))
+  done
+}
 # -yy: an image from after the snapshot would keep its newer databases with -y.
-pacman -Syyuu --noconfirm
-pacman -S --noconfirm --needed base-devel git hyprland libei libglvnd libpng libxcb libxkbcommon
+retry pacman -Syyuu --noconfirm
+retry pacman -S --noconfirm --needed base-devel git hyprland libei libglvnd libpng libxcb libxkbcommon
 installed=$(pacman -Q hyprland | cut -d' ' -f2)
 if [[ $installed != "$version" ]]; then
   echo "build-plugin.sh: the snapshot of $day has hyprland $installed, not $version" >&2
