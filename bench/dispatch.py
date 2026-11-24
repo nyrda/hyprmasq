@@ -882,7 +882,8 @@ def main():
         if gate.quota() is None:
             parser.error("agy here does not report its quota: log in with `agy`")
     queue = Queue(units, hosts, args.balance, limits, gate)
-    with tempfile.TemporaryDirectory(prefix="hyprmasq-dispatch-") as ctl:
+    # /tmp directly (not TMPDIR): nix-shell and agent harnesses set long TMPDIRs that exceed ssh's 108-byte ControlPath limit.
+    with tempfile.TemporaryDirectory(prefix="hyprmasq-dispatch-", dir="/tmp") as ctl:
         remote = Remote(harness, builds, agents, args, ctl, queue, keys)
         dispatch(hosts, queue, remote.prepare, remote.execute)
         for h in hosts:
