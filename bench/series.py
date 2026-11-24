@@ -144,8 +144,18 @@ def dispatch_command(rules, series, tool, set_name, spec, reps, build_only=False
                "--timeout", str(rules["agent_timeout_seconds"])]
     for t in tasks:
         command += ["--task", t]
-    for agent in rules["agents"]:
+    for agent in series.get("agents") or rules["agents"]:
         command += ["--agent", agent]
+    if series.get("container"):
+        command += ["--container"]
+    if series.get("no_debrief") or rules.get("no_debrief"):
+        command += ["--no-debrief"]
+    if series.get("tool_search", rules.get("tool_search", True)) is False:
+        command += ["--no-tool-search"]
+    if spec.get("user_reply") or series.get("user_reply") or rules.get("user_reply"):
+        command += ["--user-reply"]
+    for task in spec.get("user_reply_tasks") or ():
+        command += ["--user-reply-task", task]
     if series.get("chromium_options"):
         command += ["--chromium-options=" + series["chromium_options"]]
     if build_only:
@@ -170,7 +180,7 @@ def planned_runs(rules, series, tools, rounds):
     for round_number in rounds:
         for tool, set_name, spec in sets_of(rules, series, tools):
             for task in spec["tasks"]:
-                for agent in rules["agents"]:
+                for agent in series.get("agents") or rules["agents"]:
                     harness, model, effort = run.parse_agent(agent)
                     directory = os.path.join(out_of(series, tool, set_name), run.results_name(*task_spec(task)),
                                              run.run_name(harness, model, round_number, effort))
@@ -213,16 +223,22 @@ def infrastructure(directory):
 
 def other_load(directory):
     """A run that shared its host with work outside the series, the same rule for every tool: a QEMU process that is
-    none of the benchmark's VMs, or the host's guard holding for another benchmark on the host, at any of the run's samples
-    (run.py's host_load). None for a run with no samples, as before they were taken."""
+    none of the benchmark's VMs, an external benchmark QEMU VM during a container run, the host's guard holding for
+    another benchmark on the host, or a load1 spike above 40, at any of the run's samples (run.py's host_load). None
+    for a run with no samples, as before they were taken."""
     path = os.path.join(directory, "run.json")
     if not os.path.exists(path):
         return None
-    sampled = load(path).get("host_load") or {}
+    run_data = load(path)
+    sampled = run_data.get("host_load") or {}
     if sampled.get("max_other_qemu"):
         return {"kind": "other_load", "detail": f"{sampled['max_other_qemu']} other QEMU process(es) on the host"}
+    if run_data.get("container") and sampled.get("max_own_qemu"):
+        return {"kind": "other_load", "detail": f"{sampled['max_own_qemu']} external bench QEMU VM(s) during container run"}
     if sampled.get("guard"):
         return {"kind": "other_load", "detail": "the host's guard held for another benchmark on the host"}
+    if (sampled.get("max_load1") or 0) > 40:
+        return {"kind": "other_load", "detail": f"host load1 spike ({sampled['max_load1']:.1f})"}
     return None
 
 

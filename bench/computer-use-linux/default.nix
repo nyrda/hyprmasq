@@ -18,14 +18,14 @@
 let
   inherit (pkgs) lib;
   pname = "computer-use-linux";
-  # The newest release, 0.7.47 (tag v0.7.47, commit 2f1e32d). The crate's SHA-256 on crates.io is
-  # 789c213a9aaa4f5996ee87af2826ba4174849bd9cc575a4ab06e8085955bd2ad.
-  version = "0.7.47";
-  tag = "2f1e32d249b75eae6d241c8b449bd9577bd131f5";
+  # The newest release, 0.7.59 (tag v0.7.59, commit 34bee24). The crate's SHA-256 on crates.io is
+  # ff3a6e912aaecb53f4bcdb90afb16abf2218bddff79230545b21ff632e6c83c3.
+  version = "0.7.59";
+  tag = "34bee240fcadea5f50956fa2303f077a44364941";
 
   src = pkgs.fetchCrate {
     inherit pname version;
-    hash = "sha256-38ZLfzEYjqx3DvKpCcB2BVFHKs9b8QpAZzguMsTX4qY=";
+    hash = "sha256-DTgRHeCwzb0ae1Q9A82y0div6uALKO9qg5Lg2fZ6c60=";
   };
 
   # The release's tag, for the plugin's skill, which the crate does not hold.
@@ -33,14 +33,14 @@ let
     owner = "agent-sh";
     repo = pname;
     rev = tag;
-    hash = "sha256-kB/VgKXOgC3wqbRtsbhW7RpKMvjaFoeSEmq0DeQaibo=";
+    hash = "sha256-o7wSofaNOf8XOEcvlN3q3lelVZ7ggHMqmnj0KmsBWEk=";
   };
 
   # `cargo install`: the release profile, the crate's own Cargo.lock (--locked, as its CI builds), all three binaries
   # (the server, its COSMIC helper and its indicator overlay), and no tests.
   server = pkgs.rustPlatform.buildRustPackage {
     inherit pname version src;
-    cargoHash = "sha256-sJqy0Jwf8ewnFBDMBP6fMnZMieDRCojgFqfnxgxHT4M=";
+    cargoHash = "sha256-oE3YKIcH0dhuA10cp+WFA6rCZiJHi7Vrf8Hg4C8qE50=";
     doCheck = false;
 
     meta = {

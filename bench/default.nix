@@ -29,6 +29,8 @@
   backend ? "hyprmasq",
   browser ? "firefox",
   desktop ? "bare",
+  # Runs the benchmark machine as a systemd-nspawn container on the host's GPU instead of a QEMU VM.
+  container ? false,
   nixpkgs ?
     let
       lock = builtins.fromJSON (builtins.readFile (source + "/flake.lock"));
@@ -302,11 +304,10 @@ let
       # variable that the wrapper sets finds it (bench/README.md, Browser tools).
       export CHROME_DEVEL_SANDBOX=/run/wrappers/bin/__chromium-suid-sandbox
     ''}
-    # --no-overlay: its agent cursor is a full-screen layer surface that a desktop composites on its GPU for next to
-    # nothing. Here the VM's Hyprland composites it in software, at more than two of the VM's four CPUs while the driver
-    # reads a window, and its walks take that much longer (bench/README.md, the VM against a desktop). The cursor is for
-    # a person to watch, and no tool of the driver depends on it.
-    exec ${cua.driver}/bin/cua-driver mcp --no-overlay${
+    # --no-overlay: in a VM without a GPU, its agent cursor is a full-screen layer surface composited in software at
+    # more than two of the VM's four CPUs while the driver reads a window (bench/README.md, the VM against a desktop).
+    # In a container on the host's GPU, leave Cua's default overlay on.
+    exec ${cua.driver}/bin/cua-driver mcp${pkgs.lib.optionalString (!container) " --no-overlay"}${
       pkgs.lib.optionalString userHasChromium " --grant existing-profile"
     } 2>>/tmp/hyprmasq-bench-mcp.log
   '';
@@ -319,13 +320,12 @@ let
     export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=Hyprland
   '';
 
-  # hypruse's MCP server, `uvx hypruse` in its README, for one vsock connection, with its defaults (the automatic
-  # background mode among them) but one: HYPRUSE_SCREENSHOT_MODE=image, which its README and server.json give for a
-  # client that renders MCP images and cannot read files. Its default, file, writes captures in the VM and returns
-  # their path, which the agent on the host, without a file reader, could not open.
+  # hypruse's MCP server, `uvx hypruse` in its README, for one vsock/unix connection. Its default screenshot mode is
+  # `file` (writing to $XDG_RUNTIME_DIR/hypruse/ for hosts with a file reader like Claude Code); hosts without a file
+  # reader (Codex, or VM runs without a shared screenshot mount) use HYPRUSE_SCREENSHOT_MODE=image.
   hypruseServer = pkgs.writeShellScript "hyprmasq-bench-hypruse-mcp" ''
     ${sessionEnv}
-    export HYPRUSE_SCREENSHOT_MODE=image
+    export HYPRUSE_SCREENSHOT_MODE="$(cat /tmp/hyprmasq-bench-hypruse-mode 2>/dev/null || echo image)"
     exec ${hypruse}/bin/hypruse 2>>/tmp/hyprmasq-bench-mcp.log
   '';
 
@@ -369,13 +369,85 @@ let
     for line in sock.makefile("r", errors="replace"):
         out.write(f"{time.time():.3f} {line}")
   '';
-in
-pkgs.testers.runNixOSTest {
-  name = "hyprmasq-bench-${task}${pkgs.lib.optionalString (variant != "") "-${variant}"}${
-    pkgs.lib.optionalString (!isHyprmasq) "-${checkedBackend}"
-  }${pkgs.lib.optionalString (browser != "firefox") "-${browser}"}${pkgs.lib.optionalString isOmarchy "-omarchy"}";
+  # For container mode: labwc as the headless parent compositor on the host's GPU render node, without XWayland so
+  # Hyprland keeps the first free X display, and parent-seat for real keyboard/pointer input in tasks like Forgejo.
+  labwc = pkgs.labwc.overrideAttrs (old: {
+    mesonFlags = map (
+      flag: if flag == pkgs.lib.mesonEnable "xwayland" true then pkgs.lib.mesonEnable "xwayland" false else flag
+    ) old.mesonFlags;
+  });
+  parentSeat = pkgs.callPackage (
+    if builtins.pathExists (source + "/nix/parent-seat.nix") then
+      source + "/nix/parent-seat.nix"
+    else
+      ../nix/parent-seat.nix
+  ) { inherit hyprland; };
 
-  nodes.machine =
+  # systemd 260+'s systemd-nspawn fails with EPERM when resetting /proc/self/loginuid inside an unprivileged user
+  # namespace (outside the Nix build sandbox, where the caller's session has a numeric loginuid). Preload this shim on
+  # run-nspawn / systemd-nspawn alone (cleared before the container's /init runs) so reset_audit_loginuid() sees ENOENT.
+  noLoginuid = pkgs.runCommand "nspawn-no-loginuid" { nativeBuildInputs = [ pkgs.gcc ]; } ''
+    mkdir -p $out/lib
+    cat > shim.c <<'EOF'
+    #define _GNU_SOURCE
+    #include <dlfcn.h>
+    #include <errno.h>
+    #include <fcntl.h>
+    #include <stdarg.h>
+    #include <string.h>
+    static int is_loginuid(const char *p) { return p && strcmp(p, "/proc/self/loginuid") == 0; }
+    #define WRAP_OPEN(name) \
+      int name(const char *p, int f, ...) { \
+        if (is_loginuid(p)) { errno = ENOENT; return -1; } \
+        static int (*real)(const char *, int, ...) = NULL; \
+        if (!real) real = dlsym(RTLD_NEXT, #name); \
+        va_list ap; va_start(ap, f); mode_t m = (f & (O_CREAT|O_TMPFILE)) ? va_arg(ap, mode_t) : 0; va_end(ap); \
+        return real(p, f, m); \
+      }
+    #define WRAP_OPENAT(name) \
+      int name(int d, const char *p, int f, ...) { \
+        if (is_loginuid(p)) { errno = ENOENT; return -1; } \
+        static int (*real)(int, const char *, int, ...) = NULL; \
+        if (!real) real = dlsym(RTLD_NEXT, #name); \
+        va_list ap; va_start(ap, f); mode_t m = (f & (O_CREAT|O_TMPFILE)) ? va_arg(ap, mode_t) : 0; va_end(ap); \
+        return real(d, p, f, m); \
+      }
+    WRAP_OPEN(open)
+    WRAP_OPEN(open64)
+    WRAP_OPENAT(openat)
+    WRAP_OPENAT(openat64)
+    EOF
+    gcc -shared -fPIC -O2 -o $out/lib/no-loginuid.so shim.c -ldl
+  '';
+
+  nspawnRootlessModule =
+    {
+      config,
+      pkgs,
+      lib,
+      ...
+    }:
+    let
+      cfg = config.virtualisation;
+      run-nspawn = pkgs.callPackage (pkgs.path + "/nixos/modules/virtualisation/nspawn-container/run-nspawn") { };
+      commandLineOptions = lib.cli.toCommandLineShellGNU { } {
+        container-name = config.system.name;
+        root-dir = cfg.rootDir;
+        interfaces-json = builtins.toJSON (lib.attrValues cfg.allInterfaces);
+        init = "${config.system.build.toplevel}/init";
+        cmdline-json = builtins.toJSON cfg.cmdline;
+      };
+    in
+    {
+      system.build.nspawn = lib.mkForce (
+        pkgs.writers.writeDashBin "run-${config.system.name}-nspawn" ''
+          export LD_PRELOAD="${noLoginuid}/lib/no-loginuid.so''${LD_PRELOAD:+:$LD_PRELOAD}"
+          exec ${lib.getExe run-nspawn} ${commandLineOptions} ${lib.escapeShellArgs config.virtualisation.systemd-nspawn.options} "$@"
+        ''
+      );
+    };
+
+  machineConfig =
     { pkgs, ... }:
     {
       imports = [
@@ -390,6 +462,7 @@ pkgs.testers.runNixOSTest {
       users.users.alice = {
         isNormalUser = true;
         extraGroups = [ "video" ];
+        linger = container;
       };
 
       environment.systemPackages = [
@@ -458,29 +531,62 @@ pkgs.testers.runNixOSTest {
       services.timesyncd.enable = false;
       services.getty.autologinUser = "alice";
 
-      # No network: the task's servers listen on localhost, and the host reaches hyprmasq-mcp over vsock.
-      virtualisation = {
-        vlans = [ ];
-        cores = 4;
-        memorySize = 6144;
-        qemu.options = [
-          "-vga none -device virtio-gpu-pci"
-          "-device vhost-vsock-pci,guest-cid=\${HYPRMASQ_BENCH_CID:-4242}"
-          # Tasks see the same date on every run.
-          "-rtc base=2026-03-10T09:30:00"
-        ];
-      };
-      boot.kernelModules = [ "vmw_vsock_virtio_transport" ];
-
       system.stateVersion = "24.11";
     };
+in
+pkgs.testers.runNixOSTest (
+  {
+    name = "hyprmasq-bench-${task}${pkgs.lib.optionalString (variant != "") "-${variant}"}${
+      pkgs.lib.optionalString (!isHyprmasq) "-${checkedBackend}"
+    }${pkgs.lib.optionalString (browser != "firefox") "-${browser}"}${pkgs.lib.optionalString isOmarchy "-omarchy"}${
+      pkgs.lib.optionalString container "-container"
+    }";
 
-  testScript = ''
-    TASK_DIR = "${./tasks + "/${task}"}"
-    VARIANT = "${variant}"
-    BACKEND = "${backend}"
-    BROWSER = "${checkedBrowser}"
-    DESKTOP = "${checkedDesktop}"
-    exec(open("${./vm.py}").read())
-  '';
-}
+    testScript = ''
+      TASK_DIR = "${./tasks + "/${task}"}"
+      VARIANT = "${variant}"
+      BACKEND = "${backend}"
+      BROWSER = "${checkedBrowser}"
+      DESKTOP = "${checkedDesktop}"
+      CONTAINER = ${if container then "True" else "False"}
+      exec(open("${./vm.py}").read())
+    '';
+  }
+  // (
+    if container then
+      {
+        containers.machine = {
+          imports = [
+            machineConfig
+            nspawnRootlessModule
+          ];
+          virtualisation.vlans = [ ];
+          hardware.graphics.enable = true;
+          virtualisation.systemd-nspawn.options = [ "--bind=/dev/dri" ];
+          environment.systemPackages = [
+            labwc
+            parentSeat
+          ];
+        };
+      }
+    else
+      {
+        nodes.machine = {
+          imports = [ machineConfig ];
+          # No network: the task's servers listen on localhost, and the host reaches hyprmasq-mcp over vsock.
+          virtualisation = {
+            vlans = [ ];
+            cores = 4;
+            memorySize = 6144;
+            qemu.options = [
+              "-vga none -device virtio-gpu-pci"
+              "-device vhost-vsock-pci,guest-cid=\${HYPRMASQ_BENCH_CID:-4242}"
+              # Tasks see the same date on every run.
+              "-rtc base=2026-03-10T09:30:00"
+            ];
+          };
+          boot.kernelModules = [ "vmw_vsock_virtio_transport" ];
+        };
+      }
+  )
+)

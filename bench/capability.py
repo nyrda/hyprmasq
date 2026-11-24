@@ -58,10 +58,10 @@ GEOMETRY = {
         "amber": (601, 183), "beige": (687, 183), "slider": (625, 318), "slider_end": (820, 318), "text": (694, 467),
         "dropdown": (635, 585), "dropdown_item": (620, 740), "scroll": (960, 600),
     },
-    "files": {"empty": (1500, 750), "report": (930, 120), "archive": (330, 120), "notes": (780, 120), "drafts": (480, 120)},
+    "files": {"empty": (1500, 750), "report": (1001, 114), "archive": (357, 114), "notes": (840, 114), "drafts": (518, 114)},
     "inkscape": {"empty": (1200, 600), "rect": (665, 488), "x": (563, 54)},
     "calc": {"B5": (376, 266), "B6": (376, 283)},
-    "forgejo": {"empty": (1500, 700), "sign_in_link": (1850, 115)},
+    "forgejo": {"empty": (1500, 700), "sign_in_link": (1850, 108)},
     "thunderbird": {"empty": (1000, 500), "name": (960, 567), "email": (960, 673), "continue": (1255, 760), "confirm": (1255, 747)},
 }
 
@@ -90,9 +90,10 @@ class Vm:
 
     def __init__(self, directory, cid, session_client):
         self.directory, self.count = directory, 0
-        self.session = mcp_probe.Session(cid, os.path.join(directory, "capability-mcp.jsonl"), session_client)
         with open(os.path.join(directory, "ready.json")) as f:
             self.ready = json.load(f)
+        target = f"unix:{self.ready['mcp_socket']}" if self.ready.get("mcp_socket") else cid
+        self.session = mcp_probe.Session(target, os.path.join(directory, "capability-mcp.jsonl"), session_client)
 
     def shell(self, script, timeout=120):
         """Runs a script in the VM as root, and returns (status, output)."""
@@ -722,7 +723,11 @@ def thunderbird(routes, vm, tool):
             return outcome
         # The offline lookup of the account's settings takes this long, for every tool.
         time.sleep(140)
-        tool.click(g["confirm"])
+        for _ in range(3):
+            confirm = tool.click(g["confirm"])
+            if "stale_shot" not in confirm.said and "stale_shot" not in confirm.codes:
+                break
+            time.sleep(1)
         time.sleep(5)
         outcome = tool.text("Lindqvist-2026")
         time.sleep(0.5)
@@ -1237,11 +1242,12 @@ def run_case(name, tool_name, mode, args, only=None):
     os.makedirs(os.path.join(directory, "driver-out"), exist_ok=True)
     print(f"{tool_name} {mode} {name}{tag}: building", flush=True)
     driver = run.build_driver(directory, args.source, spec["task"], spec["variant"], DISPLAY, tool_name, spec["browser"],
-                              "omarchy")
+                              "omarchy", container=args.container)
     cpus = run.slot_cpus(run.read_cores(), 1, args.cores)[0] if args.cores else None
     print(f"{tool_name} {mode} {name}{tag}: booting", flush=True)
     with run.vm_lock(args.lock):
-        with run.booted_vm(driver, directory, args.cid, 3600, cpus, {"HYPRMASQ_BENCH_SHELL": "1", **spec.get("env", {})}):
+        with run.booted_vm(driver, directory, args.cid, 3600, cpus, {"HYPRMASQ_BENCH_SHELL": "1", **spec.get("env", {})},
+                           container=args.container):
             vm = Vm(directory, args.cid, "hyprmasq-bench-capability")
             kind = {"cua": Cua, "hyprmasq": Hyprmasq}[tool_name] if mode != "desktop" else Desktop
             mode_of_tool = "background" if mode in ("browser", "walks", "environment", "fresh") else mode
@@ -1333,6 +1339,7 @@ def main():
     parser.add_argument("--cid", type=int, default=4442)
     parser.add_argument("--cores", type=int)
     parser.add_argument("--lock")
+    parser.add_argument("--container", action="store_true")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--table", nargs="*")
     args = parser.parse_args()

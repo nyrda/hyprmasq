@@ -127,12 +127,14 @@ def check(tool, task, variant, browser, args):
     os.makedirs(os.path.join(directory, "tmp"), exist_ok=True)
     os.makedirs(os.path.join(directory, "driver-out"), exist_ok=True)
     print(f"{tool} {label}: building", flush=True)
-    driver = run.build_driver(directory, args.source, task, variant, "1920x1080@1", tool, browser, "omarchy")
+    driver = run.build_driver(directory, args.source, task, variant, "1920x1080@1", tool, browser, "omarchy",
+                              container=args.container)
     cpus = run.slot_cpus(run.read_cores(), 1, args.cores)[0] if args.cores else None
     print(f"{tool} {label}: booting", flush=True)
     record = {"tool": tool, "task": task, "variant": variant, "browser": browser}
     with run.vm_lock(args.lock):
-        with run.booted_vm(driver, directory, args.cid, 1800, cpus, {"HYPRMASQ_BENCH_SHELL": "1"}):
+        with run.booted_vm(driver, directory, args.cid, 1800, cpus, {"HYPRMASQ_BENCH_SHELL": "1"},
+                           container=args.container):
             vm = capability.Vm(directory, args.cid, "hyprmasq-bench-startcheck")
             try:
                 address = vm.ready["task_window"]
@@ -198,6 +200,7 @@ def main():
     parser.add_argument("--cid", type=int, default=4901)
     parser.add_argument("--cores", type=int)
     parser.add_argument("--lock")
+    parser.add_argument("--container", action="store_true")
     parser.add_argument("--hold", type=int, default=0, help="seconds to wait after the first screenshot")
     args = parser.parse_args()
     if not args.series and not args.task:

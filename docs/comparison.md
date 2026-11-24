@@ -1,263 +1,261 @@
 # Comparisons with other computer-use tools
 
-hyprmasq beside three other tools that let an agent use a Linux desktop,
-[Cua Driver](https://github.com/trycua/cua), [computer-use-linux](https://github.com/agent-sh/computer-use-linux) and
-[hypruse](https://github.com/IlyasKhallouki/hypruse). Two agents, GPT-6.1 Terra and Claude Sonnet 5.5, ran the same 16
-desktop tasks in a VM with each tool, while the user worked in their own window.
+hyprmasq beside [Cua Driver](https://github.com/trycua/cua) 0.56.0,
+[computer-use-linux](https://github.com/agent-sh/computer-use-linux) 0.7.59 and
+[hypruse](https://github.com/IlyasKhallouki/hypruse) 0.15.1 on the same 16 desktop tasks (November 2026 snapshot,
+Hyprland 0.57.2, GPT-6.2 Sol and Claude Opus 5.5 at medium effort) while the user worked in their own window. `hyprmasq`, Cua Driver and hypruse ran
+in rootless GPU containers on the same host, while `computer-use-linux` ran in KVM VMs on that host because on Hyprland
+its pointer uses kernel `/dev/uinput`.
 
-<!-- render v2-hyprmasq,v2-hyprmasq-chromium,v2-cua,v2-cua-chromium,v2-hypruse,v2-hypruse-chromium,v2-computer-use-linux,v2-computer-use-linux-chromium,v2-failures scorecard -->
+<!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-failures scorecard -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/scorecard-dark.svg">
   <img alt="Per tool and agent: the pass rate as a dot on its 95 % interval, the runs that left the user&#x27;s view alone as a bar, the runs that failed because of the tool, and the time and cost as multiples of hyprmasq&#x27;s." src="comparison/scorecard.svg">
 </picture>
 <!-- /render -->
 
-- **The user:** hyprmasq is built to work in the background, pointer included, and left the user's view alone in all
-  192 runs. The other tools need the foreground for some or all pointer input, and took the focus in most of their
-  passed runs.
-- **Runs passed:** hyprmasq is within the noise of computer-use-linux and of hypruse with both agents. It passed more
-  than Cua Driver with Sonnet, and with Terra their intervals just overlap.
-- **Time and cost:** the other tools took 1.5 to 3.4 times as long and cost 3.3 to 46 times as much a run. The 46 is
-  hypruse with Sonnet, which gets each screenshot twice, as an image and as text.
-- **Photo tasks:** every tool failed most where a photo has to be read. hyprmasq passed 83 % of those runs, hypruse
-  78 % and computer-use-linux 89 %, a difference within the noise.
+- **The user:** hyprmasq left the user's view alone in all 192 runs, with 0 lost characters in Forgejo. The other three
+  took focus on half or more of their passed runs (Cua Driver 86/171, computer-use-linux 133/183, hypruse 173/181) and
+  dropped user typing in Forgejo.
+- **Runs passed:** hyprmasq passed 190/192 (96/96 Sol, 94/96 Opus). With Sol, hyprmasq (96/96) and computer-use-linux
+  (96/96) are ahead of Cua Driver (83/96). With Opus, all four overlap (87–94/96).
+- **Time and cost:** the other container tools took **1.7–2.0×** as long (and `computer-use-linux` **1.8–2.1×** in KVM
+  VMs against hyprmasq in containers) at **2.2–5.2×** the cost (`$0.08` Sol / `$0.23` Opus median for hyprmasq vs
+  `$0.18–$0.21` / `$0.75–$1.06`, with Opus using eager MCP schemas — **2.5–4.8×** under Claude Code `ToolSearch` below).
 
-hyprmasq's author ran the series and developed hyprmasq against these tasks, so the results show its best case, in a
-VM setup with [known effects that favour either tool](#method). The [rules](../bench/comparison-series.json) were
-committed before the runs, and every run is in [comparison/data](comparison/data).
+hyprmasq's author ran the benchmark and developed hyprmasq against these tasks. See [Method](#method) for setup
+effects, statistical notes, rule changes and [all runs](comparison/data).
 
 ## Working in the background
 
-Each tool tries to spare the user in its own way, and they get different distances without the foreground. Read this
-as what each design costs a user who keeps working, not as a defect.
+Each tool handles the background differently, so read this as what each design costs a user who keeps working, not as a
+defect. Every agent was told foreground input and focus changes were allowed when its tool needed them.
 
 - **hyprmasq** gives each window its own input, so clicks and drags never touch the user's pointer or focus.
 - **Cua Driver** has background routes and falls back to the foreground where an app refuses them.
-- **hypruse** sends keys in the background and refuses the pointer there by default.
-- **computer-use-linux** has an opt-in background mode for screenshots and keys, which the series turned on. Its
-  pointer is the user's own.
+- **hypruse** runs in its default automatic background mode, sending keys and accessibility clicks in the background
+  while refusing the pointer there (falling back via `background=false` or `focus_window`). It also offers a strict
+  `HYPRUSE_BACKGROUND=1` mode that refuses its own foreground and pointer actions to avoid stealing focus (launched
+  apps can still take focus), at the cost of not being able to perform pointer-only tasks.
+- **computer-use-linux** has an opt-in Hyprland background mode (`COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1`) for
+  screenshots (`grim -T`) and keys (`sendkeystate`), which the benchmark enabled, plus AT-SPI element actions. Its
+  pointer is the user's own via `/dev/uinput`.
 
-The prompt told every agent that foreground input and focus changes were allowed if its tool needed them.
-
-<!-- render v2-hyprmasq,v2-hyprmasq-chromium,v2-cua,v2-cua-chromium,v2-hypruse,v2-hypruse-chromium,v2-computer-use-linux,v2-computer-use-linux-chromium user-view -->
+<!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium user-view -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/user-view-dark.svg">
-  <img alt="Per tool: the passed runs that took the focus from the user, the median seconds the focus was away, the Forgejo runs that lost some of what the user typed meanwhile, and the median distance the pointer was moved." src="comparison/user-view.svg">
+  <img alt="Per tool: the passed runs that took the focus from the user, the median seconds the focus was away, and the Forgejo runs that lost some of what the user typed meanwhile." src="comparison/user-view.svg">
 </picture>
 <!-- /render -->
 
-**View left alone**, in the first figure, means that no window opened on the user's workspace, the workspace did not
-switch and the focus never left the user's window. A run that did nothing leaves it alone too, so this figure counts
-the runs that passed, and each of those that changed the view took the focus. In the Forgejo task the user types notes
-in their own window meanwhile, and a run lost typing when not all of it arrived.
+**View left alone** means no window opened on the user's workspace, the workspace did not switch and the focus never
+left the user's window. **Focus away** is the median across all passed runs (including zeros): Cua Driver took focus on
+86 of 171 passed runs (50.3 %), so its overall median lands at 3 s while its median across the 86 runs that took focus
+is 55 s (against 41 s for computer-use-linux and 64 s for hypruse). In Forgejo, where the user types notes in their own
+window meanwhile, hyprmasq kept the notes intact in **12/12** runs (0 lost characters), against **8/12** for Cua Driver
+(55 lost), **6/12** for hypruse (84 lost) and **5/12** for computer-use-linux (129 lost). All 36 other-tool Forgejo
+runs interrupted the user at least once, and typing is lost whenever a focus switch catches them mid-line rather than
+during the 6 s pause between lines.
 
 ## What a run costs
 
-<!-- render v2-hyprmasq,v2-hyprmasq-chromium,v2-cua,v2-cua-chromium,v2-hypruse,v2-hypruse-chromium,v2-computer-use-linux,v2-computer-use-linux-chromium usage -->
+<!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium usage -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/usage-dark.svg">
   <img alt="Per tool and agent: the median cost of a run in dollars, its median number of requests to the model and its median peak context in thousands of tokens." src="comparison/usage.svg">
 </picture>
 <!-- /render -->
 
-- **Cost:** a run with hyprmasq cost 2 cents with Terra and 9 with Sonnet at the median. The others cost 7 to 33
-  cents, and hypruse with Sonnet $3.50.
-- **Round trips:** one `act` call does several actions and returns what changed. With Terra, a run took 8 requests to
-  the model where the others took 13 to 24. With Sonnet it took 10, computer-use-linux 9 and the other two 16 and 26.
-- **Smaller context:** hyprmasq sends small screenshots of one window. Its peak context was 19k to 22k tokens, the
-  others' 43k to 99k, and hypruse's with Sonnet 649k. Its first request, 9k, is as small as any: the others' were 9k to
-  14k with Terra and 12k to 64k with Sonnet.
-- **hypruse with Sonnet** gets each screenshot twice, as an image and as text, which is what its cost and context
-  show. With Terra it costs about what the others do.
+- **Cost:** median `$0.08` Sol / `$0.23` Opus for hyprmasq, against `$0.18–$0.21` Sol and `$0.75–$1.06` Opus for the
+  other three (`2.2–5.2×` by per-unit geometric mean).
+- **Round trips:** `9.5` Sol / `10.5` Opus median requests for hyprmasq (batched `act` calls returning changed crops)
+  against `18–21` Sol and `13.5–33` Opus for the others.
+- **Peak context:** `20.1k` Sol / `24.7k` Opus for hyprmasq against `37.3k–47.3k` Sol and `57.9k–118.6k` Opus for the
+  others, with 0 history compactions across all 768 runs.
 
-These measures share causes, so they agree more than independent results would.
+<details><summary>Totals, first-request tokens and round-trip details</summary>
+
+- **Total cost over 96 runs per agent:** hyprmasq `$8.7` Sol / `$24.1` Opus, hypruse `$18.3` / `$70.3`, Cua Driver
+  `$23.5` / `$125.5`, computer-use-linux `$22.3` / `$141.7`.
+- **First request (tool schemas and skills):** hyprmasq `10.5k` Sol / `8.5k` Opus, hypruse `10.5k` / `12.5k`, Cua
+  Driver `13.2k` / `61.7k`, computer-use-linux `16.4k` / `44.6k`.
+- **hypruse Opus requests:** `33` median requests include ~10.6 `Read` round trips per run to inspect `file`-mode
+  screenshots through a read-only mount of the screenshot directory.
+
+</details>
+
+### Deferred tool loading (ToolSearch)
+
+Codex deferred MCP tool schemas through its built-in tool search (`10.5k–16.4k` first request), whereas the Claude Opus
+5.5 runs above sent every MCP tool schema eagerly on every turn because the harness's `--tools` flag omitted Claude
+Code's built-in `ToolSearch` tool. Repeating all 384 Opus 5.5 runs (6 repetitions × 16 tasks × 4 tools) with
+`ToolSearch` enabled shows how both modes compare ([full numbers](comparison-numbers.md#side-checks)):
+
+<!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-ts-hyprmasq,v3-ts-hyprmasq-chromium,v3-ts-cua,v3-ts-cua-chromium,v3-ts-hypruse,v3-ts-hypruse-chromium,v3-ts-computer-use-linux,v3-ts-computer-use-linux-chromium toolsearch -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="comparison/toolsearch-dark.svg">
+  <img alt="Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, median first-request tokens, median peak context, median cost per run and paired wall time on common passed tasks." src="comparison/toolsearch.svg">
+</picture>
+<!-- /render -->
+
+- **Cua Driver** saw the largest context drop and the only cost reduction under `ToolSearch`: its 65-tool first request
+  fell from `61.7k` to `9.7k`, peak context fell `40 %` (`110.8k` to `66.5k`), and per-task cost dropped `11 %` across
+  all runs (`0.89×`, `$1.06` to `$0.83` pooled median, `$125.5` to `$102.5` total). Most of the total dollar drop
+  (`$15.85` of `$23.0`) came from early-abandon failures on Thunderbird (`6/6` to `2/6`) and the Qt dropdown form
+  (`6/6` to `3/6`), while passed-run cost fell `5 %` per task (`0.95×`). Its pass count dropped from `88/96` to `78/96`
+  (overlapping intervals `84–96 %` vs `72–88 %`, within the noise), and paired on the 14 common passed tasks it was
+  **`1.04×` slower** (`108.0 s` to `109.7 s`), not faster.
+- **The other three tools got more expensive and slower under `ToolSearch`:** per-task cost rose for `hyprmasq`
+  (`1.21×`, `$0.23` to `$0.28`), `hypruse` (`1.18×`, `$0.75` to `$0.80`, `+27 %` total cost from longer trajectories)
+  and `computer-use-linux` (`1.12×`, `$0.99` to `$1.12`), and paired wall time rose on common tasks (`1.12×` hyprmasq,
+  `1.24×` hypruse). Eager static prefixes reuse Anthropic's prompt cache across runs (`cache_read`), whereas
+  `ToolSearch` pulls schemas in mid-conversation as per-run `cache_write` tokens plus extra search turns.
+- **hyprmasq stays first in both modes:** with `ToolSearch`, hyprmasq passed `94/96` (`94/94` view left alone, vs
+  `96/96` eager under the same merged SATA board target) at `$0.28` median (`$28.1` total) against `78–85/96` and
+  `$0.80–$1.12` median (`$89.5–$149.7` total, `2.8–4.0×` median cost and `2.5–4.8×` per-task geometric mean) for the
+  other three. The 42 `ToolSearch` failures were not separately reviewed by the two-reviewer panel.
 
 ## Task by task
 
-<!-- render v2-hyprmasq,v2-hyprmasq-chromium,v2-cua,v2-cua-chromium,v2-hypruse,v2-hypruse-chromium,v2-computer-use-linux,v2-computer-use-linux-chromium,v2-failures unit-grid -->
+<!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-failures unit-grid -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/unit-grid-dark.svg">
   <img alt="Every task against every tool: a square per run, of 12 per tool, coloured as passed, failed by the agent&#x27;s mistake, failed by the tool&#x27;s fault or failed with the reviewers unable to settle why, and each tool&#x27;s typical time for the runs it passed on one axis." src="comparison/unit-grid.svg">
 </picture>
 <!-- /render -->
 
-- **Time:** hyprmasq was the fastest of the four on 15 of the 16 tasks, all of which it passed often enough to time, even from the
-  slowest machine. On the Qt form without dropdowns, Cua Driver and computer-use-linux were faster, 38 s against
-  hyprmasq's 52 s.
-- **Runs passed:** with 6 runs per agent, most differences between the tools are noise. The 95 % intervals do not
-  overlap on these alone.
-- **hyprmasq ahead:** on labelling a photo by drag and drop, against Cua Driver in Chromium with Terra and in Firefox
-  with Sonnet, and against hypruse in Firefox with Sonnet. On the Qt form with dropdowns, against Cua Driver with
-  Sonnet. On Forgejo, against hypruse with Terra.
-- **hyprmasq behind:** on labelling a photo by custom drag in Firefox with Terra, where it passed 1 of 6 runs and
-  hypruse and computer-use-linux each passed 6. [Why runs failed](#why-runs-failed) traces this to how the model reads the
-  image, not to hyprmasq.
+- **Time:** hyprmasq was fastest on 15 of 16 tasks (`23.8–86.7 s`). Cua Driver was faster on the Qt form without
+  dropdowns (`39.4 s` vs `55.4 s`), setting fields and checkboxes directly through AT-SPI.
+- **Runs passed:** with 6 runs per agent, most differences are within the noise. The 95 % Wilson intervals separate
+  against hyprmasq on three tasks, all in hyprmasq's favour:
+  - **Label a photo, drag and drop · Firefox:** hyprmasq 6/6 vs Cua Driver 0/6 (both agents) and hypruse 0/6 (Opus).
+  - **Form with dropdowns · Qt:** hyprmasq 6/6 vs Cua Driver 1/6 (Sol).
+  - **Draw along a river bank · Firefox:** hyprmasq 6/6 vs computer-use-linux 1/6 (Opus).
 
 ## Why runs failed
 
-Two reviewers, Claude Opus 5.5 and GPT-6.1 Sol, read every failed run and judged it a problem of the tool or a mistake
-of the model, citing evidence from the run. Neither saw the other's verdict or any pass rate.
+Two independent reviewers (Claude Fable 5.2 and GPT-6.1 Sol) read every failed run of the 768-run primary series
+without seeing each other's verdict or any pass rate, agreeing on **42 of 43** failures (1 disagreement became
+`unclear`).
 
-<!-- render v2-hyprmasq,v2-hyprmasq-chromium,v2-cua,v2-cua-chromium,v2-hypruse,v2-hypruse-chromium,v2-computer-use-linux,v2-computer-use-linux-chromium,v2-failures attribution -->
+<!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-failures attribution -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/attribution-dark.svg">
   <img alt="Each tool&#x27;s failed runs as counts: failed by the model&#x27;s mistake, failed by a problem of the tool, and unclear, for the apps and for the tasks where an image has to be read." src="comparison/attribution.svg">
 </picture>
 <!-- /render -->
 
-No failure of hyprmasq was traced to the tool, and nearly all of its failures are image misreads. Drags that
-moved nothing or were refused make up 12 of Cua Driver's 13 tool problems and 5 of hypruse's 11. The reviewers disagreed
-on 29 of 121 failed runs.
+No failure of hyprmasq or computer-use-linux was traced to the tool under the review rubric. Firefox's HTML5
+drag-and-drop board accounts for 12 of Cua Driver's 16 tool problems and all 8 of hypruse's, and Qt dropdown clicks
+account for Cua Driver's remaining 4.
 
 <details><summary>Each tool's failures</summary>
 
-- **hyprmasq:** no failure was traced to the tool. Nearly every one is an image misread, such as a label on a
-  look-alike part or a trace that drifts off its line.
-- **computer-use-linux:** one failure was the tool's, in the file manager, where it clicked a file by an accessibility
-  position that was wrong and reported success. The rest are image misreads, as with hyprmasq.
-- **Cua Driver:** 12 of its 13 tool problems are labelling a photo by drag and drop in Firefox, where its drags moved
-  nothing or were refused. The other is a Qt dropdown click that it reported as done but that changed nothing.
-- **hypruse:** 5 of its 11 are the same task, where it reported drags that moved nothing, and 6 are input that went
-  astray, 3 in Forgejo and 3 in Calc.
-- **Unclear:** the reviewers disagreed on 29 of 121 failed runs, and 2 lacked evidence. 19 of those 31 are Cua
-  Driver's.
-
-</details>
-
-<details><summary>The Firefox photo task: a probe at two image sizes and a replay of the first screenshot</summary>
-
-One task went against hyprmasq. On labelling a photo by custom drag in Firefox, Terra passed 1 of 6 runs with it and
-all 6 with hypruse and with computer-use-linux, each failure a label on the same look-alike header. hyprmasq's first
-screenshot is also the smallest of the four, 1280×720 against up to 1920×1080.
-
-A probe outside the series tested that, with Terra and Sol on the six photo tasks, 6 runs each at hyprmasq's limit of
-1280 and at 1920, on the same machine and build. The limits passed 63 and 60 of 72 runs, and the agents moved in opposite
-directions: Terra 33 and 34, Sol 30 and 26. At 1280 Terra passed the Firefox task above in all 6 runs, so its 1 of 6 in
-the series was most likely chance. What does stand out is the browser: the look-alike header took 16 of the probe's
-48 board runs in Firefox, at both limits, and 1 of 48 in Chromium. In the series it took 7 of hyprmasq's runs and 1 of
-computer-use-linux's, all in Firefox. It is not the drag: the agents aimed the label at the look-alike part itself. Nor
-is the picture visibly different: in Firefox the photo is 0.7 % larger and sits a few pixels higher, at the same
-sharpness and colour. Split by agent and limit, the error gathers in two places, Terra at 1280 in Firefox, 10 of 24 runs,
-and Sol at 1920 in Firefox, 10 of 12, and almost never elsewhere.
-
-A replay found why. Given only the first screenshot and the task's prompt, with no VM, Sol put the label on the look-alike
-in 17 of 20 tries with the Firefox screenshot at 1920 and in 1 of 20 with Chromium's. The browser's name in the prompt
-changed nothing, and neither did the page's own rendering: Firefox's page under Chromium's toolbar was read right every
-time. What mattered was where the photo sat in the image. Moved down by 3 to 16 pixels, the same Firefox screenshot was
-read right in every try, and the error came back at 32 and 64 pixels. A period of 32 pixels fits how a vision model cuts
-an image into patches. Firefox's toolbar is 6 pixels shorter than Chromium's, which puts the header at an unlucky place for
-Sol at 1920. Terra at 1280 went from 6 of 20 to 0 to 2 of 15 when shifted. So the error is the model's, made systematic by
-where the browser happens to put the photo, and not hyprmasq's or Firefox's. The probe's runs and every replay are in
-[comparison/data](comparison/data/README.md#datasets), apart from the series.
+- **hyprmasq (2/192 failed, both model mistakes):** Opus missed the `SATA ports` target on Chromium's motherboard photo
+  twice while hyprmasq delivered the drags to the requested coordinates. Sol passed 96/96.
+- **computer-use-linux (9/192 failed, all model mistakes):** Opus had 8 river-trace drifts using straight-segment drags
+  and 1 Qt dropdown run where AT-SPI `Toggle` returned `ok: true` on closed combo boxes without committing and Opus
+  submitted after noting the boxes still read "Choose…". Sol passed 96/96.
+- **hypruse (11/192 failed: 8 tool problems, 3 model mistakes):** All 8 tool problems are Firefox's HTML5 drag-and-drop
+  board, where `pointer drag` reported `"drag ok"` without moving a label (Sol's 4 passes bypassed it via Firefox's Web
+  Console JavaScript at `136.7 s` median). The 3 model mistakes are Firefox river-trace drifts (Opus). Apps passed
+  120/120.
+- **Cua Driver (21/192 failed: 16 tool problems, 4 model mistakes, 1 unclear):** 12 tool problems are Firefox's HTML5
+  drag-and-drop board (0/12, background and desktop drags silently dropped while foreground drags were refused), and 4
+  are Sol on the Qt form with dropdowns, where clicking closed combo-box items by accessibility token returned
+  `selected: true` without committing (a fifth Qt run split the reviewers). The 4 model mistakes are 2 river-trace
+  drifts (Opus), 1 Chromium board miss (Sol) and 1 Forgejo run where Sol spent its single `--user-reply` recovering
+  from a focus-switch typing collision and then stopped at the OAuth consent page.
 
 </details>
 
 ## Method
 
-The tasks, their VM and their grading are those of the [benchmarks](benchmarks.md). Every tool got the same
-tool-neutral prompt, its documented setup and 6 runs per task and agent. The rest is folded below.
+Every tool ran the same 16 [benchmark](benchmarks.md) tasks with the same tool-neutral prompt, its documented setup,
+`--user-reply` on Forgejo and 6 runs per task and agent. Details are folded below.
 
 <details><summary>Known effects of the setup</summary>
 
-Against Cua Driver:
-
-- The VM's accessibility walks are 1.4 to 2.4 times as slow as a real Omarchy machine's, and are cut at Cua Driver's time
-  budget.
-- 6 of the 16 task units are image tasks.
-- 4 task units run in Firefox, where Cua Driver's foreground is refused and its browser tools do not apply.
-- Cua Driver's guide calls Hyprland experimental.
-- The main series starts Chromium without remote debugging. A slice with it is among the side checks below.
-
-Against hypruse and computer-use-linux:
-
-- The user works in their own window throughout, which is hyprmasq's design goal and not theirs. Both document
-  pointer input in the foreground.
-- Most tasks need the pointer, so their background keys and screenshots rarely spare the user's focus.
-
-For Cua Driver:
-
-- In the VM, its screenshots of a hidden Chromium window stay fresh, which they do not on the real machine.
-- In the VM, it types into Thunderbird in the background, which it does not on the real machine.
-- In the VM, its desktop route clicks a GTK 3 dropdown's item, which it does not on the real machine.
-
-The setup:
-
-- Cua Driver, hypruse and computer-use-linux ran on machine A (Ryzen 5 5600X), hyprmasq on machine B (a laptop, Ryzen 7
-  PRO 4750U).
-- Other load on machine A's host sometimes takes most of a core. Each run records it.
+- **Benchmark overlap:** hyprmasq was developed against these 16 tasks (the benchmark is both the development set and
+  the test set).
+- **Design goals:** the user works in their own window throughout, which is hyprmasq's goal and not hypruse's or
+  computer-use-linux's (both document pointer input in the foreground).
+- **Against Cua Driver:** 6 of the 16 tasks are image tasks, 4 run in Firefox (where its foreground route is refused
+  and its browser tools do not apply), its guide calls Hyprland experimental, and Chromium starts without remote
+  debugging (tested separately under Side checks).
+- **For Cua Driver:** running on the host GPU kept its AT-SPI walks fast (median 176–182 ms, 0 first walks cut, 36 of
+  2,502 walks cut by time budget), its default cursor overlay stayed on, and hidden Chromium screenshots stayed fresh.
+- **Containers vs KVM VMs:** `computer-use-linux` requires `/dev/uinput` for Hyprland pointer input, so it ran in
+  3 × 2-core KVM VMs on the same Ryzen 7 5800X3D host rather than rootless GPU containers. Its times (marked `†`)
+  include KVM and software-rendering overhead, and slower redraws (30 small-first-frame and 29 unchanged-frame flags)
+  may add screenshots and tokens. In the `ToolSearch` rerun, `computer-use-linux` ran in 2 × 2-core KVM VMs on a second
+  host (Ryzen 5 5600X).
+- **Run order, host load and API stalls:** hyprmasq and Cua Driver were interleaved round by round while later runs ran
+  sequentially on the same host, spanning two days of API variance. 100 early container runs (69 Cua Driver, 31
+  hyprmasq) overlapped 1–2 outside bench VMs (~1.01–1.04× wall time), and 3 active Codex runs hit multi-minute API
+  stalls (143–964 s) that medians shield but published ranges reflect.
+- **Measurement limits:** `desktop_input_to_user_window` and `desktop_shortcuts` in the numbers table are instrumented
+  from Cua Driver's logs only. Net cursor displacement compares start and end pointer position, so Hyprland's
+  `focuswindow` warping the pointer back can record 0 px even when a run moved it.
 
 </details>
 
-<details><summary>Tasks</summary>
+<details><summary>Tasks, tools and statistical notes</summary>
 
-The tasks, their VM, their grading and their measures are those of the [benchmarks](benchmarks.md): the user works on their
-own workspace, the task's apps are on another, and the agent works through the tool's MCP server alone.
-[bench/tasks](../bench/tasks) has each task's prompt, app and grading. The tasks were picked to stress hyprmasq's image-based
-approach, with common kinds of work on a desktop: forms with dropdowns, drags, files, copying data between apps, mail, a
-sign-in with a popup and drawing.
-
-The series ran 18 tasks. Two of them, a second figure to trace in each browser, were removed after the series, because
-the licence of that figure's photo does not allow redistributing it, so its runs cannot be repeated from this
-repository. Every number here is over the 16 tasks that remain, and the
-[rules' last amendment](../bench/comparison-series.json) records what the removed runs had shown.
-
-</details>
-
-<details><summary>The tools and their setups</summary>
-
-- **hyprmasq** at `8935ac7`, the head of its Hyprland 0.56 branch with a fix for popups that closed apps on a real Omarchy.
-  The VM does not trigger that defect.
-- **Cua Driver** 0.42.1 (`cua-driver-rs-v0.42.1`) with its skill, `--no-overlay` and `--grant existing-profile` where the
-  user's browser is Chromium.
-- **hypruse** 0.13.0 from its PyPI sdist, in its image mode, as the agent cannot read the VM's files. With Sonnet, it
-  returns each screenshot twice, as an image and as base64 text, which drives its peak context and cost.
-- **computer-use-linux** 0.7.47 with its skill and `COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1`.
-- **Agents:** Claude Sonnet 5.5 in Claude Code 2.1.319 and GPT-6.1 Terra in Codex 0.167.0, at medium effort, on the owner's
-  subscriptions. Costs are at the providers' API list prices.
-- **Prompt:** the same tool-neutral prompt for every tool: the user works in another window, has authorized foreground
-  input and focus changes if a tool needs them, and prefers that their window is left alone.
-- **The VM:** Hyprland 0.56.2 with the Omarchy desktop's configuration at 1920x1080. Before each run, each task's workspace
-  is shown until its window stops changing, for every tool, so that no tool starts with blank or stale windows.
-
-[bench/README.md](../bench/README.md#the-comparison-series) has how a series runs.
+- **Tasks:** 8 desktop apps (GTK 4 and Qt forms with and without dropdowns, Nautilus, Inkscape, Thunderbird, Forgejo
+  with a concurrent user typing notes) plus 4 web tasks (board HTML5 drag-and-drop, board custom pointer drag, Calc,
+  river trace) in both Firefox and Chromium. [bench/tasks](../bench/tasks) has every prompt and checker.
+- **Tools:** `hyprmasq` (v0.5.0 plus the pre-release compact array `act` schema), Cua Driver 0.56.0 with its skill and
+  `--grant existing-profile` on Chromium, `hypruse` 0.15.1 with `mcp 1.30.0` (matching its `<2` dependency so refusal
+  messages pass through verbatim, `HYPRUSE_SCREENSHOT_MODE=file` + directory-scoped `Read` for Claude Code, and `image`
+  mode for Codex), and `computer-use-linux` 0.7.59 with its skill and `COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1`.
+- **Agents and desktop:** Claude Opus 5.5 (Claude Code 2.1.330) and GPT-6.2 Sol (Codex 0.170.0), both pinned and at
+  medium effort, on Hyprland 0.57.2 with the Omarchy configuration at 1920×1080. Every task workspace is shown until
+  settled before a run starts.
+- **Reading the numbers:** The [rules](../bench/comparison-series-v3.json) define the analysis. Time runs from agent
+  start to end. A time ratio is the geometric mean over tasks of a tool's median over hyprmasq's, within each agent, on
+  tasks where both passed at least 3 of 6 runs (hypruse `1.72×` Sol / `1.86×` Opus, Cua Driver `1.74×` / `2.04×`,
+  computer-use-linux `2.13×` / `1.78×` in KVM VMs). Pooled 96-run Wilson intervals treat runs as independent even when
+  failures cluster by task, and per-unit intervals have no multiplicity adjustment. Costs count every run at provider
+  API list prices (cache reads at cache-read price). Peak context is the largest single request.
 
 </details>
 
-<details><summary>Reading the numbers</summary>
+<details><summary>Rule changes and excluded runs</summary>
 
-The rules fix the analysis. Time runs from the agent's start to its end. A time ratio is the geometric mean over task
-units of a tool's median over hyprmasq's, within each agent, on the units where both passed at least 3 of 6 runs, and
-the table lists the units left out. The task figure's typical time is the geometric mean of each agent's median over its passed runs, for the agents that passed at
-least 3 of 6. Failed runs' times stand apart, as a run that gave up early is not fast. Tokens,
-cost and calls count every run. Cost is what the requests would cost at the provider's list prices, cache reads at
-their lower price. Peak context is the largest single request.
+Post-start adjustments are logged in [the benchmark rules](../bench/comparison-series-v3.json):
 
-</details>
-
-<details><summary>Excluded runs and overrides</summary>
-
-A run ran again only after a logged failure of the infrastructure, on the same machine, the same rule for every tool.
-[comparison/data/v2-exclusions.json](comparison/data/v2-exclusions.json) lists all 64 excluded runs of Sonnet and Terra
-with why: 54 stopped by a failed Claude login, 1 left without a summary, 1 cut when a series was stopped, and 8 of Forgejo
-replaced because the start step gave the focus to the terminal, so the user's keys never reached their notes. A run that
-the agent failed stands, whatever the reason.
-
-The rules allowed failing a passed run that broke a stated requirement the checker does not grade. All 739 passed runs were
-checked against that list: a second mail or a wrong room in Thunderbird, other commits or branches in Forgejo, other files
-in the file manager, other windows in the forms, the file manager and Inkscape, a river that stops short of the bottom of
-the photo. None did, so no run was overridden. Calc's tabs and files the checker grades itself. For Forgejo, the check reads
-the commits and branches that the checker records, not each repository setting.
+- **Forgejo `--user-reply`:** forwarded `--user-reply` for Forgejo's broad OAuth consent prompt (superseding 24 early
+  Forgejo runs without it, and disabled on all other tasks for the container tools so stalled drag-and-drop runs
+  received no nudge), and fixed completion matching to ignore negated mentions of `Done`.
+- **Board SATA target box:** merged two adjacent top SATA port boxes in `bench/tasks/board/regions.json` partway
+  through. Earlier hyprmasq runs were not re-graded (keeping its 2 Chromium misses as failures), while one later
+  hypruse run passed under the merged box.
+- **Tool setup and load fixes:** superseded the initial 192 `hypruse` runs (`185/192`: 95/96 Sol, 90/96 Opus, where
+  `--user-reply` had fired on Firefox drag-and-drop and `mcp 2.3.0` stripped refusal messages) with a clean series
+  pinning `mcp 1.30.0`, `file`-mode screenshots for Claude Code and Forgejo-only `--user-reply`. Replaced 8 Cua Driver
+  Firefox runs hit by a severe outside host load spike, added a 32-run hyprmasq KVM calibration round and the 384-run
+  `ToolSearch` rerun, and recovered 238 clean `ToolSearch` container runs on the Ryzen 7 5800X3D host that repeated in
+  fixed tool order only because an idle desktop VM tripped the external-QEMU guard.
+- **Excluded runs and overrides:** alongside the 1,244 published runs, [the exclusion log](comparison/data/v3-exclusions.json)
+  records all 15 individual excluded runs (2 Cua Driver Forgejo runs during an outside QEMU process, 8 Cua Driver
+  Firefox runs during the host load spike, 1 hypruse Forgejo run hit by the negated-`Done` bug, 2 OAuth-revoked
+  hyprmasq `ToolSearch` runs, and 2 Cua Driver Qt runs interrupted before shutting down the idle desktop VM), with each
+  excluded run's outcome and replacement. Checking all 1,159 passed runs (`725` primary, `60` debugging-port, `32` VM
+  calibration and `342` `ToolSearch`) against the prompt-violation rules yielded 0 overrides.
 
 </details>
 
-<details><summary>Side checks: a debugging port for Cua Driver, and the machines</summary>
+<details><summary>Side checks</summary>
 
-- **Cua Driver with a debugging port.** Its browser tools attach only to a Chromium started with remote debugging,
-  which a user rarely has. With the port it passed 47 of 60 runs, against 45 without it. The clear gain is labelling a
-  photo by drag and drop in Chromium with Terra, from 0 to 6 of 6.
-- **The machines.** hyprmasq ran on machine B and the others on machine A, so a time ratio is that of these two
-  deployments. One round of hyprmasq on machine A took about as long per call. A planned check of the tools on a third
-  machine did not run.
+- **Cua Driver with a debugging port:** starting Chromium with `--remote-debugging-port=0` on the 5 Chromium tasks
+  raised Cua Driver from 57/60 (95 %) to **60/60 (100 %)** and lifted view left alone from 10/60 to 31/60 (18/18 for
+  Opus on board and trace), though Forgejo still took focus on all 12 runs and dropped user typing on 4 of 12. Wall
+  times (1.91–1.97× hyprmasq) and costs (2.73–4.56×) stayed similar.
+- **hyprmasq in KVM VMs:** one full round of hyprmasq (32 runs, `n = 1` per task and agent) in the exact same
+  3 × 2-core KVM VM setup as `computer-use-linux` passed **32/32 (100 %)** at a per-unit geometric mean of **1.03×
+  (Sol)** and **1.07× (Opus)** of its container wall time (1.06× and 1.11× tool time). Because hyprmasq does not walk
+  AT-SPI trees, its small VM overhead does not measure the VM cost for AT-SPI-heavy tools.
 
 [The numbers](comparison-numbers.md#side-checks) have both tables.
 
@@ -268,4 +266,4 @@ the commits and branches that the checker records, not each repository setting.
 - [All the numbers](comparison-numbers.md): every table behind this page, per task, tool and agent.
 - [The tasks on macOS](comparison-macos.md): OpenAI's and Claude's computer use and Cua Driver on a Mac, beside
   hyprmasq in the VM.
-- [The data](comparison/data): every run, and both reviews of every failed one.
+- [The data](comparison/data): every published run and both reviews of every primary failed run.

@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="396" viewBox="0 0 880 396" role="img" aria-label="Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, median first-request tokens, median peak context, median cost per run and paired wall time on common passed tasks.">
+<title>Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, median first-request tokens, median peak context, median cost per run and paired wall time on common passed tasks.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.tools{fill:#3987e5}.out{fill:#454c56}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.miss{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.pass{fill:#3fb950}.fail{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.cut{stroke:#0d1117;stroke-width:2}.whisker{stroke:#f0f6fc;stroke-width:1.5}.s0{fill:#3987e5}.s1{fill:#d95926}.s2{fill:#199e70}.s3{fill:#c98500}.s4{fill:#d55181}.s5{fill:#008300}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
+<rect x="0.5" y="0.5" width="879" height="395" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Deferred tool loading (Claude Opus 5.5) · 21 Nov to 24 Nov 2026</text>
+<text x="24" y="53" class="t2" font-size="12.5">Eager MCP schemas (lighter bars) against Claude Code&#x27;s ToolSearch (solid bars) across all 16 tasks.</text>
+<text x="24" y="72" class="t2" font-size="12.5">Dot is pass rate with 95 % interval. Tokens and cost are medians of all runs, wall time is paired on common passed tasks.</text>
+<text x="244" y="96" class="t2" font-size="12" font-weight="600">Runs passed</text>
+<text x="244" y="111" class="m" font-size="10.5" text-anchor="middle">50 %</text>
+<text x="276" y="111" class="m" font-size="10.5" text-anchor="middle">75 %</text>
+<text x="308" y="111" class="m" font-size="10.5" text-anchor="middle">100 %</text>
+<text x="364" y="96" class="t2" font-size="12" font-weight="600">First request</text>
+<text x="364" y="111" class="m" font-size="10.5">median, all runs</text>
+<text x="472" y="96" class="t2" font-size="12" font-weight="600">Peak context</text>
+<text x="472" y="111" class="m" font-size="10.5">median, all runs</text>
+<text x="584" y="96" class="t2" font-size="12" font-weight="600">Median cost</text>
+<text x="584" y="111" class="m" font-size="10.5">median, all runs</text>
+<text x="704" y="96" class="t2" font-size="12" font-weight="600">Wall time</text>
+<text x="704" y="111" class="m" font-size="10.5">common tasks</text>
+<line x1="244" y1="122" x2="244" y2="364" class="grid"/>
+<line x1="276" y1="122" x2="276" y2="364" class="grid"/>
+<line x1="308" y1="122" x2="308" y2="364" class="grid"/>
+<line x1="24" y1="122" x2="856" y2="122" class="grid"/>
+<rect x="24" y="130" width="4" height="44" class="s0" rx="2"/>
+<text x="36" y="153" class="t" font-size="13" font-weight="600">hyprmasq</text>
+<text x="172" y="144" class="m" font-size="11.5">Eager</text>
+<line x1="298.7" y1="140" x2="307.3" y2="140" class="whisker"/>
+<circle cx="305.3" cy="140" r="4.5" class="dot"/>
+<text x="316" y="144.5" class="t2" font-size="12">94/96</text>
+<path d="M364 135H369.6Q372.6 135 372.6 138V142Q372.6 145 369.6 145H364Z" class="s0" fill-opacity="0.45"/>
+<text x="378.6" y="144.5" class="t2" font-size="11.5">8.5k</text>
+<path d="M472 135H481.9Q484.9 135 484.9 138V142Q484.9 145 481.9 145H472Z" class="s0" fill-opacity="0.45"/>
+<text x="490.9" y="144.5" class="t2" font-size="11.5">25k</text>
+<path d="M584 135H593.5Q596.5 135 596.5 138V142Q596.5 145 593.5 145H584Z" class="s0" fill-opacity="0.45"/>
+<text x="602.5" y="144.5" class="t2" font-size="11.5">$0.23</text>
+<path d="M704 135H725.5Q728.5 135 728.5 138V142Q728.5 145 725.5 145H704Z" class="s0" fill-opacity="0.45"/>
+<text x="734.5" y="144.5" class="t2" font-size="11.5">50 s</text>
+<text x="172" y="169" class="t2" font-size="11.5">ToolSearch</text>
+<line x1="298.7" y1="165" x2="307.3" y2="165" class="whisker"/>
+<circle cx="305.3" cy="165" r="4.5" class="dot"/>
+<text x="316" y="169.5" class="t" font-size="12">94/96</text>
+<path d="M364 160H364.6Q367.6 160 367.6 163V167Q367.6 170 364.6 170H364Z" class="s0"/>
+<text x="373.6" y="169.5" class="t" font-size="11.5">3.6k</text>
+<path d="M472 160H482.8Q485.8 160 485.8 163V167Q485.8 170 482.8 170H472Z" class="s0"/>
+<text x="491.8" y="169.5" class="t" font-size="11.5">26k</text>
+<path d="M584 160H596.6Q599.6 160 599.6 163V167Q599.6 170 596.6 170H584Z" class="s0"/>
+<text x="605.6" y="169.5" class="t" font-size="11.5">$0.28</text>
+<path d="M704 160H728.5Q731.5 160 731.5 163V167Q731.5 170 728.5 170H704Z" class="s0"/>
+<text x="737.5" y="169.5" class="t" font-size="11.5">56 s (1.12×)</text>
+<line x1="24" y1="183" x2="856" y2="183" class="grid"/>
+<rect x="24" y="191" width="4" height="44" class="s1" rx="2"/>
+<text x="36" y="214" class="t" font-size="13" font-weight="600">Cua Driver</text>
+<text x="172" y="205" class="m" font-size="11.5">Eager</text>
+<line x1="288" y1="201" x2="302.5" y2="201" class="whisker"/>
+<circle cx="297.3" cy="201" r="4.5" class="dot"/>
+<text x="316" y="205.5" class="t2" font-size="12">88/96</text>
+<path d="M364 196H423Q426 196 426 199V203Q426 206 423 206H364Z" class="s1" fill-opacity="0.45"/>
+<text x="432" y="205.5" class="t2" font-size="11.5">62k</text>
+<path d="M472 196H526.9Q529.9 196 529.9 199V203Q529.9 206 526.9 206H472Z" class="s1" fill-opacity="0.45"/>
+<text x="535.9" y="205.5" class="t2" font-size="11.5">111k</text>
+<path d="M584 196H639.4Q642.4 196 642.4 199V203Q642.4 206 639.4 206H584Z" class="s1" fill-opacity="0.45"/>
+<text x="648.4" y="205.5" class="t2" font-size="11.5">$1.06</text>
+<path d="M704 196H754.2Q757.2 196 757.2 199V203Q757.2 206 754.2 206H704Z" class="s1" fill-opacity="0.45"/>
+<text x="763.2" y="205.5" class="t2" font-size="11.5">108 s</text>
+<text x="172" y="230" class="t2" font-size="11.5">ToolSearch</text>
+<line x1="272.5" y1="226" x2="292.4" y2="226" class="whisker"/>
+<circle cx="284" cy="226" r="4.5" class="dot"/>
+<text x="316" y="230.5" class="t" font-size="12">78/96</text>
+<path d="M364 221H370.7Q373.7 221 373.7 224V228Q373.7 231 370.7 231H364Z" class="s1"/>
+<text x="379.7" y="230.5" class="t" font-size="11.5">9.7k</text>
+<path d="M472 221H503.7Q506.7 221 506.7 224V228Q506.7 231 503.7 231H472Z" class="s1"/>
+<text x="512.7" y="230.5" class="t" font-size="11.5">66k</text>
+<path d="M584 221H626.8Q629.8 221 629.8 224V228Q629.8 231 626.8 231H584Z" class="s1"/>
+<text x="635.8" y="230.5" class="t" font-size="11.5">$0.83</text>
+<path d="M704 221H755Q758 221 758 224V228Q758 231 755 231H704Z" class="s1"/>
+<text x="764" y="230.5" class="t" font-size="11.5">110 s (1.04×)</text>
+<line x1="24" y1="244" x2="856" y2="244" class="grid"/>
+<rect x="24" y="252" width="4" height="44" class="s3" rx="2"/>
+<text x="36" y="275" class="t" font-size="13" font-weight="600">hypruse</text>
+<text x="172" y="266" class="m" font-size="11.5">Eager</text>
+<line x1="286.4" y1="262" x2="301.6" y2="262" class="whisker"/>
+<circle cx="296" cy="262" r="4.5" class="dot"/>
+<text x="316" y="266.5" class="t2" font-size="12">87/96</text>
+<path d="M364 257H373.6Q376.6 257 376.6 260V264Q376.6 267 373.6 267H364Z" class="s3" fill-opacity="0.45"/>
+<text x="382.6" y="266.5" class="t2" font-size="11.5">13k</text>
+<path d="M472 257H499.3Q502.3 257 502.3 260V264Q502.3 267 499.3 267H472Z" class="s3" fill-opacity="0.45"/>
+<text x="508.3" y="266.5" class="t2" font-size="11.5">58k</text>
+<path d="M584 257H622.1Q625.1 257 625.1 260V264Q625.1 267 622.1 267H584Z" class="s3" fill-opacity="0.45"/>
+<text x="631.1" y="266.5" class="t2" font-size="11.5">$0.75</text>
+<path d="M704 257H744Q747 257 747 260V264Q747 267 744 267H704Z" class="s3" fill-opacity="0.45"/>
+<text x="753" y="266.5" class="t2" font-size="11.5">87 s</text>
+<text x="172" y="291" class="t2" font-size="11.5">ToolSearch</text>
+<line x1="283.2" y1="287" x2="299.7" y2="287" class="whisker"/>
+<circle cx="293.3" cy="287" r="4.5" class="dot"/>
+<text x="316" y="291.5" class="t" font-size="12">85/96</text>
+<path d="M364 282H366.8Q369.8 282 369.8 285V289Q369.8 292 366.8 292H364Z" class="s3"/>
+<text x="375.8" y="291.5" class="t" font-size="11.5">5.8k</text>
+<path d="M472 282H496.2Q499.2 282 499.2 285V289Q499.2 292 496.2 292H472Z" class="s3"/>
+<text x="505.2" y="291.5" class="t" font-size="11.5">52k</text>
+<path d="M584 282H625.1Q628.1 282 628.1 285V289Q628.1 292 625.1 292H584Z" class="s3"/>
+<text x="634.1" y="291.5" class="t" font-size="11.5">$0.80</text>
+<path d="M704 282H752.7Q755.7 282 755.7 285V289Q755.7 292 752.7 292H704Z" class="s3"/>
+<text x="761.7" y="291.5" class="t" font-size="11.5">105 s (1.24×)</text>
+<line x1="24" y1="305" x2="856" y2="305" class="grid"/>
+<rect x="24" y="313" width="4" height="44" class="s4" rx="2"/>
+<text x="36" y="330" class="t" font-size="13" font-weight="600">computer-use-linux</text>
+<text x="36" y="346" class="m" font-size="10.5">KVM VM</text>
+<text x="172" y="327" class="m" font-size="11.5">Eager</text>
+<line x1="286.4" y1="323" x2="301.6" y2="323" class="whisker"/>
+<circle cx="296" cy="323" r="4.5" class="dot"/>
+<text x="316" y="327.5" class="t2" font-size="12">87/96</text>
+<path d="M364 318H405.8Q408.8 318 408.8 321V325Q408.8 328 405.8 328H364Z" class="s4" fill-opacity="0.45"/>
+<text x="414.8" y="327.5" class="t2" font-size="11.5">45k</text>
+<path d="M472 318H531Q534 318 534 321V325Q534 328 531 328H472Z" class="s4" fill-opacity="0.45"/>
+<text x="540" y="327.5" class="t2" font-size="11.5">119k</text>
+<path d="M584 318H635.7Q638.7 318 638.7 321V325Q638.7 328 635.7 328H584Z" class="s4" fill-opacity="0.45"/>
+<text x="644.7" y="327.5" class="t2" font-size="11.5">$0.99</text>
+<path d="M704 318H738.3Q741.3 318 741.3 321V325Q741.3 328 738.3 328H704Z" class="s4" fill-opacity="0.45"/>
+<text x="747.3" y="327.5" class="t2" font-size="11.5">76 s</text>
+<text x="172" y="352" class="t2" font-size="11.5">ToolSearch</text>
+<line x1="283.2" y1="348" x2="299.7" y2="348" class="whisker"/>
+<circle cx="293.3" cy="348" r="4.5" class="dot"/>
+<text x="316" y="352.5" class="t" font-size="12">85/96</text>
+<path d="M364 343H376.1Q379.1 343 379.1 346V350Q379.1 353 376.1 353H364Z" class="s4"/>
+<text x="385.1" y="352.5" class="t" font-size="11.5">15k</text>
+<path d="M472 343H527.7Q530.7 343 530.7 346V350Q530.7 353 527.7 353H472Z" class="s4"/>
+<text x="536.7" y="352.5" class="t" font-size="11.5">112k</text>
+<path d="M584 343H643Q646 343 646 346V350Q646 353 643 353H584Z" class="s4"/>
+<text x="652" y="352.5" class="t" font-size="11.5">$1.12</text>
+<path d="M704 343H743.3Q746.3 343 746.3 346V350Q746.3 353 743.3 353H704Z" class="s4"/>
+<text x="752.3" y="352.5" class="t" font-size="11.5">86 s† (1.07×)</text>
+<text x="24" y="378" class="m" font-size="10.5">† ToolSearch ran in KVM VMs on a second host (AMD Ryzen 5 5600X 6-Core Processor), so its wall time is not directly comparable.</text>
+</svg>

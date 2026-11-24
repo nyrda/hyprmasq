@@ -103,19 +103,27 @@ class CuaBackend(unittest.TestCase):
     def test_the_agent_gets_cuas_skill_and_server_and_the_debrief_neither(self):
         tap = ["python3", "mcp_tap.py", "4242", "5000", "log"]
         claude = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, backend="cua"))
-        # The skill and the user settings of its fresh home, where Claude Code finds the skill.
+        # ToolSearch plus the skill and the user settings of its fresh home, where Claude Code finds the skill.
         self.assertEqual((claude["--tools"], claude["slash commands"], claude["--setting-sources"]),
-                         ("Skill,ListMcpResourcesTool,ReadMcpResourceTool", True, "user"))
+                         ("ToolSearch,Skill,ListMcpResourcesTool,ReadMcpResourceTool", True, "user"))
         self.assertEqual(set(claude["--allowedTools"].split()),
-                         {"Skill", "ListMcpResourcesTool", "ReadMcpResourceTool", "mcp__cua-driver"})
+                         {"ToolSearch", "Skill", "ListMcpResourcesTool", "ReadMcpResourceTool", "mcp__cua-driver"})
         self.assertEqual(json.loads(claude["--mcp-config"])["mcpServers"],
                          {"cua-driver": {"command": tap[0], "args": tap[1:]}})
         debrief = self.parse(run.agent_command("claude-api", "m", "Why?", None, resume="s", backend="cua"))
         self.assertEqual((debrief["--tools"], debrief["slash commands"], debrief["--setting-sources"]), ("", False, ""))
-        # hyprmasq's runs stay as they were: no tools but its server's, no slash commands.
+        # hyprmasq's runs get ToolSearch and its server's tools, no slash commands.
         hyprmasq = self.parse(run.agent_command("claude-api", "m", "Do it.", tap))
-        self.assertEqual((hyprmasq["--tools"], hyprmasq["slash commands"], hyprmasq["--allowedTools"],
-                          hyprmasq["--setting-sources"]), ("", False, "mcp__hyprmasq", ""))
+        self.assertEqual((hyprmasq["--tools"], hyprmasq["slash commands"], set(hyprmasq["--allowedTools"].split()),
+                          hyprmasq["--setting-sources"]),
+                         ("ToolSearch", False, {"ToolSearch", "mcp__hyprmasq"}, ""))
+        # --no-tool-search omits ToolSearch so MCP tool schemas load eagerly.
+        eager_cua = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, backend="cua", tool_search=False))
+        self.assertEqual(eager_cua["--tools"], "Skill,ListMcpResourcesTool,ReadMcpResourceTool")
+        self.assertEqual(set(eager_cua["--allowedTools"].split()),
+                         {"Skill", "ListMcpResourcesTool", "ReadMcpResourceTool", "mcp__cua-driver"})
+        eager_hm = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, tool_search=False))
+        self.assertEqual((eager_hm["--tools"], set(eager_hm["--allowedTools"].split())), ("", {"mcp__hyprmasq"}))
 
         codex = run.agent_command("codex", "m", "Do it.", tap, backend="cua")
         settings = [codex[i + 1] for i, a in enumerate(codex[:-1]) if a == "-c"]
@@ -134,10 +142,11 @@ class CuaBackend(unittest.TestCase):
 
     def test_hypruse_gets_its_server_alone_and_computer_use_linux_its_skill_too(self):
         tap = ["python3", "mcp_tap.py", "4242", "5000", "log"]
-        # hypruse: the server, named as its README registers it, and no skill, whose verbs need a shell.
+        # hypruse: ToolSearch and the server, named as its README registers it, and no skill, whose verbs need a shell.
         claude = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, backend="hypruse"))
-        self.assertEqual((claude["--tools"], claude["slash commands"], claude["--allowedTools"],
-                          claude["--setting-sources"]), ("", False, "mcp__hypruse", ""))
+        self.assertEqual((claude["--tools"], claude["slash commands"], set(claude["--allowedTools"].split()),
+                          claude["--setting-sources"]),
+                         ("ToolSearch", False, {"ToolSearch", "mcp__hypruse"}, ""))
         self.assertEqual(list(json.loads(claude["--mcp-config"])["mcpServers"]), ["hypruse"])
         codex = run.agent_command("codex", "m", "Do it.", tap, backend="hypruse")
         settings = [codex[i + 1] for i, a in enumerate(codex[:-1]) if a == "-c"]
@@ -145,12 +154,13 @@ class CuaBackend(unittest.TestCase):
         self.assertIn(f"mcp_servers.hypruse.tool_timeout_sec={run.TOOL_TIMEOUT}", settings)
         self.assertEqual(run.task_prompt("codex", "hypruse", "Do it."), "Do it.")
 
-        # computer-use-linux: its server and its plugin's skill, named first in the prompt as Cua's is.
+        # computer-use-linux: ToolSearch, its server and its plugin's skill, named first in the prompt as Cua's is.
         claude = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, backend="computer-use-linux"))
         self.assertEqual((claude["--tools"], claude["slash commands"], claude["--setting-sources"]),
-                         ("Skill,ListMcpResourcesTool,ReadMcpResourceTool", True, "user"))
+                         ("ToolSearch,Skill,ListMcpResourcesTool,ReadMcpResourceTool", True, "user"))
         self.assertEqual(set(claude["--allowedTools"].split()),
-                         {"Skill", "ListMcpResourcesTool", "ReadMcpResourceTool", "mcp__computer-use-linux"})
+                         {"ToolSearch", "Skill", "ListMcpResourcesTool", "ReadMcpResourceTool",
+                          "mcp__computer-use-linux"})
         codex = run.agent_command("codex", "m", "Do it.", tap, backend="computer-use-linux")
         settings = [codex[i + 1] for i, a in enumerate(codex[:-1]) if a == "-c"]
         self.assertNotIn("skills.include_instructions=false", settings)
@@ -232,6 +242,13 @@ class CuaBackend(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "another chromium_options"):
                 run.check_resume(out, {**config, "backend": "cua", "prompt": "comparison",
                                        "chromium_options": "--remote-debugging-port=0"}, parser, [])
+            # Eager vs deferred MCP tool loading is another measurement too.
+            with open(os.path.join(out, "source.json"), "w") as f:
+                json.dump({**config, "backend": "cua", "prompt": "comparison", "tool_search": True}, f)
+            run.check_resume(out, {**config, "backend": "cua", "prompt": "comparison", "tool_search": True}, parser, [])
+            with self.assertRaisesRegex(ValueError, "another tool_search"):
+                run.check_resume(out, {**config, "backend": "cua", "prompt": "comparison", "tool_search": False},
+                                 parser, [])
 
     def test_chromium_stands_in_for_firefox_only_in_the_tasks_that_list_it_and_the_prompt_names_it(self):
         parser = argparse.ArgumentParser()
@@ -731,6 +748,13 @@ class UserReply(unittest.TestCase):
     def test_only_an_agent_that_ended_by_itself_without_done_gets_a_reply(self):
         self.assertTrue(run.needs_reply(self.AGENT, "Forgejo asks for access. Do you approve?"))
         self.assertTrue(run.needs_reply(self.AGENT, "I left the prompt open for your decision."))
+        self.assertTrue(run.needs_reply(self.AGENT, 'Task 2 is paused, so this isn\'t "Done" yet.'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'Nothing changed, so I\'m not saying "Done".'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'I haven\'t said "Done" because the labels aren\'t placed.'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'The task is not yet "Done".'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'I cannot say "Done" yet.'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'I will not say Done until it works.'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'Thunderbird is blocked, so "Done" doesn\'t apply.'))
         self.assertFalse(run.needs_reply(self.AGENT, "Done. I uploaded the file."))
         for stopped in ({"timed_out": True}, {"budget_exhausted": True}, {"exit": 1}, {"refused": True},
                         {"session": None}):
@@ -1081,6 +1105,35 @@ class FailureReview(unittest.TestCase):
         self.addCleanup(self.dir.cleanup)
         with open(os.path.join(self.dir.name, "mcp.jsonl"), "w") as f:
             f.write("{}\n{}\n")
+
+    def test_custom_reviewer_models_persist_for_status_and_collect(self):
+        bundles = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, bundles)
+        bundle = os.path.join(bundles, "b1")
+        os.makedirs(bundle)
+        with open(os.path.join(bundle, "meta.json"), "w") as f:
+            json.dump({"setup": "cua", "set": "apps", "series": "main", "task_dir": "form", "run": "r1",
+                       "harness": "codex", "model": "gpt-6.2-sol"}, f)
+        with open(os.path.join(bundle, "facts.json"), "w") as f:
+            json.dump({"browser": "firefox", "failures": []}, f)
+        with open(os.path.join(bundle, "mcp.jsonl"), "w") as f:
+            f.write("{}\n")
+        ev_hash = review_failures.evidence_hash(bundle)
+        with open(review_failures.verdict_path(bundle, "claude"), "w") as f:
+            json.dump({**self.verdict(), "evidence_sha256": ev_hash,
+                       "reviewer": {"harness": "claude", "model": "claude-custom-1", "effort": "medium"}}, f)
+        orig = dict(review_failures.REVIEWERS)
+        try:
+            review_failures.REVIEWERS["claude"] = ("claude-custom-1", "medium")
+            review_failures.save_reviewers(bundles)
+            # Reset to defaults as a fresh `status` or `collect` process would.
+            review_failures.REVIEWERS.update(orig)
+            self.assertIsNone(review_failures.current_verdict(bundle, "claude"))
+            review_failures.load_reviewers(bundles)
+            self.assertIsNotNone(review_failures.current_verdict(bundle, "claude"))
+        finally:
+            review_failures.REVIEWERS.clear()
+            review_failures.REVIEWERS.update(orig)
 
     def test_the_same_verdict_stands_and_any_disagreement_is_unclear(self):
         tool, model = ("tool_problem", None), ("model_mistake", None)

@@ -196,21 +196,16 @@ What stays different from the real machine, and whether it matters, is in [capab
 documentation sets it up on Linux and Hyprland, for comparing the two on the whole suite. The task, its VM, its
 grading and the measures are the same: only the desktop tool differs.
 
-- **Release:** Cua Driver 0.42.1, tag `cua-driver-rs-v0.42.1`, commit `badaa6e0d59fb5add81474bc04efadb89f713eb9`, from
-  the tag's source, unchanged ([cua/default.nix](cua/default.nix)), the newest tag that was not a nightly on 7 November
-  2026. Tags come several times a day and are marked pre-release, so the suite pins one. The driver is built by Cua's own Nix package with the features of its Linux release binary
-  (`portal-input`), the plugin with CMake as its README builds it, with `-DCUA_HYPRLAND_INPUT=ON` as its release build
-  kit builds it, against the VM's Hyprland and with Hyprland's compiler, and its CTest suite passes. Since
-  [#6495](https://github.com/trycua/cua/pull/6495) and [#6329](https://github.com/trycua/cua/pull/6329) the plugin
-  compile-checks Hyprland's internals instead of pinning 0.56.2, and it builds, passes its tests and loads on 0.57.1.
-- **Hyprland 0.56.2:** the driver still sees no window of Hyprland 0.57.1, so the plugin's support for it does not help.
-  Its `j/monitors` and `j/clients` leave out `id` for a named workspace and for an absent special workspace, which is
-  every monitor without one, and the driver's `Workspace` in `wayland/hyprland.rs` requires it. `list_windows` then says
-  `Found 0 windows`, with `invalid Hyprland IPC JSON: missing field 'id'` in its log, the same at the pinned tag on 7
-  November 2026. Making that field optional in a scratch build, which the suite does not use, gave on 0.57.1 the same
-  results as on 0.56.2 in the GTK 4 form, so it is the only obstacle found there. So the Cua backend runs with `--source` at a checkout of
-  the `hyprland-0.56` branch, `e4273e0` in the 0.38.0 series and the commit in the rules in the comparison series, and
-  `default.nix` refuses it on another Hyprland.
+- **Release:** Cua Driver 0.56.0, tag `cua-driver-rs-v0.56.0`, commit `9c75001355f777c102c7eea66b14c0a45868153d`, from
+  the tag's source, unchanged ([cua/default.nix](cua/default.nix)) — upgraded from v2's `0.42.1`. The driver is built
+  by Cua's own Nix package with the features of its Linux release binary (`portal-input`), the plugin with CMake as its
+  README builds it, with `-DCUA_HYPRLAND_INPUT=ON` as its release build kit builds it, against the guest's Hyprland and
+  with Hyprland's compiler, and its CTest suite passes.
+- **Hyprland 0.57.2 & container mode:** `0.56.0` supports Hyprland 0.57.2 directly (fixing `0.42.1`'s missing `id` IPC
+  field). With `--container`, `run.py` runs the guest in a rootless `systemd-nspawn` container sharing the host GPU
+  (`/dev/dri`) over a Unix socket instead of a KVM VM, keeping Cua Driver's default agent cursor overlay enabled and
+  eliminating v2's VM AT-SPI slowdown. Without `--container`, VMs still pass `--no-overlay` because software-compositing
+  its full-screen layer surface burns >2 CPUs.
 - **Plugin:** loaded and enabled as its README says: `hyprctl plugin load`, then
   `hl.config({plugin = {cua = {enabled = true}}})` in the configuration and `hyprctl reload`. `vm.py` waits for
   `hyprctl -j cua:status` to report its input transport ready, and `ready.json` keeps that status as `cua_status`, with
@@ -230,10 +225,10 @@ grading and the measures are the same: only the desktop tool differs.
   (`skill://cua-driver/LINUX.md`), the transport Cua ships for this, with Claude Code's `ListMcpResourcesTool` and
   `ReadMcpResourceTool` and Codex's `read_mcp_resource`. The debrief names Cua Driver where it named hyprmasq. pi does not
   run with Cua, whose documentation has pi call its CLI.
-- **Agent cursor:** `cua-driver mcp --no-overlay`. Its cursor is a full-screen layer surface that it repaints while it works, for a
-  person to watch, which a desktop composites on its GPU for next to nothing. The VM has no GPU, and its Hyprland composites it in
-  software at more than two of the VM's four CPUs while the driver reads a window, which made its walks 2 to 2.7 times as long
-  and its screenshots twice as long, as [capability-results.md](capability-results.md) measures. No tool of the driver depends on it.
+- **Agent cursor:** in `--container` mode on a host GPU, Cua Driver keeps its default cursor overlay enabled. In software-rendered
+  VMs (without `--container`), the suite passes `cua-driver mcp --no-overlay`, because compositing its full-screen layer surface
+  in software burned more than two of the VM's four CPUs and made walks 2 to 2.7 times as long (see [capability-results.md](capability-results.md)).
+  No tool of the driver depends on it.
 - **Desktop route:** with `--desktop omarchy`, its desktop tools reach a hidden window: `hotkey` with `super+2` reveals the
   window's workspace, and `click`, `drag`, `type_text` and `press_key` with `target: {kind: desktop}` then act on it, with
   `wtype` for text, as its skill's Desktop loop has it. This is what is left for an app that binds the user's seat more
@@ -300,10 +295,11 @@ touch /tmp/cua-form-run/agent-done
 
 [The comparison series](#the-comparison-series) runs Cua Driver on the pinned release with hyprmasq beside it.
 
-#### The series on 0.38.0
+#### Earlier series on 0.38.0 (superseded)
 
-[docs/comparison.md](../docs/comparison.md) and its data `vm-cua*.json` hold Cua Driver 0.38.0, tag `cua-driver-rs-v0.38.0`,
-commit `85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19`, run on 30 October 2026, without the isolated browser's file. This was its setup, which that page cites, as it stood:
+The superseded v1 data `vm-cua*.json` holds Cua Driver 0.38.0, tag `cua-driver-rs-v0.38.0`,
+commit `85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19`, run on 30 October 2026, without the isolated browser's file (replaced
+by v2 and now v3 in [docs/comparison.md](../docs/comparison.md)). This was its setup as it stood:
 
 - **Release:** Cua Driver 0.38.0, the newest non-nightly release of `cua-driver-rs`, from the release tag's source,
   unchanged ([cua/default.nix](cua/default.nix)). The driver is built by Cua's own Nix package with the features of
@@ -355,8 +351,8 @@ commit `85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19`, run on 30 October 2026, witho
 `--backend hypruse` and `--backend computer-use-linux` run the task with one of two Linux computer-use MCP servers that
 claim Hyprland support, in place of hyprmasq, each set up as its own documentation sets it up on Hyprland, for a
 comparison on the whole suite with `--prompt comparison`. Both run as released and without hyprmasq's plugin or any
-other, on the Hyprland of `--source`: 0.57.0 in the published runs, and in [the comparison series](#the-comparison-series) the
-same 0.56.2 as Cua Driver and hyprmasq, on Omarchy's desktop. They keep their defaults, but for computer-use-linux's
+other, on the Hyprland of `--source` (0.57.2 in the current v3 comparison series, 0.56.2 in the superseded v2 series),
+on Omarchy's desktop. They keep their defaults, but for computer-use-linux's
 Hyprland background mode below. The task, its VM, its grading, the timeouts (the
 agent's, and 600 s a tool call) and the agent's isolation are the same as for the other backends: no shell, and the
 tool's MCP server alone, behind `mcp_tap.py` on the vsock port. The tables list each aspect of the setup, what the
@@ -366,12 +362,12 @@ tool's documentation says, and what the suite does, with every difference and it
 
 | Aspect | Its documentation | The suite | Difference and why |
 | --- | --- | --- | --- |
-| Release | PyPI `hypruse`, run with `uvx hypruse` | 0.13.0, the newest, from its PyPI sdist (SHA-256 `321362…e114b`), unchanged, built with nixpkgs' Python 3.14 and `mcp` 1.29.0, its 1040 unit tests passing | Nix in place of uv, as the VM is offline. `mcp` is in its range, `>=1.21.1,<2` |
+| Release | PyPI `hypruse`, run with `uvx hypruse` | 0.15.1 (upgraded from v2's 0.13.0), from its PyPI sdist, unchanged, built with Python 3.14 and pinned `mcp` 1.30.0 (`<2`), 1,110 unit tests passing | Nix in place of uv, as the guest is offline. Pinned to `mcp` 1.30.0 because nixpkgs' `mcp` 2.3.0 wraps non-`ToolError` exceptions into bare `"Error executing tool <name>"` and strips `hypruse`'s recovery hints |
 | Hyprland | 0.54+ for a window's own screenshot, both config managers | The Hyprland of `--source` with the Lua configuration. Its `doctor` passes every check | None |
 | Programs | `grim` (1.5+), `wtype`, `busctl`, optional ImageMagick for `marks` and `wl-clipboard` for the opt-in clipboard tool | grim 1.5.0, wtype 0.4, systemd's busctl and ImageMagick with Ghostscript on its PATH | ImageMagick's build with Ghostscript, whose fonts draw the marks' numbers, which the build without cannot. No wl-clipboard, as the clipboard tool is off by default |
 | libxkbcommon | Found with `ctypes.util.find_library`, through ldconfig on other distributions | The wrapper gives `LD_LIBRARY_PATH` and `ld`, with which Python finds it on NixOS | NixOS has no ldconfig cache. Without it, keys to a hidden window are refused |
-| Server | `claude mcp add -s user hypruse -- uvx hypruse`, a stdio server named `hypruse` | `hypruse` on the vsock port, named `hypruse` for the agent, with the session's variables | None |
-| Screenshots | `HYPRUSE_SCREENSHOT_MODE=file` by default, `image` for a client that renders MCP images and cannot read files (its README and `server.json`) | `HYPRUSE_SCREENSHOT_MODE=image` | The default writes the capture in the VM and returns its path, which the agent on the host, without a file reader, could not open |
+| Server | `claude mcp add -s user hypruse -- uvx hypruse`, a stdio server named `hypruse` | `hypruse` on the container Unix socket (or VM vsock), named `hypruse` for the agent, with the session's variables | None |
+| Screenshots | `HYPRUSE_SCREENSHOT_MODE=file` by default (for clients with `Read`, such as Claude Code), `image` for clients that render MCP images without a file reader | `HYPRUSE_SCREENSHOT_MODE=file` for Claude Code in `--container` mode (sharing `/run/user/1000/hypruse` via the container's shared dir, with `--tools Read` strictly scoped to that dir and path translation in `mcp_tap.py`), and `HYPRUSE_SCREENSHOT_MODE=image` for Codex (and VM runs) | Matches `hypruse`'s own README: Claude Code reads saved files natively without `structuredContent` base64 inflation, while Codex (no file reader) gets inline MCP images |
 | Background mode | Automatic by default: actions on a window other than the user's run in the background, the pointer is refused there unless `background=false` | Automatic, unset | None |
 | Other settings | All opt-in: read-only, confinement, strict, mark, journal, dry run, clipboard. The authentication guard on | Defaults | None |
 | Skill | A skill that teaches its shell verbs, "for agents that run shell commands", installed with `hypruse skill install` | Not given. The server's own instructions reach the agent | The agent has the MCP server and no shell, and the skill's verbs need one |
@@ -382,7 +378,7 @@ tool's documentation says, and what the suite does, with every difference and it
 
 | Aspect | Its documentation | The suite | Difference and why |
 | --- | --- | --- | --- |
-| Release | `cargo install computer-use-linux`, its plugins, npm or prebuilt binaries | 0.7.47, the newest on 7 November 2026, its crate from crates.io (SHA-256 `789c213a…d2ad`), unchanged, built as `cargo install` builds it with the crate's `Cargo.lock`, all three binaries in one directory, and the published runs' 0.7.32 before it | Nix in place of cargo, as the VM is offline. The skill comes from the release's tag, as the crate no longer holds the plugin |
+| Release | `cargo install computer-use-linux`, its plugins, npm or prebuilt binaries | 0.7.59 (upgraded from v2's 0.7.47), its crate from crates.io (tag `v0.7.59`, commit `34bee24`), unchanged, built as `cargo install` builds it with the crate's `Cargo.lock`, all three binaries in one directory | Nix in place of cargo, as the VM is offline. Runs in KVM VMs (not `--container`) because on Hyprland its pointer uses kernel `/dev/uinput`. The skill comes from the release's tag, as the crate no longer holds the plugin |
 | Hyprland | Window targeting with `hyprctl clients -j` and `hyprctl dispatch`. Since 0.7.35, `COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1` to work on a window without focusing it, opt-in: its README's support matrix and settings and its skill name it, its Codex plugin forwards it, and its quick start does not set it | The Hyprland of `--source`. Its `doctor` reports no blocker, and the Hyprland backend lists and focuses windows. **Background mode on** | The docs leave it to the user. A comparison's prompt says the user prefers that their window stays alone, so a user who read the docs for this would set it, and it is the tool's best shot: a hidden window's screenshot and keys work without moving the focus, shown by the form's own events in a VM without an agent. Its pointer still goes through the user's pointer and focuses the window |
 | Pointer | The absolute uinput pointer: `/dev/uinput` for the user, through the `input` group, the udev rule its `install.sh` prints, and the module loaded | All three: the rule, alice in `input`, `uinput` loaded at boot | None |
 | Keys | A keyboard-capable RemoteDesktop portal, xdotool on X11, or ydotool 1.0.3+ with `ydotoold` as the user service its `install.sh` writes | ydotool 1.0.4 and that service, unchanged. xdg-desktop-portal-hyprland has no RemoteDesktop portal | alice gets a group of her own number, 1000: the service's `--socket-own=%U:%U` names it, as on the distributions `install.sh` supports, where each user has one, and NixOS's alice is in `users` |
@@ -692,11 +688,15 @@ python3 bench/startcheck.py --tool cua --series main --source ../hyprland-0.56 -
 
 ## The comparison series
 
-[comparison-series.json](comparison-series.json) holds the rules of a comparison, committed before any result exists: the
-tools with their versions and commits, the models and efforts, the prompt, the sets of tasks, the series with their machine and
-repetitions, the workers, the limits per subscription, the order of the rounds, and what allows a rerun. `series.py` carries them out. The rules give each machine's options; its SSH target, and where a series' results lie on the machine
-that runs `series.py` if not at their path, come from the untracked `bench/machines.local.json`, after
-[machines.example.json](machines.example.json).
+[comparison-series-v3.json](comparison-series-v3.json) holds the rules of the current v3 comparison (Hyprland 0.57.2,
+Opus 5.5 and GPT-6.2 Sol, rootless GPU containers for hyprmasq, Cua Driver 0.56.0 and hypruse 0.15.1, KVM VMs on the
+same machine C for computer-use-linux 0.7.59 plus a 1-round `hyprmasq-vm` calibration). Pass `--rules
+bench/comparison-series-v3.json` to `series.py`. [comparison-series.json](comparison-series.json) holds the frozen v2
+rules (Hyprland 0.56.2 VMs, Sonnet 5.5 and GPT-6.1 Terra) described below: the tools with their versions and commits,
+the models and efforts, the prompt, the sets of tasks, the series with their machine and repetitions, the workers, the
+limits per subscription, the order of the rounds, and what allows a rerun. `series.py` carries them out. The rules give
+each machine's options, its SSH target, and where a series' results lie on the machine that runs `series.py` if not at
+their path, come from the untracked `bench/machines.local.json`, after [machines.example.json](machines.example.json).
 
 ```sh
 python3 bench/series.py check main        # the source and the harnesses on the series' machine, against the rules
@@ -707,44 +707,48 @@ python3 bench/series.py status main       # what is done, passed and excluded
 python3 bench/series.py estimate main     # how many runs, and how long
 ```
 
-The rules hold five series, each with a results directory of its own: `main`, Cua Driver and hyprmasq on every task and
-model, `cua-attach`, Cua Driver with the user's Chromium started with `--remote-debugging-port=0` (`run.py --chromium-options`)
-on the tasks in Chromium, a slice never pooled with `main`, `hyprmasq-machine-a`, one round of hyprmasq on Cua Driver's machine, machine A,
-`cross-check`, a few repetitions of the same on another machine, published as how much the machine moves the numbers
-and never pooled with `main`, and `others`, hypruse and computer-use-linux after `main`, on its machine. A machine moves the numbers
-in two ways. It sets how long everything takes, and it sets where a walk ends against Cua's default budget of 2 s for a first read
-and 1 s after. An agent whose first read was cut names a longer budget and pays for the whole tree on each read from there on,
-which `walk` in `summary.json` shows as `budget_named` and `first_partial`, and that is the agent's reaction and not the machine's speed.
+The v3 rules ([comparison-series-v3.json](comparison-series-v3.json)) hold the active series on machine C:
+`main` (interleaved hyprmasq and Cua Driver, 6 reps × 16 units), `forgejo-user-reply` (replacing `main`'s Forgejo unit
+with `--user-reply`), `cua-firefox-r1-clean` (replacing `main/cua/firefox` round 1 after an outside host load storm),
+`cua-attach` (Cua Driver on the 5 Chromium units with `--remote-debugging-port=0`, never pooled with `main`),
+`hypruse-v2` (192 runs with pinned `mcp 1.30.0`, container-shared `file` mode + scoped `Read` for Claude Code, and
+`--user-reply` on Forgejo only, replacing the superseded `hypruse` v1 series), `hypruse-forgejo-opus-fix` (1 run
+replacing the regex-bugged `hypruse-v2` Forgejo Opus rep 5), `computer-use-linux` (192 runs in 3×2-core KVM VMs for
+`/dev/uinput`), and `hyprmasq-vm` (1 round / 32 runs of hyprmasq in the same KVM VMs to check VM overhead, never pooled
+with `main`). To export v3 from raw results, assemble a symlink tree per setup excluding the replaced runs (`main`'s
+`forgejo-reacting`, `main/cua/firefox/*-1`, and `hypruse-v2` Forgejo Opus rep 5) and run `export.py --registered
+--rules bench/comparison-series-v3.json` (passing `--allow-source-commits` for `v3-cua.json` and `v3-hypruse.json`
+where a replacement slice ran on a later harness commit with identical tool/compositor binaries).
 
-In `main` each tool has its machine, and both run at once, in the same period: Cua Driver on machine A (Ryzen 5 5600X), whose
-walks cost least, on `hyprland-0.56` at `89c988d`, and hyprmasq on machine B (a laptop with Omarchy, Ryzen 7 PRO 4750U), the slowest of the three, on `8935ac7`, the same branch with
-the fix of a defect that closed apps on a real Omarchy as their popups closed. `hyprmasq-machine-a` and `cross-check` measure how much
-the machine moves each tool, per call. `placement` in the rules records why and when, and the two sources differ in that fix
-alone. `--tool cua` selects one tool's half, which runs as a process of its own, and `pace` makes hyprmasq's round N wait until
-Cua Driver's has started. Before a tool's first round, a machine with a `gate` calibrates it on the gate's tasks with 1 VM and with
-its workers, and the series stops if the tool's median call is slower by more than the gate allows (`gate-MACHINE.json`). A
-subscription's limit never ends a round: its runs are excluded and run again once it reset, and such a pass does not count
-towards the passes a round may take. `amendments` in the rules lists every change with its date, and `analysis` how the results
-are read, fixed before the runs. The comparison runs Sonnet and Terra. `main` ran its rounds 1 and 2
-at `3a2f692`, `main-rest` runs rounds 3 to 6 at the fix commit (a series' `rounds`), and `forgejo-fix` Forgejo's rounds 1 and 2
-again, as v2's start step at `3a2f692` gave the focus to the terminal and not to the user's notes, where Forgejo's user types.
-The runs they replace, and Opus's and Sol's, stay on disk and out of the analysis. Opus's and Sol's runs of rounds 1 and 2 stay on disk, unpublished, and every claim is
-scoped to this VM setup, with the effects known to favour either tool as a short list (`analysis.scope` in the rules).
-`export.py --registered` marks a dataset of the
-series, and `render.py` then follows the rules' `analysis`: pass rates with Wilson intervals, a time only where a tool passed at
-least 3 runs, failed runs' times apart, and the runs that left the user's view as it was and kept the user's work.
+The older frozen v2 rules ([comparison-series.json](comparison-series.json)) held five VM series on Hyprland 0.56.2
+(Sonnet 5.5 and GPT-6.1 Terra): `main`, `cua-attach`, `hyprmasq-machine-a`, `cross-check` and `others`. A machine moves
+the numbers in two ways. It sets how long everything takes, and it sets where a walk ends against Cua's default budget
+of 2 s for a first read and 1 s after. An agent whose first read was cut names a longer budget and pays for the whole
+tree on each read from there on, which `walk` in `summary.json` shows as `budget_named` and `first_partial`, and that
+is the agent's reaction and not the machine's speed.
+
+In v2's `main` each tool had its machine: Cua Driver on machine A (Ryzen 5 5600X) and hyprmasq on machine B (Ryzen 7
+PRO 4750U), with `--tool cua`, `pace`, and `gate` calibrating machine speed. A subscription's limit never ends a round:
+its runs are excluded and run again once it resets, and such a pass does not count towards the passes a round may take.
+`amendments` in the rules lists every change with its date, and `analysis` defines how the results are read. `export.py
+--registered` marks a dataset of the series, and `render.py` then follows the rules' `analysis`: pass rates with Wilson
+intervals, a time only where a tool passed at least 3 runs, failed runs' times apart, and the runs that left the user's
+view as it was and kept the user's work.
 
 `review_failures.py` attributes the failed runs by `analysis.failure_attribution`. `bundle` writes a directory per failed run from
-a tree of the published runs, without images, host names, home directories or pass rates. `run` has one Claude and one Codex
-reviewer read each with read-only tools, in processes that load none of the user's settings, and it resumes. `collect` writes the
-one verdict per run that `docs/comparison/data/v2-failures.json` holds and `render.py` draws, any disagreement being `unclear`.
+a tree of the published runs, without images, host names, home directories or pass rates (pass `--no-capability` to omit
+the v2 `capability-results.md` table). `run` has one Claude (`claude-fable-5-2` by default) and one Codex (`gpt-6.1-sol`)
+non-series reviewer read each with read-only tools, in processes that load none of the user's settings, and it resumes.
+`collect` writes the one verdict per run that `docs/comparison/data/v3-failures.json` (or `v2-failures.json`) holds and
+`render.py` draws, any disagreement being `unclear`.
 
 A round is one repetition of the selected tools, their sets one after the other, in an order that rotates from round to round.
 `series.py` moves a run with no `summary.json`, a run
 whose harness stopped for a limit, a login or the provider's failure (`report.infrastructure_failure`), or a run that shared its
-host with work outside the series (`series.other_load`: another QEMU process, or the host's guard holding for another benchmark on the host, in
-`run.json`'s `host_load`), to `excluded/`, logs it in `exclusions.jsonl` with why, waits if a limit gave a time, and runs it again
-on the same machine. Nothing else runs again: a run whose debrief failed keeps its result, with `debrief_error` in `run.json`.
+host with work outside the series (`series.other_load`: another QEMU process, an external bench QEMU VM during a container run,
+the host's guard holding for another benchmark on the host, or `max_load1 > 40` in `run.json`'s `host_load`), to `excluded/`,
+logs it in `exclusions.jsonl` with why, waits if a limit gave a time, and runs it again on the same machine. Nothing else runs
+again: a run whose debrief failed keeps its result, with `debrief_error` in `run.json`.
 
 ## What a run is
 

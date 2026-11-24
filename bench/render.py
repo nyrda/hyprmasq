@@ -59,8 +59,8 @@ has that name: then the last of the datasets names it too. Views:
 - attach: Cua Driver as documented beside Cua Driver with the user's Chromium started with a debugging port.
 - scorecard: the comparison at a glance, per tool and agent: the pass rate as a dot on its interval, the runs that left
   the user's view alone, those that failed because of the tool, and the time and cost against hyprmasq.
-- user-view: per tool, the passed runs that took the focus, the seconds it was away, the Forgejo runs that lost some of
-  the user's typing and the distance the pointer moved.
+- user-view: per tool, the passed runs that took the focus, the seconds it was away and the Forgejo runs that lost some
+  of the user's typing.
 - usage: per tool and agent, the median cost of a run, its requests to the model and its peak context.
 - unit-grid: every task unit against every tool, a square per run coloured by how it ended, from the verdicts of
   review_failures.py, and each tool's typical time for its passed runs.
@@ -192,20 +192,22 @@ class Svg:
         attrs += f' transform="rotate({num(rotate)} {num(x)} {num(y)})"' if rotate else ""
         self.add(f'<text x="{num(x)}" y="{num(y)}" class="{cls}" font-size="{size}"{attrs}>{html.escape(s)}</text>')
 
-    def rect(self, x, y, w, h, cls, rx=0):
+    def rect(self, x, y, w, h, cls, rx=0, opacity=None):
         r = f' rx="{num(rx)}"' if rx else ""
-        self.add(f'<rect x="{num(x)}" y="{num(y)}" width="{num(max(w, 0))}" height="{num(h)}" class="{cls}"{r}/>')
+        op = f' fill-opacity="{opacity}"' if opacity is not None else ""
+        self.add(f'<rect x="{num(x)}" y="{num(y)}" width="{num(max(w, 0))}" height="{num(h)}" class="{cls}"{r}{op}/>')
 
-    def bar(self, x, y, w, h, cls, round_end=True):
+    def bar(self, x, y, w, h, cls, round_end=True, opacity=None):
         """A bar from x to the right, square at its start, with a rounded end."""
         if w <= 0:
             return
         r = min(3, h / 2, w) if round_end else 0
         if not r:
-            return self.rect(x, y, w, h, cls)
+            return self.rect(x, y, w, h, cls, opacity=opacity)
+        op = f' fill-opacity="{opacity}"' if opacity is not None else ""
         self.add(
             f'<path d="M{num(x)} {num(y)}H{num(x + w - r)}Q{num(x + w)} {num(y)} {num(x + w)} {num(y + r)}'
-            f'V{num(y + h - r)}Q{num(x + w)} {num(y + h)} {num(x + w - r)} {num(y + h)}H{num(x)}Z" class="{cls}"/>'
+            f'V{num(y + h - r)}Q{num(x + w)} {num(y + h)} {num(x + w - r)} {num(y + h)}H{num(x)}Z" class="{cls}"{op}/>'
         )
 
     def line(self, x1, y1, x2, y2, cls):
@@ -1075,7 +1077,7 @@ def act_figure(data):
 TOOLS = {"hyprmasq": ("hyprmasq", "s0"), "cua": ("Cua Driver", "s1"), "openai-cu": ("OpenAI computer use", "s2"),
          "hypruse": ("hypruse", "s3"), "computer-use-linux": ("computer-use-linux", "s4"),
          "claude-cu": ("Claude computer use", "s6")}
-PLATFORMS = {"hyprland": "Hyprland", "hyprland-vm": "Hyprland VM", "macos": "macOS"}
+PLATFORMS = {"hyprland": "Hyprland", "hyprland-container": "Hyprland container", "hyprland-vm": "Hyprland VM", "macos": "macOS"}
 # The tasks whose page is in the user's browser, Firefox or Chromium, which the VM's runs name. Forgejo's is always
 # Chromium.
 BROWSER_TASKS = {"board", "trace", "calc"}
@@ -1125,7 +1127,8 @@ def compared(r):
         variant = r.get("variant") or ""
         r = dict(r, task=r.get("task_of", r["task"]), toolkit=variant.split("-", 1)[0] if not variant[:1].isdigit()
                  else "gtk4")
-    return dict(r, platform="hyprland-vm", wall_seconds=r["wall_s"], tool_seconds=r["tools_s"],
+    platform = "hyprland-container" if r.get("container") else "hyprland-vm"
+    return dict(r, platform=platform, wall_seconds=r["wall_s"], tool_seconds=r["tools_s"],
                 usage={"input_tokens": r.get("input_tokens"), "uncached_input_tokens": uncached,
                        "cost_usd": r.get("cost_usd")},
                 focus={"seconds_away_from_user": r.get("focus_away_s")},
@@ -1466,7 +1469,10 @@ def registered_table(data, runs):
 # (bench/comparison-series.json, analysis).
 
 SETUPS = {"hyprmasq": "hyprmasq", "cua": "Cua Driver", "hypruse": "hypruse", "computer-use-linux": "computer-use-linux",
-          "cua-attach": "Cua Driver, debugging port", "hyprmasq-machine-a": "hyprmasq, machine A"}
+          "cua-attach": "Cua Driver, debugging port", "hyprmasq-machine-a": "hyprmasq, machine A",
+          "hyprmasq-vm": "hyprmasq, KVM VM",
+          "ts-hyprmasq": "hyprmasq (ToolSearch)", "ts-cua": "Cua Driver (ToolSearch)",
+          "ts-hypruse": "hypruse (ToolSearch)", "ts-computer-use-linux": "computer-use-linux (ToolSearch)"}
 IMAGE_TASKS = {"board", "trace"}
 HEADLINE_SPLITS = (("Apps", lambda r: base_task(r) not in IMAGE_TASKS),
                    ("Image tasks", lambda r: base_task(r) in IMAGE_TASKS),
@@ -1481,7 +1487,8 @@ GROUP_CAPTIONS = {"Apps": "Apps", "Image tasks": "Reading a photo"}
 DESIGNS = {"hyprmasq": "background", "cua": "background first", "hypruse": "pointer in the foreground",
            "computer-use-linux": "pointer in the foreground"}
 # The setups that are slices of their own, which the rules never pool with the main series.
-SLICES = {"cua-attach", "hyprmasq-machine-a"}
+SLICES = {"cua-attach", "hyprmasq-machine-a", "hyprmasq-vm",
+          "ts-hyprmasq", "ts-cua", "ts-hypruse", "ts-computer-use-linux"}
 
 
 def base_task(r):
@@ -1489,7 +1496,7 @@ def base_task(r):
 
 
 def setup_of(r):
-    return r["dataset"].removeprefix("v2-").removesuffix("-chromium")
+    return re.sub(r"^v\d+-", "", r["dataset"]).removesuffix("-chromium")
 
 
 def unit_of(r):
@@ -1598,7 +1605,9 @@ def headline_time_table(data):
             tools, _ = time_ratio(ours, base, "tool_seconds", data)
             count = lambda group, unit: sum(passed(r) for r in group if unit_of(r) == unit)
             left = [u for u in dict.fromkeys(unit_of(r) for r in ours) if u not in entered]
-            rows.append([SETUPS[setup], model_name(model), f"{wall:.2f}" if wall else "–", f"{tools:.2f}" if tools else "–",
+            mixed_vm = bool(base) and base[0].get("platform") == "hyprland-container" and ours[0].get("platform") == "hyprland-vm"
+            label = f"{SETUPS[setup]} (KVM VM)" if mixed_vm else SETUPS[setup]
+            rows.append([label, model_name(model), f"{wall:.2f}" if wall else "–", f"{tools:.2f}" if tools else "–",
                          f"{len(entered)} of {len(entered) + len(left)}",
                          "; ".join(f"{unit_title(u)} (passed: {SETUPS[setup]} {count(ours, u)}, hyprmasq {count(base, u)})"
                                    for u in left) or "–"])
@@ -1619,6 +1628,88 @@ def machine_table(data):
     return markdown_table(["Agent", "Machine B, s a call (runs)", "Machine A, s a call (runs)", "A over B"], rows)
 
 
+def vm_overhead_table(data):
+    """hyprmasq in GPU containers beside one full round of hyprmasq in 3x2-core KVM VMs on the same machine C."""
+    rows = []
+    groups = dict(setups(of_task(data, None)))
+    for model in models(groups["hyprmasq"]):
+        c_runs = [r for r in groups["hyprmasq"] if r["model"] == model and passed(r)]
+        v_runs = [r for r in groups["hyprmasq-vm"] if r["model"] == model and passed(r)]
+        units = sorted({unit_of(r) for r in v_runs}, key=unit_sort)
+        w_ratios, t_ratios = [], []
+        for u in units:
+            cm = median([r["wall_seconds"] for r in c_runs if unit_of(r) == u])
+            vm = median([r["wall_seconds"] for r in v_runs if unit_of(r) == u])
+            ct = median([r["tool_seconds"] for r in c_runs if unit_of(r) == u])
+            vt = median([r["tool_seconds"] for r in v_runs if unit_of(r) == u])
+            if cm and vm:
+                w_ratios.append(vm / cm)
+            if ct and vt:
+                t_ratios.append(vt / ct)
+        gmean = lambda xs: math.exp(sum(map(math.log, xs)) / len(xs)) if xs else 0
+        rows.append([model_name(model),
+                     f"{len(v_runs)}/{sum(r['model'] == model for r in groups['hyprmasq-vm'])}",
+                     f"{median([r['wall_seconds'] for r in c_runs]):.1f} s",
+                     f"{median([r['wall_seconds'] for r in v_runs]):.1f} s",
+                     f"{gmean(w_ratios):.2f}×",
+                     f"{median([r['tool_seconds'] for r in c_runs]):.1f} s",
+                     f"{median([r['tool_seconds'] for r in v_runs]):.1f} s",
+                     f"{gmean(t_ratios):.2f}×"])
+    return markdown_table(["Agent", "VM passed", "Container wall med", "KVM VM wall med", "VM / container wall",
+                           "Container tool med", "KVM VM tool med", "VM / container tool"], rows)
+
+
+def toolsearch_table(data):
+    """Claude Opus 5.5 with eager MCP tool schemas beside deferred loading via ToolSearch, for all four tools,
+    using paired per-task ratios on common >=3-pass units to avoid survivorship bias."""
+    groups = dict(setups(of_task(data, None)))
+    rows = []
+    for base in ("hyprmasq", "cua", "hypruse", "computer-use-linux"):
+        if base not in groups or f"ts-{base}" not in groups:
+            continue
+        ts_models = set(models(groups[f"ts-{base}"]))
+        eager_rs = [r for r in groups[base] if r["model"] in ts_models]
+        ts_rs = [r for r in groups[f"ts-{base}"] if r["model"] in ts_models]
+        w_ratio, shared = time_ratio(ts_rs, eager_rs, "wall_seconds", data)
+        c_all = cost_ratio(ts_rs, eager_rs)
+        c_ok = cost_ratio([r for r in ts_rs if passed(r)], [r for r in eager_rs if passed(r)])
+        e_meds, t_meds = unit_medians(eager_rs, "wall_seconds", data), unit_medians(ts_rs, "wall_seconds", data)
+        base_cpu = next((r.get("cpu") for r in eager_rs if r.get("cpu")), None)
+        is_vm = bool(eager_rs) and eager_rs[0].get("platform") == "hyprland-vm"
+        for label, rs, eager in (("Eager schemas", eager_rs, True), ("ToolSearch", ts_rs, False)):
+            ok = [r for r in rs if passed(r)]
+            quiet = sum(bool(r["no_view_change"]) for r in ok)
+            firsts = [r["context"]["first_input_tokens"] for r in rs if (r.get("context") or {}).get("first_input_tokens")]
+            peaks = [r["context"]["peak_input_tokens"] for r in rs if (r.get("context") or {}).get("peak_input_tokens")]
+            reqs = [r["context"]["request_count"] for r in rs if (r.get("context") or {}).get("request_count")]
+            costs = [r["usage"]["cost_usd"] for r in rs if r["usage"].get("cost_usd") is not None]
+            row_cpu = next((r.get("cpu") for r in rs if r.get("cpu")), None)
+            diff_cpu = not eager and bool(base_cpu and row_cpu and row_cpu != base_cpu)
+            med_map = e_meds if eager else t_meds
+            common_walls = [med_map[u] for u in shared]
+            tool_label = SETUPS[base] + (" (KVM VM)" if is_vm else "")
+            mode_label = label + (" (2nd host)" if diff_cpu else "")
+            wall_cell = (f"{median(common_walls):.1f} s" + ("†" if diff_cpu else "")) if common_walls else "–"
+            ratio_cell = ("1.00×" if eager else (f"{w_ratio:.2f}×" + ("†" if diff_cpu else ""))) if w_ratio else "–"
+            cost_vs = ("1.00×" if eager else f"{c_all:.2f}× / {c_ok:.2f}×") if (c_all and c_ok) else "–"
+            rows.append([
+                tool_label, mode_label, share_with_interval(rs), f"{quiet}/{len(ok)}",
+                f"{median(firsts) / 1000:.1f}" if firsts else "–",
+                f"{median(peaks) / 1000:.1f}" if peaks else "–",
+                f"{median(reqs):.1f}" if reqs else "–",
+                f"${median(costs):.2f}" if costs else "–",
+                f"${sum(costs):.1f}" if costs else "–",
+                cost_vs,
+                wall_cell,
+                ratio_cell,
+            ])
+    return markdown_table(
+        ["Tool", "Mode", "Passed (95 % interval)", "No view change, passed", "First req k", "Peak ctx k",
+         "Requests", "Med cost", "Total cost", "Cost vs eager (all / passed)", "Wall s, common tasks", "Wall vs eager"],
+        rows,
+    )
+
+
 def user_table(data):
     """The user's view beside the result, as the rules ask: never alone, as a run that did nothing leaves it too."""
     rows = []
@@ -1629,15 +1720,20 @@ def user_table(data):
             view = lambda group: f"{sum(bool(r['no_view_change']) for r in group)}/{len(group)}"
             work = [r["user_work"] for r in m if r.get("user_work")]
             moved = [r["cursor_displacement_px"] for r in m if r.get("cursor_displacement_px") is not None]
+            # desktop_input_to_user_window and desktop_shortcuts are instrumented for Cua Driver (and always 0 for
+            # hyprmasq, which has no desktop input route); hypruse and computer-use-linux are not instrumented for them.
+            has_desktop_audit = bool(m) and m[0]["backend"] in ("hyprmasq", "cua")
+            moved_nz = sum(v > 0 for v in moved)
+            moved_text = f"{moved_nz}/{len(moved)} (med {median(moved):.0f})" if moved else "–"
             rows.append([SETUPS[setup], model_name(model), f"{len(ok)}/{len(m)}", view(m), view(ok),
-                         str(sum(r.get("desktop_input_to_user_window", 0) > 0 for r in m)),
-                         str(sum(r.get("desktop_shortcuts", 0) > 0 for r in m)),
-                         f"{median(moved):.0f}" if moved else "–",
+                         str(sum(r.get("desktop_input_to_user_window", 0) > 0 for r in m)) if has_desktop_audit else "–",
+                         str(sum(r.get("desktop_shortcuts", 0) > 0 for r in m)) if has_desktop_audit else "–",
+                         moved_text,
                          f"{sum(bool(w.get('kept')) for w in work)}/{len(work)}" if work else "–",
                          str(sum(w.get("lost_chars") or 0 for w in work)) if work else "–"])
     return markdown_table(["Tool", "Agent", "Passed", "No view change, all runs", "No view change, passed runs",
                            "Runs with input to the user's window", "Runs with compositor shortcuts",
-                           "Cursor moved px, median", "Forgejo: user's work kept", "Forgejo: characters lost"], rows)
+                           "Net end cursor disp. ≠0 (med px)", "Forgejo: user's work kept", "Forgejo: characters lost"], rows)
 
 
 def frames_table(data):
@@ -1712,7 +1808,9 @@ def scorecard_figure(data):
     runs, verdicts = of_task(data, None), verdict_of(data)
     groups = dict(setups(runs))
     svg = Svg()
-    top = header(svg, "Four tools, the same 16 tasks",
+    span = date_span(runs)
+    title = f"Four tools, the same 16 tasks · {span}" if span else "Four tools, the same 16 tasks"
+    top = header(svg, title,
                  ["Six runs per task and agent. The dot is the pass rate and the line its 95 % interval: where two lines",
                   "overlap, the difference may be chance. Under each tool is where it is built to work. Time and cost are",
                   "multiples of hyprmasq's on the same task."])
@@ -1736,13 +1834,18 @@ def scorecard_figure(data):
     y = top + 26
     grid_top = y
     body = Svg()
+    base_is_container = bool(groups.get("hyprmasq")) and groups["hyprmasq"][0].get("platform") == "hyprland-container"
+    has_vm_tool = base_is_container and any(rs[0].get("platform") == "hyprland-vm" for s, rs in groups.items() if s != "hyprmasq")
     for setup, rs in groups.items():
         rows = models(rs)
         body.line(PAD, y, WIDTH - PAD, y, "grid")
         cls = TOOLS[rs[0]["backend"]][1]
         block = len(rows) * row
         body.rect(PAD, y + gap - 1, 4, block - 6, cls, rx=2)
+        is_vm_mixed = base_is_container and rs[0].get("platform") == "hyprland-vm"
         design = DESIGNS.get(setup) if len(rows) > 1 else None
+        if design and is_vm_mixed:
+            design = "fg pointer · KVM VM"
         body.text(PAD + 12, y + gap + block / 2 - (10 if design else 3), SETUPS[setup], size=13.5, weight="600")
         if design:
             body.text(PAD + 12, y + gap + block / 2 + 6, design, cls="m", size=10.5)
@@ -1766,13 +1869,18 @@ def scorecard_figure(data):
             if setup == "hyprmasq":
                 cells += [(time_x, "1×"), (cost_x, "1×")]
             else:
-                cells += [(time_x, times(time_ratio(ours, base, "wall_seconds", data)[0])), (cost_x, times(cost_ratio(ours, base)))]
+                t_label = times(time_ratio(ours, base, "wall_seconds", data)[0]) + ("†" if is_vm_mixed else "")
+                cells += [(time_x, t_label), (cost_x, times(cost_ratio(ours, base)))]
             for x, text in cells:
                 body.text(x, cy + 4.5, text, cls="m" if setup == "hyprmasq" and text == "1×" else "t", size=13, anchor="middle")
         y += block + gap + 2
     for t in ticks:
         svg.line(at(t), grid_top, at(t), y - 2, "grid")
     svg.items += body.items
+    if has_vm_tool:
+        svg.text(PAD, y + 12, "† Ran in 2-core KVM VMs (/dev/uinput), not GPU containers; its time multiple includes VM overhead.",
+                 cls="m", size=10.5)
+        y += 18
     svg.height = y + 12
     alt = ("Per tool and agent: the pass rate as a dot on its 95 % interval, the runs that left the user's view alone as a "
            "bar, the runs that failed because of the tool, and the time and cost as multiples of hyprmasq's.")
@@ -1781,8 +1889,8 @@ def scorecard_figure(data):
 
 def user_view_figure(data):
     """What the user saw while the agent worked, a row per tool with the runs of every agent: the passed runs that took
-    the focus, their median seconds with the focus away, the Forgejo runs that lost some of what the user typed, and the
-    median distance the pointer was moved. Less is better in every column."""
+    the focus, their median seconds with the focus away, and the Forgejo runs that lost some of what the user typed.
+    Less is better in every column."""
     runs = of_task(data, None)
     svg = Svg()
     top = header(svg, "What the user saw while the agent worked",
@@ -1793,16 +1901,14 @@ def user_view_figure(data):
         ok = [r for r in rs if passed(r)]
         away = [(r.get("focus") or {}).get("seconds_away_from_user") or 0 for r in ok]
         work = [r["user_work"] for r in rs if r.get("user_work")]
-        moved = [r["cursor_displacement_px"] for r in rs if r.get("cursor_displacement_px") is not None]
-        took, lost = sum(a >= 1 for a in away), sum(not w.get("kept") for w in work)
+        took, lost = sum(a > 0 for a in away), sum(not w.get("kept") for w in work)
         rows.append((setup, rs, [
             (took / len(ok) if ok else 0, f"{took} of {len(ok)}" if ok else "–"),
             (median(away) if away else 0, f"{median(away):.0f} s" if away else "–"),
-            (lost / len(work) if work else 0, f"{lost} of {len(work)}" if work else "–"),
-            (median(moved) if moved else 0, f"{median(moved):.0f} px" if moved else "–")]))
+            (lost / len(work) if work else 0, f"{lost} of {len(work)}" if work else "–")]))
     heads = (("Took the focus", "passed runs", 1), ("Focus away", "median, passed runs", None),
-             ("Lost the user's typing", "runs of the Forgejo task", 1), ("Moved the pointer", "median distance, all runs", None))
-    x0, bar_w, row = PAD + 162, 74, 40
+             ("Lost the user's typing", "runs of the Forgejo task", 1))
+    x0, bar_w, row = PAD + 162, 108, 40
     panel = (WIDTH - PAD - x0) / len(heads)
     for i, (title, note, _) in enumerate(heads):
         svg.text(x0 + i * panel, top, title, cls="t2", size=12, weight="600")
@@ -1823,8 +1929,8 @@ def user_view_figure(data):
             svg.text(x + bar_w + 8, cy + 4.5, text, size=12.5)
         y += row
     svg.height = y + 10
-    alt = ("Per tool: the passed runs that took the focus from the user, the median seconds the focus was away, the Forgejo "
-           "runs that lost some of what the user typed meanwhile, and the median distance the pointer was moved.")
+    alt = ("Per tool: the passed runs that took the focus from the user, the median seconds the focus was away, and the "
+           "Forgejo runs that lost some of what the user typed meanwhile.")
     return svg, alt
 
 
@@ -1839,7 +1945,7 @@ def usage_figure(data):
                   "to the model, and peak context is the largest one. A bar with a break runs off its column's scale."])
     context = lambda key: lambda r: (r.get("context") or {}).get(key)
     heads = (("Cost of a run", lambda r: r["usage"]["cost_usd"], lambda v: f"${v:.2f}"),
-             ("Requests to the model", context("request_count"), lambda v: f"{v:.0f}"),
+             ("Requests to the model", context("request_count"), lambda v: f"{v:.1f}".rstrip("0").rstrip(".")),
              ("Peak context", lambda r: per_k(context("peak_input_tokens")(r)), lambda v: f"{v:.0f}k"))
     rows = []
     for setup, rs in setups(runs):
@@ -1886,6 +1992,113 @@ def usage_figure(data):
     return svg, alt
 
 
+def toolsearch_figure(data):
+    """Claude Opus 5.5 with eager MCP tool schemas beside deferred loading via ToolSearch, for all four tools:
+    runs passed with 95 % Wilson interval, median first-request tokens, median peak context, median cost, and
+    paired per-task wall time (median of unit medians across units with >=3 passes in both modes, plus geometric mean ratio)."""
+    runs = of_task(data, None)
+    groups = dict(setups(runs))
+    svg = Svg()
+    span = date_span(runs)
+    title = f"Deferred tool loading (Claude Opus 5.5) · {span}" if span else "Deferred tool loading (Claude Opus 5.5)"
+    top = header(svg, title,
+                 ["Eager MCP schemas (lighter bars) against Claude Code's ToolSearch (solid bars) across all 16 tasks.",
+                  "Dot is pass rate with 95 % interval. Tokens and cost are medians of all runs, wall time is paired on common passed tasks."])
+    blocks = []
+    other_cpus = []
+    for base in ("hyprmasq", "cua", "hypruse", "computer-use-linux"):
+        if base not in groups or f"ts-{base}" not in groups:
+            continue
+        ts_models = set(models(groups[f"ts-{base}"]))
+        eager_rs = [r for r in groups[base] if r["model"] in ts_models]
+        ts_rs = [r for r in groups[f"ts-{base}"] if r["model"] in ts_models]
+        w_ratio, shared = time_ratio(ts_rs, eager_rs, "wall_seconds", data)
+        e_meds, t_meds = unit_medians(eager_rs, "wall_seconds", data), unit_medians(ts_rs, "wall_seconds", data)
+        base_cpu = next((r.get("cpu") for r in eager_rs if r.get("cpu")), None)
+        is_vm = bool(eager_rs) and eager_rs[0].get("platform") == "hyprland-vm"
+        pairs = []
+        for label, rs, eager in (("Eager", eager_rs, True), ("ToolSearch", ts_rs, False)):
+            firsts = [per_k((r.get("context") or {}).get("first_input_tokens")) for r in rs]
+            peaks = [per_k((r.get("context") or {}).get("peak_input_tokens")) for r in rs]
+            costs = [r["usage"]["cost_usd"] for r in rs if r["usage"].get("cost_usd") is not None]
+            med_map = e_meds if eager else t_meds
+            common_walls = [med_map[u] for u in shared]
+            row_cpu = next((r.get("cpu") for r in rs if r.get("cpu")), None)
+            diff_cpu = not eager and bool(base_cpu and row_cpu and row_cpu != base_cpu)
+            if diff_cpu and row_cpu not in other_cpus:
+                other_cpus.append(row_cpu)
+            pairs.append((label, eager, diff_cpu, w_ratio, rs, [
+                median(v for v in firsts if v is not None),
+                median(v for v in peaks if v is not None),
+                median(costs) if costs else None,
+                median(common_walls) if common_walls else None,
+            ]))
+        blocks.append((base, TOOLS[groups[base][0]["backend"]][1], is_vm, pairs))
+
+    mode_x, axis_x, axis_w, row, gap = PAD + 148, PAD + 220, 64, 25, 9
+    cols = (
+        ("First request", "median, all runs", 364, 62, lambda v, d, e, r: f"{v:.1f}k" if v < 10 else f"{v:.0f}k"),
+        ("Peak context", "median, all runs", 472, 62, lambda v, d, e, r: f"{v:.0f}k"),
+        ("Median cost", "median, all runs", 584, 62, lambda v, d, e, r: f"${v:.2f}"),
+        ("Wall time", "common tasks", 704, 54,
+         lambda v, d, e, r: f"{v:.0f} s" if e else f"{v:.0f} s" + ("†" if d else "") + (f" ({r:.2f}×)" if r else "")),
+    )
+    all_rs = [rs for _, _, _, pairs in blocks for _, _, _, _, rs, _ in pairs if rs]
+    start = min(0.5, math.floor(min(wilson(sum(passed(r) for r in rs), len(rs))[0] for rs in all_rs) * 4) / 4) if all_rs else 0.5
+    at = lambda share: axis_x + axis_w * (share - start) / (1 - start)
+    ticks = (start, (start + 1) / 2, 1)
+
+    top += 8
+    svg.text(axis_x, top, "Runs passed", cls="t2", size=12, weight="600")
+    for t in ticks:
+        svg.text(at(t), top + 15, f"{100 * t:.0f} %", cls="m", size=10.5, anchor="middle")
+    limits = []
+    for i, (title, sub, x, _, _) in enumerate(cols):
+        svg.text(x, top, title, cls="t2", size=12, weight="600")
+        svg.text(x, top + 15, sub, cls="m", size=10.5)
+        vals = [cells[i] for _, _, _, pairs in blocks for _, _, _, _, _, cells in pairs if cells[i] is not None]
+        limits.append(max(vals) if vals else 1)
+
+    y = top + 26
+    grid_top = y
+    body = Svg()
+    for base, cls, is_vm, pairs in blocks:
+        body.line(PAD, y, WIDTH - PAD, y, "grid")
+        block = len(pairs) * row
+        body.rect(PAD, y + gap - 1, 4, block - 6, cls, rx=2)
+        body.text(PAD + 12, y + gap + block / 2 - (9 if is_vm else 3), SETUPS[base], size=13, weight="600")
+        if is_vm:
+            body.text(PAD + 12, y + gap + block / 2 + 7, "KVM VM", cls="m", size=10.5)
+        for j, (label, eager, diff_cpu, w_ratio, rs, cells) in enumerate(pairs):
+            cy = y + gap + j * row + 9
+            body.text(mode_x, cy + 4, label, cls="m" if eager else "t2", size=11.5)
+            ok = sum(passed(r) for r in rs)
+            low, high = wilson(ok, len(rs))
+            body.line(at(low), cy, at(high), cy, "whisker")
+            body.circle(at(ok / len(rs)), cy, 4.5, "dot")
+            body.text(axis_x + axis_w + 8, cy + 4.5, f"{ok}/{len(rs)}", cls="t2" if eager else "t", size=12)
+            for i, (value, (_, _, x, bar_w, fmt_val)) in enumerate(zip(cells, cols)):
+                if value is None:
+                    body.text(x, cy + 4.5, "–", cls="m", size=12)
+                    continue
+                w = bar_w * value / (limits[i] or 1)
+                body.bar(x, cy - 5, w, 10, cls, opacity=0.45 if eager else None)
+                body.text(x + w + 6, cy + 4.5, fmt_val(value, diff_cpu, eager, w_ratio), cls="t2" if eager else "t", size=11.5)
+        y += block + gap + 2
+    for t in ticks:
+        svg.line(at(t), grid_top, at(t), y - 2, "grid")
+    svg.items += body.items
+    if other_cpus:
+        cpu_note = ", ".join(other_cpus)
+        svg.text(PAD, y + 12, f"† ToolSearch ran in KVM VMs on a second host ({cpu_note}), so its wall time is not directly comparable.",
+                 cls="m", size=10.5)
+        y += 18
+    svg.height = y + 12
+    alt = ("Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, "
+           "median first-request tokens, median peak context, median cost per run and paired wall time on common passed tasks.")
+    return svg, alt
+
+
 UNIT_ORDER = ("form", "files", "inkscape", "thunderbird", "forgejo", "calc", "board-dnd", "board-pointer", "trace")
 
 
@@ -1922,9 +2135,13 @@ def unit_grid_figure(data):
     groups = dict(setups(runs))
     agents = models(runs)
     svg = Svg()
-    top = header(svg, "How each task went, tool by tool",
-                 ["Left: each square is one run, six per agent, coloured by how it ended. Right: each tool's typical time for",
-                  "the runs it passed, further left is faster. A hollow dot means only one agent passed enough runs to time."],
+    base_is_container = bool(groups.get("hyprmasq")) and groups["hyprmasq"][0].get("platform") == "hyprland-container"
+    has_vm_tool = base_is_container and any(rs[0].get("platform") == "hyprland-vm" for s, rs in groups.items() if s != "hyprmasq")
+    sub = ["Left: each square is one run, six per agent, coloured by how it ended. Right: each tool's typical time for",
+           "the runs it passed, further left is faster. A hollow dot means only one agent passed enough runs to time."]
+    if has_vm_tool:
+        sub.append("Tools marked (VM) ran in 2-core KVM VMs rather than GPU containers; their times include VM overhead.")
+    top = header(svg, "How each task went, tool by tool", sub,
                  [("swatch", "pass", "Passed")] + [("swatch", cls, label) for _, label, cls in VERDICTS])
     label_w, column, row, size, pitch, gap = 246, 92, 25, 6, 6.6, 4
     xs = {s: PAD + label_w + i * column for i, s in enumerate(groups)}
@@ -1934,7 +2151,11 @@ def unit_grid_figure(data):
     at_time = lambda t: strip_x + strip_w * (math.log10(t) - low) / (high - low)
     for s, x in xs.items():
         name = SETUPS[s]
-        lines = ("computer-", "use-linux") if text_width(name, 11, True) > column - 10 else ("", name)
+        is_vm_mixed = base_is_container and groups[s][0].get("platform") == "hyprland-vm"
+        if is_vm_mixed and s == "computer-use-linux":
+            lines = ("computer-", "use-linux (VM)")
+        else:
+            lines = ("computer-", "use-linux") if text_width(name, 11, True) > column - 10 else ("", name)
         for i, line in enumerate(lines):
             svg.text(x, top + i * 13, line, size=11, weight="600")
         svg.rect(x, top + 18, 2 * 6 * pitch + gap - (pitch - size), 3, TOOLS[s][1], rx=1.5)
@@ -2164,8 +2385,7 @@ FIGURES = {"scoreboard": scoreboard, "time": time_figure, "kinds": kinds_figure,
            "comparison-pooled": lambda data: comparison_figure(data, pooled="agents"),
            "probe": probe_figure, "probe-tasks": probe_tasks_figure, "attribution": attribution_figure,
            "scorecard": scorecard_figure, "unit-grid": unit_grid_figure, "user-view": user_view_figure, "usage": usage_figure,
-
-           "toolkits": toolkits_figure}
+           "toolsearch": toolsearch_figure, "toolkits": toolkits_figure}
 
 
 # The tables.
@@ -2310,7 +2530,8 @@ def toolkits_table(data):
 
 TABLES = {"costs": costs_table, "table": task_table, "kinds-table": kinds_table, "compare-table": compare_table,
           "comparison-table": comparison_table, "toolkits-table": toolkits_table, "probe-table": probe_table,
-          "headline": headline_table, "headline-time": headline_time_table, "machine": machine_table, "user": user_table,
+          "headline": headline_table, "headline-time": headline_time_table, "machine": machine_table,
+          "vm-overhead": vm_overhead_table, "toolsearch-table": toolsearch_table, "user": user_table,
           "frames": frames_table, "walks": walks_table, "attach": attach_table, "attribution-table": attribution_table}
 # The views that take a TASK, and those that take an earlier build's dataset instead.
 BY_TASK = {"time", "table", "kinds", "kinds-table", "comparison", "comparison-time", "comparison-table"}
@@ -2389,6 +2610,8 @@ TABLE_SUMMARIES = {"headline": "Numbers: pass rates with their intervals, per ag
                    "frames": "Numbers: first frames and unchanged frames, per task",
                    "walks": "Numbers: Cua Driver's accessibility walks",
                    "attach": "Numbers: Cua Driver with and without the debugging port",
+                   "vm-overhead": "Numbers: hyprmasq in GPU containers vs 3×2-core KVM VMs on the same host",
+                   "toolsearch-table": "Numbers: Claude Opus 5.5 with eager schemas vs ToolSearch",
                    "attribution-table": "Each task's failed runs, with the reasons for unclear",
                    "costs": "Tokens and cost per agent", "kinds-table": "Numbers: seconds per question of each kind",
                    "compare-table": "Numbers before → after", "toolkits-table": "Numbers per toolkit and agent"}

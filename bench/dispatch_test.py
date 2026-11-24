@@ -707,6 +707,29 @@ class ApiKeys(unittest.TestCase):
             self.assertEqual(json.load(f)["key"], sha(""))
         self.assertNowhereBut(calls, printed)
 
+    def test_parse_task_set_and_per_build_user_reply(self):
+        parser = argparse.ArgumentParser()
+        parser.error = lambda msg: (_ for _ in ()).throw(ValueError(msg))
+        tasks = [("files", None), ("forgejo", "reacting"), ("form", "25")]
+        self.assertEqual(dispatch.parse_task_set(["forgejo:reacting"], tasks, parser), {("forgejo", "reacting")})
+        self.assertEqual(dispatch.parse_task_set(["files"], tasks, parser), {("files", None)})
+        with self.assertRaises(ValueError):
+            dispatch.parse_task_set(["missing"], tasks, parser)
+        host = dispatch.Host("me@box")
+        host.base = self.base
+        build = dispatch.Build(self.out, {"path": self.dir.name, "commit": "b" * 40, "task": "forgejo",
+                                          "variant": "reacting", "user_reply": True})
+        args = argparse.Namespace(display="1920x1080@1", timeout=60, max_calls=0, no_debrief=True, user_reply=False,
+                                  backend="hyprmasq", prompt="comparison", browser="firefox", desktop="omarchy",
+                                  chromium_options="", mcp_args="")
+        remote = dispatch.Remote(self.harness, [build], [("codex", "m", None)], args, self.dir.name,
+                                 dispatch.Queue([]), None)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(remote.execute(host, 0, dispatch.Job(build, "codex", "m", 1)), "done")
+        with open(self.log) as f:
+            calls = [json.loads(line) for line in f]
+        self.assertTrue(any("--user-reply" in " ".join(c["argv"]) for c in calls if c["tool"] == "ssh"))
+
 
 if __name__ == "__main__":
     unittest.main()

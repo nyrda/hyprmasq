@@ -588,7 +588,7 @@ class Remote:
             driver_dir = self.driver_dir(host, b)
             call = (f"run.build_driver({driver_dir!r}, {self.tree(host, b.commit)!r}, {b.task!r}, "
                     f"{b.variant!r}, {self.args.display!r}, {self.args.backend!r}, {self.args.browser!r}, "
-                    f"{self.args.desktop!r})")
+                    f"{self.args.desktop!r}, container={bool(getattr(self.args, 'container', False))!r})")
             identity = (f"print(json.dumps(run.driver_identity({driver_dir + '/driver'!r}, {driver_dir!r}, "
                         f"{self.args.backend!r})))")
             built = self.sh(host, f"""
@@ -614,11 +614,13 @@ class Remote:
             "--backend", self.args.backend, "--prompt", self.args.prompt, "--browser", self.args.browser,
             "--desktop", self.args.desktop,
         ]
+        command += ["--container"] if getattr(self.args, "container", False) else []
         command += ["--chromium-options=" + self.args.chromium_options] if self.args.chromium_options else []
         command += ["--mcp-args=" + self.args.mcp_args] if self.args.mcp_args else []
         command += ["--variant", b.variant] if b.variant else []
         command += ["--no-debrief"] if self.args.no_debrief else []
-        command += ["--user-reply"] if self.args.user_reply else []
+        command += ["--no-tool-search"] if getattr(self.args, "no_tool_search", False) else []
+        command += ["--user-reply"] if (self.args.user_reply or b.config.get("user_reply")) else []
         command += ["--max-calls", str(b.config["max_calls"])] if b.config.get("max_calls") else []
         command += ["--lock", host.lock] if host.lock else []
         command += ["--cpus", run.format_cpus(host.cpus[slot])] if host.cpus else []
@@ -775,6 +777,18 @@ def parse_budgets(specs, tasks, parser):
     return budgets
 
 
+def parse_task_set(specs, tasks, parser, flag="--user-reply-task"):
+    """Task-scoped flags such as --user-reply-task as {(task, variant)} matching --task."""
+    selected = set()
+    for spec in specs:
+        task, colon, variant = spec.partition(":")
+        matches = [t for t in tasks if t[0] == task and (t[1] == (variant or None) if colon else True)]
+        if len(matches) != 1:
+            parser.error(f"{flag} {spec} is not TASK[:VARIANT] of one --task")
+        selected.add(matches[0])
+    return selected
+
+
 def results_out(out, task, variant, tasks, suffix=""):
     """The results directory of a task variant in a dispatch of that many tasks: out itself for one task, as run.py
     takes it, or else a new directory under bench/results; and out/TASK[-VARIANT] for several."""
@@ -806,6 +820,8 @@ def main():
                         help="give each host an equal share of every agent's runs, instead of to whichever is free")
     parser.add_argument("--task-max-calls", action="append", metavar="TASK[:VARIANT]=N",
                         help="the budget of tool calls of a task variant, in place of --max-calls; repeatable")
+    parser.add_argument("--user-reply-task", action="append", metavar="TASK[:VARIANT]",
+                        help="enable --user-reply for this task variant only; repeatable")
     parser.add_argument("--quota-pace", action="store_true",
                         help="start agy's runs only while its login's quota covers them and the runs in flight")
     parser.add_argument("--max-concurrent", action="append", metavar="PATTERN=N[,PATTERN=N]",
@@ -815,6 +831,7 @@ def main():
     agents, reps = run.check_runs(args, parser)
     tasks = parse_tasks(args, parser)
     budgets = parse_budgets(args.task_max_calls or [], tasks, parser)
+    reply_tasks = parse_task_set(args.user_reply_task or [], tasks, parser)
     try:
         limits = parse_limits(args.max_concurrent or [], agents)
     except ValueError as e:
@@ -846,7 +863,11 @@ def main():
         if not out and len(tasks) > 1:
             out = run.results_dir(f"{len(tasks)}-tasks{suffix}")
         for task, variant in tasks:
-            budget = argparse.Namespace(**{**vars(args), "max_calls": budgets.get((task, variant), args.max_calls)})
+            budget = argparse.Namespace(**{
+                **vars(args),
+                "max_calls": budgets.get((task, variant), args.max_calls),
+                "user_reply": args.user_reply or (task, variant) in reply_tasks,
+            })
             config = {**run.run_config(source, task, variant, budget), "bench_commit": harness["commit"]}
             builds.append(Build(results_out(out, task, variant, len(tasks), suffix), config))
     if len({b.out for b in builds}) < len(builds):
@@ -881,7 +902,8 @@ def main():
         if gate.quota() is None:
             parser.error("agy here does not report its quota: log in with `agy`")
     queue = Queue(units, hosts, args.balance, limits, gate)
-    with tempfile.TemporaryDirectory(prefix="hyprmasq-dispatch-") as ctl:
+    # /tmp directly (not TMPDIR): nix-shell and agent harnesses set long TMPDIRs that exceed ssh's 108-byte ControlPath limit.
+    with tempfile.TemporaryDirectory(prefix="hyprmasq-dispatch-", dir="/tmp") as ctl:
         remote = Remote(harness, builds, agents, args, ctl, queue, keys)
         dispatch(hosts, queue, remote.prepare, remote.execute)
         for h in hosts:

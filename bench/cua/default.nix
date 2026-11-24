@@ -22,23 +22,27 @@
 }:
 let
   inherit (pkgs) lib;
-  version = "0.42.1";
+  version = "0.56.0";
 
-  # The commit of the release tag cua-driver-rs-v0.42.1, and only the parts of the monorepo the builds read: the
-  # driver's workspace reaches libs/cua's telemetry crate and the files it embeds.
+  # The commit of the release tag cua-driver-rs-v0.56.0, and only the parts of the monorepo the builds read: the
+  # driver's workspace reaches libs/cua's shared crates and data files.
   src = pkgs.fetchgit {
     url = "https://github.com/trycua/cua.git";
-    rev = "badaa6e0d59fb5add81474bc04efadb89f713eb9";
+    rev = "9c75001355f777c102c7eea66b14c0a45868153d";
     sparseCheckout = [
       "libs/cua-driver/rust"
       "libs/cua-driver/wayland-helper"
       "libs/cua-driver/hyprland-plugin"
+      "libs/cua/Cargo.toml"
       "libs/cua/crates/cua-telemetry"
+      "libs/cua/crates/cua-agent-setup"
+      "libs/cua/crates/cua-home"
+      "libs/cua/skills"
       "libs/cua/crates/cua-teleport/src/ux"
       "libs/images"
       "nix/cua-driver"
     ];
-    hash = "sha256-Hz8HJrOz1wzeskUzQb0OWoRd0Jasl1ClIy0t06HHdPA=";
+    hash = "sha256-usCb0wsNGvfrLKNiYNE/plK0RSfSgfpJWoFx3gPp2hY=";
   };
 
   # Cua's package builds with the features portal-input and portal-capture. Its Linux release binary, the one its
@@ -50,27 +54,23 @@ let
       sourceSubdir = "cua-driver/rust";
     }).overrideAttrs
       (old: {
+        buildInputs = (old.buildInputs or [ ]) ++ [ pkgs.zstd ];
         cargoBuildFlags = [
           "-p"
           "cua-driver"
           "--features"
-          "cua-driver/portal-input"
+          "portal-input"
+        ];
+        cargoTestFlags = [
+          "-p"
+          "cua-driver"
+          "--features"
+          "portal-input"
         ];
       });
 
   hyprlandVersion = builtins.head (lib.splitString "+" pkgs.hyprland.version);
-  # The only Hyprland on which this release's driver sees a window. Its plugin builds and loads on 0.57.1 too, but on
-  # 0.57 `j/monitors` and `j/clients` leave out the id of a named or absent workspace, which the driver's Workspace
-  # requires (wayland/hyprland.rs), so that list_windows finds none. Said here, before a series runs and fails every run.
-  inputHyprland = "0.56.2";
-  hyprland =
-    if !input || hyprlandVersion == inputHyprland then
-      pkgs.hyprland
-    else
-      throw (
-        "Cua ${version}'s driver sees no window of Hyprland ${hyprlandVersion}, only of ${inputHyprland}: run the Cua "
-        + "backend with --source at a checkout of the hyprland-0.56 branch"
-      );
+  hyprland = pkgs.hyprland;
 
   # Same compiler as Hyprland, so the plugin shares its C++ runtime, as its README requires.
   plugin = hyprland.stdenv.mkDerivation {

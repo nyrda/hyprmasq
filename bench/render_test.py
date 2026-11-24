@@ -508,7 +508,7 @@ class Registered(unittest.TestCase):
         # The failed run took the focus too, and does not count: a run that did nothing would count as polite.
         runs = [run(1, True, 40.0, True), run(2, True, 0.0, False), run(3, False, 90.0, False)]
         svg = render.user_view_figure({"runs": runs})[0].render("light", "x")
-        for text in ("1 of 2", "20 s", "2 of 3", "200 px"):
+        for text in ("1 of 2", "20 s", "2 of 3"):
             self.assertIn(f">{text}</text>", svg)
 
     def test_the_usage_figure_takes_medians_of_every_run_and_cuts_a_value_far_above_the_rest(self):
@@ -746,6 +746,39 @@ class Comparison(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 main(page)
             self.assertIn("two blocks draw", str(cm.exception))
+
+    def test_toolsearch_table_renders_eager_and_deferred_side_by_side(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "comparison", "data"))
+            def make_run(rep, first_tok, peak_tok, cost, wall, passed_flag=True):
+                r = dict(run("claude-opus-5-5", rep, passed_flag, wall, 10),
+                         harness="claude", backend="cua", browser="firefox", container=True, cost_usd=cost,
+                         user_no_view_change=True,
+                         context={"first_input_tokens": first_tok, "peak_input_tokens": peak_tok, "request_count": 12})
+                return r
+            for name, r in (
+                ("v3-cua", [make_run(i, 61700, 110800, 1.06, 100.0) for i in (1, 2, 3)]
+                 + [dict(run("gpt-6.2-sol", 1, True, 80, 10), backend="cua")]),
+                ("v3-ts-cua", [make_run(i, 9700, 66500, 0.83, 105.0) for i in (1, 2, 3)]),
+            ):
+                with open(os.path.join(d, "comparison", "data", name + ".json"), "w") as f:
+                    json.dump({"sources": [], "runs": r}, f)
+            page = os.path.join(d, "comparison.md")
+            with open(page, "w") as f:
+                f.write("# C\n\n<!-- render v3-cua,v3-ts-cua toolsearch -->\n<!-- /render -->\n\n"
+                        "<!-- render v3-cua,v3-ts-cua toolsearch-table -->\n<!-- /render -->\n")
+            main(page)
+            with open(page) as f:
+                text = f.read()
+            self.assertIn("comparison/toolsearch.svg", text)
+            self.assertIn("comparison/toolsearch-dark.svg", text)
+            self.assertTrue(os.path.isfile(os.path.join(d, "comparison", "toolsearch.svg")))
+            self.assertIn("| Cua Driver | Eager schemas |", text)
+            self.assertIn("| Cua Driver | ToolSearch |", text)
+            self.assertIn("| 61.7 | 110.8 |", text)
+            self.assertIn("| 9.7 | 66.5 |", text)
+            self.assertIn("1.05×", text)
+            main("--check", page)
 
 if __name__ == "__main__":
     unittest.main()

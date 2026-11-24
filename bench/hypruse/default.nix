@@ -18,21 +18,53 @@
 let
   inherit (pkgs) lib;
   python = pkgs.python3Packages;
+  # Pin mcp 1.x (<2): nixpkgs ships mcp 2.3.0, which wraps non-ToolError Python exceptions into bare
+  # "Error executing tool <name>" and strips hypruse's TrustError/ScreenshotError recovery hints.
+  mcp1 = python.buildPythonPackage rec {
+    pname = "mcp";
+    version = "1.30.0";
+    pyproject = true;
+    src = pkgs.fetchPypi {
+      inherit pname version;
+      hash = "sha256-RFQUYl/OXClfqlBbsRus7OZhq29AKNV8k121eCC3o+Q=";
+    };
+    build-system = [
+      python.hatchling
+      python.uv-dynamic-versioning
+    ];
+    dependencies = [
+      python.anyio
+      python.httpx
+      python.httpx-sse
+      python.jsonschema
+      python.pydantic
+      python.pydantic-settings
+      python.pyjwt
+      python.python-multipart
+      python.sse-starlette
+      python.starlette
+      python.typing-extensions
+      python.typing-inspection
+      python.uvicorn
+    ] ++ python.pyjwt.optional-dependencies.crypto;
+    doCheck = false;
+    pythonImportsCheck = [ "mcp" ];
+  };
 in
 python.buildPythonApplication rec {
   pname = "hypruse";
-  # The newest release, 0.13.0 (tag v0.13.0, commit efce06d), its sdist as PyPI publishes it.
-  version = "0.13.0";
+  # The newest release, 0.15.1 (tag v0.15.1), its sdist as PyPI publishes it.
+  version = "0.15.1";
   pyproject = true;
 
   src = pkgs.fetchPypi {
     inherit pname version;
-    hash = "sha256-MhNiORIjKDokUEuZMtqrJnJnxBWbQLwtheDVp6xOEUs=";
+    hash = "sha256-fPydxj3fb9dS86s7a+sRo00EYYWvBec+gwglhOCIoGo=";
   };
 
   build-system = [ python.hatchling ];
-  # Its one dependency, mcp>=1.21.1,<2.
-  dependencies = [ python.mcp ];
+  # Its one dependency, pinned to mcp 1.x so TrustError/ScreenshotError messages reach the client intact.
+  dependencies = [ mcp1 ];
 
   # The programs its README requires (Hyprland's hyprctl, grim 1.5+ for a window's own pixels, wtype, and busctl for
   # the accessibility bus) and the optional ImageMagick that draws the numbered marks of its `marks` tool: the build with
@@ -71,6 +103,7 @@ python.buildPythonApplication rec {
   disabledTests = [
     "test_the_checkout_carries_the_skill_and_it_is_well_formed"
     "test_main_path_prints_the_packaged_directory"
+    "test_claude_plugin_runs_its_own_locked_source"
   ];
   pythonImportsCheck = [ "hypruse" ];
 

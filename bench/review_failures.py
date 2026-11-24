@@ -35,12 +35,13 @@ import time
 import run as bench_run
 
 BENCH = os.path.dirname(os.path.abspath(__file__))
-REVIEWERS = {"claude": ("claude-opus-5-5", "medium"), "codex": ("gpt-6.1-sol", "medium")}
+REVIEWERS = {"claude": ("claude-fable-5-2", "medium"), "codex": ("gpt-6.1-sol", "medium")}
 LOG_FILES = ("mcp.jsonl", "agent.jsonl")
 MEASURES = ("backend", "browser", "harness", "model", "effort", "rep", "task", "failures", "agent_exit", "timed_out",
             "budget_exhausted", "wall_seconds", "tool_seconds", "calls", "by_tool", "actions", "actions_requested",
             "actions_attempted", "actions_done", "errors", "refusals", "refused_calls", "refused_kinds", "walk",
-            "final", "error_texts", "no_change", "images", "checks", "user", "user_work", "frames", "start_state")
+            "final", "error_texts", "no_change", "images", "checks", "user", "user_work", "user_reply", "frames",
+            "start_state")
 MAX_EXAMPLES = 3
 TIMEOUT_SECONDS = 1200
 ATTEMPTS = 3
@@ -73,8 +74,8 @@ SCHEMA = {
         },
     },
 }
-PROMPT = """You review one failed run of a desktop automation benchmark. An AI agent had a task on a Linux desktop in a
-VM, and could act only through one computer-use tool's MCP server. A checker found that the task was not done. Decide
+PROMPT = """You review one failed run of a desktop automation benchmark. An AI agent had a task on a Linux desktop,
+and could act only through one computer-use tool's MCP server. A checker found that the task was not done. Decide
 why. This directory is the whole of the evidence.
 
 - `facts.json`: the run's measures, among them `failures`, what the checker found, and `checks`, its details.
@@ -115,6 +116,20 @@ Cite your evidence in `evidence`: for each point the file, relative to this dire
 (1 for a file read as a whole, such as a screenshot), and what it shows. A verdict without evidence is not counted.
 `summary` says in one or two plain sentences what went wrong. Name no pass rate. Answer only with the JSON the schema asks for.
 """
+
+
+PROMPT_NO_CAP = PROMPT.replace(
+    "- `capability-results.md`: scripted checks of what some of the tools can do in this VM, with no model. It covers Cua\n"
+    "  Driver and hyprmasq, not hypruse or computer-use-linux.\n", ""
+).replace(
+    "The evidence is the capability results, what the tool\n   returned in this run, and the examples.",
+    "The evidence is what the tool\n   returned in this run, its tool schemas/guides, and the examples."
+)
+assert "capability-results.md" not in PROMPT_NO_CAP and "capability results" not in PROMPT_NO_CAP
+
+
+def review_prompt(directory):
+    return PROMPT if os.path.exists(os.path.join(directory, "capability-results.md")) else PROMPT_NO_CAP
 
 
 def hosts():
@@ -224,8 +239,9 @@ def bundle(args):
             passes.setdefault((setup, set_name, task.split("--", 1)[1]), []).append((name, path))
     os.makedirs(args.bundles, exist_ok=True)
     count, current = 0, set()
+    ignore = set(args.ignore)
     for setup, set_name, task, name, path in runs:
-        if passed(path):
+        if passed(path) or f"{setup}/{set_name}/{task}/{name}" in ignore:
             continue
         target = os.path.join(args.bundles, bundle_id(setup, set_name, task, name))
         current.add(os.path.basename(target))
@@ -233,7 +249,8 @@ def bundle(args):
         summary = copy_run(path, target, scrub, True)
         with open(os.path.join(target, "task-prompt.md"), "w") as f:
             f.write(scrub(prompt_text(path)))
-        shutil.copy(os.path.join(BENCH, "capability-results.md"), target)
+        if not args.no_capability:
+            shutil.copy(os.path.join(BENCH, "capability-results.md"), target)
         examples = sorted(passes.get((setup, set_name, task.split("--", 1)[1]), []),
                           key=lambda item: (agent_of(item[0]) != agent_of(name), item[0]))[:MAX_EXAMPLES]
         os.makedirs(os.path.join(target, "examples"))
@@ -266,7 +283,7 @@ def prune(directory, current):
 
 def claude_review(directory):
     model, effort = REVIEWERS["claude"]
-    command = ["claude", "-p", PROMPT, "--model", model, "--effort", effort, "--tools", "Read,Grep,Glob",
+    command = ["claude", "-p", review_prompt(directory), "--model", model, "--effort", effort, "--tools", "Read,Grep,Glob",
                "--allowedTools", "Read,Grep,Glob", "--setting-sources", "", "--strict-mcp-config",
                "--disable-slash-commands", "--no-session-persistence", "--output-format", "json", "--json-schema",
                json.dumps(SCHEMA)]
@@ -300,7 +317,7 @@ def codex_review(directory):
         if os.path.exists(screen):
             command += ["-i", screen]
         command += ["--", "-"]
-        done = subprocess.run(command, input=PROMPT, cwd=directory, env=bench_run.agent_env(), text=True,
+        done = subprocess.run(command, input=review_prompt(directory), cwd=directory, env=bench_run.agent_env(), text=True,
                               capture_output=True, timeout=TIMEOUT_SECONDS)
         if done.returncode or not os.path.exists(answer):
             raise RuntimeError((done.stdout + done.stderr)[-800:])
@@ -326,13 +343,19 @@ def evidence_hash(directory):
 
 
 def current_verdict(directory, reviewer):
-    """A reviewer's verdict of the bundle as it is now, or None where there is none or it was of other evidence."""
+    """A reviewer's verdict of the bundle as it is now, or None where there is none or it was of other evidence or model."""
     path = verdict_path(directory, reviewer)
     if not os.path.exists(path):
         return None
     with open(path) as f:
         verdict = json.load(f)
-    return verdict if verdict.get("evidence_sha256") == evidence_hash(directory) else None
+    if verdict.get("evidence_sha256") != evidence_hash(directory):
+        return None
+    rev = verdict.get("reviewer")
+    model, effort = REVIEWERS[reviewer]
+    if rev and (rev.get("model") != model or rev.get("effort") != effort):
+        return None
+    return verdict
 
 
 def verdict_path(directory, reviewer):
@@ -383,7 +406,30 @@ def bundles_of(directory):
                   if os.path.exists(os.path.join(directory, n, "meta.json")))
 
 
+def reviewers_config_path(bundles):
+    return os.path.join(os.path.abspath(bundles), "reviewers.json")
+
+
+def save_reviewers(bundles):
+    path = reviewers_config_path(bundles)
+    with open(path + ".tmp", "w") as f:
+        json.dump({r: {"model": m, "effort": e} for r, (m, e) in REVIEWERS.items()}, f, indent=1)
+    os.replace(path + ".tmp", path)
+
+
+def load_reviewers(bundles):
+    path = reviewers_config_path(bundles)
+    if not os.path.exists(path):
+        return
+    with open(path) as f:
+        saved = json.load(f)
+    for r, cfg in saved.items():
+        if r in REVIEWERS and isinstance(cfg, dict) and cfg.get("model"):
+            REVIEWERS[r] = (cfg["model"], cfg.get("effort") or REVIEWERS[r][1])
+
+
 def run_reviews(args):
+    save_reviewers(args.bundles)
     bundles = [b for b in bundles_of(args.bundles) if not args.only or os.path.basename(b) in args.only]
     jobs = [(b, r) for b in bundles for r in REVIEWERS]
     counts = {}
@@ -468,7 +514,7 @@ def collect(args):
     if missing:
         sys.exit(f"review_failures.py: {len(missing)} verdicts are missing or of other evidence, such as {missing[0]}")
     # One run a line, so that a diff shows which verdicts changed.
-    text = '{\n "rule": "bench/comparison-series.json, analysis.failure_attribution",\n "verdicts": [\n  '
+    text = f'{{\n "rule": {json.dumps(args.rules + ", analysis.failure_attribution")},\n "verdicts": [\n  '
     text += ",\n  ".join(json.dumps(scrub(item)) for item in out) + "\n ]\n}\n"
     with open(args.out, "w") as f:
         f.write(text)
@@ -481,20 +527,37 @@ def main():
     p = commands.add_parser("bundle")
     p.add_argument("tree")
     p.add_argument("bundles")
+    p.add_argument("--ignore", action="append", default=[], help="SETUP/SET/SERIES--TASK/RUN passed under an amendment")
+    p.add_argument("--no-capability", action="store_true",
+                   help="do not copy bench/capability-results.md into bundles (symmetric evidence across all tools)")
     p.set_defaults(go=bundle)
+    def add_reviewer_args(sub):
+        sub.add_argument("--claude-model", default=None)
+        sub.add_argument("--codex-model", default=None)
+
     p = commands.add_parser("run")
     p.add_argument("bundles")
     p.add_argument("--only", action="append", default=[])
     p.add_argument("--workers", type=int, default=4, help="reviews at once per reviewer")
+    add_reviewer_args(p)
     p.set_defaults(go=run_reviews)
     p = commands.add_parser("status")
     p.add_argument("bundles")
+    add_reviewer_args(p)
     p.set_defaults(go=status)
     p = commands.add_parser("collect")
     p.add_argument("bundles")
     p.add_argument("out")
+    p.add_argument("--rules", default="bench/comparison-series.json")
+    add_reviewer_args(p)
     p.set_defaults(go=collect)
     args = parser.parse_args()
+    if args.command in ("run", "status", "collect"):
+        load_reviewers(args.bundles)
+    if getattr(args, "claude_model", None):
+        REVIEWERS["claude"] = (args.claude_model, REVIEWERS["claude"][1])
+    if getattr(args, "codex_model", None):
+        REVIEWERS["codex"] = (args.codex_model, REVIEWERS["codex"][1])
     args.go(args)
 
 
