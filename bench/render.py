@@ -1808,7 +1808,9 @@ def scorecard_figure(data):
     runs, verdicts = of_task(data, None), verdict_of(data)
     groups = dict(setups(runs))
     svg = Svg()
-    top = header(svg, "Four tools, the same 16 tasks",
+    span = date_span(runs)
+    title = f"Four tools, the same 16 tasks · {span}" if span else "Four tools, the same 16 tasks"
+    top = header(svg, title,
                  ["Six runs per task and agent. The dot is the pass rate and the line its 95 % interval: where two lines",
                   "overlap, the difference may be chance. Under each tool is where it is built to work. Time and cost are",
                   "multiples of hyprmasq's on the same task."])
@@ -1994,9 +1996,12 @@ def toolsearch_figure(data):
     """Claude Opus 5.5 with eager MCP tool schemas beside deferred loading via ToolSearch, for all four tools:
     runs passed with 95 % Wilson interval, median first-request tokens, median peak context, median cost, and
     paired per-task wall time (median of unit medians across units with >=3 passes in both modes, plus geometric mean ratio)."""
-    groups = dict(setups(of_task(data, None)))
+    runs = of_task(data, None)
+    groups = dict(setups(runs))
     svg = Svg()
-    top = header(svg, "Deferred tool loading (Claude Opus 5.5)",
+    span = date_span(runs)
+    title = f"Deferred tool loading (Claude Opus 5.5) · {span}" if span else "Deferred tool loading (Claude Opus 5.5)"
+    top = header(svg, title,
                  ["Eager MCP schemas (lighter bars) against Claude Code's ToolSearch (solid bars) across all 16 tasks.",
                   "Dot is pass rate with 95 % interval. Tokens and cost are medians of all runs, wall time is paired on common passed tasks."])
     blocks = []

@@ -2,7 +2,7 @@
 <title>Per tool and agent: the pass rate as a dot on its 95 % interval, the runs that left the user&#x27;s view alone as a bar, the runs that failed because of the tool, and the time and cost as multiples of hyprmasq&#x27;s.</title>
 <style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#1f2328}.t2{fill:#59636e}.m{fill:#818b98}.bg{fill:#ffffff;stroke:#d1d9e0}.grid{stroke:#eff2f5;stroke-width:1}.axis{stroke:#d1d9e0;stroke-width:1}.tools{fill:#2a78d6}.out{fill:#c8d1da}.dot{fill:#424a53;stroke:#ffffff;stroke-width:1.5}.miss{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.pass{fill:#1a7f37}.fail{fill:#ffffff;stroke:#d1242f;stroke-width:1.75}.cut{stroke:#ffffff;stroke-width:2}.whisker{stroke:#1f2328;stroke-width:1.5}.s0{fill:#2a78d6}.s1{fill:#eb6834}.s2{fill:#1baf7a}.s3{fill:#eda100}.s4{fill:#e87ba4}.s5{fill:#008300}.s6{fill:#6250d6}.s7{fill:#e34948}</style>
 <rect x="0.5" y="0.5" width="879" height="406" rx="6" class="bg"/>
-<text x="24" y="34" class="t" font-size="15" font-weight="600">Four tools, the same 16 tasks</text>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Four tools, the same 16 tasks · 21 Nov to 22 Nov 2026</text>
 <text x="24" y="53" class="t2" font-size="12.5">Six runs per task and agent. The dot is the pass rate and the line its 95 % interval: where two lines</text>
 <text x="24" y="72" class="t2" font-size="12.5">overlap, the difference may be chance. Under each tool is where it is built to work. Time and cost are</text>
 <text x="24" y="91" class="t2" font-size="12.5">multiples of hyprmasq&#x27;s on the same task.</text>

@@ -181,18 +181,23 @@ passed all 60 of its runs, but slowly: two and a half times as long through
 Google Vertex, and over three times in the Antigravity CLI, the only way to
 run it on a Google AI subscription. See the [benchmarks](docs/benchmarks.md).
 
-Beside three other computer use tools for Linux, hyprmasq was the one that
-left the user's view alone in every run, while the other two GPU-container
-tools took 1.7 to 2.0 times as long (and `computer-use-linux` took 1.8 to 2.1
-times in KVM VMs against hyprmasq in containers) at 2.2 to 5.2 times the cost
-(2.5 to 4.8 times with Claude Code `ToolSearch`).
-The [comparison](docs/comparison.md) has its rules, its limits and every run,
-and an [addendum on macOS](docs/comparison-macos.md) sets four of the tasks
-beside OpenAI's and Claude's computer use and Cua Driver on a Mac.
-
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/benchmarks/glance-dark.svg">
   <img alt="Runs passed, time and cost per model on ten desktop tasks, the highest pass rate first, and at the same rate the fastest: the share of each task&#x27;s runs that passed, averaged over the tasks." src="docs/benchmarks/glance.svg">
+</picture>
+
+## Comparison with other tools
+
+A November 2026 snapshot of hyprmasq beside Cua Driver, `computer-use-linux`
+and `hypruse` on 16 Linux desktop tasks while a user worked in another window.
+hyprmasq left the user's view alone on every run and finished faster at lower
+cost. See [the comparison](docs/comparison.md) for the full breakdown,
+deferred tool loading (`ToolSearch`), rules and every run, plus
+[the macOS addendum](docs/comparison-macos.md).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/comparison/scorecard-dark.svg">
+  <img alt="Per tool and agent: the pass rate as a dot on its 95 % interval, the runs that left the user&#x27;s view alone as a bar, the runs that failed because of the tool, and the time and cost as multiples of hyprmasq&#x27;s." src="docs/comparison/scorecard.svg">
 </picture>
 
 ## Limits and trust

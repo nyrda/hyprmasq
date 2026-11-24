@@ -2,8 +2,8 @@
 
 hyprmasq beside [Cua Driver](https://github.com/trycua/cua) 0.56.0,
 [computer-use-linux](https://github.com/agent-sh/computer-use-linux) 0.7.59 and
-[hypruse](https://github.com/IlyasKhallouki/hypruse) 0.15.1 on the same 16 desktop tasks (Hyprland 0.57.2, GPT-6.2 Sol
-and Claude Opus 5.5 at medium effort) while the user worked in their own window. `hyprmasq`, Cua Driver and hypruse ran
+[hypruse](https://github.com/IlyasKhallouki/hypruse) 0.15.1 on the same 16 desktop tasks (November 2026 snapshot,
+Hyprland 0.57.2, GPT-6.2 Sol and Claude Opus 5.5 at medium effort) while the user worked in their own window. `hyprmasq`, Cua Driver and hypruse ran
 in rootless GPU containers on the same host, while `computer-use-linux` ran in KVM VMs on that host because on Hyprland
 its pointer uses kernel `/dev/uinput`.
 
