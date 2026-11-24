@@ -619,7 +619,7 @@ class Remote:
         command += ["--mcp-args=" + self.args.mcp_args] if self.args.mcp_args else []
         command += ["--variant", b.variant] if b.variant else []
         command += ["--no-debrief"] if self.args.no_debrief else []
-        command += ["--user-reply"] if self.args.user_reply else []
+        command += ["--user-reply"] if (self.args.user_reply or b.config.get("user_reply")) else []
         command += ["--max-calls", str(b.config["max_calls"])] if b.config.get("max_calls") else []
         command += ["--lock", host.lock] if host.lock else []
         command += ["--cpus", run.format_cpus(host.cpus[slot])] if host.cpus else []
@@ -776,6 +776,18 @@ def parse_budgets(specs, tasks, parser):
     return budgets
 
 
+def parse_task_set(specs, tasks, parser, flag="--user-reply-task"):
+    """Task-scoped flags such as --user-reply-task as {(task, variant)} matching --task."""
+    selected = set()
+    for spec in specs:
+        task, colon, variant = spec.partition(":")
+        matches = [t for t in tasks if t[0] == task and (t[1] == (variant or None) if colon else True)]
+        if len(matches) != 1:
+            parser.error(f"{flag} {spec} is not TASK[:VARIANT] of one --task")
+        selected.add(matches[0])
+    return selected
+
+
 def results_out(out, task, variant, tasks, suffix=""):
     """The results directory of a task variant in a dispatch of that many tasks: out itself for one task, as run.py
     takes it, or else a new directory under bench/results; and out/TASK[-VARIANT] for several."""
@@ -807,6 +819,8 @@ def main():
                         help="give each host an equal share of every agent's runs, instead of to whichever is free")
     parser.add_argument("--task-max-calls", action="append", metavar="TASK[:VARIANT]=N",
                         help="the budget of tool calls of a task variant, in place of --max-calls; repeatable")
+    parser.add_argument("--user-reply-task", action="append", metavar="TASK[:VARIANT]",
+                        help="enable --user-reply for this task variant only; repeatable")
     parser.add_argument("--quota-pace", action="store_true",
                         help="start agy's runs only while its login's quota covers them and the runs in flight")
     parser.add_argument("--max-concurrent", action="append", metavar="PATTERN=N[,PATTERN=N]",
@@ -816,6 +830,7 @@ def main():
     agents, reps = run.check_runs(args, parser)
     tasks = parse_tasks(args, parser)
     budgets = parse_budgets(args.task_max_calls or [], tasks, parser)
+    reply_tasks = parse_task_set(args.user_reply_task or [], tasks, parser)
     try:
         limits = parse_limits(args.max_concurrent or [], agents)
     except ValueError as e:
@@ -847,7 +862,11 @@ def main():
         if not out and len(tasks) > 1:
             out = run.results_dir(f"{len(tasks)}-tasks{suffix}")
         for task, variant in tasks:
-            budget = argparse.Namespace(**{**vars(args), "max_calls": budgets.get((task, variant), args.max_calls)})
+            budget = argparse.Namespace(**{
+                **vars(args),
+                "max_calls": budgets.get((task, variant), args.max_calls),
+                "user_reply": args.user_reply or (task, variant) in reply_tasks,
+            })
             config = {**run.run_config(source, task, variant, budget), "bench_commit": harness["commit"]}
             builds.append(Build(results_out(out, task, variant, len(tasks), suffix), config))
     if len({b.out for b in builds}) < len(builds):

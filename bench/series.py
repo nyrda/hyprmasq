@@ -152,6 +152,8 @@ def dispatch_command(rules, series, tool, set_name, spec, reps, build_only=False
         command += ["--no-debrief"]
     if spec.get("user_reply") or series.get("user_reply") or rules.get("user_reply"):
         command += ["--user-reply"]
+    for task in spec.get("user_reply_tasks") or ():
+        command += ["--user-reply-task", task]
     if series.get("chromium_options"):
         command += ["--chromium-options=" + series["chromium_options"]]
     if build_only:

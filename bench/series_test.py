@@ -120,6 +120,10 @@ class Plan(unittest.TestCase):
         main = series.dispatch_command(r, r["series"]["main"], "one", "apps", r["tools"]["one"]["sets"]["apps"], [1])
         self.assertNotIn("--container", main)
         self.assertNotIn("--no-debrief", main)
+        per_task = series.dispatch_command(r, r["series"]["main"], "one", "apps",
+                                           {"tasks": ["x", "z"], "user_reply_tasks": ["x"]}, [1])
+        self.assertNotIn("--user-reply", per_task)
+        self.assertEqual([per_task[i + 1] for i, a in enumerate(per_task) if a == "--user-reply-task"], ["x"])
         self.assertNotIn("--user-reply", main)
 
 

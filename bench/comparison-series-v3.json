@@ -563,6 +563,9 @@
    "sets": {
     "cua": {
      "apps": {
+      "user_reply_tasks": [
+       "forgejo:reacting"
+      ],
       "tasks": [
        "form:25",
        "form:25-no-dropdowns",
@@ -570,12 +573,7 @@
        "form:qt-25-no-dropdowns",
        "files",
        "inkscape",
-       "thunderbird"
-      ]
-     },
-     "forgejo": {
-      "user_reply": true,
-      "tasks": [
+       "thunderbird",
        "forgejo:reacting"
       ]
      },
@@ -600,6 +598,9 @@
     },
     "hyprmasq": {
      "apps": {
+      "user_reply_tasks": [
+       "forgejo:reacting"
+      ],
       "tasks": [
        "form:25",
        "form:25-no-dropdowns",
@@ -607,12 +608,7 @@
        "form:qt-25-no-dropdowns",
        "files",
        "inkscape",
-       "thunderbird"
-      ]
-     },
-     "forgejo": {
-      "user_reply": true,
-      "tasks": [
+       "thunderbird",
        "forgejo:reacting"
       ]
      },
@@ -637,6 +633,9 @@
     },
     "hypruse": {
      "apps": {
+      "user_reply_tasks": [
+       "forgejo:reacting"
+      ],
       "tasks": [
        "form:25",
        "form:25-no-dropdowns",
@@ -644,12 +643,7 @@
        "form:qt-25-no-dropdowns",
        "files",
        "inkscape",
-       "thunderbird"
-      ]
-     },
-     "forgejo": {
-      "user_reply": true,
-      "tasks": [
+       "thunderbird",
        "forgejo:reacting"
       ]
      },
@@ -690,6 +684,9 @@
    "sets": {
     "computer-use-linux": {
      "apps": {
+      "user_reply_tasks": [
+       "forgejo:reacting"
+      ],
       "tasks": [
        "form:25",
        "form:25-no-dropdowns",
@@ -697,12 +694,7 @@
        "form:qt-25-no-dropdowns",
        "files",
        "inkscape",
-       "thunderbird"
-      ]
-     },
-     "forgejo": {
-      "user_reply": true,
-      "tasks": [
+       "thunderbird",
        "forgejo:reacting"
       ]
      },
