@@ -242,6 +242,13 @@ class CuaBackend(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "another chromium_options"):
                 run.check_resume(out, {**config, "backend": "cua", "prompt": "comparison",
                                        "chromium_options": "--remote-debugging-port=0"}, parser, [])
+            # Eager vs deferred MCP tool loading is another measurement too.
+            with open(os.path.join(out, "source.json"), "w") as f:
+                json.dump({**config, "backend": "cua", "prompt": "comparison", "tool_search": True}, f)
+            run.check_resume(out, {**config, "backend": "cua", "prompt": "comparison", "tool_search": True}, parser, [])
+            with self.assertRaisesRegex(ValueError, "another tool_search"):
+                run.check_resume(out, {**config, "backend": "cua", "prompt": "comparison", "tool_search": False},
+                                 parser, [])
 
     def test_chromium_stands_in_for_firefox_only_in_the_tasks_that_list_it_and_the_prompt_names_it(self):
         parser = argparse.ArgumentParser()

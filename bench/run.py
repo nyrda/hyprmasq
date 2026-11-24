@@ -1426,7 +1426,7 @@ DEFAULT_CONFIG = {"backend": "hyprmasq", "prompt": "task", "browser": "firefox",
 # identity, check_identity), and bench_dirty says a commit does not name the benchmark's code.
 IDENTITY_KEYS = ("commit", "task", "variant", "display", "backend", "prompt", "browser", "desktop", "container",
                  "chromium_options", "mcp_args", "bench_commit", "bench_dirty", "prompt_sha256", "timeout", "max_calls",
-                 "debrief", "user_reply")
+                 "debrief", "user_reply", "tool_search")
 
 
 def pending_runs(out, reps, agents):
