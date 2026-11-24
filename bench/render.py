@@ -2482,7 +2482,7 @@ TABLE_SUMMARIES = {"headline": "Numbers: pass rates with their intervals, per ag
                    "frames": "Numbers: first frames and unchanged frames, per task",
                    "walks": "Numbers: Cua Driver's accessibility walks",
                    "attach": "Numbers: Cua Driver with and without the debugging port",
-                   "vm-overhead": "Numbers: hyprmasq in GPU containers vs 3×2-core KVM VMs on machine C",
+                   "vm-overhead": "Numbers: hyprmasq in GPU containers vs 3×2-core KVM VMs on the same host",
                    "toolsearch": "Numbers: Claude Opus 5.5 with eager schemas vs ToolSearch",
                    "attribution-table": "Each task's failed runs, with the reasons for unclear",
                    "costs": "Tokens and cost per agent", "kinds-table": "Numbers: seconds per question of each kind",

@@ -30,9 +30,8 @@ A tool's pass rate with its 95 % interval, per agent and kind of task. The mean 
 ## Time
 
 A time ratio is the geometric mean over tasks of a tool's median over hyprmasq's, within each agent, on the tasks
-where both passed at least 3 of 6 runs. All four tools ran on the same host (machine C, Ryzen 7 5800X3D): `hyprmasq`,
-Cua Driver and `hypruse` in rootless GPU containers, and `computer-use-linux` in KVM VMs (required for `/dev/uinput` on
-Hyprland).
+where both passed at least 3 of 6 runs. All four tools ran on the same host (Ryzen 7 5800X3D): `hyprmasq`, Cua Driver
+and `hypruse` in rootless GPU containers, and `computer-use-linux` in KVM VMs (required for `/dev/uinput` on Hyprland).
 
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium headline-time -->
 <details><summary>Time against hyprmasq, and the task units that entered it</summary>
@@ -77,14 +76,14 @@ warps the pointer back onto the user's window when focus returns, so a run that 
 
 ## Why runs failed
 
-One verdict per failed run. [comparison/data/v3-failures.json](comparison/data/v3-failures.json) has every verdict, both
+One verdict per failed run. [The failure verdicts](comparison/data/v3-failures.json) have every verdict, both
 reviews and their evidence.
 
-<details><summary>v2 VM reference: what hyprmasq and Cua Driver 0.42.1 could do on Hyprland 0.56.2</summary>
+<details><summary>Earlier VM reference: what hyprmasq and Cua Driver 0.42.1 could do on Hyprland 0.56.2</summary>
 
-A scripted check of each route in the v2 Hyprland 0.56.2 VM against Cua Driver 0.42.1, with no model (kept as
-historical reference — not re-measured for v3 and not given to the v3 failure reviewers). A route counts here if any
-way of doing it works. hypruse and computer-use-linux have no such table.
+A scripted check of each route in a Hyprland 0.56.2 VM against Cua Driver 0.42.1, with no model (kept as historical
+reference, not re-measured for the current tool versions and not given to the failure reviewers). A route counts here
+if any way of doing it works. hypruse and computer-use-linux have no such table.
 
 | App | Action | hyprmasq | Cua background | Cua foreground | Cua desktop |
 | --- | --- | --- | --- | --- | --- |
@@ -443,7 +442,7 @@ machine's table.
 ## Side checks
 
 Cua Driver with the user's Chromium started with `--remote-debugging-port=0`, on the 5 Chromium units where attaching
-applies (never pooled with the main series).
+applies (never pooled with the primary runs).
 
 <!-- render v3-cua,v3-cua-chromium,v3-cua-attach attach -->
 <details><summary>Numbers: Cua Driver with and without the debugging port</summary>
@@ -465,13 +464,12 @@ applies (never pooled with the main series).
 <!-- /render -->
 
 One full round of hyprmasq (32 runs across all 16 units and both agents, `n = 1` per unit/agent) in the exact same
-3 × 2-core KVM VM setup on machine C as computer-use-linux, measuring VM vs GPU-container overhead directly (never
-pooled with the main series). Because `n = 1` per cell, single-unit ratios span 0.68–2.60× (Forgejo Sol had a 143 s API
-stall), so the pooled VM medians sit slightly below the container medians while the per-unit geometric means are
-1.03× / 1.07×.
+3 × 2-core KVM VM setup as computer-use-linux, measuring VM vs GPU-container overhead directly (never pooled with the
+primary runs). Because `n = 1` per cell, single-unit ratios span 0.68–2.60× (Forgejo Sol had a 143 s API stall), so the
+pooled VM medians sit slightly below the container medians while the per-unit geometric means are 1.03× / 1.07×.
 
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-hyprmasq-vm,v3-hyprmasq-vm-chromium vm-overhead -->
-<details><summary>Numbers: hyprmasq in GPU containers vs 3×2-core KVM VMs on machine C</summary>
+<details><summary>Numbers: hyprmasq in GPU containers vs 3×2-core KVM VMs on the same host</summary>
 
 | Agent | VM passed | Container wall med | KVM VM wall med | VM / container wall | Container tool med | KVM VM tool med | VM / container tool |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -481,10 +479,9 @@ stall), so the pooled VM medians sit slightly below the container medians while 
 </details>
 <!-- /render -->
 
-All 384 Claude Opus 5.5 runs repeated with Claude Code's built-in `ToolSearch` enabled in `bench/run.py` (`--no-debrief`,
-same pinned `d9fe738` source and Claude Code 2.1.330, `hyprmasq`, Cua Driver and `hypruse` in 4 GPU containers on
-machine C and `computer-use-linux` in 2 × 2-core KVM VMs on machine D), shown beside the main v3 Opus 5.5 runs that
-sent MCP schemas eagerly.
+All 384 Claude Opus 5.5 runs repeated with Claude Code's built-in `ToolSearch` enabled (`hyprmasq`, Cua Driver and
+`hypruse` in 4 GPU containers on the Ryzen 7 5800X3D host, and `computer-use-linux` in 2 × 2-core KVM VMs on a Ryzen 5
+5600X host), shown beside the eager-schema Opus 5.5 runs.
 
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-ts-hyprmasq,v3-ts-hyprmasq-chromium,v3-ts-cua,v3-ts-cua-chromium,v3-ts-hypruse,v3-ts-hypruse-chromium,v3-ts-computer-use-linux,v3-ts-computer-use-linux-chromium toolsearch -->
 <details><summary>Numbers: Claude Opus 5.5 with eager schemas vs ToolSearch</summary>
