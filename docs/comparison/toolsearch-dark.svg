@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="378" viewBox="0 0 880 378" role="img" aria-label="Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, median first-request tokens, median peak context and median cost per run.">
+<title>Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, median first-request tokens, median peak context and median cost per run.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.tools{fill:#3987e5}.out{fill:#454c56}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.miss{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.pass{fill:#3fb950}.fail{fill:#0d1117;stroke:#f85149;stroke-width:1.75}.cut{stroke:#0d1117;stroke-width:2}.whisker{stroke:#f0f6fc;stroke-width:1.5}.s0{fill:#3987e5}.s1{fill:#d95926}.s2{fill:#199e70}.s3{fill:#c98500}.s4{fill:#d55181}.s5{fill:#008300}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
+<rect x="0.5" y="0.5" width="879" height="377" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Deferred tool loading (Claude Opus 5.5)</text>
+<text x="24" y="53" class="t2" font-size="12.5">Eager MCP schemas (lighter bars) against Claude Code&#x27;s ToolSearch (solid bars) across all 16 tasks.</text>
+<text x="24" y="72" class="t2" font-size="12.5">Dot is pass rate with 95 % interval. First request, peak context and cost are medians over all runs.</text>
+<text x="260" y="96" class="t2" font-size="12" font-weight="600">Runs passed</text>
+<text x="260" y="111" class="m" font-size="10.5" text-anchor="middle">50 %</text>
+<text x="302" y="111" class="m" font-size="10.5" text-anchor="middle">75 %</text>
+<text x="344" y="111" class="m" font-size="10.5" text-anchor="middle">100 %</text>
+<text x="412" y="96" class="t2" font-size="12" font-weight="600">First request</text>
+<text x="412" y="111" class="m" font-size="10.5">median, all runs</text>
+<text x="558" y="96" class="t2" font-size="12" font-weight="600">Peak context</text>
+<text x="558" y="111" class="m" font-size="10.5">median, all runs</text>
+<text x="704" y="96" class="t2" font-size="12" font-weight="600">Median cost</text>
+<text x="704" y="111" class="m" font-size="10.5">median, all runs</text>
+<line x1="260" y1="122" x2="260" y2="364" class="grid"/>
+<line x1="302" y1="122" x2="302" y2="364" class="grid"/>
+<line x1="344" y1="122" x2="344" y2="364" class="grid"/>
+<line x1="24" y1="122" x2="856" y2="122" class="grid"/>
+<rect x="24" y="130" width="4" height="44" class="s0" rx="2"/>
+<text x="36" y="153" class="t" font-size="13.5" font-weight="600">hyprmasq</text>
+<text x="182" y="144" class="m" font-size="11.5">Eager</text>
+<line x1="331.8" y1="140" x2="343" y2="140" class="whisker"/>
+<circle cx="340.5" cy="140" r="4.5" class="dot"/>
+<text x="354" y="144.5" class="t2" font-size="12">94/96</text>
+<path d="M412 135H420.6Q423.6 135 423.6 138V142Q423.6 145 420.6 145H412Z" class="s0" fill-opacity="0.45"/>
+<text x="430.6" y="144.5" class="t2" font-size="12">8.5k</text>
+<path d="M558 135H572.5Q575.5 135 575.5 138V142Q575.5 145 572.5 145H558Z" class="s0" fill-opacity="0.45"/>
+<text x="582.5" y="144.5" class="t2" font-size="12">25k</text>
+<path d="M704 135H720Q723 135 723 138V142Q723 145 720 145H704Z" class="s0" fill-opacity="0.45"/>
+<text x="730" y="144.5" class="t2" font-size="12">$0.23</text>
+<text x="182" y="169" class="t2" font-size="11.5">ToolSearch</text>
+<line x1="331.8" y1="165" x2="343" y2="165" class="whisker"/>
+<circle cx="340.5" cy="165" r="4.5" class="dot"/>
+<text x="354" y="169.5" class="t" font-size="12">94/96</text>
+<path d="M412 160H413.9Q416.9 160 416.9 163V167Q416.9 170 413.9 170H412Z" class="s0"/>
+<text x="423.9" y="169.5" class="t" font-size="12">3.6k</text>
+<path d="M558 160H573.7Q576.7 160 576.7 163V167Q576.7 170 573.7 170H558Z" class="s0"/>
+<text x="583.7" y="169.5" class="t" font-size="12">26k</text>
+<path d="M704 160H724.6Q727.6 160 727.6 163V167Q727.6 170 724.6 170H704Z" class="s0"/>
+<text x="734.6" y="169.5" class="t" font-size="12">$0.28</text>
+<line x1="24" y1="183" x2="856" y2="183" class="grid"/>
+<rect x="24" y="191" width="4" height="44" class="s1" rx="2"/>
+<text x="36" y="214" class="t" font-size="13.5" font-weight="600">Cua Driver</text>
+<text x="182" y="205" class="m" font-size="11.5">Eager</text>
+<line x1="317.8" y1="201" x2="336.8" y2="201" class="whisker"/>
+<circle cx="330" cy="201" r="4.5" class="dot"/>
+<text x="354" y="205.5" class="t2" font-size="12">88/96</text>
+<path d="M412 196H493Q496 196 496 199V203Q496 206 493 206H412Z" class="s1" fill-opacity="0.45"/>
+<text x="503" y="205.5" class="t2" font-size="12">62k</text>
+<path d="M558 196H633.4Q636.4 196 636.4 199V203Q636.4 206 633.4 206H558Z" class="s1" fill-opacity="0.45"/>
+<text x="643.4" y="205.5" class="t2" font-size="12">111k</text>
+<path d="M704 196H789.5Q792.5 196 792.5 199V203Q792.5 206 789.5 206H704Z" class="s1" fill-opacity="0.45"/>
+<text x="799.5" y="205.5" class="t2" font-size="12">$1.06</text>
+<text x="182" y="230" class="t2" font-size="11.5">ToolSearch</text>
+<line x1="297.5" y1="226" x2="323.5" y2="226" class="whisker"/>
+<circle cx="312.5" cy="226" r="4.5" class="dot"/>
+<text x="354" y="230.5" class="t" font-size="12">78/96</text>
+<path d="M412 221H422.1Q425.1 221 425.1 224V228Q425.1 231 422.1 231H412Z" class="s1"/>
+<text x="432.1" y="230.5" class="t" font-size="12">9.7k</text>
+<path d="M558 221H602.1Q605.1 221 605.1 224V228Q605.1 231 602.1 231H558Z" class="s1"/>
+<text x="612.1" y="230.5" class="t" font-size="12">66k</text>
+<path d="M704 221H770.4Q773.4 221 773.4 224V228Q773.4 231 770.4 231H704Z" class="s1"/>
+<text x="780.4" y="230.5" class="t" font-size="12">$0.83</text>
+<line x1="24" y1="244" x2="856" y2="244" class="grid"/>
+<rect x="24" y="252" width="4" height="44" class="s3" rx="2"/>
+<text x="36" y="275" class="t" font-size="13.5" font-weight="600">hypruse</text>
+<text x="182" y="266" class="m" font-size="11.5">Eager</text>
+<line x1="315.7" y1="262" x2="335.6" y2="262" class="whisker"/>
+<circle cx="328.2" cy="262" r="4.5" class="dot"/>
+<text x="354" y="266.5" class="t2" font-size="12">87/96</text>
+<path d="M412 257H426Q429 257 429 260V264Q429 267 426 267H412Z" class="s3" fill-opacity="0.45"/>
+<text x="436" y="266.5" class="t2" font-size="12">13k</text>
+<path d="M558 257H596Q599 257 599 260V264Q599 267 596 267H558Z" class="s3" fill-opacity="0.45"/>
+<text x="606" y="266.5" class="t2" font-size="12">58k</text>
+<path d="M704 257H763.4Q766.4 257 766.4 260V264Q766.4 267 763.4 267H704Z" class="s3" fill-opacity="0.45"/>
+<text x="773.4" y="266.5" class="t2" font-size="12">$0.75</text>
+<text x="182" y="291" class="t2" font-size="11.5">ToolSearch</text>
+<line x1="311.5" y1="287" x2="333" y2="287" class="whisker"/>
+<circle cx="324.8" cy="287" r="4.5" class="dot"/>
+<text x="354" y="291.5" class="t" font-size="12">85/96</text>
+<path d="M412 282H416.8Q419.8 282 419.8 285V289Q419.8 292 416.8 292H412Z" class="s3"/>
+<text x="426.8" y="291.5" class="t" font-size="12">5.8k</text>
+<path d="M558 282H591.9Q594.9 282 594.9 285V289Q594.9 292 591.9 292H558Z" class="s3"/>
+<text x="601.9" y="291.5" class="t" font-size="12">52k</text>
+<path d="M704 282H767.9Q770.9 282 770.9 285V289Q770.9 292 767.9 292H704Z" class="s3"/>
+<text x="777.9" y="291.5" class="t" font-size="12">$0.80</text>
+<line x1="24" y1="305" x2="856" y2="305" class="grid"/>
+<rect x="24" y="313" width="4" height="44" class="s4" rx="2"/>
+<text x="36" y="336" class="t" font-size="13.5" font-weight="600">computer-use-linux</text>
+<text x="182" y="327" class="m" font-size="11.5">Eager</text>
+<line x1="315.7" y1="323" x2="335.6" y2="323" class="whisker"/>
+<circle cx="328.2" cy="323" r="4.5" class="dot"/>
+<text x="354" y="327.5" class="t2" font-size="12">87/96</text>
+<path d="M412 318H469.7Q472.7 318 472.7 321V325Q472.7 328 469.7 328H412Z" class="s4" fill-opacity="0.45"/>
+<text x="479.7" y="327.5" class="t2" font-size="12">45k</text>
+<path d="M558 318H639Q642 318 642 321V325Q642 328 639 328H558Z" class="s4" fill-opacity="0.45"/>
+<text x="649" y="327.5" class="t2" font-size="12">119k</text>
+<path d="M704 318H783.9Q786.9 318 786.9 321V325Q786.9 328 783.9 328H704Z" class="s4" fill-opacity="0.45"/>
+<text x="793.9" y="327.5" class="t2" font-size="12">$0.99</text>
+<text x="182" y="352" class="t2" font-size="11.5">ToolSearch</text>
+<line x1="311.5" y1="348" x2="333" y2="348" class="whisker"/>
+<circle cx="324.8" cy="348" r="4.5" class="dot"/>
+<text x="354" y="352.5" class="t" font-size="12">85/96</text>
+<path d="M412 343H429.4Q432.4 343 432.4 346V350Q432.4 353 429.4 353H412Z" class="s4"/>
+<text x="439.4" y="352.5" class="t" font-size="12">15k</text>
+<path d="M558 343H634.6Q637.6 343 637.6 346V350Q637.6 353 634.6 353H558Z" class="s4"/>
+<text x="644.6" y="352.5" class="t" font-size="12">112k</text>
+<path d="M704 343H795Q798 343 798 346V350Q798 353 795 353H704Z" class="s4"/>
+<text x="805" y="352.5" class="t" font-size="12">$1.12</text>
+</svg>

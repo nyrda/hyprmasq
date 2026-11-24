@@ -763,10 +763,14 @@ class Comparison(unittest.TestCase):
                     json.dump({"sources": [], "runs": r}, f)
             page = os.path.join(d, "comparison.md")
             with open(page, "w") as f:
-                f.write("# C\n\n<!-- render v3-cua,v3-ts-cua toolsearch -->\n<!-- /render -->\n")
+                f.write("# C\n\n<!-- render v3-cua,v3-ts-cua toolsearch -->\n<!-- /render -->\n\n"
+                        "<!-- render v3-cua,v3-ts-cua toolsearch-table -->\n<!-- /render -->\n")
             main(page)
             with open(page) as f:
                 text = f.read()
+            self.assertIn("comparison/toolsearch.svg", text)
+            self.assertIn("comparison/toolsearch-dark.svg", text)
+            self.assertTrue(os.path.isfile(os.path.join(d, "comparison", "toolsearch.svg")))
             self.assertIn("| Cua Driver | Eager schemas |", text)
             self.assertIn("| Cua Driver | ToolSearch |", text)
             self.assertIn("| 61.7 | 110.8 |", text)

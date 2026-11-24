@@ -53,7 +53,9 @@ left the user's window. **Focus away** is the median across all passed runs (inc
 86 of 171 passed runs (50.3 %), so its overall median lands at 3 s while its median across the 86 runs that took focus
 is 55 s (against 41 s for computer-use-linux and 64 s for hypruse). In Forgejo, where the user types notes in their own
 window meanwhile, hyprmasq kept the notes intact in **12/12** runs (0 lost characters), against **8/12** for Cua Driver
-(55 lost), **6/12** for hypruse (84 lost) and **5/12** for computer-use-linux (129 lost).
+(55 lost), **6/12** for hypruse (84 lost) and **5/12** for computer-use-linux (129 lost). All 36 other-tool Forgejo
+runs interrupted the user at least once, and typing is lost whenever a focus switch catches them mid-line rather than
+during the 6 s pause between lines.
 
 ## What a run costs
 
@@ -87,23 +89,13 @@ window meanwhile, hyprmasq kept the notes intact in **12/12** runs (0 lost chara
 Codex deferred MCP tool schemas automatically across all four tools (`10.5k–16.4k` first request), whereas the Claude
 Opus 5.5 runs above sent every MCP tool schema eagerly on every turn because the harness's `--tools` flag omitted
 Claude Code's built-in `ToolSearch` tool. Repeating all 384 Opus 5.5 runs (6 repetitions × 16 tasks × 4 tools) with
-`ToolSearch` enabled shows the tradeoff directly:
+`ToolSearch` enabled shows the tradeoff directly ([full numbers](comparison-numbers.md#side-checks)):
 
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-ts-hyprmasq,v3-ts-hyprmasq-chromium,v3-ts-cua,v3-ts-cua-chromium,v3-ts-hypruse,v3-ts-hypruse-chromium,v3-ts-computer-use-linux,v3-ts-computer-use-linux-chromium toolsearch -->
-<details><summary>Numbers: Claude Opus 5.5 with eager schemas vs ToolSearch</summary>
-
-| Tool | Mode | Passed (95 % interval) | No view change, passed | First req k | Peak ctx k | Requests | Med cost | Total cost | Wall s, passed |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| hyprmasq | Eager schemas | 94/96 (93–99 %) | 94/94 | 8.5 | 24.7 | 10.5 | $0.23 | $24.1 | 52.0 s |
-| hyprmasq | ToolSearch | 94/96 (93–99 %) | 94/94 | 3.6 | 26.4 | 13.0 | $0.28 | $28.1 | 59.5 s |
-| Cua Driver | Eager schemas | 88/96 (84–96 %) | 45/88 | 61.7 | 110.8 | 24.0 | $1.06 | $125.5 | 104.7 s |
-| Cua Driver | ToolSearch | 78/96 (72–88 %) | 38/78 | 9.7 | 66.5 | 22.0 | $0.83 | $102.5 | 96.8 s |
-| hypruse | Eager schemas | 87/96 (83–95 %) | 3/87 | 12.5 | 57.9 | 33.0 | $0.75 | $70.3 | 89.0 s |
-| hypruse | ToolSearch | 85/96 (81–93 %) | 14/85 | 5.8 | 52.1 | 32.0 | $0.80 | $89.5 | 103.4 s |
-| computer-use-linux | Eager schemas | 87/96 (83–95 %) | 27/87 | 44.6 | 118.6 | 13.5 | $0.99 | $141.7 | 81.2 s |
-| computer-use-linux | ToolSearch | 85/96 (81–93 %) | 27/85 | 15.0 | 112.3 | 16.0 | $1.12 | $149.7 | 80.1 s |
-
-</details>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="comparison/toolsearch-dark.svg">
+  <img alt="Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, median first-request tokens, median peak context and median cost per run." src="comparison/toolsearch.svg">
+</picture>
 <!-- /render -->
 
 - **Cua Driver** is the only tool that saved context and cost under `ToolSearch`: its 65-tool first request dropped

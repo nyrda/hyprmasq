@@ -483,7 +483,7 @@ All 384 Claude Opus 5.5 runs repeated with Claude Code's built-in `ToolSearch` e
 `hypruse` in 4 GPU containers on the Ryzen 7 5800X3D host, and `computer-use-linux` in 2 × 2-core KVM VMs on a Ryzen 5
 5600X host), shown beside the eager-schema Opus 5.5 runs.
 
-<!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-ts-hyprmasq,v3-ts-hyprmasq-chromium,v3-ts-cua,v3-ts-cua-chromium,v3-ts-hypruse,v3-ts-hypruse-chromium,v3-ts-computer-use-linux,v3-ts-computer-use-linux-chromium toolsearch -->
+<!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-ts-hyprmasq,v3-ts-hyprmasq-chromium,v3-ts-cua,v3-ts-cua-chromium,v3-ts-hypruse,v3-ts-hypruse-chromium,v3-ts-computer-use-linux,v3-ts-computer-use-linux-chromium toolsearch-table -->
 <details><summary>Numbers: Claude Opus 5.5 with eager schemas vs ToolSearch</summary>
 
 | Tool | Mode | Passed (95 % interval) | No view change, passed | First req k | Peak ctx k | Requests | Med cost | Total cost | Wall s, passed |

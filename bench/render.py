@@ -192,20 +192,22 @@ class Svg:
         attrs += f' transform="rotate({num(rotate)} {num(x)} {num(y)})"' if rotate else ""
         self.add(f'<text x="{num(x)}" y="{num(y)}" class="{cls}" font-size="{size}"{attrs}>{html.escape(s)}</text>')
 
-    def rect(self, x, y, w, h, cls, rx=0):
+    def rect(self, x, y, w, h, cls, rx=0, opacity=None):
         r = f' rx="{num(rx)}"' if rx else ""
-        self.add(f'<rect x="{num(x)}" y="{num(y)}" width="{num(max(w, 0))}" height="{num(h)}" class="{cls}"{r}/>')
+        op = f' fill-opacity="{opacity}"' if opacity is not None else ""
+        self.add(f'<rect x="{num(x)}" y="{num(y)}" width="{num(max(w, 0))}" height="{num(h)}" class="{cls}"{r}{op}/>')
 
-    def bar(self, x, y, w, h, cls, round_end=True):
+    def bar(self, x, y, w, h, cls, round_end=True, opacity=None):
         """A bar from x to the right, square at its start, with a rounded end."""
         if w <= 0:
             return
         r = min(3, h / 2, w) if round_end else 0
         if not r:
-            return self.rect(x, y, w, h, cls)
+            return self.rect(x, y, w, h, cls, opacity=opacity)
+        op = f' fill-opacity="{opacity}"' if opacity is not None else ""
         self.add(
             f'<path d="M{num(x)} {num(y)}H{num(x + w - r)}Q{num(x + w)} {num(y)} {num(x + w)} {num(y + r)}'
-            f'V{num(y + h - r)}Q{num(x + w)} {num(y + h)} {num(x + w - r)} {num(y + h)}H{num(x)}Z" class="{cls}"/>'
+            f'V{num(y + h - r)}Q{num(x + w)} {num(y + h)} {num(x + w - r)} {num(y + h)}H{num(x)}Z" class="{cls}"{op}/>'
         )
 
     def line(self, x1, y1, x2, y2, cls):
@@ -1970,6 +1972,87 @@ def usage_figure(data):
     return svg, alt
 
 
+def toolsearch_figure(data):
+    """Claude Opus 5.5 with eager MCP tool schemas beside deferred loading via ToolSearch, for all four tools:
+    runs passed with 95 % Wilson interval, median first-request tokens, median peak context, and median cost."""
+    groups = dict(setups(of_task(data, None)))
+    svg = Svg()
+    top = header(svg, "Deferred tool loading (Claude Opus 5.5)",
+                 ["Eager MCP schemas (lighter bars) against Claude Code's ToolSearch (solid bars) across all 16 tasks.",
+                  "Dot is pass rate with 95 % interval. First request, peak context and cost are medians over all runs."])
+    blocks = []
+    for base in ("hyprmasq", "cua", "hypruse", "computer-use-linux"):
+        if base not in groups or f"ts-{base}" not in groups:
+            continue
+        ts_models = set(models(groups[f"ts-{base}"]))
+        pairs = []
+        for label, key, eager in (("Eager", base, True), ("ToolSearch", f"ts-{base}", False)):
+            rs = [r for r in groups[key] if r["model"] in ts_models]
+            firsts = [per_k((r.get("context") or {}).get("first_input_tokens")) for r in rs]
+            peaks = [per_k((r.get("context") or {}).get("peak_input_tokens")) for r in rs]
+            costs = [r["usage"]["cost_usd"] for r in rs if r["usage"].get("cost_usd") is not None]
+            pairs.append((label, eager, rs, [
+                median(v for v in firsts if v is not None),
+                median(v for v in peaks if v is not None),
+                median(costs) if costs else None,
+            ]))
+        blocks.append((base, TOOLS[groups[base][0]["backend"]][1], pairs))
+
+    mode_x, axis_x, axis_w, row, gap = PAD + 158, PAD + 236, 84, 25, 9
+    cols = (
+        ("First request", 412, 84, lambda v: f"{v:.1f}k" if v < 10 else f"{v:.0f}k"),
+        ("Peak context", 558, 84, lambda v: f"{v:.0f}k"),
+        ("Median cost", 704, 94, lambda v: f"${v:.2f}"),
+    )
+    all_rs = [rs for _, _, pairs in blocks for _, _, rs, _ in pairs if rs]
+    start = min(0.5, math.floor(min(wilson(sum(passed(r) for r in rs), len(rs))[0] for rs in all_rs) * 4) / 4) if all_rs else 0.5
+    at = lambda share: axis_x + axis_w * (share - start) / (1 - start)
+    ticks = (start, (start + 1) / 2, 1)
+
+    top += 8
+    svg.text(axis_x, top, "Runs passed", cls="t2", size=12, weight="600")
+    for t in ticks:
+        svg.text(at(t), top + 15, f"{100 * t:.0f} %", cls="m", size=10.5, anchor="middle")
+    limits = []
+    for i, (title, x, _, _) in enumerate(cols):
+        svg.text(x, top, title, cls="t2", size=12, weight="600")
+        svg.text(x, top + 15, "median, all runs", cls="m", size=10.5)
+        vals = [cells[i] for _, _, pairs in blocks for _, _, _, cells in pairs if cells[i] is not None]
+        limits.append(max(vals) if vals else 1)
+
+    y = top + 26
+    grid_top = y
+    body = Svg()
+    for base, cls, pairs in blocks:
+        body.line(PAD, y, WIDTH - PAD, y, "grid")
+        block = len(pairs) * row
+        body.rect(PAD, y + gap - 1, 4, block - 6, cls, rx=2)
+        body.text(PAD + 12, y + gap + block / 2 - 3, SETUPS[base], size=13.5, weight="600")
+        for j, (label, eager, rs, cells) in enumerate(pairs):
+            cy = y + gap + j * row + 9
+            body.text(mode_x, cy + 4, label, cls="m" if eager else "t2", size=11.5)
+            ok = sum(passed(r) for r in rs)
+            low, high = wilson(ok, len(rs))
+            body.line(at(low), cy, at(high), cy, "whisker")
+            body.circle(at(ok / len(rs)), cy, 4.5, "dot")
+            body.text(axis_x + axis_w + 10, cy + 4.5, f"{ok}/{len(rs)}", cls="t2" if eager else "t", size=12)
+            for i, (value, (_, x, bar_w, fmt_val)) in enumerate(zip(cells, cols)):
+                if value is None:
+                    body.text(x, cy + 4.5, "–", cls="m", size=12)
+                    continue
+                w = bar_w * value / (limits[i] or 1)
+                body.bar(x, cy - 5, w, 10, cls, opacity=0.45 if eager else None)
+                body.text(x + w + 7, cy + 4.5, fmt_val(value), cls="t2" if eager else "t", size=12)
+        y += block + gap + 2
+    for t in ticks:
+        svg.line(at(t), grid_top, at(t), y - 2, "grid")
+    svg.items += body.items
+    svg.height = y + 12
+    alt = ("Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, "
+           "median first-request tokens, median peak context and median cost per run.")
+    return svg, alt
+
+
 UNIT_ORDER = ("form", "files", "inkscape", "thunderbird", "forgejo", "calc", "board-dnd", "board-pointer", "trace")
 
 
@@ -2256,8 +2339,7 @@ FIGURES = {"scoreboard": scoreboard, "time": time_figure, "kinds": kinds_figure,
            "comparison-pooled": lambda data: comparison_figure(data, pooled="agents"),
            "probe": probe_figure, "probe-tasks": probe_tasks_figure, "attribution": attribution_figure,
            "scorecard": scorecard_figure, "unit-grid": unit_grid_figure, "user-view": user_view_figure, "usage": usage_figure,
-
-           "toolkits": toolkits_figure}
+           "toolsearch": toolsearch_figure, "toolkits": toolkits_figure}
 
 
 # The tables.
@@ -2403,7 +2485,7 @@ def toolkits_table(data):
 TABLES = {"costs": costs_table, "table": task_table, "kinds-table": kinds_table, "compare-table": compare_table,
           "comparison-table": comparison_table, "toolkits-table": toolkits_table, "probe-table": probe_table,
           "headline": headline_table, "headline-time": headline_time_table, "machine": machine_table,
-          "vm-overhead": vm_overhead_table, "toolsearch": toolsearch_table, "user": user_table,
+          "vm-overhead": vm_overhead_table, "toolsearch-table": toolsearch_table, "user": user_table,
           "frames": frames_table, "walks": walks_table, "attach": attach_table, "attribution-table": attribution_table}
 # The views that take a TASK, and those that take an earlier build's dataset instead.
 BY_TASK = {"time", "table", "kinds", "kinds-table", "comparison", "comparison-time", "comparison-table"}
@@ -2483,7 +2565,7 @@ TABLE_SUMMARIES = {"headline": "Numbers: pass rates with their intervals, per ag
                    "walks": "Numbers: Cua Driver's accessibility walks",
                    "attach": "Numbers: Cua Driver with and without the debugging port",
                    "vm-overhead": "Numbers: hyprmasq in GPU containers vs 3×2-core KVM VMs on the same host",
-                   "toolsearch": "Numbers: Claude Opus 5.5 with eager schemas vs ToolSearch",
+                   "toolsearch-table": "Numbers: Claude Opus 5.5 with eager schemas vs ToolSearch",
                    "attribution-table": "Each task's failed runs, with the reasons for unclear",
                    "costs": "Tokens and cost per agent", "kinds-table": "Numbers: seconds per question of each kind",
                    "compare-table": "Numbers before → after", "toolkits-table": "Numbers per toolkit and agent"}
