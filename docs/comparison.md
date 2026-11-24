@@ -94,19 +94,19 @@ Claude Code's built-in `ToolSearch` tool. Repeating all 384 Opus 5.5 runs (6 rep
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-ts-hyprmasq,v3-ts-hyprmasq-chromium,v3-ts-cua,v3-ts-cua-chromium,v3-ts-hypruse,v3-ts-hypruse-chromium,v3-ts-computer-use-linux,v3-ts-computer-use-linux-chromium toolsearch -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/toolsearch-dark.svg">
-  <img alt="Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, median first-request tokens, median peak context and median cost per run." src="comparison/toolsearch.svg">
+  <img alt="Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, median first-request tokens, median peak context, median cost per run and median wall time of passed runs." src="comparison/toolsearch.svg">
 </picture>
 <!-- /render -->
 
-- **Cua Driver** is the only tool that saved context and cost under `ToolSearch`: its 65-tool first request dropped
-  from `61.7k` to `9.7k`, peak context fell `40 %` (`110.8k` to `66.5k`), and median cost dropped `22 %` (`$1.06` to
-  `$0.83`, total `$125.5` to `$102.5`). At the same time, its pass rate dropped from `88/96` to `78/96` (Thunderbird
-  `6/6` to `2/6`, Qt form with dropdowns `6/6` to `3/6`, Chromium river trace `5/6` to `3/6`, and Firefox custom board
-  drag `6/6` to `5/6`).
-- **The other three tools got slightly more expensive under `ToolSearch`** (`hyprmasq` `$0.23` to `$0.28`, `hypruse`
-  `$0.75` to `$0.80`, `computer-use-linux` `$0.99` to `$1.12`): eager static prefixes hit Anthropic's prompt cache
-  across runs (`cache_read`), whereas `ToolSearch` loads schemas mid-conversation as per-run `cache_write` tokens plus
-  extra search turns.
+- **Cua Driver** is the only tool that saved context, cost and time under `ToolSearch`: its 65-tool first request
+  dropped from `61.7k` to `9.7k`, peak context fell `40 %` (`110.8k` to `66.5k`), median cost dropped `22 %` (`$1.06`
+  to `$0.83`, total `$125.5` to `$102.5`), and median wall time fell from `104.7 s` to `96.8 s`. At the same time, its
+  pass rate dropped from `88/96` to `78/96` (Thunderbird `6/6` to `2/6`, Qt form with dropdowns `6/6` to `3/6`,
+  Chromium river trace `5/6` to `3/6`, and Firefox custom board drag `6/6` to `5/6`).
+- **The other three tools got slightly more expensive under `ToolSearch`** (`hyprmasq` `$0.23` to `$0.28` and `52.0 s`
+  to `59.5 s`, `hypruse` `$0.75` to `$0.80` and `89.0 s` to `103.4 s`, `computer-use-linux` `$0.99` to `$1.12`): eager
+  static prefixes hit Anthropic's prompt cache across runs (`cache_read`), whereas `ToolSearch` loads schemas
+  mid-conversation as per-run `cache_write` tokens plus extra search turns.
 - **Under both modes, the ranking holds:** with `ToolSearch`, hyprmasq passed `94/96` (`94/94` view untouched) at
   `$0.28` median (`$28.1` total) against `78–85/96` and `$0.80–$1.12` median (`$89.5–$149.7` total, `2.9–4.0×` median
   cost) for the other three.
