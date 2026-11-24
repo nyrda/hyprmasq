@@ -306,15 +306,19 @@ def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprma
     # reads a user's skills only with the user's settings, which in that fresh home are the skill alone.
     skill = backend in SKILLS and tap is not None
     read_only_dir = read_dir if tap is not None else None
-    tools = list(SKILL_TOOLS) if skill else []
+    # ToolSearch is Claude Code's built-in deferred MCP tool loader (on by default under --tools default); omitting it
+    # forces Claude Code to send every MCP tool schema eagerly on every request.
+    tools = ["ToolSearch"] if tap is not None else []
+    if skill:
+        tools += list(SKILL_TOOLS)
     if read_only_dir and "Read" not in tools:
         tools.append("Read")
     command = [
         "claude", "-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose",
-        # Only the backend's tools, and none of the user's CLAUDE.md, settings, hooks, skills or MCP servers. With a
-        # skill, the resource tools as well, as a skill's guides are files that a real agent reads: here they are the
-        # server's resources, for a server that has them. With read_dir (hypruse file mode in a container), Read scoped
-        # strictly to the shared screenshot directory.
+        # Only ToolSearch and the backend's tools, and none of the user's CLAUDE.md, settings, hooks, skills or MCP
+        # servers. With a skill, the resource tools as well, as a skill's guides are files that a real agent reads:
+        # here they are the server's resources, for a server that has them. With read_dir (hypruse file mode in a
+        # container), Read scoped strictly to the shared screenshot directory.
         "--tools", ",".join(tools), "--setting-sources", "user" if skill else "",
         "--strict-mcp-config", "--settings", json.dumps(CLAUDE_SETTINGS),
     ]
@@ -332,7 +336,7 @@ def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprma
         if tap_env:
             srv["env"] = tap_env
         config = {"mcpServers": {server: srv}}
-        allowed = []
+        allowed = ["ToolSearch"]
         if skill:
             allowed += list(SKILL_TOOLS)
         if read_only_dir:

@@ -198,6 +198,29 @@
    },
    "time_factor": 1.0,
    "note": "Same machine C (Ryzen 7 5800X3D) running KVM VMs (3 slots x 2 pinned cores) for computer-use-linux alone, because on Hyprland its absolute pointer uses kernel /dev/uinput which cannot be isolated inside a systemd-nspawn container without injecting pointer events into the host desktop."
+  },
+  "machine-c-claude": {
+   "name": "machine C (Ryzen 7 5800X3D, host GPU, rootless nspawn containers, Claude-only)",
+   "target": "local",
+   "options": "slots=4,lock=/tmp/vm.lock,bin=.cache/hyprmasq-bench/harness-v3/bin,label=5800X3D",
+   "workers": 4,
+   "max_concurrent": {
+    "claude": 4
+   },
+   "time_factor": 1.0,
+   "note": "Same 4-container setup on machine C as machine-c, with all 4 slots available to Claude when Codex is not running."
+  },
+  "machine-c-vm-claude": {
+   "name": "machine C (Ryzen 7 5800X3D, KVM VMs, Claude-only)",
+   "target": "local",
+   "options": "slots=3,cores=2,lock=/tmp/vm.lock,bin=.cache/hyprmasq-bench/harness-v3/bin,label=5800X3D",
+   "workers": 3,
+   "cores": 2,
+   "max_concurrent": {
+    "claude": 3
+   },
+   "time_factor": 1.0,
+   "note": "Same 3 x 2-core KVM VM setup on machine C as machine-c-vm, with all 3 slots available to Claude when Codex is not running."
   }
  },
  "not_used": {
@@ -511,6 +534,186 @@
     }
    },
    "about": "One full round (32 runs) of hyprmasq in the exact same KVM VM setup on machine C (3 slots x 2 cores) as computer-use-linux, measuring VM vs container overhead directly. Reported as a side check, never pooled with main."
+  },
+  "claude-toolsearch": {
+   "tools": [
+    "cua",
+    "hyprmasq",
+    "hypruse"
+   ],
+   "machine": "machine-c-claude",
+   "container": true,
+   "reps": 6,
+   "agents": [
+    "claude:claude-opus-5-5@medium"
+   ],
+   "results": "comparison-2026-11-v3/claude-toolsearch",
+   "sets": {
+    "cua": {
+     "apps": {
+      "tasks": [
+       "form:25",
+       "form:25-no-dropdowns",
+       "form:qt-25",
+       "form:qt-25-no-dropdowns",
+       "files",
+       "inkscape",
+       "thunderbird"
+      ]
+     },
+     "forgejo": {
+      "user_reply": true,
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     },
+     "firefox": {
+      "browser": "firefox",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     },
+     "chromium": {
+      "browser": "chromium",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     }
+    },
+    "hyprmasq": {
+     "apps": {
+      "tasks": [
+       "form:25",
+       "form:25-no-dropdowns",
+       "form:qt-25",
+       "form:qt-25-no-dropdowns",
+       "files",
+       "inkscape",
+       "thunderbird"
+      ]
+     },
+     "forgejo": {
+      "user_reply": true,
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     },
+     "firefox": {
+      "browser": "firefox",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     },
+     "chromium": {
+      "browser": "chromium",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     }
+    },
+    "hypruse": {
+     "apps": {
+      "tasks": [
+       "form:25",
+       "form:25-no-dropdowns",
+       "form:qt-25",
+       "form:qt-25-no-dropdowns",
+       "files",
+       "inkscape",
+       "thunderbird"
+      ]
+     },
+     "forgejo": {
+      "user_reply": true,
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     },
+     "firefox": {
+      "browser": "firefox",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     },
+     "chromium": {
+      "browser": "chromium",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     }
+    }
+   },
+   "about": "Full Claude Opus 5.5 rebench with ToolSearch enabled in Claude Code (bench/run.py) across the three GPU-container tools (cua, hyprmasq, hypruse), interleaved round by round on machine C (4 Claude workers, 288 runs total, --user-reply on Forgejo only, same pinned d9fe738 source and Claude Code 2.1.330)."
+  },
+  "claude-toolsearch-cul": {
+   "tools": [
+    "computer-use-linux"
+   ],
+   "machine": "machine-c-vm-claude",
+   "container": false,
+   "reps": 6,
+   "agents": [
+    "claude:claude-opus-5-5@medium"
+   ],
+   "results": "comparison-2026-11-v3/claude-toolsearch-cul",
+   "sets": {
+    "computer-use-linux": {
+     "apps": {
+      "tasks": [
+       "form:25",
+       "form:25-no-dropdowns",
+       "form:qt-25",
+       "form:qt-25-no-dropdowns",
+       "files",
+       "inkscape",
+       "thunderbird"
+      ]
+     },
+     "forgejo": {
+      "user_reply": true,
+      "tasks": [
+       "forgejo:reacting"
+      ]
+     },
+     "firefox": {
+      "browser": "firefox",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     },
+     "chromium": {
+      "browser": "chromium",
+      "tasks": [
+       "board:dnd",
+       "board:pointer",
+       "trace:river",
+       "calc"
+      ]
+     }
+    }
+   },
+   "about": "Full Claude Opus 5.5 rebench with ToolSearch enabled in Claude Code (bench/run.py) for computer-use-linux in 3 x 2-core KVM VMs on machine C (3 Claude workers, 96 runs total, --user-reply on Forgejo only, same pinned d9fe738 source and Claude Code 2.1.330)."
   }
  },
  "analysis": {
@@ -567,6 +770,10 @@
   {
    "date": "2026-11-22",
    "what": "Round 2 audit fix at d9fe738: fixed bench/run.py needs_reply() so negated mentions like `isn't \"Done\" yet` do not suppress --user-reply, excluded the single regex-bugged hypruse-v2 Forgejo Opus rep 5 run in v3-exclusions.json with its outcome, and replaced it with 1 clean repetition (hypruse-forgejo-opus-fix). Recorded retained outcomes on all excluded runs in v3-exclusions.json."
+  },
+  {
+   "date": "2026-11-24",
+   "what": "Added ToolSearch to Claude Code's --tools and --allowedTools in bench/run.py (matching Claude Code's default deferred MCP tool loading, which --tools previously stripped while Codex already deferred MCP tools) and added claude-toolsearch (cua, hyprmasq, hypruse in 4 containers, 288 runs) and claude-toolsearch-cul (computer-use-linux in 3 KVM VMs, 96 runs) as a full Claude Opus 5.5 datapoint at the same pinned d9fe738 source and Claude Code 2.1.330."
   }
  ]
 }
