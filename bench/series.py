@@ -148,6 +148,8 @@ def dispatch_command(rules, series, tool, set_name, spec, reps, build_only=False
         command += ["--agent", agent]
     if series.get("container"):
         command += ["--container"]
+    if series.get("no_debrief") or rules.get("no_debrief"):
+        command += ["--no-debrief"]
     if spec.get("user_reply") or series.get("user_reply") or rules.get("user_reply"):
         command += ["--user-reply"]
     if series.get("chromium_options"):

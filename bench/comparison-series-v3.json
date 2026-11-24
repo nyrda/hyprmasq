@@ -221,6 +221,17 @@
    },
    "time_factor": 1.0,
    "note": "Same 3 x 2-core KVM VM setup on machine C as machine-c-vm, with all 3 slots available to Claude when Codex is not running."
+  },
+  "machine-d": {
+   "name": "machine D (Ryzen 5 5600X, KVM VMs, Claude-only)",
+   "options": "slots=2,cores=2,lock=/tmp/vm.lock,bin=.cache/hyprmasq-bench/harness-v3/bin,label=5600X",
+   "workers": 2,
+   "cores": 2,
+   "max_concurrent": {
+    "claude": 2
+   },
+   "time_factor": 1.0,
+   "note": "Ryzen 5 5600X (6C/12T, 32 GiB) running 2 x 2-core KVM VMs for computer-use-linux in parallel with machine C's containers."
   }
  },
  "not_used": {
@@ -543,6 +554,7 @@
    ],
    "machine": "machine-c-claude",
    "container": true,
+   "no_debrief": true,
    "reps": 6,
    "agents": [
     "claude:claude-opus-5-5@medium"
@@ -661,14 +673,15 @@
      }
     }
    },
-   "about": "Full Claude Opus 5.5 rebench with ToolSearch enabled in Claude Code (bench/run.py) across the three GPU-container tools (cua, hyprmasq, hypruse), interleaved round by round on machine C (4 Claude workers, 288 runs total, --user-reply on Forgejo only, same pinned d9fe738 source and Claude Code 2.1.330)."
+   "about": "Full Claude Opus 5.5 rebench with ToolSearch enabled in Claude Code (bench/run.py) across the three GPU-container tools (cua, hyprmasq, hypruse), interleaved round by round on machine C (4 Claude workers, --no-debrief, 288 runs total, --user-reply on Forgejo only, same pinned d9fe738 source and Claude Code 2.1.330)."
   },
   "claude-toolsearch-cul": {
    "tools": [
     "computer-use-linux"
    ],
-   "machine": "machine-c-vm-claude",
+   "machine": "machine-d",
    "container": false,
+   "no_debrief": true,
    "reps": 6,
    "agents": [
     "claude:claude-opus-5-5@medium"
@@ -713,7 +726,7 @@
      }
     }
    },
-   "about": "Full Claude Opus 5.5 rebench with ToolSearch enabled in Claude Code (bench/run.py) for computer-use-linux in 3 x 2-core KVM VMs on machine C (3 Claude workers, 96 runs total, --user-reply on Forgejo only, same pinned d9fe738 source and Claude Code 2.1.330)."
+   "about": "Full Claude Opus 5.5 rebench with ToolSearch enabled in Claude Code (bench/run.py) for computer-use-linux in 2 x 2-core KVM VMs on machine D (2 Claude workers, --no-debrief, 96 runs total, --user-reply on Forgejo only, same pinned d9fe738 source and Claude Code 2.1.330), running in parallel with machine C's containers."
   }
  },
  "analysis": {
@@ -773,7 +786,7 @@
   },
   {
    "date": "2026-11-24",
-   "what": "Added ToolSearch to Claude Code's --tools and --allowedTools in bench/run.py (matching Claude Code's default deferred MCP tool loading, which --tools previously stripped while Codex already deferred MCP tools) and added claude-toolsearch (cua, hyprmasq, hypruse in 4 containers, 288 runs) and claude-toolsearch-cul (computer-use-linux in 3 KVM VMs, 96 runs) as a full Claude Opus 5.5 datapoint at the same pinned d9fe738 source and Claude Code 2.1.330."
+   "what": "Added ToolSearch to Claude Code's --tools and --allowedTools in bench/run.py (matching Claude Code's default deferred MCP tool loading, which --tools previously stripped while Codex already deferred MCP tools) and added claude-toolsearch (cua, hyprmasq, hypruse in 4 containers on machine C, 288 runs, --no-debrief) and claude-toolsearch-cul (computer-use-linux in 2 x 2-core KVM VMs on machine D in parallel, 96 runs, --no-debrief) as a full Claude Opus 5.5 datapoint at the same pinned d9fe738 source and Claude Code 2.1.330."
   }
  ]
 }
