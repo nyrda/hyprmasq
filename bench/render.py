@@ -1468,7 +1468,9 @@ def registered_table(data, runs):
 
 SETUPS = {"hyprmasq": "hyprmasq", "cua": "Cua Driver", "hypruse": "hypruse", "computer-use-linux": "computer-use-linux",
           "cua-attach": "Cua Driver, debugging port", "hyprmasq-machine-a": "hyprmasq, machine A",
-          "hyprmasq-vm": "hyprmasq, KVM VM"}
+          "hyprmasq-vm": "hyprmasq, KVM VM",
+          "ts-hyprmasq": "hyprmasq (ToolSearch)", "ts-cua": "Cua Driver (ToolSearch)",
+          "ts-hypruse": "hypruse (ToolSearch)", "ts-computer-use-linux": "computer-use-linux (ToolSearch)"}
 IMAGE_TASKS = {"board", "trace"}
 HEADLINE_SPLITS = (("Apps", lambda r: base_task(r) not in IMAGE_TASKS),
                    ("Image tasks", lambda r: base_task(r) in IMAGE_TASKS),
@@ -1483,7 +1485,8 @@ GROUP_CAPTIONS = {"Apps": "Apps", "Image tasks": "Reading a photo"}
 DESIGNS = {"hyprmasq": "background", "cua": "background first", "hypruse": "pointer in the foreground",
            "computer-use-linux": "pointer in the foreground"}
 # The setups that are slices of their own, which the rules never pool with the main series.
-SLICES = {"cua-attach", "hyprmasq-machine-a", "hyprmasq-vm"}
+SLICES = {"cua-attach", "hyprmasq-machine-a", "hyprmasq-vm",
+          "ts-hyprmasq", "ts-cua", "ts-hypruse", "ts-computer-use-linux"}
 
 
 def base_task(r):
@@ -1652,6 +1655,39 @@ def vm_overhead_table(data):
                      f"{gmean(t_ratios):.2f}×"])
     return markdown_table(["Agent", "VM passed", "Container wall med", "KVM VM wall med", "VM / container wall",
                            "Container tool med", "KVM VM tool med", "VM / container tool"], rows)
+
+
+def toolsearch_table(data):
+    """Claude Opus 5.5 with eager MCP tool schemas (v3) beside deferred loading via ToolSearch, for all four tools."""
+    groups = dict(setups(of_task(data, None)))
+    rows = []
+    for base in ("hyprmasq", "cua", "hypruse", "computer-use-linux"):
+        if base not in groups or f"ts-{base}" not in groups:
+            continue
+        ts_models = set(models(groups[f"ts-{base}"]))
+        for label, key in (("Eager schemas", base), ("ToolSearch", f"ts-{base}")):
+            rs = [r for r in groups[key] if r["model"] in ts_models]
+            ok = [r for r in rs if passed(r)]
+            quiet = sum(bool(r["no_view_change"]) for r in ok)
+            firsts = [r["context"]["first_input_tokens"] for r in rs if (r.get("context") or {}).get("first_input_tokens")]
+            peaks = [r["context"]["peak_input_tokens"] for r in rs if (r.get("context") or {}).get("peak_input_tokens")]
+            reqs = [r["context"]["request_count"] for r in rs if (r.get("context") or {}).get("request_count")]
+            costs = [r["usage"]["cost_usd"] for r in rs if r["usage"].get("cost_usd") is not None]
+            walls = [r["wall_seconds"] for r in ok]
+            rows.append([
+                SETUPS[base], label, share_with_interval(rs), f"{quiet}/{len(ok)}",
+                f"{median(firsts) / 1000:.1f}" if firsts else "–",
+                f"{median(peaks) / 1000:.1f}" if peaks else "–",
+                f"{median(reqs):.1f}" if reqs else "–",
+                f"${median(costs):.2f}" if costs else "–",
+                f"${sum(costs):.1f}" if costs else "–",
+                f"{median(walls):.1f} s" if walls else "–",
+            ])
+    return markdown_table(
+        ["Tool", "Mode", "Passed (95 % interval)", "No view change, passed", "First req k", "Peak ctx k",
+         "Requests", "Med cost", "Total cost", "Wall s, passed"],
+        rows,
+    )
 
 
 def user_table(data):
@@ -2367,7 +2403,7 @@ def toolkits_table(data):
 TABLES = {"costs": costs_table, "table": task_table, "kinds-table": kinds_table, "compare-table": compare_table,
           "comparison-table": comparison_table, "toolkits-table": toolkits_table, "probe-table": probe_table,
           "headline": headline_table, "headline-time": headline_time_table, "machine": machine_table,
-          "vm-overhead": vm_overhead_table, "user": user_table,
+          "vm-overhead": vm_overhead_table, "toolsearch": toolsearch_table, "user": user_table,
           "frames": frames_table, "walks": walks_table, "attach": attach_table, "attribution-table": attribution_table}
 # The views that take a TASK, and those that take an earlier build's dataset instead.
 BY_TASK = {"time", "table", "kinds", "kinds-table", "comparison", "comparison-time", "comparison-table"}
@@ -2447,6 +2483,7 @@ TABLE_SUMMARIES = {"headline": "Numbers: pass rates with their intervals, per ag
                    "walks": "Numbers: Cua Driver's accessibility walks",
                    "attach": "Numbers: Cua Driver with and without the debugging port",
                    "vm-overhead": "Numbers: hyprmasq in GPU containers vs 3×2-core KVM VMs on machine C",
+                   "toolsearch": "Numbers: Claude Opus 5.5 with eager schemas vs ToolSearch",
                    "attribution-table": "Each task's failed runs, with the reasons for unclear",
                    "costs": "Tokens and cost per agent", "kinds-table": "Numbers: seconds per question of each kind",
                    "compare-table": "Numbers before → after", "toolkits-table": "Numbers per toolkit and agent"}

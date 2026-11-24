@@ -779,6 +779,10 @@
   {
    "date": "2026-11-24",
    "what": "Added ToolSearch to Claude Code's --tools and --allowedTools in bench/run.py (matching Claude Code's default deferred MCP tool loading, which --tools previously stripped while Codex already deferred MCP tools) and added claude-toolsearch (cua, hyprmasq, hypruse in 4 containers on machine C, 288 runs, --no-debrief) and claude-toolsearch-cul (computer-use-linux in 2 x 2-core KVM VMs on machine D in parallel, 96 runs, --no-debrief) as a full Claude Opus 5.5 datapoint at the same pinned d9fe738 source and Claude Code 2.1.330."
+  },
+  {
+   "date": "2026-11-24",
+   "what": "During claude-toolsearch on machine C, an idle desktop libvirt VM (ubuntu26.04, ~1% CPU; host max_load1 median 2.05, p95 4.85, max 5.38; Cua AT-SPI walk median 170 ms) triggered series.py's max_other_qemu > 0 guard and caused round 1 to repeat five times (240 runs). Promoted the 238 clean completed runs from attempts 0-4 to reps 1-5 (leaving host_load unaltered), kept the 2 genuine OAuth 401 auth failures in rep 3 excluded (hyprmasq form:25 and form:25-no-dropdowns, logged in v3-exclusions.json), shut down the desktop VM, and ran the 2 rep-3 replacements plus round 6 (48 runs) with 0 other QEMU processes."
   }
  ]
 }

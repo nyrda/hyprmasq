@@ -747,5 +747,31 @@ class Comparison(unittest.TestCase):
                 main(page)
             self.assertIn("two blocks draw", str(cm.exception))
 
+    def test_toolsearch_table_renders_eager_and_deferred_side_by_side(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "comparison", "data"))
+            def make_run(rep, first_tok, peak_tok, cost, wall, passed_flag=True):
+                r = dict(run("claude-opus-5-5", rep, passed_flag, wall, 10),
+                         harness="claude", backend="cua", cost_usd=cost, user_no_view_change=True,
+                         context={"first_input_tokens": first_tok, "peak_input_tokens": peak_tok, "request_count": 12})
+                return r
+            for name, r in (
+                ("v3-cua", [make_run(1, 61700, 110800, 1.06, 100.0), dict(run("gpt-6.2-sol", 1, True, 80, 10), backend="cua")]),
+                ("v3-ts-cua", [make_run(1, 9700, 66500, 0.83, 95.0)]),
+            ):
+                with open(os.path.join(d, "comparison", "data", name + ".json"), "w") as f:
+                    json.dump({"sources": [], "runs": r}, f)
+            page = os.path.join(d, "comparison.md")
+            with open(page, "w") as f:
+                f.write("# C\n\n<!-- render v3-cua,v3-ts-cua toolsearch -->\n<!-- /render -->\n")
+            main(page)
+            with open(page) as f:
+                text = f.read()
+            self.assertIn("| Cua Driver | Eager schemas |", text)
+            self.assertIn("| Cua Driver | ToolSearch |", text)
+            self.assertIn("| 61.7 | 110.8 |", text)
+            self.assertIn("| 9.7 | 66.5 |", text)
+            main("--check", page)
+
 if __name__ == "__main__":
     unittest.main()

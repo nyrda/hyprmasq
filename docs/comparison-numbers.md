@@ -481,6 +481,28 @@ stall), so the pooled VM medians sit slightly below the container medians while 
 </details>
 <!-- /render -->
 
+All 384 Claude Opus 5.5 runs repeated with Claude Code's built-in `ToolSearch` enabled in `bench/run.py` (`--no-debrief`,
+same pinned `d9fe738` source and Claude Code 2.1.330, `hyprmasq`, Cua Driver and `hypruse` in 4 GPU containers on
+machine C and `computer-use-linux` in 2 × 2-core KVM VMs on machine D), shown beside the main v3 Opus 5.5 runs that
+sent MCP schemas eagerly.
+
+<!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-ts-hyprmasq,v3-ts-hyprmasq-chromium,v3-ts-cua,v3-ts-cua-chromium,v3-ts-hypruse,v3-ts-hypruse-chromium,v3-ts-computer-use-linux,v3-ts-computer-use-linux-chromium toolsearch -->
+<details><summary>Numbers: Claude Opus 5.5 with eager schemas vs ToolSearch</summary>
+
+| Tool | Mode | Passed (95 % interval) | No view change, passed | First req k | Peak ctx k | Requests | Med cost | Total cost | Wall s, passed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| hyprmasq | Eager schemas | 94/96 (93–99 %) | 94/94 | 8.5 | 24.7 | 10.5 | $0.23 | $24.1 | 52.0 s |
+| hyprmasq | ToolSearch | 94/96 (93–99 %) | 94/94 | 3.6 | 26.4 | 13.0 | $0.28 | $28.1 | 59.5 s |
+| Cua Driver | Eager schemas | 88/96 (84–96 %) | 45/88 | 61.7 | 110.8 | 24.0 | $1.06 | $125.5 | 104.7 s |
+| Cua Driver | ToolSearch | 78/96 (72–88 %) | 38/78 | 9.7 | 66.5 | 22.0 | $0.83 | $102.5 | 96.8 s |
+| hypruse | Eager schemas | 87/96 (83–95 %) | 3/87 | 12.5 | 57.9 | 33.0 | $0.75 | $70.3 | 89.0 s |
+| hypruse | ToolSearch | 85/96 (81–93 %) | 14/85 | 5.8 | 52.1 | 32.0 | $0.80 | $89.5 | 103.4 s |
+| computer-use-linux | Eager schemas | 87/96 (83–95 %) | 27/87 | 44.6 | 118.6 | 13.5 | $0.99 | $141.7 | 81.2 s |
+| computer-use-linux | ToolSearch | 85/96 (81–93 %) | 27/85 | 15.0 | 112.3 | 16.0 | $1.12 | $149.7 | 80.1 s |
+
+</details>
+<!-- /render -->
+
 ## Accessibility walks and frames
 
 In container mode on the host GPU, Cua Driver's accessibility walks run well below its 1,000 ms budget (median
