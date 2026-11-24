@@ -351,7 +351,7 @@ by v2 and now v3 in [docs/comparison.md](../docs/comparison.md)). This was its s
 `--backend hypruse` and `--backend computer-use-linux` run the task with one of two Linux computer-use MCP servers that
 claim Hyprland support, in place of hyprmasq, each set up as its own documentation sets it up on Hyprland, for a
 comparison on the whole suite with `--prompt comparison`. Both run as released and without hyprmasq's plugin or any
-other, on the Hyprland of `--source` (0.57.2 in the current v3 comparison series; 0.56.2 in the superseded v2 series),
+other, on the Hyprland of `--source` (0.57.2 in the current v3 comparison series, 0.56.2 in the superseded v2 series),
 on Omarchy's desktop. They keep their defaults, but for computer-use-linux's
 Hyprland background mode below. The task, its VM, its grading, the timeouts (the
 agent's, and 600 s a tool call) and the agent's isolation are the same as for the other backends: no shell, and the
@@ -367,7 +367,7 @@ tool's documentation says, and what the suite does, with every difference and it
 | Programs | `grim` (1.5+), `wtype`, `busctl`, optional ImageMagick for `marks` and `wl-clipboard` for the opt-in clipboard tool | grim 1.5.0, wtype 0.4, systemd's busctl and ImageMagick with Ghostscript on its PATH | ImageMagick's build with Ghostscript, whose fonts draw the marks' numbers, which the build without cannot. No wl-clipboard, as the clipboard tool is off by default |
 | libxkbcommon | Found with `ctypes.util.find_library`, through ldconfig on other distributions | The wrapper gives `LD_LIBRARY_PATH` and `ld`, with which Python finds it on NixOS | NixOS has no ldconfig cache. Without it, keys to a hidden window are refused |
 | Server | `claude mcp add -s user hypruse -- uvx hypruse`, a stdio server named `hypruse` | `hypruse` on the container Unix socket (or VM vsock), named `hypruse` for the agent, with the session's variables | None |
-| Screenshots | `HYPRUSE_SCREENSHOT_MODE=file` by default (for clients with `Read`, such as Claude Code), `image` for clients that render MCP images without a file reader | `HYPRUSE_SCREENSHOT_MODE=file` for Claude Code in `--container` mode (sharing `/run/user/1000/hypruse` via the container's shared dir, with `--tools Read` strictly scoped to that dir and path translation in `mcp_tap.py`); `HYPRUSE_SCREENSHOT_MODE=image` for Codex (and VM runs) | Matches `hypruse`'s own README: Claude Code reads saved files natively without `structuredContent` base64 inflation, while Codex (no file reader) gets inline MCP images |
+| Screenshots | `HYPRUSE_SCREENSHOT_MODE=file` by default (for clients with `Read`, such as Claude Code), `image` for clients that render MCP images without a file reader | `HYPRUSE_SCREENSHOT_MODE=file` for Claude Code in `--container` mode (sharing `/run/user/1000/hypruse` via the container's shared dir, with `--tools Read` strictly scoped to that dir and path translation in `mcp_tap.py`), and `HYPRUSE_SCREENSHOT_MODE=image` for Codex (and VM runs) | Matches `hypruse`'s own README: Claude Code reads saved files natively without `structuredContent` base64 inflation, while Codex (no file reader) gets inline MCP images |
 | Background mode | Automatic by default: actions on a window other than the user's run in the background, the pointer is refused there unless `background=false` | Automatic, unset | None |
 | Other settings | All opt-in: read-only, confinement, strict, mark, journal, dry run, clipboard. The authentication guard on | Defaults | None |
 | Skill | A skill that teaches its shell verbs, "for agents that run shell commands", installed with `hypruse skill install` | Not given. The server's own instructions reach the agent | The agent has the MCP server and no shell, and the skill's verbs need one |
@@ -690,12 +690,12 @@ python3 bench/startcheck.py --tool cua --series main --source ../hyprland-0.56 -
 
 [comparison-series-v3.json](comparison-series-v3.json) holds the rules of the current v3 comparison (Hyprland 0.57.2,
 Opus 5.5 and GPT-6.2 Sol, rootless GPU containers for hyprmasq, Cua Driver 0.56.0 and hypruse 0.15.1, KVM VMs on the
-same machine C for computer-use-linux 0.7.59 plus a 1-round `hyprmasq-vm` calibration); pass `--rules
+same machine C for computer-use-linux 0.7.59 plus a 1-round `hyprmasq-vm` calibration). Pass `--rules
 bench/comparison-series-v3.json` to `series.py`. [comparison-series.json](comparison-series.json) holds the frozen v2
 rules (Hyprland 0.56.2 VMs, Sonnet 5.5 and GPT-6.1 Terra) described below: the tools with their versions and commits,
 the models and efforts, the prompt, the sets of tasks, the series with their machine and repetitions, the workers, the
 limits per subscription, the order of the rounds, and what allows a rerun. `series.py` carries them out. The rules give
-each machine's options; its SSH target, and where a series' results lie on the machine that runs `series.py` if not at
+each machine's options, its SSH target, and where a series' results lie on the machine that runs `series.py` if not at
 their path, come from the untracked `bench/machines.local.json`, after [machines.example.json](machines.example.json).
 
 ```sh

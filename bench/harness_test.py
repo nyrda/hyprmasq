@@ -117,6 +117,13 @@ class CuaBackend(unittest.TestCase):
         self.assertEqual((hyprmasq["--tools"], hyprmasq["slash commands"], set(hyprmasq["--allowedTools"].split()),
                           hyprmasq["--setting-sources"]),
                          ("ToolSearch", False, {"ToolSearch", "mcp__hyprmasq"}, ""))
+        # --no-tool-search omits ToolSearch so MCP tool schemas load eagerly.
+        eager_cua = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, backend="cua", tool_search=False))
+        self.assertEqual(eager_cua["--tools"], "Skill,ListMcpResourcesTool,ReadMcpResourceTool")
+        self.assertEqual(set(eager_cua["--allowedTools"].split()),
+                         {"Skill", "ListMcpResourcesTool", "ReadMcpResourceTool", "mcp__cua-driver"})
+        eager_hm = self.parse(run.agent_command("claude-api", "m", "Do it.", tap, tool_search=False))
+        self.assertEqual((eager_hm["--tools"], set(eager_hm["--allowedTools"].split())), ("", {"mcp__hyprmasq"}))
 
         codex = run.agent_command("codex", "m", "Do it.", tap, backend="cua")
         settings = [codex[i + 1] for i, a in enumerate(codex[:-1]) if a == "-c"]
@@ -738,6 +745,9 @@ class UserReply(unittest.TestCase):
         self.assertTrue(run.needs_reply(self.AGENT, 'Nothing changed, so I\'m not saying "Done".'))
         self.assertTrue(run.needs_reply(self.AGENT, 'I haven\'t said "Done" because the labels aren\'t placed.'))
         self.assertTrue(run.needs_reply(self.AGENT, 'The task is not yet "Done".'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'I cannot say "Done" yet.'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'I will not say Done until it works.'))
+        self.assertTrue(run.needs_reply(self.AGENT, 'Thunderbird is blocked, so "Done" doesn\'t apply.'))
         self.assertFalse(run.needs_reply(self.AGENT, "Done. I uploaded the file."))
         for stopped in ({"timed_out": True}, {"budget_exhausted": True}, {"exit": 1}, {"refused": True},
                         {"session": None}):

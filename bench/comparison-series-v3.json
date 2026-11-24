@@ -3,6 +3,7 @@
  "prompt": "comparison",
  "desktop": "omarchy",
  "display": "1920x1080@1",
+ "tool_search": false,
  "agent_timeout_seconds": 1800,
  "tool_timeout_seconds": 600,
  "sources": {
@@ -554,6 +555,7 @@
    ],
    "machine": "machine-c-claude",
    "container": true,
+   "tool_search": true,
    "no_debrief": true,
    "reps": 6,
    "agents": [
@@ -675,6 +677,7 @@
    ],
    "machine": "machine-d",
    "container": false,
+   "tool_search": true,
    "no_debrief": true,
    "reps": 6,
    "agents": [
@@ -729,13 +732,13 @@
   "user": "The task's result and the user's own work are reported apart: user_work.kept where the task has the user working (Forgejo), with lost characters. no_view_change, desktop_input_to_user_window and cursor_moved_px are reported beside the result.",
   "walks": "Cua Driver's AT-SPI walks are reported per app, split by why they stopped (time budget, element budget, container cap). In container mode on machine C, all 9 apps walk well below Cua's 1,000 ms budget.",
   "frames": "frames.first_small and frames.unchanged_after_input are reported per tool and task. They are flags, not failures.",
-  "machines": "All four tools run on machine C: hyprmasq, Cua Driver and hypruse in rootless GPU containers, and computer-use-linux in 3 x 2-core KVM VMs (with a 1-round hyprmasq-vm calibration on the same VM setup so VM overhead is measured directly and never conflated with GPU containers).",
+  "machines": "All four tools in the primary series run on machine C: hyprmasq, Cua Driver and hypruse in rootless GPU containers, and computer-use-linux in 3 x 2-core KVM VMs (with a 1-round hyprmasq-vm calibration on the same VM setup so VM overhead is measured directly and never conflated with GPU containers). For claude-toolsearch-cul, computer-use-linux runs in 2 x 2-core KVM VMs on machine D (Ryzen 5 5600X) in parallel with machine C's containers, with wall times flagged as not directly comparable across hosts.",
   "export_fail": "Same prompt-requirement checks as v2: Forgejo extra changes, Thunderbird extra/wrong-room reply, file manager extra file/folder change, Calc closed/moved tab, extra app window opened in forms/files/Inkscape, trace river stopping short of photo bottom. Checked uniformly across all four tools and published with evidence.",
   "exclusions": "Every excluded run is listed with why, and every completed non-excluded run is published, failures included.",
   "headline_pass_rate": "Unweighted mean over the 16 task units per model (96 runs per model per tool, Wilson 95 % interval), plus splits by accessibility-friendly apps (10 units), image tasks (6 units), and browser (4 Firefox vs 4 Chromium).",
   "headline_time": "Geometric mean, over task units where both tools passed at least 3 of 6 runs with that model, of each tool's median wall time of passed runs over hyprmasq's (and likewise for time in tools), with included and excluded units listed. computer-use-linux (KVM VM) is flagged apart from GPU-container ratios.",
   "scope": {
-   "claims": "Scoped to Hyprland 0.57.2 with Omarchy config on machine C (rootless GPU containers for hyprmasq, Cua Driver and hypruse; KVM VMs for computer-use-linux due to /dev/uinput).",
+   "claims": "Scoped to Hyprland 0.57.2 with Omarchy config on machine C (rootless GPU containers for hyprmasq, Cua Driver and hypruse; KVM VMs for computer-use-linux due to /dev/uinput), plus machine D (Ryzen 5 5600X) for claude-toolsearch-cul.",
    "against_cua": [
     "6 of the 16 task units are image tasks (board drag-and-drop and river trace).",
     "4 task units run in Firefox, where Cua Driver's foreground is refused and its browser tools do not apply.",
@@ -743,12 +746,12 @@
    ],
    "for_cua": [
     "In the nested Hyprland container, Cua Driver's screenshots of a hidden Chromium window stay fresh.",
-    "Cua Driver's AT-SPI walks run on a fast desktop CPU (5800X3D) in host-GPU containers: 36 of 2,502 walks hit its 1,000 ms budget, 0 first walks were cut, median 176–182 ms."
+    "Cua Driver's AT-SPI walks run on a fast desktop CPU (5800X3D) in host-GPU containers: 36 of 2,502 walks hit its 1,000 ms budget, 0 first walks were cut, median of per-run medians 176–182 ms (pooled walk medians 211 / 223 ms)."
    ]
   },
   "failure_attribution": {
    "fixed": "Initial scope committed 21 November 2026 before main; reviewer pair and --no-capability updated in Amendment 5 on 22 November 2026.",
-   "scope": "Each failed non-excluded run gets one verdict (tool_problem, model_mistake, unclear) from two independent non-series reviewers (Claude Fable 5.2 and GPT-6.1 Sol) with identical prompts, no v2 capability table, and evidence citations; any disagreement becomes unclear with no tie-break."
+   "scope": "Each failed non-excluded run of the 768-run primary series gets one verdict (tool_problem, model_mistake, unclear) from two independent non-series reviewers (Claude Fable 5.2 and GPT-6.1 Sol) with identical prompts, no v2 capability table, and evidence citations; any disagreement becomes unclear with no tie-break. The 42 failures in the claude-toolsearch / claude-toolsearch-cul cohorts are not separately reviewed."
   }
  },
  "amendments": [
@@ -782,7 +785,7 @@
   },
   {
    "date": "2026-11-24",
-   "what": "During claude-toolsearch on machine C, an idle desktop libvirt VM (ubuntu26.04, ~1% CPU; host max_load1 median 2.05, p95 4.85, max 5.38; Cua AT-SPI walk median 170 ms) triggered series.py's max_other_qemu > 0 guard and caused round 1 to repeat five times (240 runs). Promoted the 238 clean completed runs from attempts 0-4 to reps 1-5 (leaving host_load unaltered), kept the 2 genuine OAuth 401 auth failures in rep 3 excluded (hyprmasq form:25 and form:25-no-dropdowns, logged in v3-exclusions.json), shut down the desktop VM, and ran the 2 rep-3 replacements plus round 6 (48 runs) with 0 other QEMU processes."
+   "what": "During claude-toolsearch on machine C, an idle desktop libvirt VM (ubuntu26.04, host max_load1 median 2.05, p95 4.85, max 5.38, Cua AT-SPI walk median 170 ms) triggered series.py's max_other_qemu > 0 guard and caused round 1 to repeat five times (240 runs, in fixed tool order cua -> hyprmasq -> hypruse) plus 2 completed Cua Qt runs in an interrupted 6th pass before VM shutdown (form:qt-25 failed in 53.3 s, form:qt-25-no-dropdowns passed in 31.8 s). Promoted the 238 clean completed runs from attempts 0-4 to reps 1-5 (leaving host_load unaltered), logged both the 2 genuine OAuth 401 auth failures in rep 3 (hyprmasq form:25 and form:25-no-dropdowns) and the 2 interrupted pass-6 Cua runs in v3-exclusions.json, shut down the desktop VM, and ran the 2 rep-3 replacements plus round 6 (48 runs) with 0 other QEMU processes."
   }
  ]
 }

@@ -109,17 +109,20 @@ class Plan(unittest.TestCase):
     def test_a_container_series_with_own_agents_forwards_both(self):
         r = rules()
         r["series"]["c"] = {"tools": ["one"], "machine": "a", "reps": 1, "results": "test-c",
-                            "container": True, "no_debrief": True, "user_reply": True, "agents": ["claude:opus@medium"]}
+                            "container": True, "no_debrief": True, "user_reply": True, "tool_search": False,
+                            "agents": ["claude:opus@medium"]}
         s = r["series"]["c"]
         command = series.dispatch_command(r, s, "one", "apps", r["tools"]["one"]["sets"]["apps"], [1])
         self.assertIn("--container", command)
         self.assertIn("--no-debrief", command)
+        self.assertIn("--no-tool-search", command)
         self.assertIn("--user-reply", command)
         self.assertEqual([command[i + 1] for i, a in enumerate(command) if a == "--agent"], ["claude:opus@medium"])
         self.assertEqual(sum(1 for _ in series.planned_runs(r, s, ["one"], [1])), 3)
         main = series.dispatch_command(r, r["series"]["main"], "one", "apps", r["tools"]["one"]["sets"]["apps"], [1])
         self.assertNotIn("--container", main)
         self.assertNotIn("--no-debrief", main)
+        self.assertNotIn("--no-tool-search", main)
         per_task = series.dispatch_command(r, r["series"]["main"], "one", "apps",
                                            {"tasks": ["x", "z"], "user_reply_tasks": ["x"]}, [1])
         self.assertNotIn("--user-reply", per_task)

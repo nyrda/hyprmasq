@@ -129,11 +129,13 @@ def run_record(results_dir, name, fail, variant, pass_override=None):
         record["kinds"] = {k: {"items": v["items"], "seconds": v["seconds"], "corrections": v["corrections"]}
                            for k, v in kinds.items()}
     reason = fail.get(record["run"]) or fail.get(name)
+    pass_reason = (pass_override or {}).get(record["run"]) or (pass_override or {}).get(name)
+    if reason and pass_reason:
+        sys.exit(f"export.py: {record['run']} cannot have both --fail and --pass-override")
     if reason:
         record["vm_passed"] = record["passed"]
         record["passed"] = False
         record["counted_failed"] = reason
-    pass_reason = (pass_override or {}).get(record["run"]) or (pass_override or {}).get(name)
     if pass_reason:
         record["vm_passed"] = record["passed"]
         record["passed"] = True
@@ -165,7 +167,8 @@ def export(results_dirs, fail, several_machines=False, agents=(), pass_override=
                         "container": bool(source.get("container", False)),
                         # How the user's browser started and what hyprmasq-mcp was given: a slice such as Chromium with a
                         # debugging port, or the image size probe, is a configuration of its own.
-                        "chromium_options": source.get("chromium_options", ""), "mcp_args": source.get("mcp_args", "")})
+                        "chromium_options": source.get("chromium_options", ""), "mcp_args": source.get("mcp_args", ""),
+                        "tool_search": source.get("tool_search")})
     for results_dir, s in zip(results_dirs, sources):
         for name in sorted(os.listdir(results_dir)):
             if os.path.exists(os.path.join(results_dir, name, "summary.json")):
@@ -177,9 +180,9 @@ def export(results_dirs, fail, several_machines=False, agents=(), pass_override=
     # Times depend on the build and the machine: a dataset holds one of each per task. Its runs name their variant,
     # by which render.py tells a task's variants apart.
     builds = {}
-    keys = (("dirty", "display", "backend", "prompt", "browser", "desktop", "container", "chromium_options", "mcp_args")
+    keys = (("dirty", "display", "backend", "prompt", "browser", "desktop", "container", "chromium_options", "mcp_args", "tool_search")
             if allow_source_commits else
-            ("commit", "dirty", "display", "backend", "prompt", "browser", "desktop", "container", "chromium_options", "mcp_args"))
+            ("commit", "dirty", "display", "backend", "prompt", "browser", "desktop", "container", "chromium_options", "mcp_args", "tool_search"))
     for s in sources:
         build = tuple(s[k] for k in keys)
         builds.setdefault(s["task"], set()).add(build)

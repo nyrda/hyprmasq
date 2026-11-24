@@ -150,6 +150,8 @@ def dispatch_command(rules, series, tool, set_name, spec, reps, build_only=False
         command += ["--container"]
     if series.get("no_debrief") or rules.get("no_debrief"):
         command += ["--no-debrief"]
+    if series.get("tool_search", rules.get("tool_search", True)) is False:
+        command += ["--no-tool-search"]
     if spec.get("user_reply") or series.get("user_reply") or rules.get("user_reply"):
         command += ["--user-reply"]
     for task in spec.get("user_reply_tasks") or ():
@@ -221,8 +223,9 @@ def infrastructure(directory):
 
 def other_load(directory):
     """A run that shared its host with work outside the series, the same rule for every tool: a QEMU process that is
-    none of the benchmark's VMs, or the host's guard holding for another benchmark on the host, at any of the run's samples
-    (run.py's host_load). None for a run with no samples, as before they were taken."""
+    none of the benchmark's VMs, an external benchmark QEMU VM during a container run, the host's guard holding for
+    another benchmark on the host, or a load1 spike above 40, at any of the run's samples (run.py's host_load). None
+    for a run with no samples, as before they were taken."""
     path = os.path.join(directory, "run.json")
     if not os.path.exists(path):
         return None

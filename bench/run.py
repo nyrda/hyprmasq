@@ -287,7 +287,7 @@ def tap_command(cid, log, max_calls=0, spent=0):
 USER_REPLY = "Yes, go ahead."
 DONE = re.compile(r"\bDone\b")
 NOT_DONE = re.compile(
-    r"""(?:not(?:\s+(?:yet|saying))?|isn['’]t(?:\s+yet)?|is\s+not(?:\s+yet)?|aren['’]t|are\s+not|wasn['’]t|haven['’]t(?:\s+said)?|(?:won['’]t|can['’]t|didn['’]t)\s+say|without\s+saying|before\s+saying)\s+["'“‘`*_]*Done\b""",
+    r"""(?:(?:not(?:\s+(?:yet|saying))?|isn['’]t(?:\s+yet)?|is\s+not(?:\s+yet)?|aren['’]t|are\s+not|wasn['’]t|haven['’]t(?:\s+said)?|(?:won['’]t|can['’]t|didn['’]t|cannot|(?:will|do|did)\s+not)\s+say|without\s+saying|before\s+saying|not\s+marking\s+[^.!?\n]*?)\s+["'“‘`*_]*Done\b|["'“‘`*_]*\bDone["'”’`*_]*\s+(?:doesn['’]t|does\s+not)\s+apply)""",
     re.IGNORECASE,
 )
 
@@ -299,7 +299,8 @@ def needs_reply(agent, final):
             and bool(agent["session"]) and not DONE.search(cleaned))
 
 
-def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprmasq", read_dir=None, tap_env=None):
+def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprmasq", read_dir=None, tap_env=None,
+                   tool_search=True):
     server = SERVER[backend]
     # A backend's skill (Cua's or computer-use-linux's) runs through Claude Code's Skill tool, from its own agent home
     # (skill_home), when the prompt names it as a slash command, as on the laptop; the debrief gets no tools. Claude Code
@@ -307,18 +308,18 @@ def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprma
     skill = backend in SKILLS and tap is not None
     read_only_dir = read_dir if tap is not None else None
     # ToolSearch is Claude Code's built-in deferred MCP tool loader (on by default under --tools default); omitting it
-    # forces Claude Code to send every MCP tool schema eagerly on every request.
-    tools = ["ToolSearch"] if tap is not None else []
+    # (--no-tool-search) forces Claude Code to send every MCP tool schema eagerly on every request.
+    tools = ["ToolSearch"] if tap is not None and tool_search else []
     if skill:
         tools += list(SKILL_TOOLS)
     if read_only_dir and "Read" not in tools:
         tools.append("Read")
     command = [
         "claude", "-p", prompt, "--model", model, "--output-format", "stream-json", "--verbose",
-        # Only ToolSearch and the backend's tools, and none of the user's CLAUDE.md, settings, hooks, skills or MCP
-        # servers. With a skill, the resource tools as well, as a skill's guides are files that a real agent reads:
-        # here they are the server's resources, for a server that has them. With read_dir (hypruse file mode in a
-        # container), Read scoped strictly to the shared screenshot directory.
+        # Only ToolSearch (unless --no-tool-search) and the backend's tools, and none of the user's CLAUDE.md,
+        # settings, hooks, skills or MCP servers. With a skill, the resource tools as well, as a skill's guides are
+        # files that a real agent reads: here they are the server's resources, for a server that has them. With
+        # read_dir (hypruse file mode in a container), Read scoped strictly to the shared screenshot directory.
         "--tools", ",".join(tools), "--setting-sources", "user" if skill else "",
         "--strict-mcp-config", "--settings", json.dumps(CLAUDE_SETTINGS),
     ]
@@ -336,7 +337,7 @@ def claude_command(model, prompt, tap, resume=None, effort=None, backend="hyprma
         if tap_env:
             srv["env"] = tap_env
         config = {"mcpServers": {server: srv}}
-        allowed = ["ToolSearch"]
+        allowed = ["ToolSearch"] if tool_search else []
         if skill:
             allowed += list(SKILL_TOOLS)
         if read_only_dir:
@@ -587,7 +588,7 @@ def agy_quota(env):
 
 
 def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effort=None, backend="hyprmasq",
-                  read_dir=None, tap_env=None):
+                  read_dir=None, tap_env=None, tool_search=True):
     if harness in HYPRMASQ_ONLY and backend != "hyprmasq":
         raise ValueError(hyprmasq_only(harness))
     if harness == "agy":
@@ -595,7 +596,8 @@ def agent_command(harness, model, prompt, tap, resume=None, sessions=None, effor
     if harness == "pi":
         return pi_command(model, prompt, tap, resume, sessions, effort)
     if family(harness) == "claude":
-        return claude_command(model, prompt, tap, resume, effort, backend, read_dir=read_dir, tap_env=tap_env)
+        return claude_command(model, prompt, tap, resume, effort, backend, read_dir=read_dir, tap_env=tap_env,
+                              tool_search=tool_search)
     return codex_command(model, prompt, tap, resume, effort, backend)
 
 
@@ -891,8 +893,10 @@ def move_transcript(harness, session, cwd, run_dir, sessions=None, config=None):
 def _rmtree(path, container=False):
     shutil.rmtree(path, ignore_errors=True)
     if container and os.path.exists(path):
-        subprocess.run(["unshare", "--user", "--map-auto", "--map-root-user", "rm", "-rf", path],
-                       check=False, env=without_api_keys(os.environ))
+        subprocess.run(
+            ["unshare", "--user", "--map-auto", "--map-root-user", "sh", "-c", 'chmod -R u+w "$1" 2>/dev/null; rm -rf "$1"', "_", path],
+            check=False, env=without_api_keys(os.environ),
+        )
 
 
 def vm_runtime_dir(cid, container=False):
@@ -1019,7 +1023,7 @@ def booted_vm(driver, run_dir, cid, timeout, cpus=None, env=None, container=Fals
 
 
 def reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, cid, sessions, agent_dir, agent_vars, timeout,
-                  max_calls, label, read_dir=None, tap_env=None):
+                  max_calls, label, read_dir=None, tap_env=None, tool_search=True):
     """The user's one reply to an agent that ended its turn without saying "Done" (needs_reply), and the agent going on
     in its session, with its tools, a tap that counts the calls made before against the budget, and the rest of its
     time: an agent with none left gets no reply. Its events follow the turn's in agent.jsonl, so that the run's time, usage and final answer are the two
@@ -1041,7 +1045,7 @@ def reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, cid, ses
         agy_mcp_tap(agent_vars["HOME"], tap)
     print(f"{label} the agent ended without saying Done: the user replies", flush=True)
     command = agent_command(harness, model, USER_REPLY, tap, resume=resume, sessions=sessions, effort=effort,
-                            backend=backend, read_dir=read_dir, tap_env=tap_env)
+                            backend=backend, read_dir=read_dir, tap_env=tap_env, tool_search=tool_search)
     more = run_agent(command, cwd, stream, os.path.join(run_dir, "agent.stderr"), left, agent_vars,
                      api_key=harness == "claude-api",
                      budget=os.path.join(run_dir, "mcp.jsonl.budget") if max_calls > 0 else None)
@@ -1090,7 +1094,7 @@ class DebriefKeyError(RuntimeError):
 
 def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief, cpus=None,
             dispatched=None, backend="hyprmasq", prompt_kind="task", browser="firefox", max_calls=0, desktop="bare",
-            chromium_options="", mcp_args="", user_reply=False, container=False):
+            chromium_options="", mcp_args="", user_reply=False, container=False, tool_search=True):
     task_dir = os.path.join(BENCH, "tasks", task)
     run_dir = os.path.join(out, run_name(harness, model, rep, effort))
     label = f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}]"
@@ -1141,7 +1145,7 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
                 eager = server_tools(mcp_target, os.path.join(run_dir, "mcp-tools.jsonl"))
                 agy_mcp_config(home, SERVER[backend], tap, eager)
             command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort, backend=backend,
-                                    read_dir=read_dir, tap_env=tap_env)
+                                    read_dir=read_dir, tap_env=tap_env, tool_search=tool_search)
             print(f"{label} agent running", flush=True)
             agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
                               os.path.join(run_dir, "agent.stderr"), timeout, agent_vars,
@@ -1152,12 +1156,12 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
                 check_api_key_used(agent, "agent")
                 agent, reply = reply_as_user(harness, model, effort, backend, agent, run_dir, cwd, mcp_target, sessions,
                                              agent_dir, agent_vars, timeout, max_calls, label,
-                                             read_dir=read_dir, tap_env=tap_env)
+                                             read_dir=read_dir, tap_env=tap_env, tool_search=tool_search)
 
         run = {
             "task": task, "variant": variant, "harness": harness, "model": model, "rep": rep, "cid": cid,
             "backend": backend, "prompt": prompt_kind, "browser": browser, "desktop": desktop,
-            "container": container,
+            "container": container, "tool_search": tool_search,
             # What built the run: the VM's driver, with the plugin and the server in it, and the skill.
             "identity": driver_identity(driver, out, backend),
             # The VM's session has the AT-SPI bus and toolkit-accessibility on (default.nix), which runs before
@@ -1372,7 +1376,7 @@ def run_config(source, task, variant, args):
             "prompt_sha256": file_sha256([task_file(task_dir, variant, PROMPTS[args.prompt]),
                                           task_file(task_dir, variant, "debrief.md")]),
             "timeout": args.timeout, "max_calls": args.max_calls, "debrief": not args.no_debrief,
-            "user_reply": args.user_reply}
+            "user_reply": args.user_reply, "tool_search": not getattr(args, "no_tool_search", False)}
 
 
 def check_identity(out, identity):
@@ -1454,6 +1458,8 @@ def add_run_options(parser, tasks=False):
     parser.add_argument("--max-calls", type=int, default=0,
                         help="tool calls an agent may make: the run stops and fails at the next one. 0 for no limit")
     parser.add_argument("--no-debrief", action="store_true")
+    parser.add_argument("--no-tool-search", action="store_true",
+                        help="omit Claude Code's built-in ToolSearch tool so MCP tool schemas load eagerly")
     parser.add_argument("--user-reply", action="store_true",
                         help=f'answer an agent that ends its turn without saying "Done" once, with "{USER_REPLY}", '
                              "and let it go on in its session with its tools before the VM grades the run")
@@ -1580,7 +1586,7 @@ def main():
                 run_one(driver, args.task, args.variant, harness, model, effort, rep, out, args.cid, args.timeout,
                         not args.no_debrief, cpus, args.dispatch, args.backend, args.prompt, args.browser,
                         args.max_calls, args.desktop, args.chromium_options, args.mcp_args, args.user_reply,
-                        container=args.container)
+                        container=args.container, tool_search=not args.no_tool_search)
         except Exception as e:  # one broken run does not end the benchmark
             print(f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}] error: {e}", flush=True)
     print(report.report(out))

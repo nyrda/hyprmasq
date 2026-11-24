@@ -125,6 +125,7 @@ PROMPT_NO_CAP = PROMPT.replace(
     "The evidence is the capability results, what the tool\n   returned in this run, and the examples.",
     "The evidence is what the tool\n   returned in this run, its tool schemas/guides, and the examples."
 )
+assert "capability-results.md" not in PROMPT_NO_CAP and "capability results" not in PROMPT_NO_CAP
 
 
 def review_prompt(directory):
@@ -551,7 +552,7 @@ def main():
     add_reviewer_args(p)
     p.set_defaults(go=collect)
     args = parser.parse_args()
-    if args.command in ("status", "collect"):
+    if args.command in ("run", "status", "collect"):
         load_reviewers(args.bundles)
     if getattr(args, "claude_model", None):
         REVIEWERS["claude"] = (args.claude_model, REVIEWERS["claude"][1])

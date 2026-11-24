@@ -481,29 +481,32 @@ pooled VM medians sit slightly below the container medians while the per-unit ge
 
 All 384 Claude Opus 5.5 runs repeated with Claude Code's built-in `ToolSearch` enabled (`hyprmasq`, Cua Driver and
 `hypruse` in 4 GPU containers on the Ryzen 7 5800X3D host, and `computer-use-linux` in 2 × 2-core KVM VMs on a Ryzen 5
-5600X host), shown beside the eager-schema Opus 5.5 runs.
+5600X host), shown beside the eager-schema Opus 5.5 runs (where `computer-use-linux` ran in 3 × 2-core KVM VMs on the
+Ryzen 7 5800X3D host). Wall time and cost ratios are paired per task on units with at least 3 passes in both modes so
+pass-rate shifts do not skew medians.
 
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-ts-hyprmasq,v3-ts-hyprmasq-chromium,v3-ts-cua,v3-ts-cua-chromium,v3-ts-hypruse,v3-ts-hypruse-chromium,v3-ts-computer-use-linux,v3-ts-computer-use-linux-chromium toolsearch-table -->
 <details><summary>Numbers: Claude Opus 5.5 with eager schemas vs ToolSearch</summary>
 
-| Tool | Mode | Passed (95 % interval) | No view change, passed | First req k | Peak ctx k | Requests | Med cost | Total cost | Wall s, passed |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| hyprmasq | Eager schemas | 94/96 (93–99 %) | 94/94 | 8.5 | 24.7 | 10.5 | $0.23 | $24.1 | 52.0 s |
-| hyprmasq | ToolSearch | 94/96 (93–99 %) | 94/94 | 3.6 | 26.4 | 13.0 | $0.28 | $28.1 | 59.5 s |
-| Cua Driver | Eager schemas | 88/96 (84–96 %) | 45/88 | 61.7 | 110.8 | 24.0 | $1.06 | $125.5 | 104.7 s |
-| Cua Driver | ToolSearch | 78/96 (72–88 %) | 38/78 | 9.7 | 66.5 | 22.0 | $0.83 | $102.5 | 96.8 s |
-| hypruse | Eager schemas | 87/96 (83–95 %) | 3/87 | 12.5 | 57.9 | 33.0 | $0.75 | $70.3 | 89.0 s |
-| hypruse | ToolSearch | 85/96 (81–93 %) | 14/85 | 5.8 | 52.1 | 32.0 | $0.80 | $89.5 | 103.4 s |
-| computer-use-linux | Eager schemas | 87/96 (83–95 %) | 27/87 | 44.6 | 118.6 | 13.5 | $0.99 | $141.7 | 81.2 s |
-| computer-use-linux | ToolSearch | 85/96 (81–93 %) | 27/85 | 15.0 | 112.3 | 16.0 | $1.12 | $149.7 | 80.1 s |
+| Tool | Mode | Passed (95 % interval) | No view change, passed | First req k | Peak ctx k | Requests | Med cost | Total cost | Cost vs eager (all / passed) | Wall s, common tasks | Wall vs eager |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| hyprmasq | Eager schemas | 94/96 (93–99 %) | 94/94 | 8.5 | 24.7 | 10.5 | $0.23 | $24.1 | 1.00× | 49.7 s | 1.00× |
+| hyprmasq | ToolSearch | 94/96 (93–99 %) | 94/94 | 3.6 | 26.4 | 13.0 | $0.28 | $28.1 | 1.21× / 1.21× | 55.8 s | 1.12× |
+| Cua Driver | Eager schemas | 88/96 (84–96 %) | 45/88 | 61.7 | 110.8 | 24.0 | $1.06 | $125.5 | 1.00× | 108.0 s | 1.00× |
+| Cua Driver | ToolSearch | 78/96 (72–88 %) | 38/78 | 9.7 | 66.5 | 22.0 | $0.83 | $102.5 | 0.89× / 0.95× | 109.7 s | 1.04× |
+| hypruse | Eager schemas | 87/96 (83–95 %) | 3/87 | 12.5 | 57.9 | 33.0 | $0.75 | $70.3 | 1.00× | 87.4 s | 1.00× |
+| hypruse | ToolSearch | 85/96 (81–93 %) | 14/85 | 5.8 | 52.1 | 32.0 | $0.80 | $89.5 | 1.18× / 1.20× | 104.9 s | 1.24× |
+| computer-use-linux (KVM VM) | Eager schemas | 87/96 (83–95 %) | 27/87 | 44.6 | 118.6 | 13.5 | $0.99 | $141.7 | 1.00× | 75.8 s | 1.00× |
+| computer-use-linux (KVM VM) | ToolSearch (2nd host) | 85/96 (81–93 %) | 27/85 | 15.0 | 112.3 | 16.0 | $1.12 | $149.7 | 1.12× / 1.09× | 85.9 s† | 1.07×† |
 
 </details>
 <!-- /render -->
 
 ## Accessibility walks and frames
 
-In container mode on the host GPU, Cua Driver's accessibility walks run well below its 1,000 ms budget (median
-176–182 ms, 0 first walks cut, 36 of 2,502 walks cut by a time budget). The frames table holds flags, not failures: a
+In container mode on the host GPU, Cua Driver's accessibility walks run well below its 1,000 ms budget (median of
+per-run medians 176–182 ms, pooled walk medians 211 ms Sol and 223 ms Opus, 0 first walks cut, 36 of 2,502 walks cut by
+a time budget). The frames table holds flags, not failures: a
 first screenshot under half the encoded size of the later ones, as an undrawn window is mostly blank or a page filled
 in later, and screenshots unchanged after input. For hypruse, the `/6` denominator covers Codex's 6 runs per unit only,
 because Claude Code runs in `HYPRUSE_SCREENSHOT_MODE=file` (reading screenshots via `Read` rather than inline MCP

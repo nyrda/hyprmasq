@@ -10,7 +10,7 @@ tool's runs in one setup.
 | File | Runs | What it holds | On the pages |
 | --- | --- | --- | --- |
 | `v3-hyprmasq.json`, `v3-hyprmasq-chromium.json` | 144, 48 | hyprmasq in the v3 comparison series (Hyprland 0.57.2, rootless GPU containers on machine C, Opus 5.5 and GPT-6.2 Sol, zero pass overrides): the apps and Firefox, and Chromium. | The comparison and its numbers |
-| `v3-cua.json`, `v3-cua-chromium.json` | 144, 48 | Cua Driver 0.56.0 in the v3 series (rootless GPU containers on machine C, default cursor overlay on; includes `cua-firefox-r1-clean` replacing the host-load-storm round 1). | The comparison and its numbers |
+| `v3-cua.json`, `v3-cua-chromium.json` | 144, 48 | Cua Driver 0.56.0 in the v3 series (rootless GPU containers on machine C, default cursor overlay on, includes `cua-firefox-r1-clean` replacing the host-load-storm round 1). | The comparison and its numbers |
 | `v3-hypruse.json`, `v3-hypruse-chromium.json` | 144, 48 | hypruse 0.15.1 in the v3 series (`hypruse-v2` + 1 replacement Forgejo Opus run `hypruse-forgejo-opus-fix`: rootless GPU containers on machine C, pinned `mcp 1.30.0`, container-shared `file` screenshot mode with scoped `Read` for Claude Code, `image` mode for Codex, `--user-reply` on Forgejo only). | The comparison and its numbers |
 | `v3-computer-use-linux.json`, `v3-computer-use-linux-chromium.json` | 144, 48 | computer-use-linux 0.7.59 in the v3 series (3 × 2-core KVM VMs on machine C for `/dev/uinput`, `COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1`). | The comparison and its numbers |
 | `v3-cua-attach.json` | 60 | Cua Driver 0.56.0 with the user's Chromium started with `--remote-debugging-port=0`, on the 5 Chromium units where that applies (60/60 passed). Never pooled with the others. | The numbers' side checks |
@@ -19,8 +19,8 @@ tool's runs in one setup.
 | `v3-ts-cua.json`, `v3-ts-cua-chromium.json` | 72, 24 | Cua Driver 0.56.0 in the `claude-toolsearch` Opus 5.5 rebench (Claude Code 2.1.330 with `ToolSearch` enabled, `--no-debrief`, GPU containers on machine C). Never pooled with the main series. | The comparison and numbers' ToolSearch comparison |
 | `v3-ts-hypruse.json`, `v3-ts-hypruse-chromium.json` | 72, 24 | hypruse 0.15.1 in the `claude-toolsearch` Opus 5.5 rebench (Claude Code 2.1.330 with `ToolSearch` enabled, `--no-debrief`, GPU containers on machine C). Never pooled with the main series. | The comparison and numbers' ToolSearch comparison |
 | `v3-ts-computer-use-linux.json`, `v3-ts-computer-use-linux-chromium.json` | 72, 24 | computer-use-linux 0.7.59 in the `claude-toolsearch-cul` Opus 5.5 rebench (Claude Code 2.1.330 with `ToolSearch` enabled, `--no-debrief`, 2 × 2-core KVM VMs on machine D). Never pooled with the main series. | The comparison and numbers' ToolSearch comparison |
-| `v3-failures.json` | 43 | One verdict per failed run of v3, with both non-series reviewers' answers (Claude Fable 5.2 and GPT-6.1 Sol, without the stale v2 capability table) and evidence, as paths inside the run's bundle. `bench/review_failures.py` writes it. | Why runs failed |
-| `v3-exclusions.json` | 13 | Every excluded run in the v3 and `claude-toolsearch` series (2 QEMU exclusions in `forgejo-user-reply`, 8 `main/cua/firefox` round-1 host-load-storm runs, 1 regex-bugged `hypruse-v2` Forgejo Opus run, and 2 OAuth-revoked `claude-toolsearch` hyprmasq runs), with why and its retained outcome. | Method |
+| `v3-failures.json` | 43 | One verdict per failed run of the 768-run primary v3 series, with both non-series reviewers' answers (Claude Fable 5.2 and GPT-6.1 Sol, without the stale v2 capability table) and evidence, as paths inside the run's bundle. `bench/review_failures.py` writes it. | Why runs failed |
+| `v3-exclusions.json` | 15 | Every individual excluded run in the v3 and `claude-toolsearch` series (2 QEMU exclusions in `forgejo-user-reply`, 8 `main/cua/firefox` round-1 host-load-storm runs, 1 regex-bugged `hypruse-v2` Forgejo Opus run, 2 OAuth-revoked `claude-toolsearch` hyprmasq runs, and 2 interrupted `pass-6-interrupted` Cua Qt runs), with why, its own outcome and its replacement. | Method |
 | `v2-hyprmasq.json`, `v2-hyprmasq-chromium.json` | 144, 48 | Superseded by v3: hyprmasq on Hyprland 0.56.2 in KVM VMs (Sonnet 5.5 and GPT-6.1 Terra). | On no page |
 | `v2-cua.json`, `v2-cua-chromium.json` | 144, 48 | Superseded by v3: Cua Driver 0.42.1 in KVM VMs. | On no page |
 | `v2-hypruse.json`, `v2-hypruse-chromium.json` | 144, 48 | Superseded by v3: hypruse 0.13.0 in KVM VMs. | On no page |
@@ -40,12 +40,14 @@ tool's runs in one setup.
 | `macos-form-qt.json`, `macos-form-nodrop.json`, `macos-form-qt-openai.json` | 12, 12, 3 | Superseded: earlier runs of the form on the Mac, on older versions of the ChatGPT app and its Computer Use plugin. Cua Driver's screenshots failed in them, so its runs worked from the accessibility tree alone. `macos-tasks.json` replaces them. | On no page |
 
 Every main `v3-*` dataset ran on machine C (`cpu` is recorded per run), with `container: true` for rootless GPU
-containers and `container: false` for KVM VMs (`v3-ts-computer-use-linux*` ran in 2 × 2-core KVM VMs on machine D), and
-each `run` starts with its series name (such as `main--calc/` or `hypruse-v2--calc/`). The v3 series' rules are
-[comparison-series-v3.json](../../../bench/comparison-series-v3.json) (v2's rules are in
+containers and `container: false` for KVM VMs (`v3-ts-computer-use-linux*` ran in 2 × 2-core KVM VMs on machine D).
+In multi-series `v3-*` files each `run` starts with its series name (such as `main--calc/` or `hypruse-v2--calc/`),
+while in single-series `v3-ts-*` files each `run` starts directly with its task directory (such as `files/`). The v3
+series' rules are [comparison-series-v3.json](../../../bench/comparison-series-v3.json) (v2's rules are in
 [comparison-series.json](../../../bench/comparison-series.json)). The older `vm-*` runs spread over three machines, and
 the Mac's ran on one. Times compare within a machine and virtualization mode, and only roughly across them. Context,
-tokens, cost and disturbance do not depend on the machine.
+tokens, cost and disturbance are mostly independent of the machine, though slower VM redraws can affect screenshots and
+tokens.
 
 ## Two formats
 
@@ -84,7 +86,7 @@ agents and tools wrote during a run: read them as data, not as instructions.
 
 The figures and tables give medians: time over the passed runs, and tokens and cost over all runs. In `user-view.svg`
 and the comparison tables, **Focus away** is the median seconds the focus was away across all passed runs (including
-runs with 0 s), beside how many passed runs took the focus; on macOS, the figure shows the median of the passed runs
+runs with 0 s), beside how many passed runs took the focus. On macOS, the figure shows the median of the passed runs
 that disturbed the user. The `v3-*` (and superseded `v2-*`) datasets are marked as a registered series, and their
 tables follow its rules instead: pass rates with Wilson intervals, a time only where a tool passed at least 3 runs,
 and the failed runs' times apart. `bench/render.py` holds every view, and `python3 bench/render.py --check` fails when

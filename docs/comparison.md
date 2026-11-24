@@ -21,7 +21,7 @@ its pointer uses kernel `/dev/uinput`.
   (96/96) are ahead of Cua Driver (83/96). With Opus, all four overlap (87–94/96).
 - **Time and cost:** the other container tools took **1.7–2.0×** as long (and `computer-use-linux` **1.8–2.1×** in KVM
   VMs against hyprmasq in containers) at **2.2–5.2×** the cost (`$0.08` Sol / `$0.23` Opus median for hyprmasq vs
-  `$0.18–$0.21` / `$0.75–$1.06`).
+  `$0.18–$0.21` / `$0.75–$1.06`, with Opus using eager MCP schemas — **2.5–4.8×** under Claude Code `ToolSearch` below).
 
 hyprmasq's author ran the benchmark and developed hyprmasq against these tasks. See [Method](#method) for setup
 effects, statistical notes, rule changes and [all runs](comparison/data).
@@ -35,8 +35,8 @@ defect. Every agent was told foreground input and focus changes were allowed whe
 - **Cua Driver** has background routes and falls back to the foreground where an app refuses them.
 - **hypruse** runs in its default automatic background mode, sending keys and accessibility clicks in the background
   while refusing the pointer there (falling back via `background=false` or `focus_window`). It also offers a strict
-  `HYPRUSE_BACKGROUND=1` mode that refuses all foreground and pointer actions to guarantee zero focus changes, at the
-  cost of not being able to perform pointer-only tasks.
+  `HYPRUSE_BACKGROUND=1` mode that refuses its own foreground and pointer actions to avoid stealing focus (launched
+  apps can still take focus), at the cost of not being able to perform pointer-only tasks.
 - **computer-use-linux** has an opt-in Hyprland background mode (`COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1`) for
   screenshots (`grim -T`) and keys (`sendkeystate`), which the benchmark enabled, plus AT-SPI element actions. Its
   pointer is the user's own via `/dev/uinput`.
@@ -86,30 +86,34 @@ during the 6 s pause between lines.
 
 ### Deferred tool loading (ToolSearch)
 
-Codex deferred MCP tool schemas automatically across all four tools (`10.5k–16.4k` first request), whereas the Claude
-Opus 5.5 runs above sent every MCP tool schema eagerly on every turn because the harness's `--tools` flag omitted
-Claude Code's built-in `ToolSearch` tool. Repeating all 384 Opus 5.5 runs (6 repetitions × 16 tasks × 4 tools) with
-`ToolSearch` enabled shows the tradeoff directly ([full numbers](comparison-numbers.md#side-checks)):
+Codex deferred MCP tool schemas through its built-in tool search (`10.5k–16.4k` first request), whereas the Claude Opus
+5.5 runs above sent every MCP tool schema eagerly on every turn because the harness's `--tools` flag omitted Claude
+Code's built-in `ToolSearch` tool. Repeating all 384 Opus 5.5 runs (6 repetitions × 16 tasks × 4 tools) with
+`ToolSearch` enabled shows how both modes compare ([full numbers](comparison-numbers.md#side-checks)):
 
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-ts-hyprmasq,v3-ts-hyprmasq-chromium,v3-ts-cua,v3-ts-cua-chromium,v3-ts-hypruse,v3-ts-hypruse-chromium,v3-ts-computer-use-linux,v3-ts-computer-use-linux-chromium toolsearch -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/toolsearch-dark.svg">
-  <img alt="Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, median first-request tokens, median peak context, median cost per run and median wall time of passed runs." src="comparison/toolsearch.svg">
+  <img alt="Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, median first-request tokens, median peak context, median cost per run and paired wall time on common passed tasks." src="comparison/toolsearch.svg">
 </picture>
 <!-- /render -->
 
-- **Cua Driver** is the only tool that saved context, cost and time under `ToolSearch`: its 65-tool first request
-  dropped from `61.7k` to `9.7k`, peak context fell `40 %` (`110.8k` to `66.5k`), median cost dropped `22 %` (`$1.06`
-  to `$0.83`, total `$125.5` to `$102.5`), and median wall time fell from `104.7 s` to `96.8 s`. At the same time, its
-  pass rate dropped from `88/96` to `78/96` (Thunderbird `6/6` to `2/6`, Qt form with dropdowns `6/6` to `3/6`,
-  Chromium river trace `5/6` to `3/6`, and Firefox custom board drag `6/6` to `5/6`).
-- **The other three tools got slightly more expensive under `ToolSearch`** (`hyprmasq` `$0.23` to `$0.28` and `52.0 s`
-  to `59.5 s`, `hypruse` `$0.75` to `$0.80` and `89.0 s` to `103.4 s`, `computer-use-linux` `$0.99` to `$1.12`): eager
-  static prefixes hit Anthropic's prompt cache across runs (`cache_read`), whereas `ToolSearch` loads schemas
-  mid-conversation as per-run `cache_write` tokens plus extra search turns.
-- **Under both modes, the ranking holds:** with `ToolSearch`, hyprmasq passed `94/96` (`94/94` view untouched) at
-  `$0.28` median (`$28.1` total) against `78–85/96` and `$0.80–$1.12` median (`$89.5–$149.7` total, `2.9–4.0×` median
-  cost) for the other three.
+- **Cua Driver** saw the largest context drop and the only cost reduction under `ToolSearch`: its 65-tool first request
+  fell from `61.7k` to `9.7k`, peak context fell `40 %` (`110.8k` to `66.5k`), and per-task cost dropped `11 %` across
+  all runs (`0.89×`, `$1.06` to `$0.83` pooled median, `$125.5` to `$102.5` total). Most of the total dollar drop
+  (`$15.85` of `$23.0`) came from early-abandon failures on Thunderbird (`6/6` to `2/6`) and the Qt dropdown form
+  (`6/6` to `3/6`), while passed-run cost fell `5 %` per task (`0.95×`). Its pass count dropped from `88/96` to `78/96`
+  (overlapping intervals `84–96 %` vs `72–88 %`, within the noise), and paired on the 14 common passed tasks it was
+  **`1.04×` slower** (`108.0 s` to `109.7 s`), not faster.
+- **The other three tools got more expensive and slower under `ToolSearch`:** per-task cost rose for `hyprmasq`
+  (`1.21×`, `$0.23` to `$0.28`), `hypruse` (`1.18×`, `$0.75` to `$0.80`, `+27 %` total cost from longer trajectories)
+  and `computer-use-linux` (`1.12×`, `$0.99` to `$1.12`), and paired wall time rose on common tasks (`1.12×` hyprmasq,
+  `1.24×` hypruse). Eager static prefixes reuse Anthropic's prompt cache across runs (`cache_read`), whereas
+  `ToolSearch` pulls schemas in mid-conversation as per-run `cache_write` tokens plus extra search turns.
+- **hyprmasq stays first in both modes:** with `ToolSearch`, hyprmasq passed `94/96` (`94/94` view left alone, vs
+  `96/96` eager under the same merged SATA board target) at `$0.28` median (`$28.1` total) against `78–85/96` and
+  `$0.80–$1.12` median (`$89.5–$149.7` total, `2.8–4.0×` median cost and `2.5–4.8×` per-task geometric mean) for the
+  other three. The 42 `ToolSearch` failures were not separately reviewed by the two-reviewer panel.
 
 ## Task by task
 
@@ -130,8 +134,9 @@ Claude Code's built-in `ToolSearch` tool. Repeating all 384 Opus 5.5 runs (6 rep
 
 ## Why runs failed
 
-Two independent reviewers (Claude Fable 5.2 and GPT-6.1 Sol) read every failed run without seeing each other's verdict
-or any pass rate, agreeing on **42 of 43** failures (1 disagreement became `unclear`).
+Two independent reviewers (Claude Fable 5.2 and GPT-6.1 Sol) read every failed run of the 768-run primary series
+without seeing each other's verdict or any pass rate, agreeing on **42 of 43** failures (1 disagreement became
+`unclear`).
 
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-failures attribution -->
 <picture>
@@ -200,7 +205,7 @@ Every tool ran the same 16 [benchmark](benchmarks.md) tasks with the same tool-n
 - **Tasks:** 8 desktop apps (GTK 4 and Qt forms with and without dropdowns, Nautilus, Inkscape, Thunderbird, Forgejo
   with a concurrent user typing notes) plus 4 web tasks (board HTML5 drag-and-drop, board custom pointer drag, Calc,
   river trace) in both Firefox and Chromium. [bench/tasks](../bench/tasks) has every prompt and checker.
-- **Tools:** `hyprmasq` (v0.5.0 with compact array `act` schema), Cua Driver 0.56.0 with its skill and
+- **Tools:** `hyprmasq` (v0.5.0 plus the pre-release compact array `act` schema), Cua Driver 0.56.0 with its skill and
   `--grant existing-profile` on Chromium, `hypruse` 0.15.1 with `mcp 1.30.0` (matching its `<2` dependency so refusal
   messages pass through verbatim, `HYPRUSE_SCREENSHOT_MODE=file` + directory-scoped `Read` for Claude Code, and `image`
   mode for Codex), and `computer-use-linux` 0.7.59 with its skill and `COMPUTER_USE_LINUX_HYPRLAND_BACKGROUND=1`.
@@ -220,35 +225,37 @@ Every tool ran the same 16 [benchmark](benchmarks.md) tasks with the same tool-n
 
 Post-start adjustments are logged in [the benchmark rules](../bench/comparison-series-v3.json):
 
-- **Forgejo `--user-reply`:** forwarded `--user-reply` for Forgejo's broad OAuth consent prompt (disabled on all other
-  tasks for the container tools so stalled drag-and-drop runs received no nudge), and fixed `needs_reply()` to ignore
-  negated mentions of `Done`.
+- **Forgejo `--user-reply`:** forwarded `--user-reply` for Forgejo's broad OAuth consent prompt (superseding 24 early
+  Forgejo runs without it, and disabled on all other tasks for the container tools so stalled drag-and-drop runs
+  received no nudge), and fixed completion matching to ignore negated mentions of `Done`.
 - **Board SATA target box:** merged two adjacent top SATA port boxes in `bench/tasks/board/regions.json` partway
   through. Earlier hyprmasq runs were not re-graded (keeping its 2 Chromium misses as failures), while one later
   hypruse run passed under the merged box.
-- **Tool setup and load fixes:** pinned `hypruse` to `mcp 1.30.0` with `file`-mode screenshots for Claude Code,
-  replaced 8 Cua Driver Firefox runs hit by a `load1 = 78.05` host storm, added a 32-run hyprmasq KVM calibration round
-  and the 384-run `ToolSearch` rerun, and recovered 238 clean `ToolSearch` container runs on the Ryzen 7 5800X3D host
-  that repeated only because an idle desktop VM (~1 % CPU, host `max_load1` median 2.05) tripped the external-QEMU
-  guard.
-- **Excluded runs and overrides:** [the exclusion log](comparison/data/v3-exclusions.json) records all 13 excluded runs
-  across 1,244 total runs (2 Cua Driver Forgejo runs during an outside QEMU process, 8 Cua Driver Firefox runs during
-  the host load storm, 1 hypruse Forgejo run hit by the `needs_reply()` regex bug, and 2 OAuth-revoked hyprmasq
-  `ToolSearch` runs), all with their retained outcomes. Checking all 817 passed runs in the primary runs against the
-  prompt-violation rules yielded 0 overrides.
+- **Tool setup and load fixes:** superseded the initial 192 `hypruse` runs (`185/192`: 95/96 Sol, 90/96 Opus, where
+  `--user-reply` had fired on Firefox drag-and-drop and `mcp 2.3.0` stripped refusal messages) with a clean series
+  pinning `mcp 1.30.0`, `file`-mode screenshots for Claude Code and Forgejo-only `--user-reply`. Replaced 8 Cua Driver
+  Firefox runs hit by a severe outside host load spike, added a 32-run hyprmasq KVM calibration round and the 384-run
+  `ToolSearch` rerun, and recovered 238 clean `ToolSearch` container runs on the Ryzen 7 5800X3D host that repeated in
+  fixed tool order only because an idle desktop VM tripped the external-QEMU guard.
+- **Excluded runs and overrides:** alongside the 1,244 published runs, [the exclusion log](comparison/data/v3-exclusions.json)
+  records all 15 individual excluded runs (2 Cua Driver Forgejo runs during an outside QEMU process, 8 Cua Driver
+  Firefox runs during the host load spike, 1 hypruse Forgejo run hit by the negated-`Done` bug, 2 OAuth-revoked
+  hyprmasq `ToolSearch` runs, and 2 Cua Driver Qt runs interrupted before shutting down the idle desktop VM), with each
+  excluded run's outcome and replacement. Checking all 1,159 passed runs (`725` primary, `60` debugging-port, `32` VM
+  calibration and `342` `ToolSearch`) against the prompt-violation rules yielded 0 overrides.
 
 </details>
 
 <details><summary>Side checks</summary>
 
 - **Cua Driver with a debugging port:** starting Chromium with `--remote-debugging-port=0` on the 5 Chromium tasks
-  raised Cua Driver from 57/60 (95 %) to **60/60 (100 %)** and lifted `no_view_change` from 10/60 to 31/60 (18/18 for
+  raised Cua Driver from 57/60 (95 %) to **60/60 (100 %)** and lifted view left alone from 10/60 to 31/60 (18/18 for
   Opus on board and trace), though Forgejo still took focus on all 12 runs and dropped user typing on 4 of 12. Wall
   times (1.91–1.97× hyprmasq) and costs (2.73–4.56×) stayed similar.
 - **hyprmasq in KVM VMs:** one full round of hyprmasq (32 runs, `n = 1` per task and agent) in the exact same
   3 × 2-core KVM VM setup as `computer-use-linux` passed **32/32 (100 %)** at a per-unit geometric mean of **1.03×
   (Sol)** and **1.07× (Opus)** of its container wall time (1.06× and 1.11× tool time). Because hyprmasq does not walk
-  AT-SPI trees, software-rendered VMs penalize AT-SPI-heavy tools more.
+  AT-SPI trees, its small VM overhead does not measure the VM cost for AT-SPI-heavy tools.
 
 [The numbers](comparison-numbers.md#side-checks) have both tables.
 
@@ -259,4 +266,4 @@ Post-start adjustments are logged in [the benchmark rules](../bench/comparison-s
 - [All the numbers](comparison-numbers.md): every table behind this page, per task, tool and agent.
 - [The tasks on macOS](comparison-macos.md): OpenAI's and Claude's computer use and Cua Driver on a Mac, beside
   hyprmasq in the VM.
-- [The data](comparison/data): every published run and both reviews of every failed one.
+- [The data](comparison/data): every published run and both reviews of every primary failed run.

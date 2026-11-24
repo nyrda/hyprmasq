@@ -619,6 +619,7 @@ class Remote:
         command += ["--mcp-args=" + self.args.mcp_args] if self.args.mcp_args else []
         command += ["--variant", b.variant] if b.variant else []
         command += ["--no-debrief"] if self.args.no_debrief else []
+        command += ["--no-tool-search"] if getattr(self.args, "no_tool_search", False) else []
         command += ["--user-reply"] if (self.args.user_reply or b.config.get("user_reply")) else []
         command += ["--max-calls", str(b.config["max_calls"])] if b.config.get("max_calls") else []
         command += ["--lock", host.lock] if host.lock else []

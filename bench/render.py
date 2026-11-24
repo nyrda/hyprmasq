@@ -1660,34 +1660,52 @@ def vm_overhead_table(data):
 
 
 def toolsearch_table(data):
-    """Claude Opus 5.5 with eager MCP tool schemas (v3) beside deferred loading via ToolSearch, for all four tools."""
+    """Claude Opus 5.5 with eager MCP tool schemas beside deferred loading via ToolSearch, for all four tools,
+    using paired per-task ratios on common >=3-pass units to avoid survivorship bias."""
     groups = dict(setups(of_task(data, None)))
     rows = []
     for base in ("hyprmasq", "cua", "hypruse", "computer-use-linux"):
         if base not in groups or f"ts-{base}" not in groups:
             continue
         ts_models = set(models(groups[f"ts-{base}"]))
-        for label, key in (("Eager schemas", base), ("ToolSearch", f"ts-{base}")):
-            rs = [r for r in groups[key] if r["model"] in ts_models]
+        eager_rs = [r for r in groups[base] if r["model"] in ts_models]
+        ts_rs = [r for r in groups[f"ts-{base}"] if r["model"] in ts_models]
+        w_ratio, shared = time_ratio(ts_rs, eager_rs, "wall_seconds", data)
+        c_all = cost_ratio(ts_rs, eager_rs)
+        c_ok = cost_ratio([r for r in ts_rs if passed(r)], [r for r in eager_rs if passed(r)])
+        e_meds, t_meds = unit_medians(eager_rs, "wall_seconds", data), unit_medians(ts_rs, "wall_seconds", data)
+        base_cpu = next((r.get("cpu") for r in eager_rs if r.get("cpu")), None)
+        is_vm = bool(eager_rs) and eager_rs[0].get("platform") == "hyprland-vm"
+        for label, rs, eager in (("Eager schemas", eager_rs, True), ("ToolSearch", ts_rs, False)):
             ok = [r for r in rs if passed(r)]
             quiet = sum(bool(r["no_view_change"]) for r in ok)
             firsts = [r["context"]["first_input_tokens"] for r in rs if (r.get("context") or {}).get("first_input_tokens")]
             peaks = [r["context"]["peak_input_tokens"] for r in rs if (r.get("context") or {}).get("peak_input_tokens")]
             reqs = [r["context"]["request_count"] for r in rs if (r.get("context") or {}).get("request_count")]
             costs = [r["usage"]["cost_usd"] for r in rs if r["usage"].get("cost_usd") is not None]
-            walls = [r["wall_seconds"] for r in ok]
+            row_cpu = next((r.get("cpu") for r in rs if r.get("cpu")), None)
+            diff_cpu = not eager and bool(base_cpu and row_cpu and row_cpu != base_cpu)
+            med_map = e_meds if eager else t_meds
+            common_walls = [med_map[u] for u in shared]
+            tool_label = SETUPS[base] + (" (KVM VM)" if is_vm else "")
+            mode_label = label + (" (2nd host)" if diff_cpu else "")
+            wall_cell = (f"{median(common_walls):.1f} s" + ("†" if diff_cpu else "")) if common_walls else "–"
+            ratio_cell = ("1.00×" if eager else (f"{w_ratio:.2f}×" + ("†" if diff_cpu else ""))) if w_ratio else "–"
+            cost_vs = ("1.00×" if eager else f"{c_all:.2f}× / {c_ok:.2f}×") if (c_all and c_ok) else "–"
             rows.append([
-                SETUPS[base], label, share_with_interval(rs), f"{quiet}/{len(ok)}",
+                tool_label, mode_label, share_with_interval(rs), f"{quiet}/{len(ok)}",
                 f"{median(firsts) / 1000:.1f}" if firsts else "–",
                 f"{median(peaks) / 1000:.1f}" if peaks else "–",
                 f"{median(reqs):.1f}" if reqs else "–",
                 f"${median(costs):.2f}" if costs else "–",
                 f"${sum(costs):.1f}" if costs else "–",
-                f"{median(walls):.1f} s" if walls else "–",
+                cost_vs,
+                wall_cell,
+                ratio_cell,
             ])
     return markdown_table(
         ["Tool", "Mode", "Passed (95 % interval)", "No view change, passed", "First req k", "Peak ctx k",
-         "Requests", "Med cost", "Total cost", "Wall s, passed"],
+         "Requests", "Med cost", "Total cost", "Cost vs eager (all / passed)", "Wall s, common tasks", "Wall vs eager"],
         rows,
     )
 
@@ -1704,7 +1722,7 @@ def user_table(data):
             moved = [r["cursor_displacement_px"] for r in m if r.get("cursor_displacement_px") is not None]
             # desktop_input_to_user_window and desktop_shortcuts are instrumented for Cua Driver (and always 0 for
             # hyprmasq, which has no desktop input route); hypruse and computer-use-linux are not instrumented for them.
-            has_desktop_audit = setup in ("hyprmasq", "cua", "cua-attach", "hyprmasq-vm", "hyprmasq-machine-a")
+            has_desktop_audit = bool(m) and m[0]["backend"] in ("hyprmasq", "cua")
             moved_nz = sum(v > 0 for v in moved)
             moved_text = f"{moved_nz}/{len(moved)} (med {median(moved):.0f})" if moved else "–"
             rows.append([SETUPS[setup], model_name(model), f"{len(ok)}/{len(m)}", view(m), view(ok),
@@ -1975,46 +1993,52 @@ def usage_figure(data):
 def toolsearch_figure(data):
     """Claude Opus 5.5 with eager MCP tool schemas beside deferred loading via ToolSearch, for all four tools:
     runs passed with 95 % Wilson interval, median first-request tokens, median peak context, median cost, and
-    median wall time of passed runs."""
+    paired per-task wall time (median of unit medians across units with >=3 passes in both modes, plus geometric mean ratio)."""
     groups = dict(setups(of_task(data, None)))
     svg = Svg()
     top = header(svg, "Deferred tool loading (Claude Opus 5.5)",
                  ["Eager MCP schemas (lighter bars) against Claude Code's ToolSearch (solid bars) across all 16 tasks.",
-                  "Dot is pass rate with 95 % interval. Tokens and cost are medians of all runs, wall time of passed runs."])
+                  "Dot is pass rate with 95 % interval. Tokens and cost are medians of all runs, wall time is paired on common passed tasks."])
     blocks = []
-    has_other_cpu = False
+    other_cpus = []
     for base in ("hyprmasq", "cua", "hypruse", "computer-use-linux"):
         if base not in groups or f"ts-{base}" not in groups:
             continue
         ts_models = set(models(groups[f"ts-{base}"]))
-        base_cpu = next((r.get("cpu") for r in groups[base] if r.get("cpu")), None)
+        eager_rs = [r for r in groups[base] if r["model"] in ts_models]
+        ts_rs = [r for r in groups[f"ts-{base}"] if r["model"] in ts_models]
+        w_ratio, shared = time_ratio(ts_rs, eager_rs, "wall_seconds", data)
+        e_meds, t_meds = unit_medians(eager_rs, "wall_seconds", data), unit_medians(ts_rs, "wall_seconds", data)
+        base_cpu = next((r.get("cpu") for r in eager_rs if r.get("cpu")), None)
+        is_vm = bool(eager_rs) and eager_rs[0].get("platform") == "hyprland-vm"
         pairs = []
-        for label, key, eager in (("Eager", base, True), ("ToolSearch", f"ts-{base}", False)):
-            rs = [r for r in groups[key] if r["model"] in ts_models]
-            ok_rs = [r for r in rs if passed(r)]
+        for label, rs, eager in (("Eager", eager_rs, True), ("ToolSearch", ts_rs, False)):
             firsts = [per_k((r.get("context") or {}).get("first_input_tokens")) for r in rs]
             peaks = [per_k((r.get("context") or {}).get("peak_input_tokens")) for r in rs]
             costs = [r["usage"]["cost_usd"] for r in rs if r["usage"].get("cost_usd") is not None]
-            walls = [r["wall_seconds"] for r in ok_rs if r.get("wall_seconds") is not None]
+            med_map = e_meds if eager else t_meds
+            common_walls = [med_map[u] for u in shared]
             row_cpu = next((r.get("cpu") for r in rs if r.get("cpu")), None)
             diff_cpu = not eager and bool(base_cpu and row_cpu and row_cpu != base_cpu)
-            has_other_cpu = has_other_cpu or diff_cpu
-            pairs.append((label, eager, diff_cpu, rs, [
+            if diff_cpu and row_cpu not in other_cpus:
+                other_cpus.append(row_cpu)
+            pairs.append((label, eager, diff_cpu, w_ratio, rs, [
                 median(v for v in firsts if v is not None),
                 median(v for v in peaks if v is not None),
                 median(costs) if costs else None,
-                median(walls) if walls else None,
+                median(common_walls) if common_walls else None,
             ]))
-        blocks.append((base, TOOLS[groups[base][0]["backend"]][1], pairs))
+        blocks.append((base, TOOLS[groups[base][0]["backend"]][1], is_vm, pairs))
 
-    mode_x, axis_x, axis_w, row, gap = PAD + 148, PAD + 222, 72, 25, 9
+    mode_x, axis_x, axis_w, row, gap = PAD + 148, PAD + 220, 64, 25, 9
     cols = (
-        ("First request", "median, all runs", 374, 68, lambda v, d: f"{v:.1f}k" if v < 10 else f"{v:.0f}k"),
-        ("Peak context", "median, all runs", 490, 68, lambda v, d: f"{v:.0f}k"),
-        ("Median cost", "median, all runs", 612, 70, lambda v, d: f"${v:.2f}"),
-        ("Wall time", "median, passed", 740, 72, lambda v, d: f"{v:.0f} s" + ("†" if d else "")),
+        ("First request", "median, all runs", 364, 62, lambda v, d, e, r: f"{v:.1f}k" if v < 10 else f"{v:.0f}k"),
+        ("Peak context", "median, all runs", 472, 62, lambda v, d, e, r: f"{v:.0f}k"),
+        ("Median cost", "median, all runs", 584, 62, lambda v, d, e, r: f"${v:.2f}"),
+        ("Wall time", "common tasks", 704, 54,
+         lambda v, d, e, r: f"{v:.0f} s" if e else f"{v:.0f} s" + ("†" if d else "") + (f" ({r:.2f}×)" if r else "")),
     )
-    all_rs = [rs for _, _, pairs in blocks for _, _, _, rs, _ in pairs if rs]
+    all_rs = [rs for _, _, _, pairs in blocks for _, _, _, _, rs, _ in pairs if rs]
     start = min(0.5, math.floor(min(wilson(sum(passed(r) for r in rs), len(rs))[0] for rs in all_rs) * 4) / 4) if all_rs else 0.5
     at = lambda share: axis_x + axis_w * (share - start) / (1 - start)
     ticks = (start, (start + 1) / 2, 1)
@@ -2027,18 +2051,20 @@ def toolsearch_figure(data):
     for i, (title, sub, x, _, _) in enumerate(cols):
         svg.text(x, top, title, cls="t2", size=12, weight="600")
         svg.text(x, top + 15, sub, cls="m", size=10.5)
-        vals = [cells[i] for _, _, pairs in blocks for _, _, _, _, cells in pairs if cells[i] is not None]
+        vals = [cells[i] for _, _, _, pairs in blocks for _, _, _, _, _, cells in pairs if cells[i] is not None]
         limits.append(max(vals) if vals else 1)
 
     y = top + 26
     grid_top = y
     body = Svg()
-    for base, cls, pairs in blocks:
+    for base, cls, is_vm, pairs in blocks:
         body.line(PAD, y, WIDTH - PAD, y, "grid")
         block = len(pairs) * row
         body.rect(PAD, y + gap - 1, 4, block - 6, cls, rx=2)
-        body.text(PAD + 12, y + gap + block / 2 - 3, SETUPS[base], size=13, weight="600")
-        for j, (label, eager, diff_cpu, rs, cells) in enumerate(pairs):
+        body.text(PAD + 12, y + gap + block / 2 - (9 if is_vm else 3), SETUPS[base], size=13, weight="600")
+        if is_vm:
+            body.text(PAD + 12, y + gap + block / 2 + 7, "KVM VM", cls="m", size=10.5)
+        for j, (label, eager, diff_cpu, w_ratio, rs, cells) in enumerate(pairs):
             cy = y + gap + j * row + 9
             body.text(mode_x, cy + 4, label, cls="m" if eager else "t2", size=11.5)
             ok = sum(passed(r) for r in rs)
@@ -2052,18 +2078,19 @@ def toolsearch_figure(data):
                     continue
                 w = bar_w * value / (limits[i] or 1)
                 body.bar(x, cy - 5, w, 10, cls, opacity=0.45 if eager else None)
-                body.text(x + w + 6, cy + 4.5, fmt_val(value, diff_cpu), cls="t2" if eager else "t", size=12)
+                body.text(x + w + 6, cy + 4.5, fmt_val(value, diff_cpu, eager, w_ratio), cls="t2" if eager else "t", size=11.5)
         y += block + gap + 2
     for t in ticks:
         svg.line(at(t), grid_top, at(t), y - 2, "grid")
     svg.items += body.items
-    if has_other_cpu:
-        svg.text(PAD, y + 12, "† Ran in 2×2-core KVM VMs on a second host (Ryzen 5 5600X), so its wall time is not directly comparable.",
+    if other_cpus:
+        cpu_note = ", ".join(other_cpus)
+        svg.text(PAD, y + 12, f"† ToolSearch ran in KVM VMs on a second host ({cpu_note}), so its wall time is not directly comparable.",
                  cls="m", size=10.5)
         y += 18
     svg.height = y + 12
     alt = ("Per tool with Claude Opus 5.5, eager MCP schemas beside ToolSearch: runs passed with 95 % interval, "
-           "median first-request tokens, median peak context, median cost per run and median wall time of passed runs.")
+           "median first-request tokens, median peak context, median cost per run and paired wall time on common passed tasks.")
     return svg, alt
 
 
