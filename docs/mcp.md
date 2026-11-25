@@ -647,9 +647,9 @@ summary:
 ```
 ok   configuration: /home/me/.config/hyprmasq/mcp.toml
 ok   environment: Hyprland 11cbc6c5…_1794313750_259448970 under /run/user/1000
-ok   plugin: hyprmasq 0.5.0, interface 5
+ok   plugin: hyprmasq 0.5.1, interface 5
 ok   hooks: all 9 groups of hooks install
-ok   hyprmasq-input: /usr/bin/hyprmasq-input, hyprmasq-input 0.5.0
+ok   hyprmasq-input: /usr/bin/hyprmasq-input, hyprmasq-input 0.5.1
 warn ffmpeg: recording needs ffmpeg with the libx264 encoder, which /usr/bin/ffmpeg does not have; everything but recordings works without it
 hyprmasq-mcp is ready, with 1 warning
 ```
