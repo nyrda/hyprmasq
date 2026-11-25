@@ -6,6 +6,10 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
+#include <hyprland/src/desktop/view/WLSurface.hpp>
+#include <hyprland/src/layout/LayoutManager.hpp>
+#include <hyprland/src/layout/supplementary/DragController.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
@@ -44,6 +48,17 @@ namespace hyprmasq {
     Vector2D geometryOffset(const PHLWINDOW& window) {
         const auto geometry = hl::xdgGeometry(window);
         return geometry ? geometry->pos() : Vector2D{};
+    }
+
+    Vector2D drawnOffset(const PHLWINDOW& window) {
+        // As SurfacePassElement::draw places a window's surface: not while the user resizes any window with the mouse.
+        const auto surface = window ? window->wlSurface() : nullptr;
+        if (!surface || surface->m_fillIgnoreSmall || !surface->small())
+            return {};
+        const auto& drag = g_layoutManager->dragController();
+        if (drag->target() && drag->mode() == MBIND_RESIZE)
+            return {};
+        return surface->correctSmallVec();
     }
 
     CBox unite(const CBox& a, const CBox& b) {

@@ -1,8 +1,9 @@
 [repository]
 name = "hyprmasq"
 authors = ["nyrda"]
-# Hyprland commit to matching plugin commit. main builds against Hyprland v0.57.2, at the commit flake.lock pins, and
-# v0.56.2, the release before it. A patch release that main moved past gets the last commit of main that targets it.
+# Hyprland commit to matching plugin commit. main builds against Hyprland v0.57.2, at the commit flake.lock pins,
+# v0.56.2, the release before it, and Hyprland main. A patch release that main moved past gets the last commit of main
+# that targets it.
 commit_pins = [
     ["acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9", "739922da42bae8b97c73c6982db15c913a876aca"], # v0.57.1: last commit of main for it
     ["0aa6745f705f2c4b0a5004eb019ef76e5bbdb426", "100ef674df6438bfc044521b893df3155d47bf92"], # v0.57.0: last commit of main for it

@@ -35,18 +35,21 @@ jobs:
         with:
           primary-key: ci-${{ github.sha }}
           restore-prefixes-first-match: ci-
-      # Hyprland's derivation reads the VERSION file of its source, which nix flake check --no-build does not copy.
+      # Hyprland's derivation reads the VERSION file of its source, which nix flake check --no-build does not copy. This
+      # holds for the pinned release and for Hyprland main.
       - name: Instantiate Hyprland
-        run: nix eval --raw .#hyprland.drvPath
+        run: |
+          nix eval --raw .#hyprland.drvPath
+          nix eval --raw .#hyprland-hyprland-main.drvPath
       - name: Evaluate flake
         run: nix flake check --no-build
-      # The plugin for both Hyprland releases with the MCP server and its Go tests with -short, all Go tests, clang-format
-      # and gofmt, the VM test's areas and subtest tables, and the Calc checker with LibreOffice. The out-links keep them in
-      # the saved store.
+      # The plugin for both Hyprland releases and for Hyprland main, the MCP server with its Go tests with -short, all Go
+      # tests, clang-format and gofmt, the VM test's areas and subtest tables, and the Calc checker with LibreOffice. The
+      # out-links keep them in the saved store.
       - name: Build the packages and checks
         run: |
-          nix build -L --out-link "$RUNNER_TEMP/roots/result" .#hyprmasq .#hyprmasq-hyprland056 .#hyprmasq-mcp \
-            .#checks.x86_64-linux.{mcp-tests,format,vm-test-docs,bench-calc}
+          nix build -L --out-link "$RUNNER_TEMP/roots/result" .#hyprmasq .#hyprmasq-hyprland056 .#hyprmasq-hyprland-main \
+            .#hyprmasq-mcp .#checks.x86_64-linux.{mcp-tests,format,vm-test-docs,bench-calc}
       - name: Bench unit tests
         run: |
           tests=(bench/analyze_test.py bench/dispatch_test.py bench/harness_test.py bench/laptop/run_form_test.py

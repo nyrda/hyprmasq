@@ -77,6 +77,12 @@ words, and hyprctl batches, which 0.56 also takes through
 `HyprlandAPI::invokeHyprctlCommand` and answers with `plugin load`'s reply
 alone.
 
+It also runs on [Hyprland main](development.md#hyprland-main) as
+`vm-test-hyprland-main` and `container-test-hyprland-main`, which
+`./dev.sh gate --hyprland main` picks between alike, with Hyprland's package
+set at the commit that `flake.lock` locks as `hyprland-main`. There areas read
+`hyprland_release` as `"main"`.
+
 `./dev.sh vm-test-interactive` opens the test's interactive driver.
 
 ## Containers

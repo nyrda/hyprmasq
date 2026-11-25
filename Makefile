@@ -24,10 +24,10 @@ CPPFLAGS += $(VERSION_CPPFLAGS) -DWLR_USE_UNSTABLE $(shell pkg-config --cflags $
 .PHONY: all install clean check-hyprland FORCE
 
 # The plugin targets the Hyprland releases that HYPRLAND_VERSION names, one per line: the one flake.lock pins and the
-# one before it. Headers of another version can compile and still misbehave, so the build stops unless
-# IGNORE_HYPRLAND_VERSION=1 (for porting). Hyprland main reports the version of the last release, so this cannot tell
-# main from that release.
-HYPRLAND_TARGETS := $(shell cat HYPRLAND_VERSION)
+# one before it, and Hyprland main, whose version HYPRLAND_MAIN_VERSION names. Headers of another version can compile
+# and still misbehave, so the build stops unless IGNORE_HYPRLAND_VERSION=1 (for porting). Hyprland main reports the
+# version of the last release, so this cannot tell main from that release.
+HYPRLAND_TARGETS := $(sort $(shell cat HYPRLAND_VERSION HYPRLAND_MAIN_VERSION))
 HYPRLAND_FOUND := $(shell pkg-config --modversion hyprland 2>/dev/null)
 # The Hyprland that the objects were compiled against, rewritten only when pkg-config finds another, as in another dev
 # shell: then the plugin builds anew instead of keeping objects of the other release.

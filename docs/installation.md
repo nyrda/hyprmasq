@@ -3,7 +3,8 @@
 hyprmasq 0.5.1 is built and tested against **Hyprland v0.57.2** at the
 release commit `flake.lock` pins, and against **v0.56.2**, the release before
 it, on x86_64 Linux. Both build from the same source, see
-[Older Hyprland releases](#older-hyprland-releases).
+[Older Hyprland releases](#older-hyprland-releases). A branch builds for
+Hyprland `main`, see [Hyprland main](#hyprland-main).
 A Hyprland plugin must be compiled against the exact Hyprland build
 that loads it: hyprmasq compares the build hash when it loads and refuses to
 load into any other build. Rebuild the plugin whenever Hyprland changes.
@@ -106,7 +107,7 @@ plugin waits for a hyprmasq release.
 The packages cover the `hyprland` packages of Arch and of Omarchy's stable
 channel, which also covers Omarchy's edge channel. `hyprland-git` and other
 builds of Hyprland need the plugin built against them: build from a clone, as
-below.
+below, and on `hyprland-git` from the branch of [Hyprland main](#hyprland-main).
 
 ### What this installs
 
@@ -168,7 +169,8 @@ installs the package, both through pacman. It replaces the AUR packages, and
 pacman offers to remove `hyprmasq-plugin-bin`, and `hyprmasq-bin` if it is
 installed. The package has no install
 script and no pacman hook. The installed Hyprland must be version 0.57.2 or
-0.56.2. Other releases have other internals, and the build stops on their
+0.56.2, or for the branch of [Hyprland main](#hyprland-main) a build of Hyprland
+`main`, such as `hyprland-git`, which reports 0.57.0. Other releases have other internals, and the build stops on their
 version.
 
 makepkg builds the commit that is checked out, `HEAD`. It leaves out
@@ -310,7 +312,7 @@ cd hyprmasq
 ```
 
 Without Nix, install a C++23 compiler, a C compiler, Make, pkg-config, and the
-development files of Hyprland 0.57.2 or 0.56.2 and their dependencies, libei 1.x
+development files of Hyprland 0.57.2, 0.56.2 or `main` and their dependencies, libei 1.x
 (`libei-1.0` and `libeis-1.0`), libpng, xkbcommon and xcb. Then:
 
 ```sh
@@ -365,7 +367,8 @@ hyprpm installs only the plugin. From a clone, run `make` and copy
 that Hyprland starts with, install `jq`, and build `hyprmasq-mcp` as in the
 manual build. Run `hyprpm update` after every Hyprland update.
 
-hyprpm builds `main` on Hyprland 0.57.2 and 0.56.2. `commit_pins` in
+hyprpm builds `main` on Hyprland 0.57.2 and 0.56.2, and the branch
+`port-hyprland-main` on Hyprland `main`. `commit_pins` in
 `hyprpm.toml` give a patch release that `main` moved past the last commit of
 `main` for it, so hyprpm on Hyprland 0.57.0 or 0.57.1 builds that commit.
 
@@ -397,7 +400,33 @@ On Hyprland 0.56.2, install as on 0.57.2:
 ships it. The patch releases that `main` moved past, v0.57.0 and v0.57.1, get
 no further changes. Update Hyprland to v0.57.2, or build the
 commit that `commit_pins` in `hyprpm.toml` names for your release, as hyprpm
-does on its own.
+does on its own. A build from a clone stops on v0.57.1, but not on v0.57.0,
+the version that [Hyprland main](#hyprland-main) reports, which the build
+cannot tell apart from it.
+
+## Hyprland main
+
+hyprmasq's `main` follows the Hyprland releases. The branch
+`port-hyprland-main` also builds against Hyprland's `main` branch, at the commit
+that its `flake.lock` locks as `hyprland-main`, and is tested on it. It becomes
+the port to the next Hyprland release, and is rebased and force-pushed until
+then. A build of Hyprland `main` near that commit, such as the AUR's
+`hyprland-git`, takes the plugin of that branch as the releases take `main`'s:
+
+- Arch: clone with `--branch port-hyprland-main` and build as
+  [above](#building-from-a-clone). The AUR packages have no plugin for
+  `hyprland-git`.
+- Manual build: clone with `--branch port-hyprland-main`.
+- hyprpm: `hyprpm add https://github.com/nyrda/hyprmasq port-hyprland-main`.
+- NixOS module: set the input to `github:nyrda/hyprmasq/port-hyprland-main`,
+  `programs.hyprmasq.package = inputs.hyprmasq.packages.x86_64-linux.hyprmasq-hyprland-main;`
+  and `programs.hyprland.package = inputs.hyprmasq.packages.x86_64-linux.hyprland-hyprland-main;`.
+- Nix packages: `hyprmasq-hyprland-main` of that branch, or build its
+  `nix/package.nix` against your own Hyprland built from `main`.
+
+A commit of Hyprland `main` far past that one may have changed what the plugin
+uses, and the build or the plugin then fails until `hyprland-main` moves past
+it.
 
 ## Loading the plugin
 
