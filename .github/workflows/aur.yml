@@ -368,11 +368,12 @@ jobs:
           path: /tmp/tools/*.tar.gz
           if-no-files-found: error
 
-  # The plugins and the tools load their libraries on each userland that runs them.
+  # The plugins and the tools load their libraries on each userland that runs them. A plan that failed after setting its
+  # mode skips build and tools, which a refresh skips too, so the plan's own result stops this job.
   userlands:
     needs: [plan, build, tools]
     if: >-
-      !cancelled() && needs.plan.outputs.mode != 'none' && needs.plan.outputs.userlands != '[]' &&
+      !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.mode != 'none' && needs.plan.outputs.userlands != '[]' &&
       (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       (needs.tools.result == 'success' || needs.tools.result == 'skipped')
     runs-on: ubuntu-24.04
@@ -418,11 +419,11 @@ jobs:
             gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "The hourly run of $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID found it. Build them again for that userland in a new release, see \"AUR packages\" in docs/development.md."
           fi
 
-  # Which served Hyprland builds the plugins run. Holds no secret.
+  # Which served Hyprland builds the plugins run. Holds no secret. Like userlands, it needs a plan that succeeded.
   verify:
     needs: [plan, build]
     if: >-
-      !cancelled() && (needs.plan.outputs.mode == 'release' || needs.plan.outputs.mode == 'test' || needs.plan.outputs.mode == 'refresh') &&
+      !cancelled() && needs.plan.result == 'success' && (needs.plan.outputs.mode == 'release' || needs.plan.outputs.mode == 'test' || needs.plan.outputs.mode == 'refresh') &&
       (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-24.04
     container: archlinux:base-devel
