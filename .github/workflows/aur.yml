@@ -7,7 +7,9 @@ name: AUR
 # - A release tag builds one plugin per Hyprland release that hyprmasq targets, on the oldest userland that runs it,
 #   and the tools on the oldest of those, checks that they load their libraries on each userland, verifies the
 #   Hyprland builds that the plugins run with packaging/aur/builds.py, attaches the plugins and the tools to the GitHub
-#   release with a build provenance attestation for each, and publishes the three packages.
+#   release with a build provenance attestation for each, and publishes the three packages. When no archive snapshot
+#   has the build to compile against yet, the AUR's reference of that Hyprland release stands in for it, and the run
+#   fails if the plugin does not run the build.
 # - Every hour it looks for Hyprland builds that Arch or Omarchy's stable channel serve and the AUR's hyprland-builds
 #   does not list, verifies them against the released plugins, and publishes the list with a new pkgrel. It also checks
 #   that the plugins and tools still load their libraries. A build that fails gets one issue, not a failed run every
@@ -54,6 +56,7 @@ jobs:
       tools-day-key: ${{ steps.plan.outputs.tools-day-key }}
       verify-key: ${{ steps.plan.outputs.verify-key }}
       userlands: ${{ steps.plan.outputs.userlands }}
+      stand-in-for: ${{ steps.plan.outputs.stand-in-for }}
     steps:
       - run: |
           for attempt in 1 2 3; do
@@ -67,26 +70,29 @@ jobs:
       - id: prep
         run: |
           git config --global --add safe.directory '*'
+          for attempt in 1 2 3; do
+            rm -rf /tmp/aur
+            git clone -q https://aur.archlinux.org/hyprmasq-plugin-bin.git /tmp/aur && break
+            [[ $attempt == 3 ]] && exit 1
+            sleep $((5 * attempt))
+          done
           list=()
+          [[ -f /tmp/aur/hyprland-builds ]] && list=(--list /tmp/aur/hyprland-builds)
+          # A release or a PR builds new plugins. When the build that it would build against is in no archive snapshot
+          # yet, it builds against the AUR's reference of that release in its place.
           case $GITHUB_EVENT_NAME in
-            push) mode=release version=${GITHUB_REF_NAME#v} ;;
-            pull_request) mode=test version=$(cat VERSION) ;;
+            push) mode=release version=${GITHUB_REF_NAME#v} list+=(--build) ;;
+            pull_request) mode=test version=$(cat VERSION) list+=(--build) ;;
             *)
               mode=refresh
-              for attempt in 1 2 3; do
-                rm -rf /tmp/aur
-                git clone -q https://aur.archlinux.org/hyprmasq-plugin-bin.git /tmp/aur && break
-                [[ $attempt == 3 ]] && exit 1
-                sleep $((5 * attempt))
-              done
               if [[ ! -f /tmp/aur/.SRCINFO ]]; then
                 echo mode=none >> "$GITHUB_OUTPUT"
                 exit 0
               fi
               version=$(sed -n 's/^\tpkgver = //p' /tmp/aur/.SRCINFO)
-              list=(--list /tmp/aur/hyprland-builds)
               ;;
           esac
+          echo "list=${list[*]}" >> "$GITHUB_OUTPUT"
           refs=$(python3 packaging/aur/builds.py references "${list[@]}")
           snapshots_versions=$(jq -r '[.[]] | sort | join("_")' <<<"$refs")
           snapshots_key=${snapshots_versions:+aur-snapshots-v1-$snapshots_versions}
@@ -111,9 +117,9 @@ jobs:
           ACCEPT: ${{ inputs.accept }}
           MODE: ${{ steps.prep.outputs.mode }}
           VERSION: ${{ steps.prep.outputs.version }}
+          LIST: ${{ steps.prep.outputs.list }}
         run: |
-          list=()
-          [[ -f /tmp/aur/hyprland-builds ]] && list=(--list /tmp/aur/hyprland-builds)
+          read -ra list <<<"$LIST"
           python3 packaging/aur/builds.py plan "${list[@]}" > /tmp/plan.json
           cat /tmp/plan.json
           mode=$MODE
@@ -141,6 +147,7 @@ jobs:
             echo "tools-day=$tools_day"
             echo "tools-day-key=$tools_day_key"
             echo "verify-key=$verify_key"
+            echo "stand-in-for=$(jq -c '.stand_in_for // []' /tmp/plan.json)"
             echo "userlands=$(jq -c '(.plugins | min_by(.day).image) as $oldest | [
               (.plugins[] as $p | $p.userlands[] | {name: "the plugin for Hyprland \($p.label)", artifact: "plugin-\($p.label)",
                 asset: "hyprland-\($p.label).so", image: (if . == "arch" then "base-devel" else $p.image end), userland: .}),
@@ -468,6 +475,7 @@ jobs:
         env:
           PLUGINS: ${{ needs.plan.outputs.plugins }}
           ACCEPT: ${{ inputs.accept }}
+          MODE: ${{ needs.plan.outputs.mode }}
         run: |
           git config --global --add safe.directory '*'
           args=(--source . --out /tmp/list/hyprland-builds --held /tmp/list/held.json)
@@ -478,6 +486,13 @@ jobs:
           for label in $(jq -r '.[].label' <<<"$PLUGINS"); do
             args+=(--binary "$label=/tmp/plugins/hyprmasq-${{ needs.plan.outputs.version }}-hyprland-$label.so")
           done
+          # The plugins that a release or a PR built are compiled against the references that its plan chose. The
+          # released ones of a refresh against those of the AUR's list, which the tag's builds.py reads itself.
+          if [[ $MODE != refresh ]]; then
+            for ref in $(jq -r '.[] | .label + "=" + .version' <<<"$PLUGINS"); do
+              args+=(--reference "$ref")
+            done
+          fi
           [[ -f /tmp/aur/hyprland-builds ]] && args+=(--list /tmp/aur/hyprland-builds)
           [[ -n $ACCEPT ]] && args+=(--accept "$ACCEPT")
           mkdir -p /tmp/list
@@ -524,6 +539,19 @@ jobs:
             } > /tmp/body
             gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body-file /tmp/body
           done
+      # A plugin built against a reference that stands in for a build no archive snapshot has yet must run that build:
+      # the release cannot replace its plugin once the snapshot comes.
+      - name: Check the builds that a reference stands in for
+        if: needs.plan.outputs.stand-in-for != '' && needs.plan.outputs.stand-in-for != '[]'
+        env:
+          STAND_IN_FOR: ${{ needs.plan.outputs.stand-in-for }}
+        run: |
+          held=$(jq -c --argjson want "$STAND_IN_FOR" '[.[] | select(.version as $v | $want | index($v))]' /tmp/list/held.json)
+          if [[ $held != '[]' ]]; then
+            jq -r '.[] | "\(.version) is in no archive snapshot yet, and the plugin built against its stand-in does not run it: \(.reasons | join("; ")). Re-run all jobs once a snapshot has it."' <<<"$held"
+            exit 1
+          fi
+          echo "The plugins run $(jq -r 'join(", ")' <<<"$STAND_IN_FOR"), which their references stand in for"
 
   # The plugins and tools of a release go on its GitHub release, which the tag's push creates when it does not exist. An
   # asset is never replaced: the AUR pins it by its hash. Each new asset gets a build provenance attestation before it

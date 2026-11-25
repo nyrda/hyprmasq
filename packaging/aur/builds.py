@@ -6,16 +6,18 @@ other build unless the hyprland-builds file next to it names that build. This sc
 file. It runs as root in an Arch container (archlinux:base-devel), and changes /usr/include there.
 
   builds.py served                      the Hyprland builds that Arch and Omarchy serve, of the releases hyprmasq targets
-  builds.py references                  the build each prebuilt plugin is compiled against: per release, the one served
-                                        to the oldest userland
-  builds.py plan [--list FILE]          the prebuilt plugins with their references, snapshots and userlands, and the
+  builds.py references [--list FILE] [--build]
+                                        the build each prebuilt plugin is compiled against: per release, the list's
+                                        reference, or with --build the one that a release or a PR builds against
+  builds.py plan [--list FILE] [--build]
+                                        the prebuilt plugins with their references, snapshots and userlands, and the
                                         served builds that the list lacks
   builds.py snapshot VERSION            the first Arch archive snapshot that has VERSION, and the archlinux image
                                         from before it to build on
   builds.py fetch-packages [--list FILE] [--prune-cache]
                                         downloads and verifies the archive packages of the served builds into the cache
-  builds.py verify --source DIR --binary LABEL=FILE... [--list FILE] [--accept VERSION] [--candidate VERSION]...
-            --out FILE --held FILE [--prune-cache]
+  builds.py verify --source DIR --binary LABEL=FILE... [--reference LABEL=VERSION]... [--list FILE]
+            [--accept VERSION] [--candidate VERSION]... --out FILE --held FILE [--prune-cache]
                                         verifies every served build against the prebuilt plugins, and writes the new list
 
 A served build goes in the list when the plugin compiled against its headers is byte for byte the plugin compiled
@@ -174,6 +176,32 @@ def references(builds):
         version = min((b["version"] for b in oldest), key=version_key)
         chosen[version.split("-")[0]] = version
     return chosen
+
+
+def build_references(listed, builds):
+    """({label: version}, {label: version}): the references of the plugins that a release or a PR builds, and the builds
+    that they stand in for. Per release, the build that references() chooses, once an archive snapshot has it to build
+    on. Until then, the list's reference of that release stands in for it, and verify checks the new build against it."""
+    chosen, standing_in = {}, {}
+    listed_refs = {minor(e["version"]): e for e in listed if e["how"] == "reference"}
+    for label, version in references(builds).items():
+        kept = listed_refs.get(minor(version))
+        if kept and kept["version"] != version and not has_snapshot(version):
+            log(f"no archive snapshot has hyprland {version} yet, so the plugin for {minor(version)} builds against {kept['version']}")
+            chosen[kept["label"]] = kept["version"]
+            standing_in[kept["label"]] = version
+        else:
+            chosen[label] = version
+    return chosen, standing_in
+
+
+def has_snapshot(version):
+    try:
+        snapshot(version)
+    except SystemExit as err:
+        log(err)
+        return False
+    return True
 
 
 @functools.cache
@@ -541,8 +569,8 @@ def verify(args):
         binaries = dict(b.split("=", 1) for b in args.binary)
         listed = read_list(args.list)
         builds = served()
-        # The reference of each plugin: from the list when it has one, else the build that references() chooses now.
-        refs = {e["label"]: e["version"] for e in listed if e["how"] == "reference"} or references(builds)
+        # The reference of each plugin: as asked, else from the list when it has one, else what references() chooses now.
+        refs = dict(r.split("=", 1) for r in args.reference) or {e["label"]: e["version"] for e in listed if e["how"] == "reference"} or references(builds)
         builds += [{"version": v, "sources": ["asked"]} for v in args.candidate]
         missing = set(binaries) ^ set(refs)
         if missing:
@@ -603,17 +631,20 @@ def fetch_packages(args):
             prune_cache(lock_file)
 
 
-def plan_references(list_path):
-    listed = read_list(list_path)
-    return {e["label"]: e["version"] for e in listed if e["how"] == "reference"} or references(served())
+def plan_references(listed, builds, build=False):
+    """The references of the plugins and the builds they stand in for: with build, those that a release or a PR builds
+    against, else the released ones."""
+    if build:
+        return build_references(listed, builds)
+    return {e["label"]: e["version"] for e in listed if e["how"] == "reference"} or references(builds), {}
 
 
-def plan(list_path):
+def plan(list_path, build=False):
     """What CI builds and checks: per prebuilt plugin its label, reference build, snapshot, image and the userlands that
-    run it, and the served builds that the list does not have yet."""
+    run it, the builds that a reference stands in for, and the served builds that the list does not have yet."""
     builds = served()
     listed = read_list(list_path)
-    refs = {e["label"]: e["version"] for e in listed if e["how"] == "reference"} or references(builds)
+    refs, standing_in = plan_references(listed, builds, build)
     plugins = []
     for label, version in sorted(refs.items()):
         sources = {s for b in builds if minor(b["version"]) == minor(version) for s in b["sources"]}
@@ -623,6 +654,7 @@ def plan(list_path):
     verify_versions = {b["version"] for b in builds} | {e["version"] for e in listed if e["how"] in ("reference", "accepted")}
     return {
         "plugins": plugins,
+        "stand_in_for": sorted(standing_in.values(), key=version_key),
         "served": sorted((b["version"] for b in builds), key=version_key),
         "verify_versions": sorted(verify_versions, key=version_key),
         "new": [b["version"] for b in builds if b["version"] not in known],
@@ -633,10 +665,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("served")
-    p = sub.add_parser("plan")
-    p.add_argument("--list", help="the hyprland-builds that the AUR has")
-    p = sub.add_parser("references")
-    p.add_argument("--list", help="the hyprland-builds that the AUR has")
+    for name in ("plan", "references"):
+        p = sub.add_parser(name)
+        p.add_argument("--list", help="the hyprland-builds that the AUR has")
+        p.add_argument("--build", action="store_true", help="the references that a release or a PR builds new plugins against")
     p = sub.add_parser("snapshot")
     p.add_argument("version")
     p = sub.add_parser("fetch-packages")
@@ -645,6 +677,7 @@ def main():
     p = sub.add_parser("verify")
     p.add_argument("--source", required=True)
     p.add_argument("--binary", action="append", required=True, help="LABEL=FILE of a prebuilt plugin")
+    p.add_argument("--reference", action="append", default=[], help="LABEL=VERSION: the build that the plugin LABEL was compiled against")
     p.add_argument("--list", help="the hyprland-builds that the AUR has")
     p.add_argument("--accept", help="a build whose Hyprland sources changed, accepted by hand")
     p.add_argument("--candidate", action="append", default=[], help="a build to verify as if it were served")
@@ -655,9 +688,9 @@ def main():
     if args.command == "served":
         print(json.dumps(served(), indent=2))
     elif args.command == "references":
-        print(json.dumps(plan_references(args.list)))
+        print(json.dumps(plan_references(read_list(args.list), served(), args.build)[0]))
     elif args.command == "plan":
-        print(json.dumps(plan(args.list)))
+        print(json.dumps(plan(args.list, args.build)))
     elif args.command == "snapshot":
         print(json.dumps(snapshot(args.version)))
     elif args.command == "fetch-packages":
