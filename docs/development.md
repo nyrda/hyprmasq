@@ -397,6 +397,12 @@ oldest userland serves, Omarchy's stable channel before Arch.
 build entered Arch, starting from the `archlinux/archlinux` image from before
 it, so that it needs no newer glibc or libstdc++ than any userland that runs
 it, and `check-userland.sh` loads its libraries on each of those userlands.
+The archive takes one snapshot a day, so a build that Arch published since has
+none yet. A release or a PR then builds against the reference of that
+Hyprland release in the AUR's list in its place, and checks the new build as
+a served one. If the plugin does not run the new build, the run fails, and
+runs again once a snapshot has it: re-run all its jobs, so that the plan
+chooses again.
 Another served build goes in the list when:
 
 1. the plugin compiled against its headers and those of the libraries that its
