@@ -15,6 +15,11 @@ Upstream omits `MB-10` and `MB-11` from background mode because a real hover
 and native tooltip normally require the shared pointer, whereas hyprmasq gives
 each window its own virtual pointer seat and composites popups offscreen.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="comparison-cua-driver-bench/scorecard-dark.svg">
+  <img alt="CuaDriverBench on Omarchy 4.5 with GPT-6.2 Sol: pass rates with 95 % Wilson intervals, median agent time, tool calls and input tokens for hyprmasq 0.5.1 and Cua Driver 0.62.1 across standard, foreground, background and extended background suites." src="comparison-cua-driver-bench/scorecard.svg">
+</picture>
+
 - **Standard Omarchy suite (60 trials):** hyprmasq passed **60/60 (100.0%)**
   against **46/60 (76.7%)** for Cua Driver 0.62.1 (`35/35` vs `29/35`
   foreground, `25/25` vs `17/25` standard background).
@@ -37,7 +42,12 @@ each window its own virtual pointer seat and composites popups offscreen.
 The hyprmasq driver package, per-trial JSON records and summary script live in
 [bench/cua-driver-bench](../bench/cua-driver-bench).
 
-## Summary
+## Speed, tool calls and tokens
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="comparison-cua-driver-bench/usage-dark.svg">
+  <img alt="Median agent time, tool calls and input tokens per trial for hyprmasq 0.5.1 and Cua Driver 0.62.1 across foreground, standard background, extended background and all 70 trials." src="comparison-cua-driver-bench/usage.svg">
+</picture>
 
 | Driver | Suite | Passed | User undisturbed (A22) | Median agent s | Median calls | Median input | Median uncached | Median output |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -59,6 +69,11 @@ output tokens (on passed trials alone, Cua Driver's median remained `60.7 s`,
 `17.0` calls, `577k` input, `43k` uncached).
 
 ## Task by task
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="comparison-cua-driver-bench/tasks-dark.svg">
+  <img alt="Every trial of CuaDriverBench on Omarchy 4.5, task by task: five squares per driver showing each seed's outcome (passed, driver limitation or AT-SPI/turn-limit failure) alongside median agent time on a log scale." src="comparison-cua-driver-bench/tasks.svg">
+</picture>
 
 Each cell shows passed trials out of 5, followed by median agent time, median
 tool calls and median input tokens across all 5 seeds (`r1` through `r5`).
@@ -190,6 +205,8 @@ isolates the driver difference.
   retried, excluded or overridden.
 - **Reproducibility:** [bench/cua-driver-bench/README.md](../bench/cua-driver-bench/README.md)
   documents how to install the `hyprmasq` driver into
-  `agentenv-cua-driver-bench`, and `python3 bench/cua-driver-bench/summarize.py`
+  `agentenv-cua-driver-bench`, `python3 bench/cua-driver-bench/summarize.py`
   recomputes every table on this page from
-  [bench/cua-driver-bench/data](../bench/cua-driver-bench/data).
+  [bench/cua-driver-bench/data](../bench/cua-driver-bench/data), and
+  `python3 bench/cua-driver-bench/render.py --check` verifies the light and
+  dark figures.

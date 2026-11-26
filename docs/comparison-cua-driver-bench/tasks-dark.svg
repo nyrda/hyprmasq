@@ -1,0 +1,271 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="628" viewBox="0 0 880 628" role="img" aria-label="Every trial of CuaDriverBench on Omarchy 4.5, task by task: five squares per driver showing each seed&#x27;s outcome (passed, driver limitation or AT-SPI/turn-limit failure) alongside median agent time on a log scale.">
+<title>Every trial of CuaDriverBench on Omarchy 4.5, task by task: five squares per driver showing each seed&#x27;s outcome (passed, driver limitation or AT-SPI/turn-limit failure) alongside median agent time on a log scale.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.out{fill:#454c56}.pass{fill:#3fb950}.dot0{fill:#3987e5;stroke:#0d1117;stroke-width:1.5}.dot1{fill:#d95926;stroke:#0d1117;stroke-width:1.5}.ring1{fill:#0d1117;stroke:#d95926;stroke-width:1.75}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.whisker{stroke:#f0f6fc;stroke-width:1.5}.range{stroke:#3d444d;stroke-width:1.5}.s0{fill:#3987e5}.s1{fill:#d95926}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
+<rect x="0.5" y="0.5" width="879" height="627" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Every trial, task by task</text>
+<text x="24" y="53" class="t2" font-size="12.5">Left: one square per seed (r1 to r5), coloured by outcome. Right: median agent time per task on a</text>
+<text x="24" y="72" class="t2" font-size="12.5">log scale, further left is faster. A hollow dot marks a task where Cua Driver passed fewer than 3 of 5.</text>
+<rect x="24" y="95" width="11" height="10" class="pass" rx="2"/>
+<text x="41" y="104" class="t2" font-size="11.5">Passed</text>
+<rect x="104" y="95" width="11" height="10" class="s7" rx="2"/>
+<text x="121" y="104" class="t2" font-size="11.5">Background driver gap (MB-09 drag, MB-11 tooltip)</text>
+<rect x="436" y="95" width="11" height="10" class="s6" rx="2"/>
+<text x="453" y="104" class="t2" font-size="11.5">AT-SPI / turn-limit failure (IR-04, IR-02, MB-10)</text>
+<text x="278" y="142" class="t" font-size="11.5" font-weight="600">hyprmasq 0.5.1</text>
+<rect x="278" y="147" width="104" height="3" class="s0" rx="1.5"/>
+<text x="418" y="142" class="t" font-size="11.5" font-weight="600">Cua Driver 0.62.1</text>
+<rect x="418" y="147" width="104" height="3" class="s1" rx="1.5"/>
+<text x="588" y="142" class="t2" font-size="11.5" font-weight="600">Median agent time (log scale)</text>
+<text x="588" y="159" class="m" font-size="10.5" text-anchor="middle">10 s</text>
+<line x1="588" y1="164" x2="588" y2="602" class="grid"/>
+<text x="683.3" y="159" class="m" font-size="10.5" text-anchor="middle">30 s</text>
+<line x1="683.3" y1="164" x2="683.3" y2="602" class="grid"/>
+<text x="787.8" y="159" class="m" font-size="10.5" text-anchor="middle">100 s</text>
+<line x1="787.8" y1="164" x2="787.8" y2="602" class="grid"/>
+<text x="848" y="159" class="m" font-size="10.5" text-anchor="middle">200 s</text>
+<line x1="848" y1="164" x2="848" y2="602" class="grid"/>
+<text x="24" y="182" class="t" font-size="12" font-weight="600">Foreground</text>
+<text x="278" y="182" class="t2" font-size="11.5" font-weight="600">35/35</text>
+<text x="418" y="182" class="t2" font-size="11.5" font-weight="600">29/35</text>
+<line x1="24" y1="190" x2="856" y2="190" class="grid"/>
+<text x="24" y="211" class="t" font-size="12"><tspan font-weight="600">MB-09</tspan><tspan class="t2">  List drag and drop</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="202" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="202" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="202" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="202" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="202" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="211" class="m" font-size="11">5/5</text>
+<rect x="418" y="202" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="202" width="10" height="10" class="pass" rx="2"/>
+<rect x="445" y="202" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="202" width="10" height="10" class="pass" rx="2"/>
+<rect x="472" y="202" width="10" height="10" class="pass" rx="2"/>
+<text x="492" y="211" class="m" font-size="11">5/5</text>
+<line x1="665.2" y1="207" x2="752.8" y2="207" class="range"/>
+<circle cx="665.2" cy="207" r="4.5" class="dot0"/>
+<circle cx="752.8" cy="207" r="4.5" class="dot1"/>
+<line x1="24" y1="220" x2="564" y2="220" class="grid"/>
+<text x="24" y="237" class="t" font-size="12"><tspan font-weight="600">MB-10</tspan><tspan class="t2">  Hover overlay</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="228" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="228" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="228" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="228" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="228" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="237" class="m" font-size="11">5/5</text>
+<rect x="418" y="228" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="228" width="10" height="10" class="pass" rx="2"/>
+<rect x="445" y="228" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="228" width="10" height="10" class="pass" rx="2"/>
+<rect x="472" y="228" width="10" height="10" class="pass" rx="2"/>
+<text x="492" y="237" class="m" font-size="11">5/5</text>
+<line x1="642.2" y1="233" x2="695.4" y2="233" class="range"/>
+<circle cx="642.2" cy="233" r="4.5" class="dot0"/>
+<circle cx="695.4" cy="233" r="4.5" class="dot1"/>
+<line x1="24" y1="246" x2="564" y2="246" class="grid"/>
+<text x="24" y="263" class="t" font-size="12"><tspan font-weight="600">MB-11</tspan><tspan class="t2">  Native tooltip</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="254" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="254" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="254" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="254" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="254" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="263" class="m" font-size="11">5/5</text>
+<rect x="418" y="254" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="254" width="10" height="10" class="pass" rx="2"/>
+<rect x="445" y="254" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="254" width="10" height="10" class="pass" rx="2"/>
+<rect x="472" y="254" width="10" height="10" class="pass" rx="2"/>
+<text x="492" y="263" class="m" font-size="11">5/5</text>
+<line x1="658.1" y1="259" x2="717.7" y2="259" class="range"/>
+<circle cx="658.1" cy="259" r="4.5" class="dot0"/>
+<circle cx="717.7" cy="259" r="4.5" class="dot1"/>
+<line x1="24" y1="272" x2="564" y2="272" class="grid"/>
+<text x="24" y="289" class="t" font-size="12"><tspan font-weight="600">IR-01</tspan><tspan class="t2">  Permission dialog</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="280" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="280" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="280" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="280" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="280" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="289" class="m" font-size="11">5/5</text>
+<rect x="418" y="280" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="280" width="10" height="10" class="pass" rx="2"/>
+<rect x="445" y="280" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="280" width="10" height="10" class="pass" rx="2"/>
+<rect x="472" y="280" width="10" height="10" class="pass" rx="2"/>
+<text x="492" y="289" class="m" font-size="11">5/5</text>
+<line x1="728.6" y1="285" x2="769.4" y2="285" class="range"/>
+<circle cx="728.6" cy="285" r="4.5" class="dot0"/>
+<circle cx="769.4" cy="285" r="4.5" class="dot1"/>
+<line x1="24" y1="298" x2="564" y2="298" class="grid"/>
+<text x="24" y="315" class="t" font-size="12"><tspan font-weight="600">IR-02</tspan><tspan class="t2">  Update banner</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="306" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="306" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="306" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="306" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="306" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="315" class="m" font-size="11">5/5</text>
+<rect x="418" y="306" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="306" width="10" height="10" class="pass" rx="2"/>
+<rect x="445" y="306" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="306" width="10" height="10" class="s6" rx="2"/>
+<rect x="472" y="306" width="10" height="10" class="s6" rx="2"/>
+<text x="492" y="315" class="m" font-size="11">3/5</text>
+<line x1="700.4" y1="311" x2="809.1" y2="311" class="range"/>
+<circle cx="700.4" cy="311" r="4.5" class="dot0"/>
+<circle cx="809.1" cy="311" r="4.5" class="dot1"/>
+<line x1="24" y1="324" x2="564" y2="324" class="grid"/>
+<text x="24" y="341" class="t" font-size="12"><tspan font-weight="600">IR-03</tspan><tspan class="t2">  Unsaved-changes modal</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="332" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="332" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="332" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="332" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="332" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="341" class="m" font-size="11">5/5</text>
+<rect x="418" y="332" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="332" width="10" height="10" class="pass" rx="2"/>
+<rect x="445" y="332" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="332" width="10" height="10" class="pass" rx="2"/>
+<rect x="472" y="332" width="10" height="10" class="pass" rx="2"/>
+<text x="492" y="341" class="m" font-size="11">5/5</text>
+<line x1="721.4" y1="337" x2="747.4" y2="337" class="range"/>
+<circle cx="721.4" cy="337" r="4.5" class="dot0"/>
+<circle cx="747.4" cy="337" r="4.5" class="dot1"/>
+<line x1="24" y1="350" x2="564" y2="350" class="grid"/>
+<text x="24" y="367" class="t" font-size="12"><tspan font-weight="600">IR-04</tspan><tspan class="t2">  Cookie consent sheet</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="358" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="358" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="358" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="358" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="358" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="367" class="m" font-size="11">5/5</text>
+<rect x="418" y="358" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="358" width="10" height="10" class="s6" rx="2"/>
+<rect x="445" y="358" width="10" height="10" class="s6" rx="2"/>
+<rect x="458.5" y="358" width="10" height="10" class="s6" rx="2"/>
+<rect x="472" y="358" width="10" height="10" class="s6" rx="2"/>
+<text x="492" y="367" class="m" font-size="11">1/5</text>
+<line x1="713.7" y1="363" x2="747.7" y2="363" class="range"/>
+<circle cx="713.7" cy="363" r="4.5" class="dot0"/>
+<circle cx="747.7" cy="363" r="4.5" class="ring1"/>
+<text x="24" y="400" class="t" font-size="12" font-weight="600">Background · user typing in sentinel</text>
+<text x="278" y="400" class="t2" font-size="11.5" font-weight="600">35/35</text>
+<text x="418" y="400" class="t2" font-size="11.5" font-weight="600">21/35</text>
+<line x1="24" y1="408" x2="856" y2="408" class="grid"/>
+<text x="24" y="431" class="t" font-size="12"><tspan font-weight="600">MB-09</tspan><tspan class="t2">  List drag and drop</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="422" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="422" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="422" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="422" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="422" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="431" class="m" font-size="11">5/5</text>
+<rect x="418" y="422" width="10" height="10" class="s7" rx="2"/>
+<rect x="431.5" y="422" width="10" height="10" class="s7" rx="2"/>
+<rect x="445" y="422" width="10" height="10" class="s7" rx="2"/>
+<rect x="458.5" y="422" width="10" height="10" class="s7" rx="2"/>
+<rect x="472" y="422" width="10" height="10" class="s7" rx="2"/>
+<text x="492" y="431" class="m" font-size="11">0/5</text>
+<line x1="684.4" y1="427" x2="815.5" y2="427" class="range"/>
+<circle cx="684.4" cy="427" r="4.5" class="dot0"/>
+<circle cx="815.5" cy="427" r="4.5" class="ring1"/>
+<line x1="24" y1="440" x2="564" y2="440" class="grid"/>
+<text x="24" y="457" class="t" font-size="12"><tspan font-weight="600">IR-01</tspan><tspan class="t2">  Permission dialog</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="448" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="448" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="448" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="448" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="448" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="457" class="m" font-size="11">5/5</text>
+<rect x="418" y="448" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="448" width="10" height="10" class="pass" rx="2"/>
+<rect x="445" y="448" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="448" width="10" height="10" class="pass" rx="2"/>
+<rect x="472" y="448" width="10" height="10" class="pass" rx="2"/>
+<text x="492" y="457" class="m" font-size="11">5/5</text>
+<line x1="717.8" y1="453" x2="758" y2="453" class="range"/>
+<circle cx="717.8" cy="453" r="4.5" class="dot0"/>
+<circle cx="758" cy="453" r="4.5" class="dot1"/>
+<line x1="24" y1="466" x2="564" y2="466" class="grid"/>
+<text x="24" y="483" class="t" font-size="12"><tspan font-weight="600">IR-02</tspan><tspan class="t2">  Update banner</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="474" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="474" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="474" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="474" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="474" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="483" class="m" font-size="11">5/5</text>
+<rect x="418" y="474" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="474" width="10" height="10" class="pass" rx="2"/>
+<rect x="445" y="474" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="474" width="10" height="10" class="pass" rx="2"/>
+<rect x="472" y="474" width="10" height="10" class="pass" rx="2"/>
+<text x="492" y="483" class="m" font-size="11">5/5</text>
+<line x1="695.5" y1="479" x2="744.4" y2="479" class="range"/>
+<circle cx="695.5" cy="479" r="4.5" class="dot0"/>
+<circle cx="744.4" cy="479" r="4.5" class="dot1"/>
+<line x1="24" y1="492" x2="564" y2="492" class="grid"/>
+<text x="24" y="509" class="t" font-size="12"><tspan font-weight="600">IR-03</tspan><tspan class="t2">  Unsaved-changes modal</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="500" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="500" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="500" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="500" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="500" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="509" class="m" font-size="11">5/5</text>
+<rect x="418" y="500" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="500" width="10" height="10" class="pass" rx="2"/>
+<rect x="445" y="500" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="500" width="10" height="10" class="pass" rx="2"/>
+<rect x="472" y="500" width="10" height="10" class="pass" rx="2"/>
+<text x="492" y="509" class="m" font-size="11">5/5</text>
+<line x1="728.6" y1="505" x2="750.8" y2="505" class="range"/>
+<circle cx="728.6" cy="505" r="4.5" class="dot0"/>
+<circle cx="750.8" cy="505" r="4.5" class="dot1"/>
+<line x1="24" y1="518" x2="564" y2="518" class="grid"/>
+<text x="24" y="535" class="t" font-size="12"><tspan font-weight="600">IR-04</tspan><tspan class="t2">  Cookie consent sheet</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<rect x="278" y="526" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="526" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="526" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="526" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="526" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="535" class="m" font-size="11">5/5</text>
+<rect x="418" y="526" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="526" width="10" height="10" class="s6" rx="2"/>
+<rect x="445" y="526" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="526" width="10" height="10" class="s6" rx="2"/>
+<rect x="472" y="526" width="10" height="10" class="s6" rx="2"/>
+<text x="492" y="535" class="m" font-size="11">2/5</text>
+<line x1="710.3" y1="531" x2="732" y2="531" class="range"/>
+<circle cx="710.3" cy="531" r="4.5" class="dot0"/>
+<circle cx="732" cy="531" r="4.5" class="ring1"/>
+<line x1="24" y1="544" x2="564" y2="544" class="grid"/>
+<text x="24" y="561" class="t" font-size="12"><tspan font-weight="600">MB-10</tspan><tspan class="t2">  Hover overlay</tspan><tspan class="m" font-size="10.5"> · ext</tspan></text>
+<rect x="278" y="552" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="552" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="552" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="552" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="552" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="561" class="m" font-size="11">5/5</text>
+<rect x="418" y="552" width="10" height="10" class="pass" rx="2"/>
+<rect x="431.5" y="552" width="10" height="10" class="pass" rx="2"/>
+<rect x="445" y="552" width="10" height="10" class="pass" rx="2"/>
+<rect x="458.5" y="552" width="10" height="10" class="pass" rx="2"/>
+<rect x="472" y="552" width="10" height="10" class="s6" rx="2"/>
+<text x="492" y="561" class="m" font-size="11">4/5</text>
+<line x1="657.9" y1="557" x2="709.5" y2="557" class="range"/>
+<circle cx="657.9" cy="557" r="4.5" class="dot0"/>
+<circle cx="709.5" cy="557" r="4.5" class="dot1"/>
+<line x1="24" y1="570" x2="564" y2="570" class="grid"/>
+<text x="24" y="587" class="t" font-size="12"><tspan font-weight="600">MB-11</tspan><tspan class="t2">  Native tooltip</tspan><tspan class="m" font-size="10.5"> · ext</tspan></text>
+<rect x="278" y="578" width="10" height="10" class="pass" rx="2"/>
+<rect x="291.5" y="578" width="10" height="10" class="pass" rx="2"/>
+<rect x="305" y="578" width="10" height="10" class="pass" rx="2"/>
+<rect x="318.5" y="578" width="10" height="10" class="pass" rx="2"/>
+<rect x="332" y="578" width="10" height="10" class="pass" rx="2"/>
+<text x="352" y="587" class="m" font-size="11">5/5</text>
+<rect x="418" y="578" width="10" height="10" class="s7" rx="2"/>
+<rect x="431.5" y="578" width="10" height="10" class="s7" rx="2"/>
+<rect x="445" y="578" width="10" height="10" class="s7" rx="2"/>
+<rect x="458.5" y="578" width="10" height="10" class="s7" rx="2"/>
+<rect x="472" y="578" width="10" height="10" class="s7" rx="2"/>
+<text x="492" y="587" class="m" font-size="11">0/5</text>
+<line x1="678.7" y1="583" x2="781.9" y2="583" class="range"/>
+<circle cx="678.7" cy="583" r="4.5" class="dot0"/>
+<circle cx="781.9" cy="583" r="4.5" class="ring1"/>
+</svg>

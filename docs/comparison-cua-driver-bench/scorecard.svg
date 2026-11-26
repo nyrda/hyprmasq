@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="422" viewBox="0 0 880 422" role="img" aria-label="CuaDriverBench on Omarchy 4.5 with GPT-6.2 Sol: pass rates with 95 % Wilson intervals, median agent time, tool calls and input tokens for hyprmasq 0.5.1 and Cua Driver 0.62.1 across standard, foreground, background and extended background suites.">
+<title>CuaDriverBench on Omarchy 4.5 with GPT-6.2 Sol: pass rates with 95 % Wilson intervals, median agent time, tool calls and input tokens for hyprmasq 0.5.1 and Cua Driver 0.62.1 across standard, foreground, background and extended background suites.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#1f2328}.t2{fill:#59636e}.m{fill:#818b98}.bg{fill:#ffffff;stroke:#d1d9e0}.grid{stroke:#eff2f5;stroke-width:1}.axis{stroke:#d1d9e0;stroke-width:1}.out{fill:#c8d1da}.pass{fill:#1a7f37}.dot0{fill:#2a78d6;stroke:#ffffff;stroke-width:1.5}.dot1{fill:#eb6834;stroke:#ffffff;stroke-width:1.5}.ring1{fill:#ffffff;stroke:#eb6834;stroke-width:1.75}.dot{fill:#424a53;stroke:#ffffff;stroke-width:1.5}.whisker{stroke:#1f2328;stroke-width:1.5}.range{stroke:#d1d9e0;stroke-width:1.5}.s0{fill:#2a78d6}.s1{fill:#eb6834}.s6{fill:#6250d6}.s7{fill:#e34948}</style>
+<rect x="0.5" y="0.5" width="879" height="421" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">CuaDriverBench on Omarchy 4.5 · GPT-6.2 Sol</text>
+<text x="24" y="53" class="t2" font-size="12.5">140 trials (70 per driver), Codex CLI 0.171.0 at medium effort. The dot is the pass rate and the line its</text>
+<text x="24" y="72" class="t2" font-size="12.5">95 % Wilson interval. Right columns show median agent time, tool calls and input tokens across all trials.</text>
+<rect x="24" y="95" width="10" height="10" class="s0" rx="2"/>
+<text x="39" y="104" class="t" font-size="12" font-weight="600">hyprmasq 0.5.1</text>
+<rect x="150" y="95" width="10" height="10" class="s1" rx="2"/>
+<text x="165" y="104" class="t" font-size="12" font-weight="600">Cua Driver 0.62.1</text>
+<text x="316" y="104" class="t2" font-size="12">Trials passed</text>
+<text x="316" y="121" class="m" font-size="10.5" text-anchor="middle">0 %</text>
+<line x1="316" y1="132" x2="316" y2="380" class="grid"/>
+<text x="410" y="121" class="m" font-size="10.5" text-anchor="middle">50 %</text>
+<line x1="410" y1="132" x2="410" y2="380" class="grid"/>
+<text x="504" y="121" class="m" font-size="10.5" text-anchor="middle">100 %</text>
+<line x1="504" y1="132" x2="504" y2="380" class="grid"/>
+<line x1="363" y1="132" x2="363" y2="380" class="grid"/>
+<line x1="457" y1="132" x2="457" y2="380" class="grid"/>
+<text x="648" y="104" class="t2" font-size="12" text-anchor="middle">Median</text>
+<text x="648" y="119" class="t2" font-size="12" text-anchor="middle">agent s</text>
+<text x="724" y="104" class="t2" font-size="12" text-anchor="middle">Median</text>
+<text x="724" y="119" class="t2" font-size="12" text-anchor="middle">calls</text>
+<text x="812" y="104" class="t2" font-size="12" text-anchor="middle">Median</text>
+<text x="812" y="119" class="t2" font-size="12" text-anchor="middle">input tok</text>
+<line x1="24" y1="132" x2="856" y2="132" class="grid"/>
+<text x="24" y="157" class="t" font-size="13" font-weight="600">Standard Omarchy suite</text>
+<text x="24" y="174" class="m" font-size="10.5">35 foreground + 25 background</text>
+<rect x="202" y="145" width="4" height="12" class="s0" rx="2"/>
+<text x="212" y="155" class="t2" font-size="11.5">hyprmasq</text>
+<line x1="492.7" y1="151" x2="504" y2="151" class="whisker"/>
+<circle cx="504" cy="151" r="4.5" class="dot0"/>
+<text x="516" y="155" class="t" font-size="12.5" font-weight="600">100 %</text>
+<text x="558" y="155" class="m" font-size="11">60/60</text>
+<text x="648" y="155" class="t" font-size="12" text-anchor="middle">38.5 s</text>
+<text x="724" y="155" class="t" font-size="12" text-anchor="middle">9</text>
+<text x="812" y="155" class="t" font-size="12" text-anchor="middle">206k</text>
+<rect x="202" y="170" width="4" height="12" class="s1" rx="2"/>
+<text x="212" y="180" class="t2" font-size="11.5">Cua Driver</text>
+<line x1="437.4" y1="176" x2="476.9" y2="176" class="whisker"/>
+<circle cx="460.1" cy="176" r="4.5" class="dot1"/>
+<text x="516" y="180" class="t" font-size="12.5" font-weight="600">77 %</text>
+<text x="558" y="180" class="m" font-size="11">46/60</text>
+<text x="648" y="180" class="t2" font-size="12" text-anchor="middle">63.9 s (1.7×)</text>
+<text x="724" y="180" class="t2" font-size="12" text-anchor="middle">17.5 (1.9×)</text>
+<text x="812" y="180" class="t2" font-size="12" text-anchor="middle">590k (2.9×)</text>
+<line x1="24" y1="194" x2="856" y2="194" class="grid"/>
+<text x="24" y="219" class="t" font-size="13" font-weight="600">Foreground</text>
+<text x="24" y="236" class="m" font-size="10.5">7 BenchLab tasks · 5 seeds each</text>
+<rect x="202" y="207" width="4" height="12" class="s0" rx="2"/>
+<text x="212" y="217" class="t2" font-size="11.5">hyprmasq</text>
+<line x1="485.4" y1="213" x2="504" y2="213" class="whisker"/>
+<circle cx="504" cy="213" r="4.5" class="dot0"/>
+<text x="516" y="217" class="t" font-size="12.5" font-weight="600">100 %</text>
+<text x="558" y="217" class="m" font-size="11">35/35</text>
+<text x="648" y="217" class="t" font-size="12" text-anchor="middle">36.5 s</text>
+<text x="724" y="217" class="t" font-size="12" text-anchor="middle">8</text>
+<text x="812" y="217" class="t" font-size="12" text-anchor="middle">178k</text>
+<rect x="202" y="232" width="4" height="12" class="s1" rx="2"/>
+<text x="212" y="242" class="t2" font-size="11.5">Cua Driver</text>
+<line x1="442.6" y1="238" x2="488.8" y2="238" class="whisker"/>
+<circle cx="471.8" cy="238" r="4.5" class="dot1"/>
+<text x="516" y="242" class="t" font-size="12.5" font-weight="600">83 %</text>
+<text x="558" y="242" class="m" font-size="11">29/35</text>
+<text x="648" y="242" class="t2" font-size="12" text-anchor="middle">63.0 s (1.7×)</text>
+<text x="724" y="242" class="t2" font-size="12" text-anchor="middle">16 (2.0×)</text>
+<text x="812" y="242" class="t2" font-size="12" text-anchor="middle">557k (3.1×)</text>
+<line x1="24" y1="256" x2="856" y2="256" class="grid"/>
+<text x="24" y="281" class="t" font-size="13" font-weight="600">Standard background</text>
+<text x="24" y="298" class="m" font-size="10.5">MB-09 and IR-01 to IR-04</text>
+<rect x="202" y="269" width="4" height="12" class="s0" rx="2"/>
+<text x="212" y="279" class="t2" font-size="11.5">hyprmasq</text>
+<line x1="479" y1="275" x2="504" y2="275" class="whisker"/>
+<circle cx="504" cy="275" r="4.5" class="dot0"/>
+<text x="516" y="279" class="t" font-size="12.5" font-weight="600">100 %</text>
+<text x="558" y="279" class="m" font-size="11">25/25</text>
+<text x="648" y="279" class="t" font-size="12" text-anchor="middle">40.5 s</text>
+<text x="724" y="279" class="t" font-size="12" text-anchor="middle">10</text>
+<text x="812" y="279" class="t" font-size="12" text-anchor="middle">219k</text>
+<rect x="202" y="294" width="4" height="12" class="s1" rx="2"/>
+<text x="212" y="304" class="t2" font-size="11.5">Cua Driver</text>
+<line x1="407" y1="300" x2="471.7" y2="300" class="whisker"/>
+<circle cx="443.8" cy="300" r="4.5" class="dot1"/>
+<text x="516" y="304" class="t" font-size="12.5" font-weight="600">68 %</text>
+<text x="558" y="304" class="m" font-size="11">17/25</text>
+<text x="648" y="304" class="t2" font-size="12" text-anchor="middle">65.2 s (1.6×)</text>
+<text x="724" y="304" class="t2" font-size="12" text-anchor="middle">19 (1.9×)</text>
+<text x="812" y="304" class="t2" font-size="12" text-anchor="middle">634k (2.9×)</text>
+<line x1="24" y1="318" x2="856" y2="318" class="grid"/>
+<text x="24" y="343" class="t" font-size="13" font-weight="600">Extended background</text>
+<text x="24" y="360" class="m" font-size="10.5">MB-10 hover and MB-11 tooltip</text>
+<rect x="202" y="331" width="4" height="12" class="s0" rx="2"/>
+<text x="212" y="341" class="t2" font-size="11.5">hyprmasq</text>
+<line x1="451.8" y1="337" x2="504" y2="337" class="whisker"/>
+<circle cx="504" cy="337" r="4.5" class="dot0"/>
+<text x="516" y="341" class="t" font-size="12.5" font-weight="600">100 %</text>
+<text x="558" y="341" class="m" font-size="11">10/10</text>
+<text x="648" y="341" class="t" font-size="12" text-anchor="middle">25.4 s</text>
+<text x="724" y="341" class="t" font-size="12" text-anchor="middle">5</text>
+<text x="812" y="341" class="t" font-size="12" text-anchor="middle">128k</text>
+<rect x="202" y="356" width="4" height="12" class="s1" rx="2"/>
+<text x="212" y="366" class="t2" font-size="11.5">Cua Driver</text>
+<line x1="347.6" y1="362" x2="445.2" y2="362" class="whisker"/>
+<circle cx="391.2" cy="362" r="4.5" class="dot1"/>
+<text x="516" y="366" class="t" font-size="12.5" font-weight="600">40 %</text>
+<text x="558" y="366" class="m" font-size="11">4/10</text>
+<text x="648" y="366" class="t2" font-size="12" text-anchor="middle">62.2 s (2.5×)</text>
+<text x="724" y="366" class="t2" font-size="12" text-anchor="middle">27 (5.4×)</text>
+<text x="812" y="366" class="t2" font-size="12" text-anchor="middle">378k (2.9×)</text>
+<line x1="24" y1="380" x2="856" y2="380" class="grid"/>
+<text x="24" y="404" class="m" font-size="11">All 35 background trials of each driver passed all 8 A22 user-undisturbed criteria with 0 GUI-only violations.</text>
+</svg>

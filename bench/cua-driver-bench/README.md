@@ -22,6 +22,9 @@ harness and the per-trial results reported in
 - `summarize.py` recomputes the suite and per-task tables in
   [docs/comparison-cua-driver-bench.md](../../docs/comparison-cua-driver-bench.md)
   directly from `data/`.
+- `render.py` generates the light and dark SVG figures in
+  [docs/comparison-cua-driver-bench/](../../docs/comparison-cua-driver-bench)
+  directly from `data/` (`--check` verifies they are up to date).
 
 ## Reproducing the hyprmasq run
 
@@ -61,8 +64,9 @@ harness and the per-trial results reported in
    `background`) at `desktop-benchlab-omarchy-hyprmasq` and run them with
    `agent-env run . --task <task-name> --model gpt-6.2-sol`.
 
-## Verifying the tables
+## Verifying the tables and figures
 
 ```sh
 python3 bench/cua-driver-bench/summarize.py
+python3 bench/cua-driver-bench/render.py --check
 ```
