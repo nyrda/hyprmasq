@@ -266,4 +266,6 @@ Post-start adjustments are logged in [the benchmark rules](../bench/comparison-s
 - [All the numbers](comparison-numbers.md): every table behind this page, per task, tool and agent.
 - [The tasks on macOS](comparison-macos.md): OpenAI's and Claude's computer use and Cua Driver on a Mac, beside
   hyprmasq in the VM.
+- [CuaDriverBench on Omarchy](comparison-cua-driver-bench.md): hyprmasq 0.5.1 beside Cua Driver 0.62.1 inside Scale AI's
+  AgentEnv harness on Omarchy 4.5.
 - [The data](comparison/data): every published run and both reviews of every primary failed run.

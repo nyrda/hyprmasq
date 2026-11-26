@@ -193,7 +193,8 @@ and `hypruse` on 16 Linux desktop tasks while a user worked in another window.
 hyprmasq left the user's view alone on every run and finished faster at lower
 cost. See [the comparison](docs/comparison.md) for the full breakdown,
 deferred tool loading (`ToolSearch`), rules and every run, plus
-[the macOS addendum](docs/comparison-macos.md).
+[the macOS addendum](docs/comparison-macos.md) and
+[CuaDriverBench on Omarchy](docs/comparison-cua-driver-bench.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/comparison/scorecard-dark.svg">
@@ -225,6 +226,7 @@ deferred tool loading (`ToolSearch`), rules and every run, plus
 | [Automation](docs/automation.md) | The command-line tools and plugin options |
 | [Benchmarks](docs/benchmarks.md) | How agents do on real desktop tasks |
 | [Comparison](docs/comparison.md) | hyprmasq beside other computer use tools |
+| [CuaDriverBench on Omarchy](docs/comparison-cua-driver-bench.md) | hyprmasq beside Cua Driver 0.62.1 in Scale AI's harness |
 | [Development](docs/development.md) | Building, testing and contributing |
 | [Contributing](CONTRIBUTING.md) | What a pull request needs |
 | [Security](SECURITY.md) | Reporting a vulnerability |

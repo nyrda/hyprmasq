@@ -25,7 +25,9 @@ and the security model; `docs/mcp.md` covers `hyprmasq-mcp`;
 tables `bench/render.py` generates from `docs/benchmarks/data`;
 `docs/comparison.md` compares hyprmasq with Cua Driver, computer-use-linux and hypruse, with its tables in
 `docs/comparison-numbers.md`, and `docs/comparison-macos.md` with OpenAI's and Claude's computer use and Cua Driver on
-macOS, their figures and tables generated the same way from `docs/comparison/data`. Keep them in step
+macOS, their figures and tables generated the same way from `docs/comparison/data`.
+`docs/comparison-cua-driver-bench.md` compares hyprmasq with Cua Driver in Scale AI's `agentenv-cua-driver-bench`
+harness on Omarchy, with its driver, raw trial JSON data and summary script in `bench/cua-driver-bench/`. Keep them in step
 with the code: a changed command, option, default or exit code updates the
 page that documents it. Agents use the MCP tools; there is no agent skill.
 
