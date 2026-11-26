@@ -16,9 +16,10 @@ harness and the per-trial results reported in
     `envs/desktop-benchlab-omarchy-hyprmasq/env.toml`. It sets
     `tools = "driver"` so agents see only `hyprmasq-mcp`'s six tools
     (`windows`, `screenshot`, `act`, `launch`, `release`, `close`).
-- `data/` holds the per-trial JSON records for all 140 trials (70 for
-  `hyprmasq 0.5.1` and 70 for `cua-driver 0.62.1`), graded with upstream
-  `grade.py` and trycua's A22 sentinel rules.
+- `data/` holds the per-trial JSON records for all 280 trials (70 per driver
+  and model across Claude Sonnet 5.5 and GPT-6.2 Sol for `hyprmasq 0.5.1` and
+  `cua-driver 0.62.1`), graded with upstream `grade.py` and trycua's A22
+  sentinel rules.
 - `summarize.py` recomputes the suite and per-task tables in
   [docs/comparison-cua-driver-bench.md](../../docs/comparison-cua-driver-bench.md)
   directly from `data/`.
@@ -28,9 +29,9 @@ harness and the per-trial results reported in
 
 ## Reproducing the hyprmasq run
 
-1. Clone `https://huggingface.co/datasets/earakely-scale/agentenv-cua-driver-bench`
+1. Clone `https://github.com/earakely-scale/agentenv-cua-driver-bench`
    and install `agentenv-framework==0.9.1649` (with `agentenv-framework-protocol==0.1.664`).
-2. Fetch trycua's taskpack inside the clone (`python3 scripts/taskpack.py fetch`).
+2. Fetch trycua's taskpack inside the clone (`python3 tools/taskpack.py`).
 3. Copy the driver and desktop environment definitions into the clone:
 
    ```sh
