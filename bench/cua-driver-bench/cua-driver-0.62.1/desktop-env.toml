@@ -1,0 +1,5 @@
+type = "computer"
+computer = "omarchy-4.5"
+driver = "cua-driver-latest"
+display = { width = 1920, height = 1080 }
+apps = ["benchlab", "bench-sentinel"]

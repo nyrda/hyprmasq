@@ -1,0 +1,27 @@
+--- a/driver.py
++++ b/driver.py
+@@ -105,7 +105,7 @@
+     "arm64": "26e9eee8165e9ce7b614b5e3d68e5d963231385a82b65236406718b5ce1ff936",
+     "macos/arm64": "f026e4dea3d058c7c702dfebca93853e6f9410ce76b73c06f35eae1a81bbc873",
+     "windows/amd64": "ffa58d88779ee219304b0c307f4cfa970fe822f830c6ecf9254eda5c29e22bf2",
+-    "hyprland/amd64": "8dd0f74928cff484343ed65e3ac4d1dacdccc3950b8665e1102ac463af0a967b",
++    "hyprland/amd64": "7f8ba9e521c158da5504cc65dfeca044e9cbb0bcb266ca012caad59af23af3f8",
+ }
+ #: How the daemon delivers the pointer's actions: in the foreground on macOS, where it doesn't by default.
+ FOREGROUND = {"delivery_mode": "foreground"} if MACOS else {}
+@@ -153,12 +153,9 @@
+ PIPE_WAITS = {errno.EINVAL: 10.0, errno.ENOENT: 1.0}
+ 
+ 
+-@computer_driver(name="cua-driver",
+-                 supports=[{"os": {"type": "linux", "display": ["x11"]}, "arch": ["amd64", "arm64"]},
+-                           {"os": {"type": "linux", "distribution": ["omarchy"], "display": ["wayland"]},
+-                            "arch": ["amd64"]},
+-                           {"os": {"type": "macos", "display": ["aqua"]}, "arch": ["arm64"]},
+-                           {"os": {"type": "windows", "display": ["dwm"]}, "arch": ["amd64"]}])
++@computer_driver(name="cua-driver-latest",
++                 supports=[{"os": {"type": "linux", "distribution": ["omarchy"], "display": ["wayland"]},
++                            "arch": ["amd64"]}])
+ class CuaDriver(ComputerDriverEnvironment):
+     notes = hyprland.NOTES if HYPRLAND else ""
+     buttons = ("left", "right", "middle")

@@ -7,6 +7,15 @@ Hyprland 0.57.2, GPT-6.2 Sol and Claude Opus 5.5 at medium effort) while the use
 in rootless GPU containers on the same host, while `computer-use-linux` ran in KVM VMs on that host because on Hyprland
 its pointer uses kernel `/dev/uinput`.
 
+> [!NOTE]
+> The runs below use hyprmasq's own 16-task benchmark. For an external task suite and grader, see
+> [CuaDriverBench on Omarchy](comparison-cua-driver-bench.md), where hyprmasq's author ran unmodified hyprmasq 0.5.1
+> beside Cua Driver 0.62.1 locally inside Scale AI's
+> [CuaDriverBench-AgentEnv](https://huggingface.co/spaces/earakely-scale/CuaDriverBench-AgentEnv) harness on Omarchy
+> 4.5 across Claude Sonnet 5.5 and GPT-6.2 Sol (120/120 vs 93/120 on the canonical 60-trial Omarchy suite, plus 20/20
+> vs 6/20 on 40 author-added MB-10/11 background trials, with Cua Driver taking 1.7× the standard-suite median wall
+> time and 2.3–3.7× the median cost at provider API list prices).
+
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-failures scorecard -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison/scorecard-dark.svg">
@@ -266,4 +275,6 @@ Post-start adjustments are logged in [the benchmark rules](../bench/comparison-s
 - [All the numbers](comparison-numbers.md): every table behind this page, per task, tool and agent.
 - [The tasks on macOS](comparison-macos.md): OpenAI's and Claude's computer use and Cua Driver on a Mac, beside
   hyprmasq in the VM.
+- [CuaDriverBench on Omarchy](comparison-cua-driver-bench.md): hyprmasq 0.5.1 beside Cua Driver 0.62.1 inside Scale AI's
+  AgentEnv harness on Omarchy 4.5.
 - [The data](comparison/data): every published run and both reviews of every primary failed run.

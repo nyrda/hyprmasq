@@ -1,0 +1,308 @@
+{
+  "instructions": "hyprmasq: see, click and type in Hyprland windows without disturbing the user's screen; one act call acts, waits for the redraw and returns screenshots of what changed.\n\nLoop: windows or launch \u2192 screenshot \u2192 act with coordinates in that shot's pixels \u2192 read the changes or the shot that act returns \u2192 act again.\nRead each result's summary, and its hint when it has one, before the next call.",
+  "tools": [
+    {
+      "name": "act",
+      "description": "Act, wait for redraw, show changes. Drive only windows the user named or you launched, and ask the user before anything irreversible: sending, deleting, buying, submitting.\nCoordinates are pixels of the shot you pass, as they are: a full shot, or a zoom from screenshot region, whose own pixels act takes without conversion. The shot identifies the window; pass window only without a shot.\nUse compact action arrays: [x,y] clicks, [x,y,\"right\"], [x,y,\"left\",2], [\"move\",x,y], [\"path\",points,curve], [\"scroll\",x,y,dy,unit], [\"type\",text], [\"paste\",text], [\"key\",keys,repeat], [\"hold\",keys,ms], [\"pause\",ms]. keys: \"right\" or [\"ctrl\",\"l\"], repeat optional.\npath presses once, moves through its points [[x,y],...] and releases, as one stroke: a drag is a path of two points. curve \"line\", the default, goes straight from point to point. \"spline\" passes through every point but curves between them, so for a precise trace give points close together, and use line where the target bends sharply or the points are sparse. button \"none\" moves without pressing.\nThe result shows what changed since \"shot\" or your last shot: \"shot s7 = s5 + 2 changes\" has s5's pixels, so keep reading coordinates from s5; each change is a zoom shot, listed with its box. A full shot comes when it serves better, saying why; capture \"window\" asks for one.\nBatch only targets visible in the shot: a menu, dialog or page that opens needs a new shot before you click in it; known keys, like arrows and enter in a menu, may follow.\npath, clicks with modifiers, and chords holding a non-modifier key while pressing the next need the hold capability, an app's drag-and-drop also dnd.\ntype uses the active keymap; a line break presses Enter and a tab presses Tab, so for a new line in a chat or form use shift+enter.\npaste inserts long text at once; its line breaks and tabs stay text.\nNever repeat input whose delivery is partial or uncertain, or from a call that timed out, before seeing a fresh shot.\nExample: {\"shot\":\"s4\",\"actions\":[[412,88],[\"type\",\"hello\"],[\"key\",\"enter\"]]}",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6,
+              "items": {}
+            },
+            "default": [],
+            "description": "Run in order. An empty list waits for a change since the shot, then captures.\nAn array that starts with a number is a click, [x,y,button?,count?,modifiers?]: [x,y] is one left click, [x,y,\"left\",2] a double click. Other arrays start with an action name: [click,x,y,button?,count?,modifiers?], [move,x,y], [path,points,curve?,button?,modifiers?], [scroll,x,y,dy,unit?,dx?], [type,text], [paste,text], [key,keys,repeat?], [hold,keys,ms], [pause,ms]. Omit trailing defaults; do not use null placeholders. x and y are shot pixels.\nbutton: left, the default, right or middle; for path also none, which moves without pressing, as for a menu that needs a diagonal move, and needs no hold capability. count: 1 to 3, 2 for a double click. modifiers: an array of ctrl, alt, shift and super, held around the click or path.\npoints: 2 to 500 points [[x,y],...], pressed once and released as one stroke. curve: line, the default, goes straight from point to point; spline passes through every point and curves between them, which suits points close together.\nscroll: positive dy scrolls down, positive dx right. unit: notch, the default, counts whole wheel clicks, up to 100; px is app-scaled smooth scrolling; page moves toward the next view with overlap, with dy 1 or -1, last in the batch.\ntype: the text as given, with no tags or escapes; a line break presses Enter and a tab presses Tab. paste: the text inserted at once with Shift+Insert through a clipboard of its own, never the user's; line breaks and tabs stay text, so use type to move between fields or cells. Not in terminals.\nkeys: a string or an array of strings, pressed together in order and released in reverse, such as \"right\", [\"ctrl\",\"shift\",\"t\"] or \"ctrl+l\", which is split at +. Names: XKB keysyms, single characters and ctrl, alt, shift, super, enter, esc, backspace, delete, tab, space, up, down, left, right, home, end, pageup, pagedown, f1 to f24, plus. repeat: 1 to 500 presses of the chord.\nms: 0 to 5000, for pause and hold. Actions after a click or path with a button already wait until the window has drawn its answer, and keys and text until 300 ms have passed since it, while the application moves the focus."
+          },
+          "caption": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "With a recording: a short line about this step, shown from this call on until the next caption. Ignored without a recording."
+          },
+          "capture": {
+            "description": "\"changes\": what changed since the shot, or your last shot, as a zoom shot into each changed region with a margin of 24 px, nearby regions joined into at most 5; a full shot instead without an earlier shot, after a resize, for changes over 35% of the window or too scattered to join, or after 10 changes shots in a row, each compared with the one before. Tiny changes, such as a blinking caret, are left out and counted. \"window\" for a full overview shot, such as when you no longer have the earlier one, \"none\", or a region {shot,x,y,width,height} in pixels of an earlier shot.",
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "changes",
+                  "window",
+                  "none"
+                ]
+              },
+              {
+                "type": "object",
+                "description": "A rectangle in pixels of an earlier shot of the same window.",
+                "properties": {
+                  "shot": {
+                    "type": "string",
+                    "description": "The shot the rectangle is in, such as s4."
+                  },
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "shot",
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "default": "changes"
+          },
+          "deadline_ms": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 30000,
+            "default": 15000,
+            "description": "Covers the whole call, including waiting for other calls on the window; the last 1000 ms are reserved for the capture, and input has to end 2250 ms before the deadline."
+          },
+          "next_page": {
+            "type": "object",
+            "description": "Measure a page scroll with overlap, optionally after edits to the current view. Ordinary notch scrolling is quicker for short moves. Put this in the same call as visible edits when continuing through a long page. The point must be on scrolling background, away from controls.",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "down",
+                  "up"
+                ],
+                "default": "down"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "additionalProperties": false
+          },
+          "record": {
+            "type": "string",
+            "enum": [
+              "slides",
+              "video",
+              "stop"
+            ],
+            "description": "Record a demo when asked to show or prove a change in a recording, as for a pull request. slides or video starts before this call's input and records every later act of this session: slides a still of each act's input and result, video each act at real speed. stop ends once this call's result is captured and returns the video's path."
+          },
+          "shot": {
+            "type": "string",
+            "description": "Identifies the window and the shot the coordinates were read from, such as s4. Required if any action has coordinates."
+          },
+          "wait": {
+            "type": "object",
+            "properties": {
+              "expect_change": {
+                "type": "boolean",
+                "default": true,
+                "description": "Wait for a redraw first. False for input that may change nothing on screen."
+              },
+              "expect_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 29000,
+                "default": 1000,
+                "description": "How long to wait for the first redraw, at most deadline_ms minus 1000."
+              },
+              "quiet_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000,
+                "default": 200,
+                "description": "How long the window must stay quiet to count as settled. Quiet means nothing was redrawn for this long, not that loading finished: after a click, a path with a button, a key or Enter, act also waits out a redraw that starts within 500 ms after it settled, but if the shot still shows loading, act again with no actions."
+              }
+            },
+            "additionalProperties": false
+          },
+          "window": {
+            "type": "string",
+            "description": "Optional with shot, which identifies its window. Without shot, give an address from windows or launch."
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "close",
+      "description": "Ask a window to close, as Hyprland's close dispatcher does. Close only windows you launched or the user asked you to close. Reports within 2 seconds whether it closed, and lists windows that appeared meanwhile, such as a confirmation dialog, which you can then screenshot and act on.\nIt refuses X11 menus, lists and tooltips, and X11 windows that take no close request, since closing them through Hyprland ends or breaks their whole app. Dismiss a menu with the key escape or a click outside it.\nExample: {\"window\":\"0x55d1c0a3e4b0\"}",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "window": {
+            "type": "string",
+            "description": "Window address from windows or launch, such as 0x55d1c0a3e4b0."
+          }
+        },
+        "required": [
+          "window"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "launch",
+      "description": "Start an application on a hidden workspace, without changing the user's visible workspace or focus. Waits up to timeout_ms milliseconds (default 30000) for its first window and for that window to settle, and returns the window's address with a shot; act takes coordinates in that shot's pixels. Close the windows you launch when you are done.\ncommand is the program and its arguments, run without a shell. workspace is a named workspace or the number of a numbered one (default \"hyprmasq\"). Applications that hand the request to an instance that is already running, such as a browser that is open, cannot be launched this way: pass an option for a separate instance.\nExample: {\"command\":[\"foot\",\"-T\",\"scratch\"]}",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "description": "Program and arguments, such as [\"foot\", \"-T\", \"scratch\"]."
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 300000,
+            "default": 30000,
+            "description": "Milliseconds to wait for the first window."
+          },
+          "workspace": {
+            "type": "string",
+            "default": "hyprmasq",
+            "description": "Workspace for the windows: a name of letters, digits, _, . and -, or the number of a numbered workspace."
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "release",
+      "description": "End the focus lease on a window, whichever session holds it. The window stays open and loses the emulated pointer and keyboard focus, so what its app closes on focus loss may be gone. An act that sends input starts or renews a lease on windows that support it; an act without input only renews one that is held.\nExample: {\"window\":\"0x55d1c0a3e4b0\"}",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "window": {
+            "type": "string",
+            "description": "Window address from windows or launch, such as 0x55d1c0a3e4b0."
+          }
+        },
+        "required": [
+          "window"
+        ],
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "screenshot",
+      "description": "Take a screenshot of a window now and return it as a shot such as \"s5\"; it waits only for a window that has not yet redrawn at a new size, or not yet drawn on its hidden workspace, for up to 1.5 s. Coordinates in later act calls are pixels of the returned image, with 0,0 at its top left; the window's open popups are included.\nregion zooms in: {shot, x, y, width, height} in pixels of an earlier shot of the same window. The area is captured again at the monitor's full scale, shrunk only to fit within 1280 pixels on the long side, and becomes a new shot whose own pixels act accepts. A zoom under 768 pixels on the long side comes enlarged by a whole factor, each captured pixel a square block, and act maps its pixels to fractions of the captured ones, so you can aim finer. Use it to read small text or to hit small targets.\nExample: {\"window\":\"0x55d1c0a3e4b0\",\"region\":{\"shot\":\"s4\",\"x\":380,\"y\":60,\"width\":200,\"height\":80}}",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "region": {
+            "type": "object",
+            "description": "A rectangle in pixels of an earlier shot of the same window.",
+            "properties": {
+              "shot": {
+                "type": "string",
+                "description": "The shot the rectangle is in, such as s4."
+              },
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            },
+            "required": [
+              "shot",
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
+          },
+          "window": {
+            "type": "string",
+            "description": "Window address from windows or launch, such as 0x55d1c0a3e4b0."
+          }
+        },
+        "required": [
+          "window"
+        ],
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      }
+    },
+    {
+      "name": "windows",
+      "description": "List the windows, or with match only those whose class or title contains it, ignoring case. Each has its address (pass it as window to the other tools), class, title, workspace, whether it is visible (on a shown workspace) or hidden, and its size in logical pixels. Where they apply, it is also resizing (not yet redrawn at its new size, so a screenshot shows an older frame), xwayland, launched (by this server), opened by your input to another window after that act had returned, or leased, and names the capabilities it lacks, such as \"lacks lease, hold\" or \"keyboard x11-focus\"; without them, it has them all.\ncapabilities: lease (the emulated focus stays on the window between act calls; without it, the window loses the focus after each call, and what its app closes on focus loss may be gone by the next call), hold (buttons and keys can stay pressed across input frames, needed for paths, for clicks with modifiers, and for key chords that hold a key other than a modifier), dnd (a drag-and-drop that a path starts in the app, such as moving a card, a file or a tab, runs within the window; without it, hyprmasq cancels such a drag, and only drags that the app draws itself work), keyboard (\"yes\", or \"x11-focus\" when X11 keyboard input depends on which window has the focus).\nWhen it lists one window, it returns a shot of it, as screenshot does. A window that your input opened after its act had returned comes with a shot too, once. The size is not a coordinate system: act with the pixels of a shot.\nwait_ms (up to 10000): when you expect a window that an act's result did not show, such as a file chooser after clicking Upload or Browse, which another process can open a second or two later, wait for it here. With match it waits until a window matches; without match, until a window that your input opened maps. It returns as soon as one is there, at once if one already is, and otherwise once wait_ms has passed, with the list as usual.\nExample: {\"match\":\"firefox\"}, or {\"wait_ms\":5000} after a click that opens a file chooser",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "match": {
+            "type": "string",
+            "description": "Only windows whose class or title contains this, ignoring case, such as \"firefox\"."
+          },
+          "wait_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "default": 0,
+            "description": "Wait up to this long for a window that is not there yet: with match one that matches, without match one that your input opened. It returns as soon as one is there."
+          }
+        },
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false
+      }
+    }
+  ]
+}

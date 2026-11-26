@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="458" viewBox="0 0 880 458" role="img" aria-label="Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI&#x27;s published Hugging Face board (Aside and Cua Driver), comparing total passed, background passed, A22 user-undisturbed, median agent_window_s and Scale export.py median cost.">
+<title>Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI&#x27;s published Hugging Face board (Aside and Cua Driver), comparing total passed, background passed, A22 user-undisturbed, median agent_window_s and Scale export.py median cost.</title>
+<style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#1f2328}.t2{fill:#59636e}.m{fill:#818b98}.bg{fill:#ffffff;stroke:#d1d9e0}.grid{stroke:#eff2f5;stroke-width:1}.axis{stroke:#d1d9e0;stroke-width:1}.out{fill:#c8d1da}.pass{fill:#1a7f37}.dot0{fill:#2a78d6;stroke:#ffffff;stroke-width:1.5}.dot1{fill:#eb6834;stroke:#ffffff;stroke-width:1.5}.ring1{fill:#ffffff;stroke:#eb6834;stroke-width:1.75}.dot{fill:#424a53;stroke:#ffffff;stroke-width:1.5}.whisker{stroke:#1f2328;stroke-width:1.5}.range{stroke:#d1d9e0;stroke-width:1.5}.s0{fill:#2a78d6}.s1{fill:#eb6834}.s6{fill:#6250d6}.s7{fill:#e34948}</style>
+<rect x="0.5" y="0.5" width="879" height="457" rx="6" class="bg"/>
+<text x="24" y="34" class="t" font-size="15" font-weight="600">Across operating systems · Claude Sonnet 5.5 (same 60 BenchLab trials)</text>
+<text x="24" y="53" class="t2" font-size="12.5">Local Omarchy runs beside Scale AI&#x27;s published Hugging Face board (Aside and Cua Driver, 35 fg + 25 bg).</text>
+<text x="24" y="72" class="t2" font-size="12.5">Longer bars are better on the left three columns, while shorter bars are faster and cheaper on the right two.</text>
+<text x="248" y="98" class="t2" font-size="12" font-weight="600">Passed</text>
+<text x="248" y="113" class="m" font-size="10.2">of 60</text>
+<text x="378" y="98" class="t2" font-size="12" font-weight="600">Background</text>
+<text x="378" y="113" class="m" font-size="10.2">of 25</text>
+<text x="496" y="98" class="t2" font-size="12" font-weight="600">Undisturbed</text>
+<text x="496" y="113" class="m" font-size="10.2">A22 of 25</text>
+<text x="612" y="98" class="t2" font-size="12" font-weight="600">Agent window</text>
+<text x="612" y="113" class="m" font-size="10.2">median s</text>
+<text x="738" y="98" class="t2" font-size="12" font-weight="600">Median cost</text>
+<text x="738" y="113" class="m" font-size="10.2">export.py</text>
+<line x1="24" y1="124" x2="856" y2="124" class="grid"/>
+<rect x="24" y="131" width="4" height="28" class="s6" rx="2"/>
+<text x="36" y="143" class="t" font-size="12">macOS · Aside 1.26.1111.1046</text>
+<text x="36" y="157" class="m" font-size="10">Sonnet #1 · EC2</text>
+<rect x="248" y="140.5" width="68" height="9" class="out" rx="2"/>
+<path d="M248 140.5H313Q316 140.5 316 143.5V146.5Q316 149.5 313 149.5H248Z" class="s6"/>
+<text x="322" y="149" class="t" font-size="11.5">60/60</text>
+<rect x="378" y="140.5" width="58" height="9" class="out" rx="2"/>
+<path d="M378 140.5H433Q436 140.5 436 143.5V146.5Q436 149.5 433 149.5H378Z" class="pass"/>
+<text x="442" y="149" class="t" font-size="11.5">25/25</text>
+<rect x="496" y="140.5" width="54" height="9" class="out" rx="2"/>
+<path d="M496 140.5H547Q550 140.5 550 143.5V146.5Q550 149.5 547 149.5H496Z" class="pass"/>
+<text x="556" y="149" class="t" font-size="11.5">25/25</text>
+<path d="M612 140.5H636.7Q639.7 140.5 639.7 143.5V146.5Q639.7 149.5 636.7 149.5H612Z" class="s6"/>
+<text x="645.7" y="149" class="t" font-size="11.5">15.6 s</text>
+<path d="M738 140.5H747Q750 140.5 750 143.5V146.5Q750 149.5 747 149.5H738Z" class="s6"/>
+<text x="756" y="149" class="t" font-size="11.5">$0.058</text>
+<line x1="24" y1="166" x2="856" y2="166" class="grid"/>
+<rect x="24" y="173" width="4" height="28" class="s0" rx="2"/>
+<text x="36" y="185" class="t" font-size="12" font-weight="600">Omarchy · hyprmasq 0.5.1</text>
+<text x="36" y="199" class="m" font-size="10">this run · KVM</text>
+<rect x="248" y="182.5" width="68" height="9" class="out" rx="2"/>
+<path d="M248 182.5H313Q316 182.5 316 185.5V188.5Q316 191.5 313 191.5H248Z" class="s0"/>
+<text x="322" y="191" class="t" font-size="11.5" font-weight="600">60/60</text>
+<rect x="378" y="182.5" width="58" height="9" class="out" rx="2"/>
+<path d="M378 182.5H433Q436 182.5 436 185.5V188.5Q436 191.5 433 191.5H378Z" class="pass"/>
+<text x="442" y="191" class="t" font-size="11.5" font-weight="600">25/25</text>
+<rect x="496" y="182.5" width="54" height="9" class="out" rx="2"/>
+<path d="M496 182.5H547Q550 182.5 550 185.5V188.5Q550 191.5 547 191.5H496Z" class="pass"/>
+<text x="556" y="191" class="t" font-size="11.5" font-weight="600">25/25</text>
+<path d="M612 182.5H644Q647 182.5 647 185.5V188.5Q647 191.5 644 191.5H612Z" class="s0"/>
+<text x="653" y="191" class="t" font-size="11.5">19.7 s</text>
+<path d="M738 182.5H745.3Q748.3 182.5 748.3 185.5V188.5Q748.3 191.5 745.3 191.5H738Z" class="s0"/>
+<text x="754.3" y="191" class="t" font-size="11.5">$0.050</text>
+<line x1="24" y1="208" x2="856" y2="208" class="grid"/>
+<rect x="24" y="215" width="4" height="28" class="s1" rx="2"/>
+<text x="36" y="227" class="t" font-size="12">macOS · Cua Driver 0.47.10</text>
+<text x="36" y="241" class="m" font-size="10">HF board · EC2</text>
+<rect x="248" y="224.5" width="68" height="9" class="out" rx="2"/>
+<path d="M248 224.5H303.9Q306.9 224.5 306.9 227.5V230.5Q306.9 233.5 303.9 233.5H248Z" class="s1"/>
+<text x="322" y="233" class="t" font-size="11.5">52/60</text>
+<rect x="378" y="224.5" width="58" height="9" class="out" rx="2"/>
+<path d="M378 224.5H414.4Q417.4 224.5 417.4 227.5V230.5Q417.4 233.5 414.4 233.5H378Z" class="pass"/>
+<text x="442" y="233" class="t" font-size="11.5">17/25</text>
+<rect x="496" y="224.5" width="54" height="9" class="out" rx="2"/>
+<path d="M496 224.5H540.5Q543.5 224.5 543.5 227.5V230.5Q543.5 233.5 540.5 233.5H496Z" class="pass"/>
+<text x="556" y="233" class="t" font-size="11.5">22/25</text>
+<path d="M612 224.5H644.5Q647.5 224.5 647.5 227.5V230.5Q647.5 233.5 644.5 233.5H612Z" class="s1"/>
+<text x="653.5" y="233" class="t" font-size="11.5">20.0 s</text>
+<path d="M738 224.5H762.7Q765.7 224.5 765.7 227.5V230.5Q765.7 233.5 762.7 233.5H738Z" class="s1"/>
+<text x="771.7" y="233" class="t" font-size="11.5">$0.134</text>
+<line x1="24" y1="250" x2="856" y2="250" class="grid"/>
+<rect x="24" y="257" width="4" height="28" class="s1" rx="2"/>
+<text x="36" y="269" class="t" font-size="12">Omarchy · Cua Driver 0.47.4</text>
+<text x="36" y="283" class="m" font-size="10">HF board · EC2</text>
+<rect x="248" y="266.5" width="68" height="9" class="out" rx="2"/>
+<path d="M248 266.5H303.9Q306.9 266.5 306.9 269.5V272.5Q306.9 275.5 303.9 275.5H248Z" class="s1"/>
+<text x="322" y="275" class="t" font-size="11.5">52/60</text>
+<rect x="378" y="266.5" width="58" height="9" class="out" rx="2"/>
+<path d="M378 266.5H416.8Q419.8 266.5 419.8 269.5V272.5Q419.8 275.5 416.8 275.5H378Z" class="pass"/>
+<text x="442" y="275" class="t" font-size="11.5">18/25</text>
+<rect x="496" y="266.5" width="54" height="9" class="out" rx="2"/>
+<path d="M496 266.5H540.5Q543.5 266.5 543.5 269.5V272.5Q543.5 275.5 540.5 275.5H496Z" class="pass"/>
+<text x="556" y="275" class="t" font-size="11.5">22/25</text>
+<path d="M612 266.5H662.5Q665.5 266.5 665.5 269.5V272.5Q665.5 275.5 662.5 275.5H612Z" class="s1"/>
+<text x="671.5" y="275" class="t" font-size="11.5">30.2 s</text>
+<path d="M738 266.5H785.6Q788.6 266.5 788.6 269.5V272.5Q788.6 275.5 785.6 275.5H738Z" class="s1"/>
+<text x="794.6" y="275" class="t" font-size="11.5">$0.245</text>
+<line x1="24" y1="292" x2="856" y2="292" class="grid"/>
+<rect x="24" y="299" width="4" height="28" class="s1" rx="2"/>
+<text x="36" y="311" class="t" font-size="12" font-weight="600">Omarchy · Cua Driver 0.62.1</text>
+<text x="36" y="325" class="m" font-size="10">this run · KVM</text>
+<rect x="248" y="308.5" width="68" height="9" class="out" rx="2"/>
+<path d="M248 308.5H296Q299 308.5 299 311.5V314.5Q299 317.5 296 317.5H248Z" class="s1"/>
+<text x="322" y="317" class="t" font-size="11.5" font-weight="600">45/60</text>
+<rect x="378" y="308.5" width="58" height="9" class="out" rx="2"/>
+<path d="M378 308.5H412.1Q415.1 308.5 415.1 311.5V314.5Q415.1 317.5 412.1 317.5H378Z" class="pass"/>
+<text x="442" y="317" class="t" font-size="11.5" font-weight="600">16/25</text>
+<rect x="496" y="308.5" width="54" height="9" class="out" rx="2"/>
+<path d="M496 308.5H544.8Q547.8 308.5 547.8 311.5V314.5Q547.8 317.5 544.8 317.5H496Z" class="pass"/>
+<text x="556" y="317" class="t" font-size="11.5" font-weight="600">24/25</text>
+<path d="M612 308.5H666.5Q669.5 308.5 669.5 311.5V314.5Q669.5 317.5 666.5 317.5H612Z" class="s1"/>
+<text x="675.5" y="317" class="t" font-size="11.5">32.4 s</text>
+<path d="M738 308.5H788.3Q791.3 308.5 791.3 311.5V314.5Q791.3 317.5 788.3 317.5H738Z" class="s1"/>
+<text x="797.3" y="317" class="t" font-size="11.5">$0.258</text>
+<line x1="24" y1="334" x2="856" y2="334" class="grid"/>
+<rect x="24" y="341" width="4" height="28" class="s1" rx="2"/>
+<text x="36" y="353" class="t" font-size="12">Windows · Cua Driver 0.38.0</text>
+<text x="36" y="367" class="m" font-size="10">HF board · EC2</text>
+<rect x="248" y="350.5" width="68" height="9" class="out" rx="2"/>
+<path d="M248 350.5H294.9Q297.9 350.5 297.9 353.5V356.5Q297.9 359.5 294.9 359.5H248Z" class="s1"/>
+<text x="322" y="359" class="t" font-size="11.5">44/60</text>
+<rect x="378" y="350.5" width="58" height="9" class="out" rx="2"/>
+<path d="M378 350.5H400.5Q403.5 350.5 403.5 353.5V356.5Q403.5 359.5 400.5 359.5H378Z" class="pass"/>
+<text x="442" y="359" class="t" font-size="11.5">11/25</text>
+<rect x="496" y="350.5" width="54" height="9" class="out" rx="2"/>
+<path d="M496 350.5H516.8Q519.8 350.5 519.8 353.5V356.5Q519.8 359.5 516.8 359.5H496Z" class="pass"/>
+<text x="556" y="359" class="t" font-size="11.5">11/25</text>
+<path d="M612 350.5H647.6Q650.6 350.5 650.6 353.5V356.5Q650.6 359.5 647.6 359.5H612Z" class="s1"/>
+<text x="656.6" y="359" class="t" font-size="11.5">21.8 s</text>
+<path d="M738 350.5H793.7Q796.7 350.5 796.7 353.5V356.5Q796.7 359.5 793.7 359.5H738Z" class="s1"/>
+<text x="802.7" y="359" class="t" font-size="11.5">$0.285</text>
+<line x1="24" y1="376" x2="856" y2="376" class="grid"/>
+<rect x="24" y="383" width="4" height="28" class="s1" rx="2"/>
+<text x="36" y="395" class="t" font-size="12">Ubuntu · Cua Driver 0.38.0</text>
+<text x="36" y="409" class="m" font-size="10">HF board · EC2</text>
+<rect x="248" y="392.5" width="68" height="9" class="out" rx="2"/>
+<path d="M248 392.5H290.3Q293.3 392.5 293.3 395.5V398.5Q293.3 401.5 290.3 401.5H248Z" class="s1"/>
+<text x="322" y="401" class="t" font-size="11.5">40/60</text>
+<rect x="378" y="392.5" width="58" height="9" class="out" rx="2"/>
+<path d="M378 392.5H386.6Q389.6 392.5 389.6 395.5V398.5Q389.6 401.5 386.6 401.5H378Z" class="pass"/>
+<text x="442" y="401" class="t" font-size="11.5">5/25</text>
+<rect x="496" y="392.5" width="54" height="9" class="out" rx="2"/>
+<path d="M496 392.5H512.4Q515.4 392.5 515.4 395.5V398.5Q515.4 401.5 512.4 401.5H496Z" class="pass"/>
+<text x="556" y="401" class="t" font-size="11.5">9/25</text>
+<path d="M612 392.5H657.3Q660.3 392.5 660.3 395.5V398.5Q660.3 401.5 657.3 401.5H612Z" class="s1"/>
+<text x="666.3" y="401" class="t" font-size="11.5">27.3 s</text>
+<path d="M738 392.5H785.2Q788.2 392.5 788.2 395.5V398.5Q788.2 401.5 785.2 401.5H738Z" class="s1"/>
+<text x="794.2" y="401" class="t" font-size="11.5">$0.243</text>
+<line x1="24" y1="418" x2="856" y2="418" class="grid"/>
+<text x="24" y="442" class="m" font-size="10.4">All rows use agent_window_s and Scale export.py costs ($0.20/M read). HF rows ran on EC2 (parquet ca3d569e), local rows on KVM.</text>
+</svg>
