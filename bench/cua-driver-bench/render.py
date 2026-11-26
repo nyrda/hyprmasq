@@ -383,10 +383,16 @@ def render_tasks(data: dict[str, dict], theme_name: str) -> str:
             hm_sec = med([t["wall_seconds"] for t in hs])
             cua_sec = med([t["wall_seconds"] for t in cs])
             x0, x1 = tx(hm_sec), tx(cua_sec)
-            b.append(f'<line x1="{nfmt(min(x0, x1))}" y1="{cy}" x2="{nfmt(max(x0, x1))}" y2="{cy}" class="range"/>')
-            b.append(f'<circle cx="{nfmt(x0)}" cy="{cy}" r="4.5" class="dot0"/>')
             cp = sum(t["passed"] for t in cs)
-            b.append(f'<circle cx="{nfmt(x1)}" cy="{cy}" r="4.5" class="{"dot1" if cp >= 3 else "ring1"}"/>')
+            cua_cls = "dot1" if cp >= 3 else "ring1"
+            if abs(x1 - x0) < 10.5:
+                # Dodge vertically at the exact x-coordinates so near-tied medians do not hide each other.
+                b.append(f'<circle cx="{nfmt(x0)}" cy="{nfmt(cy - 4.8)}" r="4.3" class="dot0"/>')
+                b.append(f'<circle cx="{nfmt(x1)}" cy="{nfmt(cy + 4.8)}" r="4.3" class="{cua_cls}"/>')
+            else:
+                b.append(f'<line x1="{nfmt(min(x0, x1))}" y1="{cy}" x2="{nfmt(max(x0, x1))}" y2="{cy}" class="range"/>')
+                b.append(f'<circle cx="{nfmt(x0)}" cy="{cy}" r="4.5" class="dot0"/>')
+                b.append(f'<circle cx="{nfmt(x1)}" cy="{cy}" r="4.5" class="{cua_cls}"/>')
 
     draw_group("foreground", "Foreground", y_fg_hdr, y_fg_rows, [(c, d, False) for c, d in TASK_META])
     draw_group("background", "Background · user typing in sentinel", y_bg_hdr, y_bg_rows, BG_ORDER)

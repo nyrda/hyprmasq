@@ -303,9 +303,8 @@
 <rect x="497" y="483" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="506.5" y="483" width="8" height="8" class="pass" rx="1.5"/>
 <text x="520" y="491" class="m" font-size="10.5">10/10</text>
-<line x1="659.7" y1="487" x2="661" y2="487" class="range"/>
-<circle cx="659.7" cy="487" r="4.5" class="dot0"/>
-<circle cx="661" cy="487" r="4.5" class="dot1"/>
+<circle cx="659.7" cy="482.2" r="4.3" class="dot0"/>
+<circle cx="661" cy="491.8" r="4.3" class="dot1"/>
 <line x1="24" y1="500" x2="570" y2="500" class="grid"/>
 <text x="24" y="517" class="t" font-size="12"><tspan font-weight="600">IR-03</tspan><tspan class="t2">  Unsaved-changes modal</tspan><tspan class="m" font-size="10.5"></tspan></text>
 <rect x="258" y="509" width="8" height="8" class="pass" rx="1.5"/>
@@ -357,9 +356,8 @@
 <rect x="497" y="535" width="8" height="8" class="s6" rx="1.5"/>
 <rect x="506.5" y="535" width="8" height="8" class="s6" rx="1.5"/>
 <text x="520" y="543" class="m" font-size="10.5">7/10</text>
-<line x1="697.6" y1="539" x2="697.6" y2="539" class="range"/>
-<circle cx="697.6" cy="539" r="4.5" class="dot0"/>
-<circle cx="697.6" cy="539" r="4.5" class="dot1"/>
+<circle cx="697.6" cy="534.2" r="4.3" class="dot0"/>
+<circle cx="697.6" cy="543.8" r="4.3" class="dot1"/>
 <line x1="24" y1="552" x2="570" y2="552" class="grid"/>
 <text x="24" y="569" class="t" font-size="12"><tspan font-weight="600">MB-10</tspan><tspan class="t2">  Hover overlay</tspan><tspan class="m" font-size="10.5"> · ext</tspan></text>
 <rect x="258" y="561" width="8" height="8" class="pass" rx="1.5"/>
