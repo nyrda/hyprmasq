@@ -2635,5 +2635,6 @@
       "final_state": null,
       "assistant_final_text": null
     }
-  ]
+  ],
+  "pricing_note": "cost_usd uses OpenAI GPT-6.2 Sol API list prices ($2.00 uncached, $0.10 cache read, $2.50 cache write, $10.00 output, matching bench/report.py)."
 }

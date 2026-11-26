@@ -8,11 +8,13 @@ in rootless GPU containers on the same host, while `computer-use-linux` ran in K
 its pointer uses kernel `/dev/uinput`.
 
 > [!NOTE]
-> The runs below use hyprmasq's own 16-task benchmark. For an independent external benchmark, see
-> [CuaDriverBench on Omarchy](comparison-cua-driver-bench.md), where hyprmasq 0.5.1 ran beside Cua Driver 0.62.1 inside
-> Scale AI's [CuaDriverBench-AgentEnv](https://huggingface.co/spaces/earakely-scale/CuaDriverBench-AgentEnv) harness on
-> Omarchy 4.5 across 280 trials with Claude Sonnet 5.5 and GPT-6.2 Sol (140/140 vs 97/140 passed, 1.8–1.9× faster
-> median wall time and 2.4–5.5× lower median cost).
+> The runs below use hyprmasq's own 16-task benchmark. For an external task suite and grader, see
+> [CuaDriverBench on Omarchy](comparison-cua-driver-bench.md), where hyprmasq's author ran unmodified hyprmasq 0.5.1
+> beside Cua Driver 0.62.1 locally inside Scale AI's
+> [CuaDriverBench-AgentEnv](https://huggingface.co/spaces/earakely-scale/CuaDriverBench-AgentEnv) harness on Omarchy
+> 4.5 across Claude Sonnet 5.5 and GPT-6.2 Sol (120/120 vs 93/120 on the canonical 60-trial Omarchy suite, plus 20/20
+> vs 6/20 on 40 author-added MB-10/11 background trials, with Cua Driver taking 1.7× the standard-suite median wall
+> time and 2.3–3.7× the median cost at provider API list prices).
 
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-failures scorecard -->
 <picture>

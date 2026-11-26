@@ -36,12 +36,13 @@
       "uncached_input_tokens": 7463,
       "output_tokens": 653,
       "reasoning_tokens": 35,
-      "cost_usd": 0.03821,
+      "cost_usd": 0.042876,
       "cost_usd_reported": 0.042876,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.03821
     },
     {
       "task": "MB-09",
@@ -69,12 +70,13 @@
       "uncached_input_tokens": 8613,
       "output_tokens": 734,
       "reasoning_tokens": 56,
-      "cost_usd": 0.04533,
+      "cost_usd": 0.05,
       "cost_usd_reported": 0.05,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.04533
     },
     {
       "task": "MB-09",
@@ -102,12 +104,13 @@
       "uncached_input_tokens": 7448,
       "output_tokens": 658,
       "reasoning_tokens": 46,
-      "cost_usd": 0.038417,
+      "cost_usd": 0.042963,
       "cost_usd_reported": 0.042963,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.038417
     },
     {
       "task": "MB-09",
@@ -135,12 +138,13 @@
       "uncached_input_tokens": 8159,
       "output_tokens": 733,
       "reasoning_tokens": 92,
-      "cost_usd": 0.043886,
+      "cost_usd": 0.048024,
       "cost_usd_reported": 0.048024,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.043886
     },
     {
       "task": "MB-09",
@@ -168,12 +172,13 @@
       "uncached_input_tokens": 6621,
       "output_tokens": 372,
       "reasoning_tokens": null,
-      "cost_usd": 0.030262,
+      "cost_usd": 0.035185,
       "cost_usd_reported": 0.035185,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.030262
     },
     {
       "task": "MB-10",
@@ -201,12 +206,13 @@
       "uncached_input_tokens": 7336,
       "output_tokens": 622,
       "reasoning_tokens": 111,
-      "cost_usd": 0.040401,
+      "cost_usd": 0.043464,
       "cost_usd_reported": 0.043464,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.040401
     },
     {
       "task": "MB-10",
@@ -234,12 +240,13 @@
       "uncached_input_tokens": 6219,
       "output_tokens": 532,
       "reasoning_tokens": 72,
-      "cost_usd": 0.033624,
+      "cost_usd": 0.036557,
       "cost_usd_reported": 0.036557,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.033624
     },
     {
       "task": "MB-10",
@@ -267,12 +274,13 @@
       "uncached_input_tokens": 6215,
       "output_tokens": 452,
       "reasoning_tokens": 50,
-      "cost_usd": 0.032811,
+      "cost_usd": 0.035739,
       "cost_usd_reported": 0.035739,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.032811
     },
     {
       "task": "MB-10",
@@ -300,12 +308,13 @@
       "uncached_input_tokens": 3169,
       "output_tokens": 536,
       "reasoning_tokens": 80,
-      "cost_usd": 0.026671,
+      "cost_usd": 0.024713,
       "cost_usd_reported": 0.024713,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.026671
     },
     {
       "task": "MB-10",
@@ -333,12 +342,13 @@
       "uncached_input_tokens": 3184,
       "output_tokens": 596,
       "reasoning_tokens": 47,
-      "cost_usd": 0.027313,
+      "cost_usd": 0.025375,
       "cost_usd_reported": 0.025375,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.027313
     },
     {
       "task": "MB-11",
@@ -366,12 +376,13 @@
       "uncached_input_tokens": 5820,
       "output_tokens": 483,
       "reasoning_tokens": 78,
-      "cost_usd": 0.031903,
+      "cost_usd": 0.034354,
       "cost_usd_reported": 0.034354,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.031903
     },
     {
       "task": "MB-11",
@@ -399,12 +410,13 @@
       "uncached_input_tokens": 5578,
       "output_tokens": 395,
       "reasoning_tokens": 72,
-      "cost_usd": 0.027772,
+      "cost_usd": 0.031187,
       "cost_usd_reported": 0.031187,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.027772
     },
     {
       "task": "MB-11",
@@ -432,12 +444,13 @@
       "uncached_input_tokens": 5804,
       "output_tokens": 457,
       "reasoning_tokens": 57,
-      "cost_usd": 0.031602,
+      "cost_usd": 0.03403,
       "cost_usd_reported": 0.03403,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.031602
     },
     {
       "task": "MB-11",
@@ -465,12 +478,13 @@
       "uncached_input_tokens": 5507,
       "output_tokens": 320,
       "reasoning_tokens": null,
-      "cost_usd": 0.026845,
+      "cost_usd": 0.030153,
       "cost_usd_reported": 0.030153,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.026845
     },
     {
       "task": "MB-11",
@@ -498,12 +512,13 @@
       "uncached_input_tokens": 2596,
       "output_tokens": 399,
       "reasoning_tokens": null,
-      "cost_usd": 0.023632,
+      "cost_usd": 0.020932,
       "cost_usd_reported": 0.020932,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.023632
     },
     {
       "task": "IR-01",
@@ -531,12 +546,13 @@
       "uncached_input_tokens": 11052,
       "output_tokens": 1164,
       "reasoning_tokens": 135,
-      "cost_usd": 0.066909,
+      "cost_usd": 0.069636,
       "cost_usd_reported": 0.069636,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.066909
     },
     {
       "task": "IR-01",
@@ -564,12 +580,13 @@
       "uncached_input_tokens": 10928,
       "output_tokens": 1162,
       "reasoning_tokens": 88,
-      "cost_usd": 0.062946,
+      "cost_usd": 0.067307,
       "cost_usd_reported": 0.067307,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.062946
     },
     {
       "task": "IR-01",
@@ -597,12 +614,13 @@
       "uncached_input_tokens": 9968,
       "output_tokens": 865,
       "reasoning_tokens": 55,
-      "cost_usd": 0.057202,
+      "cost_usd": 0.06031,
       "cost_usd_reported": 0.06031,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.057202
     },
     {
       "task": "IR-01",
@@ -630,12 +648,13 @@
       "uncached_input_tokens": 9499,
       "output_tokens": 1027,
       "reasoning_tokens": 115,
-      "cost_usd": 0.057642,
+      "cost_usd": 0.06005,
       "cost_usd_reported": 0.06005,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.057642
     },
     {
       "task": "IR-01",
@@ -663,12 +682,13 @@
       "uncached_input_tokens": 11169,
       "output_tokens": 1137,
       "reasoning_tokens": 87,
-      "cost_usd": 0.071134,
+      "cost_usd": 0.071932,
       "cost_usd_reported": 0.071932,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.071134
     },
     {
       "task": "IR-02",
@@ -696,12 +716,13 @@
       "uncached_input_tokens": 7302,
       "output_tokens": 707,
       "reasoning_tokens": 99,
-      "cost_usd": 0.041277,
+      "cost_usd": 0.044233,
       "cost_usd_reported": 0.044233,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.041277
     },
     {
       "task": "IR-02",
@@ -729,12 +750,13 @@
       "uncached_input_tokens": 8650,
       "output_tokens": 719,
       "reasoning_tokens": null,
-      "cost_usd": 0.045304,
+      "cost_usd": 0.050013,
       "cost_usd_reported": 0.050013,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.045304
     },
     {
       "task": "IR-02",
@@ -762,12 +784,13 @@
       "uncached_input_tokens": 8622,
       "output_tokens": 679,
       "reasoning_tokens": null,
-      "cost_usd": 0.047993,
+      "cost_usd": 0.051077,
       "cost_usd_reported": 0.051077,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.047993
     },
     {
       "task": "IR-02",
@@ -795,12 +818,13 @@
       "uncached_input_tokens": 8706,
       "output_tokens": 695,
       "reasoning_tokens": null,
-      "cost_usd": 0.047771,
+      "cost_usd": 0.051277,
       "cost_usd_reported": 0.051277,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.047771
     },
     {
       "task": "IR-02",
@@ -828,12 +852,13 @@
       "uncached_input_tokens": 8685,
       "output_tokens": 728,
       "reasoning_tokens": null,
-      "cost_usd": 0.045497,
+      "cost_usd": 0.050251,
       "cost_usd_reported": 0.050251,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.045497
     },
     {
       "task": "IR-03",
@@ -861,12 +886,13 @@
       "uncached_input_tokens": 12950,
       "output_tokens": 1051,
       "reasoning_tokens": 33,
-      "cost_usd": 0.079483,
+      "cost_usd": 0.080571,
       "cost_usd_reported": 0.080571,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.079483
     },
     {
       "task": "IR-03",
@@ -894,12 +920,13 @@
       "uncached_input_tokens": 15015,
       "output_tokens": 1479,
       "reasoning_tokens": 186,
-      "cost_usd": 0.097936,
+      "cost_usd": 0.097609,
       "cost_usd_reported": 0.097609,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.097936
     },
     {
       "task": "IR-03",
@@ -927,12 +954,13 @@
       "uncached_input_tokens": 13285,
       "output_tokens": 1252,
       "reasoning_tokens": 144,
-      "cost_usd": 0.08244,
+      "cost_usd": 0.083975,
       "cost_usd_reported": 0.083975,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.08244
     },
     {
       "task": "IR-03",
@@ -960,12 +988,13 @@
       "uncached_input_tokens": 12792,
       "output_tokens": 1060,
       "reasoning_tokens": 75,
-      "cost_usd": 0.074989,
+      "cost_usd": 0.077937,
       "cost_usd_reported": 0.077937,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.074989
     },
     {
       "task": "IR-03",
@@ -993,12 +1022,13 @@
       "uncached_input_tokens": 15813,
       "output_tokens": 1662,
       "reasoning_tokens": 120,
-      "cost_usd": 0.09944,
+      "cost_usd": 0.101474,
       "cost_usd_reported": 0.101474,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.09944
     },
     {
       "task": "IR-04",
@@ -1026,12 +1056,13 @@
       "uncached_input_tokens": 11536,
       "output_tokens": 1014,
       "reasoning_tokens": 41,
-      "cost_usd": 0.067016,
+      "cost_usd": 0.070271,
       "cost_usd_reported": 0.070271,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.067016
     },
     {
       "task": "IR-04",
@@ -1059,12 +1090,13 @@
       "uncached_input_tokens": 10262,
       "output_tokens": 995,
       "reasoning_tokens": 39,
-      "cost_usd": 0.063725,
+      "cost_usd": 0.065027,
       "cost_usd_reported": 0.065027,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.063725
     },
     {
       "task": "IR-04",
@@ -1092,12 +1124,13 @@
       "uncached_input_tokens": 10932,
       "output_tokens": 1014,
       "reasoning_tokens": 97,
-      "cost_usd": 0.061771,
+      "cost_usd": 0.065991,
       "cost_usd_reported": 0.065991,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.061771
     },
     {
       "task": "IR-04",
@@ -1125,12 +1158,13 @@
       "uncached_input_tokens": 10011,
       "output_tokens": 1129,
       "reasoning_tokens": 48,
-      "cost_usd": 0.060406,
+      "cost_usd": 0.06335,
       "cost_usd_reported": 0.06335,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.060406
     },
     {
       "task": "IR-04",
@@ -1158,12 +1192,13 @@
       "uncached_input_tokens": 11488,
       "output_tokens": 1305,
       "reasoning_tokens": 46,
-      "cost_usd": 0.073876,
+      "cost_usd": 0.07502,
       "cost_usd_reported": 0.07502,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.073876
     },
     {
       "task": "MB-09",
@@ -1200,12 +1235,13 @@
       "uncached_input_tokens": 17835,
       "output_tokens": 879,
       "reasoning_tokens": 176,
-      "cost_usd": 0.06797,
+      "cost_usd": 0.087405,
       "cost_usd_reported": 0.087405,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.06797
     },
     {
       "task": "MB-09",
@@ -1242,12 +1278,13 @@
       "uncached_input_tokens": 7267,
       "output_tokens": 572,
       "reasoning_tokens": 72,
-      "cost_usd": 0.037212,
+      "cost_usd": 0.041433,
       "cost_usd_reported": 0.041433,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.037212
     },
     {
       "task": "MB-09",
@@ -1284,12 +1321,13 @@
       "uncached_input_tokens": 6865,
       "output_tokens": 569,
       "reasoning_tokens": 75,
-      "cost_usd": 0.036006,
+      "cost_usd": 0.039709,
       "cost_usd_reported": 0.039709,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.036006
     },
     {
       "task": "MB-09",
@@ -1326,12 +1364,13 @@
       "uncached_input_tokens": 7990,
       "output_tokens": 734,
       "reasoning_tokens": 43,
-      "cost_usd": 0.043873,
+      "cost_usd": 0.047558,
       "cost_usd_reported": 0.047558,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.043873
     },
     {
       "task": "MB-09",
@@ -1368,12 +1407,13 @@
       "uncached_input_tokens": 6698,
       "output_tokens": 383,
       "reasoning_tokens": null,
-      "cost_usd": 0.030614,
+      "cost_usd": 0.035627,
       "cost_usd_reported": 0.035627,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.030614
     },
     {
       "task": "MB-10",
@@ -1410,12 +1450,13 @@
       "uncached_input_tokens": 7424,
       "output_tokens": 608,
       "reasoning_tokens": 162,
-      "cost_usd": 0.040575,
+      "cost_usd": 0.043723,
       "cost_usd_reported": 0.043723,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.040575
     },
     {
       "task": "MB-10",
@@ -1452,12 +1493,13 @@
       "uncached_input_tokens": 6300,
       "output_tokens": 544,
       "reasoning_tokens": 67,
-      "cost_usd": 0.034009,
+      "cost_usd": 0.037032,
       "cost_usd_reported": 0.037032,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.034009
     },
     {
       "task": "MB-10",
@@ -1494,12 +1536,13 @@
       "uncached_input_tokens": 6287,
       "output_tokens": 454,
       "reasoning_tokens": 87,
-      "cost_usd": 0.033078,
+      "cost_usd": 0.036081,
       "cost_usd_reported": 0.036081,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.033078
     },
     {
       "task": "MB-10",
@@ -1536,12 +1579,13 @@
       "uncached_input_tokens": 3160,
       "output_tokens": 511,
       "reasoning_tokens": 20,
-      "cost_usd": 0.02647,
+      "cost_usd": 0.024462,
       "cost_usd_reported": 0.024462,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.02647
     },
     {
       "task": "MB-10",
@@ -1578,12 +1622,13 @@
       "uncached_input_tokens": 3147,
       "output_tokens": 464,
       "reasoning_tokens": 79,
-      "cost_usd": 0.025964,
+      "cost_usd": 0.023939,
       "cost_usd_reported": 0.023939,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.025964
     },
     {
       "task": "MB-11",
@@ -1620,12 +1665,13 @@
       "uncached_input_tokens": 5581,
       "output_tokens": 321,
       "reasoning_tokens": null,
-      "cost_usd": 0.027087,
+      "cost_usd": 0.030482,
       "cost_usd_reported": 0.030482,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.027087
     },
     {
       "task": "MB-11",
@@ -1662,12 +1708,13 @@
       "uncached_input_tokens": 5691,
       "output_tokens": 427,
       "reasoning_tokens": 48,
-      "cost_usd": 0.028428,
+      "cost_usd": 0.031985,
       "cost_usd_reported": 0.031985,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.028428
     },
     {
       "task": "MB-11",
@@ -1704,12 +1751,13 @@
       "uncached_input_tokens": 5636,
       "output_tokens": 376,
       "reasoning_tokens": null,
-      "cost_usd": 0.027779,
+      "cost_usd": 0.031254,
       "cost_usd_reported": 0.031254,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.027779
     },
     {
       "task": "MB-11",
@@ -1746,12 +1794,13 @@
       "uncached_input_tokens": 5636,
       "output_tokens": 366,
       "reasoning_tokens": 43,
-      "cost_usd": 0.027677,
+      "cost_usd": 0.031153,
       "cost_usd_reported": 0.031153,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.027677
     },
     {
       "task": "MB-11",
@@ -1788,12 +1837,13 @@
       "uncached_input_tokens": 2358,
       "output_tokens": 320,
       "reasoning_tokens": null,
-      "cost_usd": 0.019664,
+      "cost_usd": 0.017902,
       "cost_usd_reported": 0.017902,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.019664
     },
     {
       "task": "IR-01",
@@ -1830,12 +1880,13 @@
       "uncached_input_tokens": 10121,
       "output_tokens": 849,
       "reasoning_tokens": 32,
-      "cost_usd": 0.057577,
+      "cost_usd": 0.060838,
       "cost_usd_reported": 0.060838,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.057577
     },
     {
       "task": "IR-01",
@@ -1872,12 +1923,13 @@
       "uncached_input_tokens": 10092,
       "output_tokens": 1120,
       "reasoning_tokens": 74,
-      "cost_usd": 0.060186,
+      "cost_usd": 0.063418,
       "cost_usd_reported": 0.063418,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.060186
     },
     {
       "task": "IR-01",
@@ -1914,12 +1966,13 @@
       "uncached_input_tokens": 11003,
       "output_tokens": 960,
       "reasoning_tokens": 33,
-      "cost_usd": 0.065465,
+      "cost_usd": 0.067759,
       "cost_usd_reported": 0.067759,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.065465
     },
     {
       "task": "IR-01",
@@ -1956,12 +2009,13 @@
       "uncached_input_tokens": 9000,
       "output_tokens": 779,
       "reasoning_tokens": 85,
-      "cost_usd": 0.050352,
+      "cost_usd": 0.053796,
       "cost_usd_reported": 0.053796,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.050352
     },
     {
       "task": "IR-01",
@@ -1998,12 +2052,13 @@
       "uncached_input_tokens": 8771,
       "output_tokens": 646,
       "reasoning_tokens": 66,
-      "cost_usd": 0.045016,
+      "cost_usd": 0.049837,
       "cost_usd_reported": 0.049837,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.045016
     },
     {
       "task": "IR-02",
@@ -2040,12 +2095,13 @@
       "uncached_input_tokens": 6766,
       "output_tokens": 653,
       "reasoning_tokens": 98,
-      "cost_usd": 0.039474,
+      "cost_usd": 0.041588,
       "cost_usd_reported": 0.041588,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.039474
     },
     {
       "task": "IR-02",
@@ -2082,12 +2138,13 @@
       "uncached_input_tokens": 8652,
       "output_tokens": 618,
       "reasoning_tokens": null,
-      "cost_usd": 0.044364,
+      "cost_usd": 0.049044,
       "cost_usd_reported": 0.049044,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.044364
     },
     {
       "task": "IR-02",
@@ -2124,12 +2181,13 @@
       "uncached_input_tokens": 8153,
       "output_tokens": 802,
       "reasoning_tokens": 21,
-      "cost_usd": 0.047528,
+      "cost_usd": 0.05017,
       "cost_usd_reported": 0.05017,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.047528
     },
     {
       "task": "IR-02",
@@ -2166,12 +2224,13 @@
       "uncached_input_tokens": 8587,
       "output_tokens": 816,
       "reasoning_tokens": 22,
-      "cost_usd": 0.049426,
+      "cost_usd": 0.052383,
       "cost_usd_reported": 0.052383,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.049426
     },
     {
       "task": "IR-02",
@@ -2208,12 +2267,13 @@
       "uncached_input_tokens": 8754,
       "output_tokens": 677,
       "reasoning_tokens": null,
-      "cost_usd": 0.048435,
+      "cost_usd": 0.051652,
       "cost_usd_reported": 0.051652,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.048435
     },
     {
       "task": "IR-03",
@@ -2250,12 +2310,13 @@
       "uncached_input_tokens": 12825,
       "output_tokens": 1042,
       "reasoning_tokens": 52,
-      "cost_usd": 0.07499,
+      "cost_usd": 0.077939,
       "cost_usd_reported": 0.077939,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.07499
     },
     {
       "task": "IR-03",
@@ -2292,12 +2353,13 @@
       "uncached_input_tokens": 13775,
       "output_tokens": 1191,
       "reasoning_tokens": 127,
-      "cost_usd": 0.083444,
+      "cost_usd": 0.08552,
       "cost_usd_reported": 0.08552,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.083444
     },
     {
       "task": "IR-03",
@@ -2334,12 +2396,13 @@
       "uncached_input_tokens": 13436,
       "output_tokens": 1358,
       "reasoning_tokens": 62,
-      "cost_usd": 0.084109,
+      "cost_usd": 0.085755,
       "cost_usd_reported": 0.085755,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.084109
     },
     {
       "task": "IR-03",
@@ -2376,12 +2439,13 @@
       "uncached_input_tokens": 12234,
       "output_tokens": 1267,
       "reasoning_tokens": 106,
-      "cost_usd": 0.07572,
+      "cost_usd": 0.077803,
       "cost_usd_reported": 0.077803,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.07572
     },
     {
       "task": "IR-03",
@@ -2418,12 +2482,13 @@
       "uncached_input_tokens": 12390,
       "output_tokens": 1173,
       "reasoning_tokens": 52,
-      "cost_usd": 0.071937,
+      "cost_usd": 0.075875,
       "cost_usd_reported": 0.075875,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.071937
     },
     {
       "task": "IR-04",
@@ -2460,12 +2525,13 @@
       "uncached_input_tokens": 10443,
       "output_tokens": 1006,
       "reasoning_tokens": 81,
-      "cost_usd": 0.067052,
+      "cost_usd": 0.067239,
       "cost_usd_reported": 0.067239,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.067052
     },
     {
       "task": "IR-04",
@@ -2502,12 +2568,13 @@
       "uncached_input_tokens": 9591,
       "output_tokens": 1101,
       "reasoning_tokens": 140,
-      "cost_usd": 0.055074,
+      "cost_usd": 0.059393,
       "cost_usd_reported": 0.059393,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.055074
     },
     {
       "task": "IR-04",
@@ -2544,12 +2611,13 @@
       "uncached_input_tokens": 11918,
       "output_tokens": 1105,
       "reasoning_tokens": 75,
-      "cost_usd": 0.073322,
+      "cost_usd": 0.074925,
       "cost_usd_reported": 0.074925,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.073322
     },
     {
       "task": "IR-04",
@@ -2586,12 +2654,13 @@
       "uncached_input_tokens": 10902,
       "output_tokens": 1219,
       "reasoning_tokens": 142,
-      "cost_usd": 0.063739,
+      "cost_usd": 0.067917,
       "cost_usd_reported": 0.067917,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.063739
     },
     {
       "task": "IR-04",
@@ -2628,12 +2697,14 @@
       "uncached_input_tokens": 10290,
       "output_tokens": 896,
       "reasoning_tokens": 32,
-      "cost_usd": 0.062491,
+      "cost_usd": 0.063992,
       "cost_usd_reported": 0.063992,
       "cli_error": null,
       "failed_checks": null,
       "final_state": null,
-      "assistant_final_text": null
+      "assistant_final_text": null,
+      "cost_usd_scale_export": 0.062491
     }
-  ]
+  ],
+  "pricing_note": "cost_usd uses Anthropic Claude Sonnet 5.5 API list prices ($2.00 uncached, $0.10 cache read, $4.00 1h cache write, $10.00 output, matching cost_usd_reported and bench/laptop/analyze.py); cost_usd_scale_export preserves Scale AI export.py's rate ($0.20 cache read, $2.50 cache write) for cross-OS HF board parity."
 }

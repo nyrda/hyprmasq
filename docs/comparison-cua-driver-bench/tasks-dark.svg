@@ -10,7 +10,7 @@
 <rect x="104" y="95" width="11" height="10" class="s7" rx="2"/>
 <text x="121" y="104" class="t2" font-size="11.5">Background driver gap / A22 disturbance</text>
 <rect x="378" y="95" width="11" height="10" class="s6" rx="2"/>
-<text x="395" y="104" class="t2" font-size="11.5">Foreground drag lock / AT-SPI / turn-limit failure</text>
+<text x="395" y="104" class="t2" font-size="11.5">Other failure (drag lock, AT-SPI, double action)</text>
 <text x="258" y="140" class="t" font-size="11.5" font-weight="600">hyprmasq 0.5.1</text>
 <rect x="258" y="145" width="99" height="3" class="s0" rx="1.5"/>
 <text x="258" y="161" class="m" font-size="9.5">Sonnet</text>
@@ -32,9 +32,9 @@
 <line x1="848" y1="174" x2="848" y2="610" class="grid"/>
 <text x="24" y="190" class="t" font-size="12" font-weight="600">Foreground</text>
 <text x="258" y="190" class="t2" font-size="11.5" font-weight="600">70/70</text>
-<text x="414" y="190" class="t2" font-size="11.5" font-weight="600">58/70</text>
+<text x="414" y="190" class="t2" font-size="11.5" font-weight="600">60/70</text>
 <line x1="24" y1="198" x2="856" y2="198" class="grid"/>
-<text x="24" y="219" class="t" font-size="12"><tspan font-weight="600">MB-09</tspan><tspan class="t2">  List drag and drop</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="219" class="t" font-size="12"><tspan font-weight="600">MB-09</tspan><tspan dx="6" class="t2">List drag and drop</tspan></text>
 <rect x="258" y="211" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="211" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="211" width="8" height="8" class="pass" rx="1.5"/>
@@ -61,7 +61,7 @@
 <circle cx="647.3" cy="215" r="4.5" class="dot0"/>
 <circle cx="770.5" cy="215" r="4.5" class="ring1"/>
 <line x1="24" y1="228" x2="570" y2="228" class="grid"/>
-<text x="24" y="245" class="t" font-size="12"><tspan font-weight="600">MB-10</tspan><tspan class="t2">  Hover overlay</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="245" class="t" font-size="12"><tspan font-weight="600">MB-10</tspan><tspan dx="6" class="t2">Hover overlay</tspan></text>
 <rect x="258" y="237" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="237" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="237" width="8" height="8" class="pass" rx="1.5"/>
@@ -88,7 +88,7 @@
 <circle cx="618.5" cy="241" r="4.5" class="dot0"/>
 <circle cx="635.2" cy="241" r="4.5" class="dot1"/>
 <line x1="24" y1="254" x2="570" y2="254" class="grid"/>
-<text x="24" y="271" class="t" font-size="12"><tspan font-weight="600">MB-11</tspan><tspan class="t2">  Native tooltip</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="271" class="t" font-size="12"><tspan font-weight="600">MB-11</tspan><tspan dx="6" class="t2">Native tooltip</tspan></text>
 <rect x="258" y="263" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="263" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="263" width="8" height="8" class="pass" rx="1.5"/>
@@ -115,7 +115,7 @@
 <circle cx="633" cy="267" r="4.5" class="dot0"/>
 <circle cx="718.5" cy="267" r="4.5" class="dot1"/>
 <line x1="24" y1="280" x2="570" y2="280" class="grid"/>
-<text x="24" y="297" class="t" font-size="12"><tspan font-weight="600">IR-01</tspan><tspan class="t2">  Permission dialog</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="297" class="t" font-size="12"><tspan font-weight="600">IR-01</tspan><tspan dx="6" class="t2">Permission dialog</tspan></text>
 <rect x="258" y="289" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="289" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="289" width="8" height="8" class="pass" rx="1.5"/>
@@ -142,7 +142,7 @@
 <circle cx="689.2" cy="293" r="4.5" class="dot0"/>
 <circle cx="735.6" cy="293" r="4.5" class="dot1"/>
 <line x1="24" y1="306" x2="570" y2="306" class="grid"/>
-<text x="24" y="323" class="t" font-size="12"><tspan font-weight="600">IR-02</tspan><tspan class="t2">  Update banner</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="323" class="t" font-size="12"><tspan font-weight="600">IR-02</tspan><tspan dx="6" class="t2">Update banner</tspan></text>
 <rect x="258" y="315" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="315" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="315" width="8" height="8" class="pass" rx="1.5"/>
@@ -162,14 +162,14 @@
 <rect x="468.5" y="315" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="478" y="315" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="487.5" y="315" width="8" height="8" class="pass" rx="1.5"/>
-<rect x="497" y="315" width="8" height="8" class="s6" rx="1.5"/>
-<rect x="506.5" y="315" width="8" height="8" class="s6" rx="1.5"/>
-<text x="520" y="323" class="m" font-size="10.5">8/10</text>
+<rect x="497" y="315" width="8" height="8" class="pass" rx="1.5"/>
+<rect x="506.5" y="315" width="8" height="8" class="pass" rx="1.5"/>
+<text x="520" y="323" class="m" font-size="10.5">10/10</text>
 <line x1="647.2" y1="319" x2="681.2" y2="319" class="range"/>
 <circle cx="647.2" cy="319" r="4.5" class="dot0"/>
 <circle cx="681.2" cy="319" r="4.5" class="dot1"/>
 <line x1="24" y1="332" x2="570" y2="332" class="grid"/>
-<text x="24" y="349" class="t" font-size="12"><tspan font-weight="600">IR-03</tspan><tspan class="t2">  Unsaved-changes modal</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="349" class="t" font-size="12"><tspan font-weight="600">IR-03</tspan><tspan dx="6" class="t2">Unsaved-changes modal</tspan></text>
 <rect x="258" y="341" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="341" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="341" width="8" height="8" class="pass" rx="1.5"/>
@@ -196,7 +196,7 @@
 <circle cx="705.1" cy="345" r="4.5" class="dot0"/>
 <circle cx="814.6" cy="345" r="4.5" class="dot1"/>
 <line x1="24" y1="358" x2="570" y2="358" class="grid"/>
-<text x="24" y="375" class="t" font-size="12"><tspan font-weight="600">IR-04</tspan><tspan class="t2">  Cookie consent sheet</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="375" class="t" font-size="12"><tspan font-weight="600">IR-04</tspan><tspan dx="6" class="t2">Cookie consent sheet</tspan></text>
 <rect x="258" y="367" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="367" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="367" width="8" height="8" class="pass" rx="1.5"/>
@@ -226,7 +226,7 @@
 <text x="258" y="408" class="t2" font-size="11.5" font-weight="600">70/70</text>
 <text x="414" y="408" class="t2" font-size="11.5" font-weight="600">39/70</text>
 <line x1="24" y1="416" x2="856" y2="416" class="grid"/>
-<text x="24" y="439" class="t" font-size="12"><tspan font-weight="600">MB-09</tspan><tspan class="t2">  List drag and drop</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="439" class="t" font-size="12"><tspan font-weight="600">MB-09</tspan><tspan dx="6" class="t2">List drag and drop</tspan></text>
 <rect x="258" y="431" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="431" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="431" width="8" height="8" class="pass" rx="1.5"/>
@@ -253,7 +253,7 @@
 <circle cx="634.8" cy="435" r="4.5" class="dot0"/>
 <circle cx="751.7" cy="435" r="4.5" class="ring1"/>
 <line x1="24" y1="448" x2="570" y2="448" class="grid"/>
-<text x="24" y="465" class="t" font-size="12"><tspan font-weight="600">IR-01</tspan><tspan class="t2">  Permission dialog</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="465" class="t" font-size="12"><tspan font-weight="600">IR-01</tspan><tspan dx="6" class="t2">Permission dialog</tspan></text>
 <rect x="258" y="457" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="457" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="457" width="8" height="8" class="pass" rx="1.5"/>
@@ -280,7 +280,7 @@
 <circle cx="689.3" cy="461" r="4.5" class="dot0"/>
 <circle cx="741.1" cy="461" r="4.5" class="ring1"/>
 <line x1="24" y1="474" x2="570" y2="474" class="grid"/>
-<text x="24" y="491" class="t" font-size="12"><tspan font-weight="600">IR-02</tspan><tspan class="t2">  Update banner</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="491" class="t" font-size="12"><tspan font-weight="600">IR-02</tspan><tspan dx="6" class="t2">Update banner</tspan></text>
 <rect x="258" y="483" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="483" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="483" width="8" height="8" class="pass" rx="1.5"/>
@@ -306,7 +306,7 @@
 <circle cx="659.7" cy="482.2" r="4.3" class="dot0"/>
 <circle cx="661" cy="491.8" r="4.3" class="dot1"/>
 <line x1="24" y1="500" x2="570" y2="500" class="grid"/>
-<text x="24" y="517" class="t" font-size="12"><tspan font-weight="600">IR-03</tspan><tspan class="t2">  Unsaved-changes modal</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="517" class="t" font-size="12"><tspan font-weight="600">IR-03</tspan><tspan dx="6" class="t2">Unsaved-changes modal</tspan></text>
 <rect x="258" y="509" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="509" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="509" width="8" height="8" class="pass" rx="1.5"/>
@@ -333,7 +333,7 @@
 <circle cx="705.1" cy="513" r="4.5" class="dot0"/>
 <circle cx="762.7" cy="513" r="4.5" class="dot1"/>
 <line x1="24" y1="526" x2="570" y2="526" class="grid"/>
-<text x="24" y="543" class="t" font-size="12"><tspan font-weight="600">IR-04</tspan><tspan class="t2">  Cookie consent sheet</tspan><tspan class="m" font-size="10.5"></tspan></text>
+<text x="24" y="543" class="t" font-size="12"><tspan font-weight="600">IR-04</tspan><tspan dx="6" class="t2">Cookie consent sheet</tspan></text>
 <rect x="258" y="535" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="535" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="535" width="8" height="8" class="pass" rx="1.5"/>
@@ -359,7 +359,7 @@
 <circle cx="697.6" cy="534.2" r="4.3" class="dot0"/>
 <circle cx="697.6" cy="543.8" r="4.3" class="dot1"/>
 <line x1="24" y1="552" x2="570" y2="552" class="grid"/>
-<text x="24" y="569" class="t" font-size="12"><tspan font-weight="600">MB-10</tspan><tspan class="t2">  Hover overlay</tspan><tspan class="m" font-size="10.5"> · ext</tspan></text>
+<text x="24" y="569" class="t" font-size="12"><tspan font-weight="600">MB-10</tspan><tspan dx="6" class="t2">Hover overlay</tspan><tspan dx="5" class="m" font-size="10.5">· ext</tspan></text>
 <rect x="258" y="561" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="561" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="561" width="8" height="8" class="pass" rx="1.5"/>
@@ -386,7 +386,7 @@
 <circle cx="632.9" cy="565" r="4.5" class="dot0"/>
 <circle cx="647.5" cy="565" r="4.5" class="ring1"/>
 <line x1="24" y1="578" x2="570" y2="578" class="grid"/>
-<text x="24" y="595" class="t" font-size="12"><tspan font-weight="600">MB-11</tspan><tspan class="t2">  Native tooltip</tspan><tspan class="m" font-size="10.5"> · ext</tspan></text>
+<text x="24" y="595" class="t" font-size="12"><tspan font-weight="600">MB-11</tspan><tspan dx="6" class="t2">Native tooltip</tspan><tspan dx="5" class="m" font-size="10.5">· ext</tspan></text>
 <rect x="258" y="587" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="267.5" y="587" width="8" height="8" class="pass" rx="1.5"/>
 <rect x="277" y="587" width="8" height="8" class="pass" rx="1.5"/>

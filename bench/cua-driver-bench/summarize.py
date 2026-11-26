@@ -19,6 +19,19 @@ SUITES = [
 ]
 MODEL_ORDER = ["claude-sonnet-5-5", "gpt-6.2-sol"]
 
+# Scale AI published Hugging Face dataset (earakely-scale/CuaDriverBench-AgentEnv,
+# commit ca3d569ef93c1987f75bf00663e3114c0ed601ac, results/trials.parquet filtered to
+# on_board=True, model=anthropic/claude-sonnet-5-5, and the 60 shared BenchLab trials).
+# Wall time is agent_window_s across all five HF board rows; costs use Scale export.py's cost_usd.
+HF_DATASET_SHA = "ca3d569ef93c1987f75bf00663e3114c0ed601ac"
+HF_BOARD_60 = [
+    ("macOS · Aside Computer Use `1.26.1111` *(HF board #1)*", 35, 25, 25, 15.622, 6.0, 0.062478, 0.057950),
+    ("macOS · Cua Driver `0.47.10` *(HF board)*", 35, 17, 22, 20.032, 8.0, 0.153657, 0.134250),
+    ("Omarchy · Cua Driver `0.47.4` *(HF board)*", 34, 18, 22, 30.187, 18.0, 0.276275, 0.245150),
+    ("Windows · Cua Driver `0.38.0` *(HF board)*", 33, 11, 11, 21.798, 8.0, 0.281245, 0.284550),
+    ("Ubuntu Linux · Cua Driver `0.38.0` *(HF board)*", 35, 5, 9, 27.260, 14.0, 0.258583, 0.243250),
+]
+
 
 def med(values: list[float | int | None]) -> float | None:
     clean = [float(v) for v in values if v is not None]
@@ -157,6 +170,8 @@ def summarize_model(model: str, datasets: list[dict]) -> None:
         comp_trials = sum(
             1 for t in other["trials"] if (t.get("computer_tool_calls") or 0) > 0
         )
+        fg_total = sum(t["tool_calls"] for t in other["trials"] if t["condition"] == "foreground")
+        all_total = sum(t["tool_calls"] for t in other["trials"])
         print(
             f"\nPaired geometric mean across {n_cells} common passed cells "
             f"({other['driver']} / {hm['driver']}): "
@@ -166,7 +181,42 @@ def summarize_model(model: str, datasets: list[dict]) -> None:
             f"cost {gm(ratios['cost_usd']):.2f}x"
         )
         print(
-            f"computer_* calls by {other['driver']}: {comp_total} across {comp_trials}/70 trials\n"
+            f"computer_* calls by {other['driver']}: {comp_total} across {comp_trials}/70 trials "
+            f"({100 * comp_total / fg_total:.1f}% of {fg_total} fg calls, {100 * comp_total / all_total:.1f}% of {all_total} total calls)\n"
+        )
+
+
+def summarize_cross_os(sonnet_datasets: list[dict]) -> None:
+    print(f"# Across operating systems (Claude Sonnet 5.5, 60 shared BenchLab trials, HF parquet {HF_DATASET_SHA[:8]})\n")
+    rows = list(HF_BOARD_60)
+    for ds in sonnet_datasets:
+        std = select_suite(ds["trials"], "standard_60")
+        fg = [t for t in std if t["condition"] == "foreground"]
+        bg = [t for t in std if t["condition"] == "background"]
+        label = (
+            f"**Omarchy · {ds['driver']} {ds['driver_version']}** *(this run)*"
+            if ds["driver"] == "hyprmasq"
+            else f"**Omarchy · Cua Driver {ds['driver_version']}** *(this run)*"
+        )
+        cost_key = "cost_usd_scale_export" if "cost_usd_scale_export" in std[0] else "cost_usd"
+        rows.append(
+            (
+                label,
+                sum(1 for t in fg if t["passed"]),
+                sum(1 for t in bg if t["passed"]),
+                sum(1 for t in bg if t["user_undisturbed"]),
+                med([t["wall_seconds"] for t in std]) or 0.0,
+                med([t["tool_calls"] for t in std]) or 0.0,
+                mean([t[cost_key] for t in std]) or 0.0,
+                med([t[cost_key] for t in std]) or 0.0,
+            )
+        )
+    rows.sort(key=lambda r: (-(r[1] + r[2]), -r[3], r[4]))
+    print("| Setup | FG (/35) | BG (/25) | Undisturbed | Med wall s | Med calls | Mean $ (export.py) | Med $ (export.py) |")
+    print("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+    for label, fg_p, bg_p, undist, wall, calls, mean_c, med_c in rows:
+        print(
+            f"| {label} | {fg_p}/35 | {bg_p}/25 | {undist}/25 | {wall:.1f} s | {calls:.1f} | ${mean_c:.3f} | ${med_c:.3f} |"
         )
 
 
@@ -177,6 +227,8 @@ def main() -> None:
         by_model.setdefault(ds["model"], []).append(ds)
     for model, dlist in by_model.items():
         summarize_model(model, dlist)
+    if "claude-sonnet-5-5" in by_model:
+        summarize_cross_os(by_model["claude-sonnet-5-5"])
 
 
 if __name__ == "__main__":

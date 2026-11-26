@@ -477,7 +477,7 @@ def _chord(keys) -> str:
 
 
 def _split_text(text: str) -> list[tuple[str, Any]]:
-    """Split text into ASCII key-event actions and non-ASCII private-clipboard paste chunks."""
+    """Split text into ASCII key-event actions and non-ASCII wtype chunks."""
     out: list[tuple[str, Any]] = []
     actions: list[str] = []
     ascii_buf: list[str] = []

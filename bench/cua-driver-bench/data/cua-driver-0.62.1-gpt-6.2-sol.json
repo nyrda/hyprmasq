@@ -775,7 +775,7 @@
       "seed": 927224,
       "condition": "foreground",
       "suite": "foreground",
-      "passed": false,
+      "passed": true,
       "task_passed": true,
       "task_score": 1.0,
       "sentinel_ok": true,
@@ -825,7 +825,7 @@
       "seed": 444678,
       "condition": "foreground",
       "suite": "foreground",
-      "passed": false,
+      "passed": true,
       "task_passed": true,
       "task_score": 1.0,
       "sentinel_ok": true,
@@ -3167,5 +3167,6 @@
       },
       "assistant_final_text": "DONE"
     }
-  ]
+  ],
+  "pricing_note": "cost_usd uses OpenAI GPT-6.2 Sol API list prices ($2.00 uncached, $0.10 cache read, $2.50 cache write, $10.00 output, matching bench/report.py)."
 }

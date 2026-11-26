@@ -71,7 +71,9 @@ jobs:
           done
           exit "$failed"
       - name: Check the benchmark page against its data
-        run: python3 bench/render.py --check
+        run: |
+          python3 bench/render.py --check
+          python3 bench/cua-driver-bench/render.py --check
       # Keeps the flake's inputs, which no output refers to, from the garbage collection before the save, and names the
       # cache after the outputs, so that a run that built nothing new saves nothing. A PR from a fork saves no cache:
       # its token cannot delete the older ones, whatever the permissions above say, so they would pile up and push

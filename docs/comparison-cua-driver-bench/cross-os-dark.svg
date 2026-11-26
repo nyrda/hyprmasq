@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="458" viewBox="0 0 880 458" role="img" aria-label="Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI&#x27;s published Hugging Face board for macOS, Omarchy, Windows and Ubuntu, comparing total passed, background passed, A22 user-undisturbed, median wall time and median cost.">
-<title>Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI&#x27;s published Hugging Face board for macOS, Omarchy, Windows and Ubuntu, comparing total passed, background passed, A22 user-undisturbed, median wall time and median cost.</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="458" viewBox="0 0 880 458" role="img" aria-label="Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI&#x27;s published Hugging Face board for macOS, Omarchy, Windows and Ubuntu, comparing total passed, background passed, A22 user-undisturbed, median wall time and Scale export.py median cost.">
+<title>Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI&#x27;s published Hugging Face board for macOS, Omarchy, Windows and Ubuntu, comparing total passed, background passed, A22 user-undisturbed, median wall time and Scale export.py median cost.</title>
 <style>text{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;font-variant-numeric:tabular-nums}.t{fill:#f0f6fc}.t2{fill:#9198a1}.m{fill:#7d8590}.bg{fill:#0d1117;stroke:#3d444d}.grid{stroke:#1c2128;stroke-width:1}.axis{stroke:#3d444d;stroke-width:1}.out{fill:#454c56}.pass{fill:#3fb950}.dot0{fill:#3987e5;stroke:#0d1117;stroke-width:1.5}.dot1{fill:#d95926;stroke:#0d1117;stroke-width:1.5}.ring1{fill:#0d1117;stroke:#d95926;stroke-width:1.75}.dot{fill:#d1d7e0;stroke:#0d1117;stroke-width:1.5}.whisker{stroke:#f0f6fc;stroke-width:1.5}.range{stroke:#3d444d;stroke-width:1.5}.s0{fill:#3987e5}.s1{fill:#d95926}.s6{fill:#9085e9}.s7{fill:#e66767}</style>
 <rect x="0.5" y="0.5" width="879" height="457" rx="6" class="bg"/>
 <text x="24" y="34" class="t" font-size="15" font-weight="600">Across operating systems · Claude Sonnet 5.5 (same 60 BenchLab trials)</text>
@@ -12,43 +12,43 @@
 <text x="496" y="98" class="t2" font-size="12" font-weight="600">Undisturbed</text>
 <text x="496" y="113" class="m" font-size="10.2">A22 of 25</text>
 <text x="612" y="98" class="t2" font-size="12" font-weight="600">Median wall</text>
-<text x="612" y="113" class="m" font-size="10.2">seconds</text>
+<text x="612" y="113" class="m" font-size="10.2">s (approx)</text>
 <text x="738" y="98" class="t2" font-size="12" font-weight="600">Median cost</text>
-<text x="738" y="113" class="m" font-size="10.2">list price</text>
+<text x="738" y="113" class="m" font-size="10.2">export.py</text>
 <line x1="24" y1="124" x2="856" y2="124" class="grid"/>
-<rect x="24" y="131" width="4" height="28" class="s0" rx="2"/>
-<text x="36" y="143" class="t" font-size="12" font-weight="600">Omarchy · hyprmasq 0.5.1</text>
-<text x="36" y="157" class="m" font-size="10">this run · KVM</text>
+<rect x="24" y="131" width="4" height="28" class="s6" rx="2"/>
+<text x="36" y="143" class="t" font-size="12">macOS · Aside 1.26.1111</text>
+<text x="36" y="157" class="m" font-size="10">HF board #1 · EC2</text>
 <rect x="248" y="140.5" width="68" height="9" class="out" rx="2"/>
-<path d="M248 140.5H313Q316 140.5 316 143.5V146.5Q316 149.5 313 149.5H248Z" class="s0"/>
-<text x="322" y="149" class="t" font-size="11.5" font-weight="600">60/60</text>
+<path d="M248 140.5H313Q316 140.5 316 143.5V146.5Q316 149.5 313 149.5H248Z" class="s6"/>
+<text x="322" y="149" class="t" font-size="11.5">60/60</text>
 <rect x="378" y="140.5" width="58" height="9" class="out" rx="2"/>
 <path d="M378 140.5H433Q436 140.5 436 143.5V146.5Q436 149.5 433 149.5H378Z" class="pass"/>
-<text x="442" y="149" class="t" font-size="11.5" font-weight="600">25/25</text>
+<text x="442" y="149" class="t" font-size="11.5">25/25</text>
 <rect x="496" y="140.5" width="54" height="9" class="out" rx="2"/>
 <path d="M496 140.5H547Q550 140.5 550 143.5V146.5Q550 149.5 547 149.5H496Z" class="pass"/>
-<text x="556" y="149" class="t" font-size="11.5" font-weight="600">25/25</text>
-<path d="M612 140.5H642.5Q645.5 140.5 645.5 143.5V146.5Q645.5 149.5 642.5 149.5H612Z" class="s0"/>
-<text x="651.5" y="149" class="t" font-size="11.5">18.4 s</text>
-<path d="M738 140.5H746.4Q749.4 140.5 749.4 143.5V146.5Q749.4 149.5 746.4 149.5H738Z" class="s0"/>
-<text x="755.4" y="149" class="t" font-size="11.5">$0.050</text>
+<text x="556" y="149" class="t" font-size="11.5">25/25</text>
+<path d="M612 140.5H637.5Q640.5 140.5 640.5 143.5V146.5Q640.5 149.5 637.5 149.5H612Z" class="s6"/>
+<text x="646.5" y="149" class="t" font-size="11.5">15.6 s</text>
+<path d="M738 140.5H747Q750 140.5 750 143.5V146.5Q750 149.5 747 149.5H738Z" class="s6"/>
+<text x="756" y="149" class="t" font-size="11.5">$0.058</text>
 <line x1="24" y1="166" x2="856" y2="166" class="grid"/>
-<rect x="24" y="173" width="4" height="28" class="s6" rx="2"/>
-<text x="36" y="185" class="t" font-size="12">macOS · Aside 1.26.1111</text>
-<text x="36" y="199" class="m" font-size="10">HF board #1 · EC2</text>
+<rect x="24" y="173" width="4" height="28" class="s0" rx="2"/>
+<text x="36" y="185" class="t" font-size="12" font-weight="600">Omarchy · hyprmasq 0.5.1</text>
+<text x="36" y="199" class="m" font-size="10">this run · KVM</text>
 <rect x="248" y="182.5" width="68" height="9" class="out" rx="2"/>
-<path d="M248 182.5H313Q316 182.5 316 185.5V188.5Q316 191.5 313 191.5H248Z" class="s6"/>
-<text x="322" y="191" class="t" font-size="11.5">60/60</text>
+<path d="M248 182.5H313Q316 182.5 316 185.5V188.5Q316 191.5 313 191.5H248Z" class="s0"/>
+<text x="322" y="191" class="t" font-size="11.5" font-weight="600">60/60</text>
 <rect x="378" y="182.5" width="58" height="9" class="out" rx="2"/>
 <path d="M378 182.5H433Q436 182.5 436 185.5V188.5Q436 191.5 433 191.5H378Z" class="pass"/>
-<text x="442" y="191" class="t" font-size="11.5">25/25</text>
+<text x="442" y="191" class="t" font-size="11.5" font-weight="600">25/25</text>
 <rect x="496" y="182.5" width="54" height="9" class="out" rx="2"/>
 <path d="M496 182.5H547Q550 182.5 550 185.5V188.5Q550 191.5 547 191.5H496Z" class="pass"/>
-<text x="556" y="191" class="t" font-size="11.5">25/25</text>
-<path d="M612 182.5H637.4Q640.4 182.5 640.4 185.5V188.5Q640.4 191.5 637.4 191.5H612Z" class="s6"/>
-<text x="646.4" y="191" class="t" font-size="11.5">15.6 s</text>
-<path d="M738 182.5H748.3Q751.3 182.5 751.3 185.5V188.5Q751.3 191.5 748.3 191.5H738Z" class="s6"/>
-<text x="757.3" y="191" class="t" font-size="11.5">$0.058</text>
+<text x="556" y="191" class="t" font-size="11.5" font-weight="600">25/25</text>
+<path d="M612 182.5H642.5Q645.5 182.5 645.5 185.5V188.5Q645.5 191.5 642.5 191.5H612Z" class="s0"/>
+<text x="651.5" y="191" class="t" font-size="11.5">18.4 s</text>
+<path d="M738 182.5H745.3Q748.3 182.5 748.3 185.5V188.5Q748.3 191.5 745.3 191.5H738Z" class="s0"/>
+<text x="754.3" y="191" class="t" font-size="11.5">$0.050</text>
 <line x1="24" y1="208" x2="856" y2="208" class="grid"/>
 <rect x="24" y="215" width="4" height="28" class="s1" rx="2"/>
 <text x="36" y="227" class="t" font-size="12">macOS · Cua Driver 0.47.10</text>
@@ -64,8 +64,8 @@
 <text x="556" y="233" class="t" font-size="11.5">22/25</text>
 <path d="M612 224.5H645.5Q648.5 224.5 648.5 227.5V230.5Q648.5 233.5 645.5 233.5H612Z" class="s1"/>
 <text x="654.5" y="233" class="t" font-size="11.5">20.0 s</text>
-<path d="M738 224.5H765.6Q768.6 224.5 768.6 227.5V230.5Q768.6 233.5 765.6 233.5H738Z" class="s1"/>
-<text x="774.6" y="233" class="t" font-size="11.5">$0.134</text>
+<path d="M738 224.5H762.7Q765.7 224.5 765.7 227.5V230.5Q765.7 233.5 762.7 233.5H738Z" class="s1"/>
+<text x="771.7" y="233" class="t" font-size="11.5">$0.134</text>
 <line x1="24" y1="250" x2="856" y2="250" class="grid"/>
 <rect x="24" y="257" width="4" height="28" class="s1" rx="2"/>
 <text x="36" y="269" class="t" font-size="12">Omarchy · Cua Driver 0.47.4</text>
@@ -79,10 +79,10 @@
 <rect x="496" y="266.5" width="54" height="9" class="out" rx="2"/>
 <path d="M496 266.5H540.5Q543.5 266.5 543.5 269.5V272.5Q543.5 275.5 540.5 275.5H496Z" class="pass"/>
 <text x="556" y="275" class="t" font-size="11.5">22/25</text>
-<path d="M612 266.5H664.1Q667.1 266.5 667.1 269.5V272.5Q667.1 275.5 664.1 275.5H612Z" class="s1"/>
-<text x="673.1" y="275" class="t" font-size="11.5">30.2 s</text>
-<path d="M738 266.5H791Q794 266.5 794 269.5V272.5Q794 275.5 791 275.5H738Z" class="s1"/>
-<text x="800" y="275" class="t" font-size="11.5">$0.245</text>
+<path d="M612 266.5H664Q667 266.5 667 269.5V272.5Q667 275.5 664 275.5H612Z" class="s1"/>
+<text x="673" y="275" class="t" font-size="11.5">30.2 s</text>
+<path d="M738 266.5H785.6Q788.6 266.5 788.6 269.5V272.5Q788.6 275.5 785.6 275.5H738Z" class="s1"/>
+<text x="794.6" y="275" class="t" font-size="11.5">$0.245</text>
 <line x1="24" y1="292" x2="856" y2="292" class="grid"/>
 <rect x="24" y="299" width="4" height="28" class="s1" rx="2"/>
 <text x="36" y="311" class="t" font-size="12" font-weight="600">Omarchy · Cua Driver 0.62.1</text>
@@ -98,8 +98,8 @@
 <text x="556" y="317" class="t" font-size="11.5" font-weight="600">24/25</text>
 <path d="M612 308.5H664.9Q667.9 308.5 667.9 311.5V314.5Q667.9 317.5 664.9 317.5H612Z" class="s1"/>
 <text x="673.9" y="317" class="t" font-size="11.5">30.7 s</text>
-<path d="M738 308.5H794Q797 308.5 797 311.5V314.5Q797 317.5 794 317.5H738Z" class="s1"/>
-<text x="803" y="317" class="t" font-size="11.5">$0.258</text>
+<path d="M738 308.5H788.3Q791.3 308.5 791.3 311.5V314.5Q791.3 317.5 788.3 317.5H738Z" class="s1"/>
+<text x="797.3" y="317" class="t" font-size="11.5">$0.258</text>
 <line x1="24" y1="334" x2="856" y2="334" class="grid"/>
 <rect x="24" y="341" width="4" height="28" class="s1" rx="2"/>
 <text x="36" y="353" class="t" font-size="12">Windows · Cua Driver 0.38.0</text>
@@ -113,8 +113,10 @@
 <rect x="496" y="350.5" width="54" height="9" class="out" rx="2"/>
 <path d="M496 350.5H516.8Q519.8 350.5 519.8 353.5V356.5Q519.8 359.5 516.8 359.5H496Z" class="pass"/>
 <text x="556" y="359" class="t" font-size="11.5">11/25</text>
-<text x="612" y="359" class="m" font-size="11.5">—</text>
-<text x="738" y="359" class="m" font-size="11.5">—</text>
+<path d="M612 350.5H648.7Q651.7 350.5 651.7 353.5V356.5Q651.7 359.5 648.7 359.5H612Z" class="s1"/>
+<text x="657.7" y="359" class="t" font-size="11.5">21.8 s</text>
+<path d="M738 350.5H793.7Q796.7 350.5 796.7 353.5V356.5Q796.7 359.5 793.7 359.5H738Z" class="s1"/>
+<text x="802.7" y="359" class="t" font-size="11.5">$0.285</text>
 <line x1="24" y1="376" x2="856" y2="376" class="grid"/>
 <rect x="24" y="383" width="4" height="28" class="s1" rx="2"/>
 <text x="36" y="395" class="t" font-size="12">Ubuntu · Cua Driver 0.38.0</text>
@@ -128,10 +130,10 @@
 <rect x="496" y="392.5" width="54" height="9" class="out" rx="2"/>
 <path d="M496 392.5H512.4Q515.4 392.5 515.4 395.5V398.5Q515.4 401.5 512.4 401.5H496Z" class="pass"/>
 <text x="556" y="401" class="t" font-size="11.5">9/25</text>
-<path d="M612 392.5H653.3Q656.3 392.5 656.3 395.5V398.5Q656.3 401.5 653.3 401.5H612Z" class="s1"/>
-<text x="662.3" y="401" class="t" font-size="11.5">24.3 s</text>
-<path d="M738 392.5H790.5Q793.5 392.5 793.5 395.5V398.5Q793.5 401.5 790.5 401.5H738Z" class="s1"/>
-<text x="799.5" y="401" class="t" font-size="11.5">$0.243</text>
+<path d="M612 392.5H658.7Q661.7 392.5 661.7 395.5V398.5Q661.7 401.5 658.7 401.5H612Z" class="s1"/>
+<text x="667.7" y="401" class="t" font-size="11.5">27.3 s</text>
+<path d="M738 392.5H785.2Q788.2 392.5 788.2 395.5V398.5Q788.2 401.5 785.2 401.5H738Z" class="s1"/>
+<text x="794.2" y="401" class="t" font-size="11.5">$0.243</text>
 <line x1="24" y1="418" x2="856" y2="418" class="grid"/>
-<text x="24" y="442" class="m" font-size="10.8">HF board rows filter Scale AI&#x27;s results/trials.parquet (EC2) to the 60 shared BenchLab trials. Windows omits timing and cost in the dataset.</text>
+<text x="24" y="442" class="m" font-size="10.4">HF rows (parquet ca3d569e) use agent_window_s on EC2. Local rows use prompt_agent wall time on KVM. Costs use Scale export.py ($0.20/M read).</text>
 </svg>
