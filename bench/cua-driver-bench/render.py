@@ -462,6 +462,127 @@ def render_usage(data: dict[str, dict], theme_name: str) -> str:
     return svg_wrap(height, theme_name, alt, b)
 
 
+# Scale AI published Hugging Face dataset (earakely-scale/CuaDriverBench-AgentEnv,
+# results/trials.parquet filtered to the exact same 60 BenchLab trials, Claude Sonnet 5.5).
+HF_BOARD_60 = [
+    ("macOS · Aside 1.26.1111", "HF board #1 · EC2", "s6", False, 60, 25, 25, 15.6, 0.058),
+    ("macOS · Cua Driver 0.47.10", "HF board · EC2", "s1", False, 52, 17, 22, 20.0, 0.134),
+    ("Omarchy · Cua Driver 0.47.4", "HF board · EC2", "s1", False, 52, 18, 22, 30.2, 0.245),
+    ("Windows · Cua Driver 0.38.0", "HF board · EC2", "s1", False, 44, 11, 11, None, None),
+    ("Ubuntu · Cua Driver 0.38.0", "HF board · EC2", "s1", False, 40, 5, 9, 24.3, 0.243),
+]
+
+
+def render_cross_os(data: dict[str, dict], theme_name: str) -> str:
+    alt = (
+        "Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: "
+        "local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI's "
+        "published Hugging Face board for macOS, Omarchy, Windows and Ubuntu, comparing "
+        "total passed, background passed, A22 user-undisturbed, median wall time and median cost."
+    )
+
+    def local_row(label: str, cls: str, key: str) -> tuple:
+        std = select_suite(data[key]["trials"], "standard_60")
+        bg = [t for t in std if t["condition"] == "background"]
+        passed = sum(t["passed"] for t in std)
+        bg_p = sum(t["passed"] for t in bg)
+        undist = sum(1 for t in bg if t["user_undisturbed"])
+        wall = med([t["wall_seconds"] for t in std])
+        cost = med([t["cost_usd"] for t in std])
+        return (label, "this run · KVM", cls, True, passed, bg_p, undist, wall, cost)
+
+    rows = [
+        local_row("Omarchy · hyprmasq 0.5.1", "s0", "hm_sonnet"),
+        HF_BOARD_60[0],
+        HF_BOARD_60[1],
+        HF_BOARD_60[2],
+        local_row("Omarchy · Cua Driver 0.62.1", "s1", "cua_sonnet"),
+        HF_BOARD_60[3],
+        HF_BOARD_60[4],
+    ]
+
+    x_pass, w_pass = 248.0, 68.0
+    x_bg, w_bg = 378.0, 58.0
+    x_a22, w_a22 = 496.0, 54.0
+    x_wall, w_wall, max_wall = 612.0, 62.0, 34.0
+    x_cost, w_cost, max_cost = 738.0, 64.0, 0.28
+
+    y_hdr = 98
+    y_sub = 113
+    y_top = 124
+    row_h = 42
+    y_bot = y_top + len(rows) * row_h
+    height = y_bot + 40
+
+    b: list[str] = []
+    b.append('<text x="24" y="34" class="t" font-size="15" font-weight="600">Across operating systems · Claude Sonnet 5.5 (same 60 BenchLab trials)</text>')
+    b.append('<text x="24" y="53" class="t2" font-size="12.5">Local Omarchy runs beside Scale AI&#x27;s published Hugging Face board (35 foreground + 25 standard background).</text>')
+    b.append('<text x="24" y="72" class="t2" font-size="12.5">Longer bars are better on the left three columns, while shorter bars are faster and cheaper on the right two.</text>')
+
+    b.append(f'<text x="{nfmt(x_pass)}" y="{y_hdr}" class="t2" font-size="12" font-weight="600">Passed</text>')
+    b.append(f'<text x="{nfmt(x_pass)}" y="{y_sub}" class="m" font-size="10.2">of 60</text>')
+    b.append(f'<text x="{nfmt(x_bg)}" y="{y_hdr}" class="t2" font-size="12" font-weight="600">Background</text>')
+    b.append(f'<text x="{nfmt(x_bg)}" y="{y_sub}" class="m" font-size="10.2">of 25</text>')
+    b.append(f'<text x="{nfmt(x_a22)}" y="{y_hdr}" class="t2" font-size="12" font-weight="600">Undisturbed</text>')
+    b.append(f'<text x="{nfmt(x_a22)}" y="{y_sub}" class="m" font-size="10.2">A22 of 25</text>')
+    b.append(f'<text x="{nfmt(x_wall)}" y="{y_hdr}" class="t2" font-size="12" font-weight="600">Median wall</text>')
+    b.append(f'<text x="{nfmt(x_wall)}" y="{y_sub}" class="m" font-size="10.2">seconds</text>')
+    b.append(f'<text x="{nfmt(x_cost)}" y="{y_hdr}" class="t2" font-size="12" font-weight="600">Median cost</text>')
+    b.append(f'<text x="{nfmt(x_cost)}" y="{y_sub}" class="m" font-size="10.2">list price</text>')
+
+    b.append(f'<line x1="24" y1="{y_top}" x2="856" y2="{y_top}" class="grid"/>')
+
+    for i, (label, sub, cls, is_local, passed, bg_p, undist, wall, cost) in enumerate(rows):
+        top = y_top + i * row_h
+        cy = top + row_h / 2.0
+        if i > 0:
+            b.append(f'<line x1="24" y1="{top}" x2="856" y2="{top}" class="grid"/>')
+        b.append(f'<rect x="24" y="{top + 7}" width="4" height="28" class="{cls}" rx="2"/>')
+        weight = ' font-weight="600"' if is_local else ""
+        b.append(f'<text x="36" y="{top + 19}" class="t" font-size="12"{weight}>{esc(label)}</text>')
+        b.append(f'<text x="36" y="{top + 33}" class="m" font-size="10">{esc(sub)}</text>')
+
+        # Passed of 60
+        b.append(f'<rect x="{nfmt(x_pass)}" y="{nfmt(cy - 4.5)}" width="{nfmt(w_pass)}" height="9" class="out" rx="2"/>')
+        b.append(f'<path d="{rbar(x_pass, cy - 4.5, w_pass * passed / 60.0, 9)}" class="{cls}"/>')
+        b.append(f'<text x="{nfmt(x_pass + w_pass + 6)}" y="{nfmt(cy + 4)}" class="t" font-size="11.5"{weight}>{passed}/60</text>')
+
+        # Background passed of 25
+        b.append(f'<rect x="{nfmt(x_bg)}" y="{nfmt(cy - 4.5)}" width="{nfmt(w_bg)}" height="9" class="out" rx="2"/>')
+        b.append(f'<path d="{rbar(x_bg, cy - 4.5, w_bg * bg_p / 25.0, 9)}" class="pass"/>')
+        b.append(f'<text x="{nfmt(x_bg + w_bg + 6)}" y="{nfmt(cy + 4)}" class="t" font-size="11.5"{weight}>{bg_p}/25</text>')
+
+        # A22 undisturbed of 25
+        b.append(f'<rect x="{nfmt(x_a22)}" y="{nfmt(cy - 4.5)}" width="{nfmt(w_a22)}" height="9" class="out" rx="2"/>')
+        b.append(f'<path d="{rbar(x_a22, cy - 4.5, w_a22 * undist / 25.0, 9)}" class="pass"/>')
+        b.append(f'<text x="{nfmt(x_a22 + w_a22 + 6)}" y="{nfmt(cy + 4)}" class="t" font-size="11.5"{weight}>{undist}/25</text>')
+
+        # Median wall time
+        if wall is None:
+            b.append(f'<text x="{nfmt(x_wall)}" y="{nfmt(cy + 4)}" class="m" font-size="11.5">—</text>')
+        else:
+            ww = min(w_wall, (wall / max_wall) * w_wall)
+            b.append(f'<path d="{rbar(x_wall, cy - 4.5, ww, 9)}" class="{cls}"/>')
+            b.append(f'<text x="{nfmt(x_wall + ww + 6)}" y="{nfmt(cy + 4)}" class="t" font-size="11.5">{wall:.1f} s</text>')
+
+        # Median cost
+        if cost is None:
+            b.append(f'<text x="{nfmt(x_cost)}" y="{nfmt(cy + 4)}" class="m" font-size="11.5">—</text>')
+        else:
+            cw = min(w_cost, (cost / max_cost) * w_cost)
+            b.append(f'<path d="{rbar(x_cost, cy - 4.5, cw, 9)}" class="{cls}"/>')
+            b.append(f'<text x="{nfmt(x_cost + cw + 6)}" y="{nfmt(cy + 4)}" class="t" font-size="11.5">${cost:.3f}</text>')
+
+    b.append(f'<line x1="24" y1="{y_bot}" x2="856" y2="{y_bot}" class="grid"/>')
+    b.append(
+        f'<text x="24" y="{y_bot + 24}" class="m" font-size="10.8">'
+        f'HF board rows filter Scale AI&#x27;s results/trials.parquet (EC2) to the 60 shared BenchLab trials. '
+        f'Windows omits timing and cost in the dataset.'
+        f"</text>"
+    )
+    return svg_wrap(height, theme_name, alt, b)
+
+
 def main(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Fail if any figure on disk is out of date")
@@ -478,6 +599,7 @@ def main(argv: list[str]) -> None:
         "scorecard": render_scorecard,
         "tasks": render_tasks,
         "usage": render_usage,
+        "cross-os": render_cross_os,
     }
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)

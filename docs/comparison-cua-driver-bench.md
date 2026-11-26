@@ -188,9 +188,23 @@ criteria and final message live in [bench/cua-driver-bench/data](../bench/cua-dr
 ## Across operating systems
 
 Filtering Scale AI's published Hugging Face dataset (`earakely-scale/CuaDriverBench-AgentEnv`, `results/trials.parquet`)
-to the exact same 60 BenchLab trials with Claude Sonnet 5.5 sets these local Omarchy runs beside every OS on Scale AI's
-board. macOS, Windows and Ubuntu Linux also run three multi-app tasks (`G02`–`G04`) not yet ported to Omarchy, and Scale
-AI's published runs ran on EC2 hosts with earlier driver versions.
+to the exact same 60 BenchLab trials with Claude Sonnet 5.5 puts these local Omarchy runs beside every OS on Scale AI's
+board.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="comparison-cua-driver-bench/cross-os-dark.svg">
+  <img alt="Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI's published Hugging Face board for macOS, Omarchy, Windows and Ubuntu, comparing total passed, background passed, A22 user-undisturbed, median wall time and median cost." src="comparison-cua-driver-bench/cross-os.svg">
+</picture>
+
+- **Pass rate and isolation:** hyprmasq 0.5.1 ties the #1 published setup (`macOS · Aside Computer Use 1.26.1111`) at
+  **60/60** passed, **25/25** background and **25/25** undisturbed, while also passing **10/10** on `MB-10` and `MB-11`
+  background (where Aside documents taking the foreground to hover).
+- **Calls and cost:** both tie at **6.0** median tool calls, with hyprmasq cheaper per trial (`$0.050` median /
+  `$0.054` mean vs `$0.058` / `$0.062`) and **2.7–5.2×** cheaper than Cua Driver on macOS, Omarchy and Ubuntu.
+- **Scope note:** macOS, Windows and Ubuntu Linux also run three multi-app tasks (`G02`–`G04`) not yet ported to
+  Omarchy, and Scale AI's published runs ran on EC2 hosts with earlier driver versions.
+
+<details><summary>Numbers: across operating systems (60 BenchLab trials)</summary>
 
 | Setup (Claude Sonnet 5.5, same 60 BenchLab trials) | FG (of 35) | BG (of 25) | Undisturbed | Median wall s | Median calls | Mean cost | Median cost |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -202,9 +216,7 @@ AI's published runs ran on EC2 hosts with earlier driver versions.
 | Windows · Cua Driver `0.38.0` *(HF board)* | 33/35 | 11/25 | 11/25 | - | - | - | - |
 | Ubuntu Linux · Cua Driver `0.38.0` *(HF board)* | **35/35** | 5/25 | 9/25 | 24.3 s | 14.0 | $0.259 | $0.243 |
 
-On the shared 60 trials with Claude Sonnet 5.5, hyprmasq 0.5.1 ties `macOS · Aside` on pass rate (`60/60`), background
-isolation (`25/25`) and tool calls (`6.0`) at lower cost (`$0.054` mean / `$0.050` median vs `$0.062` / `$0.058`), while
-also passing `10/10` on `MB-10` and `MB-11` background (where Aside documents taking the foreground to hover).
+</details>
 
 ## Method
 
