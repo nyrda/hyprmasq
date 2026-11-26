@@ -248,4 +248,6 @@ run, plus [the macOS addendum](docs/comparison-macos.md).
 
 [MIT](LICENSE). The photos of the benchmark's trace and pano tasks have
 their own licences, see [trace](bench/README.md#trace) and
-[pano](bench/README.md#pano).
+[pano](bench/README.md#pano). See
+[CuaDriverBench attribution](bench/cua-driver-bench/README.md#license-and-attribution)
+for upstream benchmark and dataset notices.

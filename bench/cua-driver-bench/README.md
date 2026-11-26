@@ -147,3 +147,19 @@ with `on_board == True`, `model == "anthropic/claude-sonnet-5-5"`,
 (`mb-09`–`mb-11` and `ir-01`–`ir-04` foreground, plus `mb-09` and
 `ir-01`–`ir-04` background), taking medians of `agent_window_s`, `tool_calls`
 and `cost_usd` and mean of `cost_usd`.
+
+## License and attribution
+
+Files authored in this directory are under the repository's [MIT](../../LICENSE)
+license. No trycua task pack files, BenchLab apps, prompts, evaluators or
+`cua-driver` binaries and manifests are redistributed here (those stay under
+trycua's upstream licenses and are fetched from upstream).
+`cua-driver-0.62.1/driver.patch` patches `agentenv-framework`'s
+`cua-driver/driver.py` (Apache-2.0), `driver/arch-day.conf` mirrors its Arch
+Linux Archive `pacman.conf`, and the five external cross-OS summary rows in
+`summarize.py` and `render.py` are aggregated from Scale AI's
+`earakely-scale/CuaDriverBench-AgentEnv` dataset (Apache-2.0).
+
+`Cua`, `Cua Driver Bench` and `cua-driver` are trycua's names, used here only
+to identify the benchmark and baseline tool. These local results are not
+trycua's or Scale AI's.
