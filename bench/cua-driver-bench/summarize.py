@@ -25,7 +25,7 @@ MODEL_ORDER = ["claude-sonnet-5-5", "gpt-6.2-sol"]
 # Wall time is agent_window_s across all five HF board rows; costs use Scale export.py's cost_usd.
 HF_DATASET_SHA = "ca3d569ef93c1987f75bf00663e3114c0ed601ac"
 HF_BOARD_60 = [
-    ("macOS · Aside Computer Use `1.26.1111` *(HF board #1)*", 35, 25, 25, 15.622, 6.0, 0.062478, 0.057950),
+    ("macOS · Aside Computer Use `1.26.1111.1046` *(Sonnet #1)*", 35, 25, 25, 15.622, 6.0, 0.062478, 0.057950),
     ("macOS · Cua Driver `0.47.10` *(HF board)*", 35, 17, 22, 20.032, 8.0, 0.153657, 0.134250),
     ("Omarchy · Cua Driver `0.47.4` *(HF board)*", 34, 18, 22, 30.187, 18.0, 0.276275, 0.245150),
     ("Windows · Cua Driver `0.38.0` *(HF board)*", 33, 11, 11, 21.798, 8.0, 0.281245, 0.284550),
@@ -89,7 +89,7 @@ def load_datasets() -> list[dict]:
 def summarize_model(model: str, datasets: list[dict]) -> None:
     print(f"# {model}\n")
     print(
-        "| Driver | Tools | Suite | Passed | Undisturbed | Med wall s | Med calls | Med in | Med uncached | Med out | Med $ | Mean $ |"
+        "| Driver | Tools | Suite | Passed | Undisturbed | Med wall s | Med calls | Med in | Med excl. read | Med out | Med $ | Mean $ |"
     )
     print("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for ds in datasets:
@@ -205,14 +205,14 @@ def summarize_cross_os(sonnet_datasets: list[dict]) -> None:
                 sum(1 for t in fg if t["passed"]),
                 sum(1 for t in bg if t["passed"]),
                 sum(1 for t in bg if t["user_undisturbed"]),
-                med([t["wall_seconds"] for t in std]) or 0.0,
+                med([t.get("agent_window_s", t["wall_seconds"]) for t in std]) or 0.0,
                 med([t["tool_calls"] for t in std]) or 0.0,
                 mean([t[cost_key] for t in std]) or 0.0,
                 med([t[cost_key] for t in std]) or 0.0,
             )
         )
     rows.sort(key=lambda r: (-(r[1] + r[2]), -r[3], r[4]))
-    print("| Setup | FG (/35) | BG (/25) | Undisturbed | Med wall s | Med calls | Mean $ (export.py) | Med $ (export.py) |")
+    print("| Setup | FG (/35) | BG (/25) | Undisturbed | Med agent window s | Med calls | Mean $ (export.py) | Med $ (export.py) |")
     print("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
     for label, fg_p, bg_p, undist, wall, calls, mean_c, med_c in rows:
         print(

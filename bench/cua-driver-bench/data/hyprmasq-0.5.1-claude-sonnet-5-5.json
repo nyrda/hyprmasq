@@ -29,7 +29,7 @@
       "total_seconds": 155.94,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 5,
       "input_tokens": 72600,
       "cached_input_tokens": 65137,
       "cache_write_tokens": 7453,
@@ -42,7 +42,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.03821
+      "cost_usd_scale_export": 0.03821,
+      "agent_window_s": 16.035
     },
     {
       "task": "MB-09",
@@ -63,7 +64,7 @@
       "total_seconds": 154.93,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 9,
+      "model_calls": 6,
       "input_tokens": 90931,
       "cached_input_tokens": 82318,
       "cache_write_tokens": 8601,
@@ -76,7 +77,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.04533
+      "cost_usd_scale_export": 0.04533,
+      "agent_window_s": 16.908
     },
     {
       "task": "MB-09",
@@ -97,7 +99,7 @@
       "total_seconds": 155.24,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 5,
       "input_tokens": 73560,
       "cached_input_tokens": 66112,
       "cache_write_tokens": 7438,
@@ -110,7 +112,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.038417
+      "cost_usd_scale_export": 0.038417,
+      "agent_window_s": 12.956
     },
     {
       "task": "MB-09",
@@ -131,7 +134,7 @@
       "total_seconds": 154.7,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 9,
+      "model_calls": 6,
       "input_tokens": 88979,
       "cached_input_tokens": 80820,
       "cache_write_tokens": 8147,
@@ -144,7 +147,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.043886
+      "cost_usd_scale_export": 0.043886,
+      "agent_window_s": 15.595
     },
     {
       "task": "MB-09",
@@ -165,7 +169,7 @@
       "total_seconds": 202.58,
       "tool_calls": 3,
       "computer_tool_calls": 0,
-      "model_calls": 6,
+      "model_calls": 4,
       "input_tokens": 56589,
       "cached_input_tokens": 49968,
       "cache_write_tokens": 6613,
@@ -178,7 +182,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.030262
+      "cost_usd_scale_export": 0.030262,
+      "agent_window_s": 10.914
     },
     {
       "task": "MB-10",
@@ -199,7 +204,7 @@
       "total_seconds": 202.37,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 6,
       "input_tokens": 86573,
       "cached_input_tokens": 79237,
       "cache_write_tokens": 7324,
@@ -212,7 +217,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.040401
+      "cost_usd_scale_export": 0.040401,
+      "agent_window_s": 12.955
     },
     {
       "task": "MB-10",
@@ -233,7 +239,7 @@
       "total_seconds": 184.97,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 5,
       "input_tokens": 70026,
       "cached_input_tokens": 63807,
       "cache_write_tokens": 6209,
@@ -246,7 +252,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.033624
+      "cost_usd_scale_export": 0.033624,
+      "agent_window_s": 10.886
     },
     {
       "task": "MB-10",
@@ -267,7 +274,7 @@
       "total_seconds": 185.06,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 5,
       "input_tokens": 70008,
       "cached_input_tokens": 63793,
       "cache_write_tokens": 6205,
@@ -280,7 +287,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.032811
+      "cost_usd_scale_export": 0.032811,
+      "agent_window_s": 11.895
     },
     {
       "task": "MB-10",
@@ -301,7 +309,7 @@
       "total_seconds": 171.67,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 7,
+      "model_calls": 5,
       "input_tokens": 70138,
       "cached_input_tokens": 66969,
       "cache_write_tokens": 3159,
@@ -314,7 +322,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.026671
+      "cost_usd_scale_export": 0.026671,
+      "agent_window_s": 10.884
     },
     {
       "task": "MB-10",
@@ -335,7 +344,7 @@
       "total_seconds": 169.92,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 7,
+      "model_calls": 5,
       "input_tokens": 70173,
       "cached_input_tokens": 66989,
       "cache_write_tokens": 3174,
@@ -348,7 +357,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.027313
+      "cost_usd_scale_export": 0.027313,
+      "agent_window_s": 13.927
     },
     {
       "task": "MB-11",
@@ -369,7 +379,7 @@
       "total_seconds": 161.39,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 7,
+      "model_calls": 5,
       "input_tokens": 68458,
       "cached_input_tokens": 62638,
       "cache_write_tokens": 5810,
@@ -382,7 +392,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.031903
+      "cost_usd_scale_export": 0.031903,
+      "agent_window_s": 14.271
     },
     {
       "task": "MB-11",
@@ -403,7 +414,7 @@
       "total_seconds": 161.19,
       "tool_calls": 3,
       "computer_tool_calls": 0,
-      "model_calls": 6,
+      "model_calls": 4,
       "input_tokens": 54985,
       "cached_input_tokens": 49407,
       "cache_write_tokens": 5570,
@@ -416,7 +427,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.027772
+      "cost_usd_scale_export": 0.027772,
+      "agent_window_s": 11.01
     },
     {
       "task": "MB-11",
@@ -437,7 +449,7 @@
       "total_seconds": 166.14,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 7,
+      "model_calls": 5,
       "input_tokens": 68440,
       "cached_input_tokens": 62636,
       "cache_write_tokens": 5794,
@@ -450,7 +462,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.031602
+      "cost_usd_scale_export": 0.031602,
+      "agent_window_s": 14.151
     },
     {
       "task": "MB-11",
@@ -471,7 +484,7 @@
       "total_seconds": 164.74,
       "tool_calls": 3,
       "computer_tool_calls": 0,
-      "model_calls": 5,
+      "model_calls": 4,
       "input_tokens": 54912,
       "cached_input_tokens": 49405,
       "cache_write_tokens": 5499,
@@ -484,7 +497,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.026845
+      "cost_usd_scale_export": 0.026845,
+      "agent_window_s": 12.286
     },
     {
       "task": "MB-11",
@@ -505,7 +519,7 @@
       "total_seconds": 164.99,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 6,
+      "model_calls": 5,
       "input_tokens": 68381,
       "cached_input_tokens": 65785,
       "cache_write_tokens": 2586,
@@ -518,7 +532,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.023632
+      "cost_usd_scale_export": 0.023632,
+      "agent_window_s": 12.897
     },
     {
       "task": "IR-01",
@@ -539,7 +554,7 @@
       "total_seconds": 165.6,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 14,
+      "model_calls": 9,
       "input_tokens": 149292,
       "cached_input_tokens": 138240,
       "cache_write_tokens": 11034,
@@ -552,7 +567,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.066909
+      "cost_usd_scale_export": 0.066909,
+      "agent_window_s": 23.3
     },
     {
       "task": "IR-01",
@@ -573,7 +589,7 @@
       "total_seconds": 164.0,
       "tool_calls": 8,
       "computer_tool_calls": 0,
-      "model_calls": 11,
+      "model_calls": 8,
       "input_tokens": 130996,
       "cached_input_tokens": 120068,
       "cache_write_tokens": 10912,
@@ -586,7 +602,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.062946
+      "cost_usd_scale_export": 0.062946,
+      "agent_window_s": 23.896
     },
     {
       "task": "IR-01",
@@ -607,7 +624,7 @@
       "total_seconds": 163.77,
       "tool_calls": 8,
       "computer_tool_calls": 0,
-      "model_calls": 11,
+      "model_calls": 8,
       "input_tokens": 128167,
       "cached_input_tokens": 118199,
       "cache_write_tokens": 9952,
@@ -620,7 +637,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.057202
+      "cost_usd_scale_export": 0.057202,
+      "agent_window_s": 20.862
     },
     {
       "task": "IR-01",
@@ -641,7 +659,7 @@
       "total_seconds": 162.86,
       "tool_calls": 7,
       "computer_tool_calls": 0,
-      "model_calls": 11,
+      "model_calls": 8,
       "input_tokens": 127660,
       "cached_input_tokens": 118161,
       "cache_write_tokens": 9483,
@@ -654,7 +672,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.057642
+      "cost_usd_scale_export": 0.057642,
+      "agent_window_s": 21.026
     },
     {
       "task": "IR-01",
@@ -675,7 +694,7 @@
       "total_seconds": 163.33,
       "tool_calls": 10,
       "computer_tool_calls": 0,
-      "model_calls": 15,
+      "model_calls": 10,
       "input_tokens": 170426,
       "cached_input_tokens": 159257,
       "cache_write_tokens": 11149,
@@ -688,7 +707,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.071134
+      "cost_usd_scale_export": 0.071134,
+      "agent_window_s": 24.791
     },
     {
       "task": "IR-02",
@@ -709,7 +729,7 @@
       "total_seconds": 156.43,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 9,
+      "model_calls": 6,
       "input_tokens": 87093,
       "cached_input_tokens": 79791,
       "cache_write_tokens": 7290,
@@ -722,7 +742,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.041277
+      "cost_usd_scale_export": 0.041277,
+      "agent_window_s": 13.469
     },
     {
       "task": "IR-02",
@@ -743,7 +764,7 @@
       "total_seconds": 158.0,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 6,
       "input_tokens": 91124,
       "cached_input_tokens": 82474,
       "cache_write_tokens": 8638,
@@ -756,7 +777,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.045304
+      "cost_usd_scale_export": 0.045304,
+      "agent_window_s": 15.956
     },
     {
       "task": "IR-02",
@@ -777,7 +799,7 @@
       "total_seconds": 164.03,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 7,
       "input_tokens": 106897,
       "cached_input_tokens": 98275,
       "cache_write_tokens": 8608,
@@ -790,7 +812,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.047993
+      "cost_usd_scale_export": 0.047993,
+      "agent_window_s": 15.014
     },
     {
       "task": "IR-02",
@@ -811,7 +834,7 @@
       "total_seconds": 165.32,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 9,
+      "model_calls": 7,
       "input_tokens": 104020,
       "cached_input_tokens": 95314,
       "cache_write_tokens": 8692,
@@ -824,7 +847,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.047771
+      "cost_usd_scale_export": 0.047771,
+      "agent_window_s": 15.959
     },
     {
       "task": "IR-02",
@@ -845,7 +869,7 @@
       "total_seconds": 160.43,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 6,
       "input_tokens": 91238,
       "cached_input_tokens": 82553,
       "cache_write_tokens": 8673,
@@ -858,7 +882,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.045497
+      "cost_usd_scale_export": 0.045497,
+      "agent_window_s": 14.902
     },
     {
       "task": "IR-03",
@@ -879,7 +904,7 @@
       "total_seconds": 159.2,
       "tool_calls": 10,
       "computer_tool_calls": 0,
-      "model_calls": 15,
+      "model_calls": 11,
       "input_tokens": 195997,
       "cached_input_tokens": 183047,
       "cache_write_tokens": 12928,
@@ -892,7 +917,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.079483
+      "cost_usd_scale_export": 0.079483,
+      "agent_window_s": 26.568
     },
     {
       "task": "IR-03",
@@ -913,7 +939,7 @@
       "total_seconds": 156.54,
       "tool_calls": 12,
       "computer_tool_calls": 0,
-      "model_calls": 19,
+      "model_calls": 13,
       "input_tokens": 243123,
       "cached_input_tokens": 228108,
       "cache_write_tokens": 14989,
@@ -926,7 +952,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.097936
+      "cost_usd_scale_export": 0.097936,
+      "agent_window_s": 32.15
     },
     {
       "task": "IR-03",
@@ -947,7 +974,7 @@
       "total_seconds": 157.51,
       "tool_calls": 10,
       "computer_tool_calls": 0,
-      "model_calls": 18,
+      "model_calls": 11,
       "input_tokens": 196876,
       "cached_input_tokens": 183591,
       "cache_write_tokens": 13263,
@@ -960,7 +987,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.08244
+      "cost_usd_scale_export": 0.08244,
+      "agent_window_s": 28.384
     },
     {
       "task": "IR-03",
@@ -981,7 +1009,7 @@
       "total_seconds": 151.9,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 13,
+      "model_calls": 10,
       "input_tokens": 174887,
       "cached_input_tokens": 162095,
       "cache_write_tokens": 12772,
@@ -994,7 +1022,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.074989
+      "cost_usd_scale_export": 0.074989,
+      "agent_window_s": 25.359
     },
     {
       "task": "IR-03",
@@ -1015,7 +1044,7 @@
       "total_seconds": 149.98,
       "tool_calls": 13,
       "computer_tool_calls": 0,
-      "model_calls": 21,
+      "model_calls": 12,
       "input_tokens": 232310,
       "cached_input_tokens": 216497,
       "cache_write_tokens": 15789,
@@ -1028,7 +1057,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.09944
+      "cost_usd_scale_export": 0.09944,
+      "agent_window_s": 30.121
     },
     {
       "task": "IR-04",
@@ -1049,7 +1079,7 @@
       "total_seconds": 158.41,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 14,
+      "model_calls": 9,
       "input_tokens": 151763,
       "cached_input_tokens": 140227,
       "cache_write_tokens": 11518,
@@ -1062,7 +1092,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.067016
+      "cost_usd_scale_export": 0.067016,
+      "agent_window_s": 21.036
     },
     {
       "task": "IR-04",
@@ -1083,7 +1114,7 @@
       "total_seconds": 157.18,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 13,
+      "model_calls": 9,
       "input_tokens": 150909,
       "cached_input_tokens": 140647,
       "cache_write_tokens": 10244,
@@ -1096,7 +1127,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.063725
+      "cost_usd_scale_export": 0.063725,
+      "agent_window_s": 21.198
     },
     {
       "task": "IR-04",
@@ -1117,7 +1149,7 @@
       "total_seconds": 204.63,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 13,
+      "model_calls": 8,
       "input_tokens": 132477,
       "cached_input_tokens": 121545,
       "cache_write_tokens": 10916,
@@ -1130,7 +1162,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.061771
+      "cost_usd_scale_export": 0.061771,
+      "agent_window_s": 21.018
     },
     {
       "task": "IR-04",
@@ -1151,7 +1184,7 @@
       "total_seconds": 203.52,
       "tool_calls": 8,
       "computer_tool_calls": 0,
-      "model_calls": 12,
+      "model_calls": 8,
       "input_tokens": 130493,
       "cached_input_tokens": 120482,
       "cache_write_tokens": 9995,
@@ -1164,7 +1197,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.060406
+      "cost_usd_scale_export": 0.060406,
+      "agent_window_s": 22.024
     },
     {
       "task": "IR-04",
@@ -1185,7 +1219,7 @@
       "total_seconds": 138.12,
       "tool_calls": 10,
       "computer_tool_calls": 0,
-      "model_calls": 16,
+      "model_calls": 10,
       "input_tokens": 172069,
       "cached_input_tokens": 160581,
       "cache_write_tokens": 11468,
@@ -1198,7 +1232,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.073876
+      "cost_usd_scale_export": 0.073876,
+      "agent_window_s": 30.751
     },
     {
       "task": "MB-09",
@@ -1228,7 +1263,7 @@
       "total_seconds": 149.64,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 6,
       "input_tokens": 90827,
       "cached_input_tokens": 72992,
       "cache_write_tokens": 17823,
@@ -1241,7 +1276,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.06797
+      "cost_usd_scale_export": 0.06797,
+      "agent_window_s": 16.928
     },
     {
       "task": "MB-09",
@@ -1271,7 +1307,7 @@
       "total_seconds": 184.38,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 7,
+      "model_calls": 5,
       "input_tokens": 73914,
       "cached_input_tokens": 66647,
       "cache_write_tokens": 7257,
@@ -1284,7 +1320,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.037212
+      "cost_usd_scale_export": 0.037212,
+      "agent_window_s": 13.068
     },
     {
       "task": "MB-09",
@@ -1314,7 +1351,7 @@
       "total_seconds": 184.52,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 5,
       "input_tokens": 72659,
       "cached_input_tokens": 65794,
       "cache_write_tokens": 6855,
@@ -1327,7 +1364,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.036006
+      "cost_usd_scale_export": 0.036006,
+      "agent_window_s": 13.138
     },
     {
       "task": "MB-09",
@@ -1357,7 +1395,7 @@
       "total_seconds": 159.68,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 9,
+      "model_calls": 6,
       "input_tokens": 90810,
       "cached_input_tokens": 82820,
       "cache_write_tokens": 7978,
@@ -1370,7 +1408,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.043873
+      "cost_usd_scale_export": 0.043873,
+      "agent_window_s": 18.045
     },
     {
       "task": "MB-09",
@@ -1400,7 +1439,7 @@
       "total_seconds": 159.48,
       "tool_calls": 3,
       "computer_tool_calls": 0,
-      "model_calls": 6,
+      "model_calls": 4,
       "input_tokens": 56911,
       "cached_input_tokens": 50213,
       "cache_write_tokens": 6690,
@@ -1413,7 +1452,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.030614
+      "cost_usd_scale_export": 0.030614,
+      "agent_window_s": 11.747
     },
     {
       "task": "MB-10",
@@ -1443,7 +1483,7 @@
       "total_seconds": 160.34,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 9,
+      "model_calls": 6,
       "input_tokens": 87130,
       "cached_input_tokens": 79706,
       "cache_write_tokens": 7412,
@@ -1456,7 +1496,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.040575
+      "cost_usd_scale_export": 0.040575,
+      "agent_window_s": 15.653
     },
     {
       "task": "MB-10",
@@ -1486,7 +1527,7 @@
       "total_seconds": 160.88,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 5,
       "input_tokens": 70419,
       "cached_input_tokens": 64119,
       "cache_write_tokens": 6290,
@@ -1499,7 +1540,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.034009
+      "cost_usd_scale_export": 0.034009,
+      "agent_window_s": 13.836
     },
     {
       "task": "MB-10",
@@ -1529,7 +1571,7 @@
       "total_seconds": 170.09,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 7,
+      "model_calls": 5,
       "input_tokens": 70413,
       "cached_input_tokens": 64126,
       "cache_write_tokens": 6277,
@@ -1542,7 +1584,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.033078
+      "cost_usd_scale_export": 0.033078,
+      "agent_window_s": 14.733
     },
     {
       "task": "MB-10",
@@ -1572,7 +1615,7 @@
       "total_seconds": 170.31,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 7,
+      "model_calls": 5,
       "input_tokens": 70485,
       "cached_input_tokens": 67325,
       "cache_write_tokens": 3150,
@@ -1585,7 +1628,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.02647
+      "cost_usd_scale_export": 0.02647,
+      "agent_window_s": 14.088
     },
     {
       "task": "MB-10",
@@ -1615,7 +1659,7 @@
       "total_seconds": 158.01,
       "tool_calls": 4,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 5,
       "input_tokens": 70452,
       "cached_input_tokens": 67305,
       "cache_write_tokens": 3137,
@@ -1628,7 +1672,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.025964
+      "cost_usd_scale_export": 0.025964,
+      "agent_window_s": 13.707
     },
     {
       "task": "MB-11",
@@ -1658,7 +1703,7 @@
       "total_seconds": 158.87,
       "tool_calls": 3,
       "computer_tool_calls": 0,
-      "model_calls": 5,
+      "model_calls": 4,
       "input_tokens": 55222,
       "cached_input_tokens": 49641,
       "cache_write_tokens": 5573,
@@ -1671,7 +1716,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.027087
+      "cost_usd_scale_export": 0.027087,
+      "agent_window_s": 13.21
     },
     {
       "task": "MB-11",
@@ -1701,7 +1747,7 @@
       "total_seconds": 171.82,
       "tool_calls": 3,
       "computer_tool_calls": 0,
-      "model_calls": 6,
+      "model_calls": 4,
       "input_tokens": 55362,
       "cached_input_tokens": 49671,
       "cache_write_tokens": 5683,
@@ -1714,7 +1760,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.028428
+      "cost_usd_scale_export": 0.028428,
+      "agent_window_s": 12.972
     },
     {
       "task": "MB-11",
@@ -1744,7 +1791,7 @@
       "total_seconds": 170.95,
       "tool_calls": 3,
       "computer_tool_calls": 0,
-      "model_calls": 5,
+      "model_calls": 4,
       "input_tokens": 55299,
       "cached_input_tokens": 49663,
       "cache_write_tokens": 5628,
@@ -1757,7 +1804,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.027779
+      "cost_usd_scale_export": 0.027779,
+      "agent_window_s": 13.847
     },
     {
       "task": "MB-11",
@@ -1787,7 +1835,7 @@
       "total_seconds": 158.82,
       "tool_calls": 3,
       "computer_tool_calls": 0,
-      "model_calls": 6,
+      "model_calls": 4,
       "input_tokens": 55290,
       "cached_input_tokens": 49654,
       "cache_write_tokens": 5628,
@@ -1800,7 +1848,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.027677
+      "cost_usd_scale_export": 0.027677,
+      "agent_window_s": 14.129
     },
     {
       "task": "MB-11",
@@ -1830,7 +1879,7 @@
       "total_seconds": 159.57,
       "tool_calls": 3,
       "computer_tool_calls": 0,
-      "model_calls": 5,
+      "model_calls": 4,
       "input_tokens": 55221,
       "cached_input_tokens": 52863,
       "cache_write_tokens": 2350,
@@ -1843,7 +1892,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.019664
+      "cost_usd_scale_export": 0.019664,
+      "agent_window_s": 12.829
     },
     {
       "task": "IR-01",
@@ -1873,7 +1923,7 @@
       "total_seconds": 154.02,
       "tool_calls": 8,
       "computer_tool_calls": 0,
-      "model_calls": 11,
+      "model_calls": 8,
       "input_tokens": 129083,
       "cached_input_tokens": 118962,
       "cache_write_tokens": 10105,
@@ -1886,7 +1936,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.057577
+      "cost_usd_scale_export": 0.057577,
+      "agent_window_s": 22.959
     },
     {
       "task": "IR-01",
@@ -1916,7 +1967,7 @@
       "total_seconds": 153.42,
       "tool_calls": 8,
       "computer_tool_calls": 0,
-      "model_calls": 12,
+      "model_calls": 8,
       "input_tokens": 128911,
       "cached_input_tokens": 118819,
       "cache_write_tokens": 10076,
@@ -1929,7 +1980,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.060186
+      "cost_usd_scale_export": 0.060186,
+      "agent_window_s": 24.027
     },
     {
       "task": "IR-01",
@@ -1959,7 +2011,7 @@
       "total_seconds": 155.58,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 13,
+      "model_calls": 9,
       "input_tokens": 152834,
       "cached_input_tokens": 141831,
       "cache_write_tokens": 10985,
@@ -1972,7 +2024,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.065465
+      "cost_usd_scale_export": 0.065465,
+      "agent_window_s": 26.375
     },
     {
       "task": "IR-01",
@@ -2002,7 +2055,7 @@
       "total_seconds": 157.61,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 7,
       "input_tokens": 109343,
       "cached_input_tokens": 100343,
       "cache_write_tokens": 8986,
@@ -2015,7 +2068,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.050352
+      "cost_usd_scale_export": 0.050352,
+      "agent_window_s": 19.461
     },
     {
       "task": "IR-01",
@@ -2045,7 +2099,7 @@
       "total_seconds": 148.04,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 6,
       "input_tokens": 91945,
       "cached_input_tokens": 83174,
       "cache_write_tokens": 8759,
@@ -2058,7 +2112,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.045016
+      "cost_usd_scale_export": 0.045016,
+      "agent_window_s": 17.892
     },
     {
       "task": "IR-02",
@@ -2088,7 +2143,7 @@
       "total_seconds": 145.42,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 9,
+      "model_calls": 6,
       "input_tokens": 86943,
       "cached_input_tokens": 80177,
       "cache_write_tokens": 6754,
@@ -2101,7 +2156,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.039474
+      "cost_usd_scale_export": 0.039474,
+      "agent_window_s": 15.305
     },
     {
       "task": "IR-02",
@@ -2131,7 +2187,7 @@
       "total_seconds": 152.39,
       "tool_calls": 5,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 6,
       "input_tokens": 91451,
       "cached_input_tokens": 82799,
       "cache_write_tokens": 8640,
@@ -2144,7 +2200,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.044364
+      "cost_usd_scale_export": 0.044364,
+      "agent_window_s": 16.247
     },
     {
       "task": "IR-02",
@@ -2174,7 +2231,7 @@
       "total_seconds": 153.07,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 7,
       "input_tokens": 103815,
       "cached_input_tokens": 95662,
       "cache_write_tokens": 8139,
@@ -2187,7 +2244,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.047528
+      "cost_usd_scale_export": 0.047528,
+      "agent_window_s": 20.341
     },
     {
       "task": "IR-02",
@@ -2217,7 +2275,7 @@
       "total_seconds": 145.49,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 7,
       "input_tokens": 107617,
       "cached_input_tokens": 99030,
       "cache_write_tokens": 8573,
@@ -2230,7 +2288,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.049426
+      "cost_usd_scale_export": 0.049426,
+      "agent_window_s": 20.028
     },
     {
       "task": "IR-02",
@@ -2260,7 +2319,7 @@
       "total_seconds": 145.3,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 7,
       "input_tokens": 107690,
       "cached_input_tokens": 98936,
       "cache_write_tokens": 8740,
@@ -2273,7 +2332,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.048435
+      "cost_usd_scale_export": 0.048435,
+      "agent_window_s": 17.608
     },
     {
       "task": "IR-03",
@@ -2303,7 +2363,7 @@
       "total_seconds": 154.14,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 15,
+      "model_calls": 10,
       "input_tokens": 175414,
       "cached_input_tokens": 162589,
       "cache_write_tokens": 12805,
@@ -2316,7 +2376,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.07499
+      "cost_usd_scale_export": 0.07499,
+      "agent_window_s": 26.206
     },
     {
       "task": "IR-03",
@@ -2346,7 +2407,7 @@
       "total_seconds": 156.91,
       "tool_calls": 10,
       "computer_tool_calls": 0,
-      "model_calls": 16,
+      "model_calls": 11,
       "input_tokens": 199310,
       "cached_input_tokens": 185535,
       "cache_write_tokens": 13753,
@@ -2359,7 +2420,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.083444
+      "cost_usd_scale_export": 0.083444,
+      "agent_window_s": 28.374
     },
     {
       "task": "IR-03",
@@ -2389,7 +2451,7 @@
       "total_seconds": 145.11,
       "tool_calls": 10,
       "computer_tool_calls": 0,
-      "model_calls": 17,
+      "model_calls": 11,
       "input_tokens": 198187,
       "cached_input_tokens": 184751,
       "cache_write_tokens": 13414,
@@ -2402,7 +2464,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.084109
+      "cost_usd_scale_export": 0.084109,
+      "agent_window_s": 30.184
     },
     {
       "task": "IR-03",
@@ -2432,7 +2495,7 @@
       "total_seconds": 147.59,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 14,
+      "model_calls": 10,
       "input_tokens": 174609,
       "cached_input_tokens": 162375,
       "cache_write_tokens": 12214,
@@ -2445,7 +2508,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.07572
+      "cost_usd_scale_export": 0.07572,
+      "agent_window_s": 28.544
     },
     {
       "task": "IR-03",
@@ -2475,7 +2539,7 @@
       "total_seconds": 146.09,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 16,
+      "model_calls": 9,
       "input_tokens": 158595,
       "cached_input_tokens": 146205,
       "cache_write_tokens": 12372,
@@ -2488,7 +2552,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.071937
+      "cost_usd_scale_export": 0.071937,
+      "agent_window_s": 27.024
     },
     {
       "task": "IR-04",
@@ -2518,7 +2583,7 @@
       "total_seconds": 146.99,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 15,
+      "model_calls": 10,
       "input_tokens": 164915,
       "cached_input_tokens": 154472,
       "cache_write_tokens": 10423,
@@ -2531,7 +2596,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.067052
+      "cost_usd_scale_export": 0.067052,
+      "agent_window_s": 28.003
     },
     {
       "task": "IR-04",
@@ -2561,7 +2627,7 @@
       "total_seconds": 156.01,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 7,
       "input_tokens": 110057,
       "cached_input_tokens": 100466,
       "cache_write_tokens": 9577,
@@ -2574,7 +2640,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.055074
+      "cost_usd_scale_export": 0.055074,
+      "agent_window_s": 21.059
     },
     {
       "task": "IR-04",
@@ -2604,7 +2671,7 @@
       "total_seconds": 151.57,
       "tool_calls": 10,
       "computer_tool_calls": 0,
-      "model_calls": 16,
+      "model_calls": 10,
       "input_tokens": 174352,
       "cached_input_tokens": 162434,
       "cache_write_tokens": 11898,
@@ -2617,7 +2684,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.073322
+      "cost_usd_scale_export": 0.073322,
+      "agent_window_s": 26.251
     },
     {
       "task": "IR-04",
@@ -2647,7 +2715,7 @@
       "total_seconds": 216.24,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 14,
+      "model_calls": 8,
       "input_tokens": 132412,
       "cached_input_tokens": 121510,
       "cache_write_tokens": 10886,
@@ -2660,7 +2728,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.063739
+      "cost_usd_scale_export": 0.063739,
+      "agent_window_s": 24.098
     },
     {
       "task": "IR-04",
@@ -2690,7 +2759,7 @@
       "total_seconds": 208.33,
       "tool_calls": 8,
       "computer_tool_calls": 0,
-      "model_calls": 14,
+      "model_calls": 9,
       "input_tokens": 149367,
       "cached_input_tokens": 139077,
       "cache_write_tokens": 10272,
@@ -2703,7 +2772,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.062491
+      "cost_usd_scale_export": 0.062491,
+      "agent_window_s": 26.404
     }
   ],
   "pricing_note": "cost_usd uses Anthropic Claude Sonnet 5.5 API list prices ($2.00 uncached, $0.10 cache read, $4.00 1h cache write, $10.00 output, matching cost_usd_reported and bench/laptop/analyze.py); cost_usd_scale_export preserves Scale AI export.py's rate ($0.20 cache read, $2.50 cache write) for cross-OS HF board parity."

@@ -25,7 +25,7 @@
 <path d="M268 151H311.8Q314.8 151 314.8 154V158Q314.8 161 311.8 161H268Z" class="s0"/>
 <text x="320.8" y="160.5" class="t" font-size="11.5">36.5 s</text>
 <path d="M424 151H454.5Q457.5 151 457.5 154V158Q457.5 161 454.5 161H424Z" class="s0"/>
-<text x="463.5" y="160.5" class="t" font-size="11.5">8</text>
+<text x="463.5" y="160.5" class="t" font-size="11.5">8.0</text>
 <path d="M570 151H583.1Q586.1 151 586.1 154V158Q586.1 161 583.1 161H570Z" class="s0"/>
 <text x="592.1" y="160.5" class="t" font-size="11.5">184k</text>
 <path d="M726 151H749.1Q752.1 151 752.1 154V158Q752.1 161 749.1 161H726Z" class="s0"/>
@@ -37,7 +37,7 @@
 <path d="M268 190H304.2Q307.2 190 307.2 193V197Q307.2 200 304.2 200H268Z" class="s1"/>
 <text x="313.2" y="199.5" class="t" font-size="11.5">30.7 s</text>
 <path d="M424 190H496.3Q499.3 190 499.3 193V197Q499.3 200 496.3 200H424Z" class="s1"/>
-<text x="505.3" y="199.5" class="t" font-size="11.5">18</text>
+<text x="505.3" y="199.5" class="t" font-size="11.5">18.0</text>
 <path d="M570 190H651.4Q654.4 190 654.4 193V197Q654.4 200 651.4 200H570Z" class="s1"/>
 <text x="660.4" y="199.5" class="t" font-size="11.5">968k</text>
 <path d="M726 190H797.7Q800.7 190 800.7 193V197Q800.7 200 797.7 200H726Z" class="s1"/>
@@ -52,5 +52,5 @@
 <path d="M726 215H784.9Q787.9 215 787.9 218V222Q787.9 225 784.9 225H726Z" class="s1"/>
 <text x="793.9" y="224.5" class="t" font-size="11.5">$0.158</text>
 <line x1="24" y1="240" x2="856" y2="240" class="grid"/>
-<text x="24" y="264" class="m" font-size="11">Total 70-trial cost: Sonnet 5.5 $3.73 vs $15.85 (4.3×) · GPT-6.2 Sol $4.83 vs $12.31 (2.5×).</text>
+<text x="24" y="264" class="m" font-size="10.8">Recorded 70-trial totals: Sonnet 5.5 $3.73 vs $15.85 (4.3×) · GPT-6.2 Sol $4.83 vs $12.31 (2.5×, 7 Cua runs partial).</text>
 </svg>

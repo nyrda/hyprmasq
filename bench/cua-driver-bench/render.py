@@ -86,7 +86,7 @@ BG_ORDER = [
 # Costs use Scale AI export.py's cost_usd column ($0.20/M cache read, $2.50/M cache write).
 HF_DATASET_SHA = "ca3d569ef93c1987f75bf00663e3114c0ed601ac"
 HF_BOARD_60 = [
-    ("macOS · Aside 1.26.1111", "HF board #1 · EC2", "s6", False, 60, 25, 25, 15.622, 0.057950),
+    ("macOS · Aside 1.26.1111.1046", "Sonnet #1 · EC2", "s6", False, 60, 25, 25, 15.622, 0.057950),
     ("macOS · Cua Driver 0.47.10", "HF board · EC2", "s1", False, 52, 17, 22, 20.032, 0.134250),
     ("Omarchy · Cua Driver 0.47.4", "HF board · EC2", "s1", False, 52, 18, 22, 30.187, 0.245150),
     ("Windows · Cua Driver 0.38.0", "HF board · EC2", "s1", False, 44, 11, 11, 21.798, 0.284550),
@@ -270,10 +270,16 @@ def render_scorecard(data: dict[str, dict], theme_name: str) -> str:
                 b.append(f'<text x="{nfmt(x_cost)}" y="{cy + 4}" class="t" font-size="12.5" text-anchor="middle">{dt:.1f}×</text>')
 
     b.append(f'<line x1="24" y1="{y_grid_bot}" x2="856" y2="{y_grid_bot}" class="grid"/>')
+    hm_s_n = len(data["hm_sonnet"]["trials"])
+    hm_g_n = len(data["hm_sol"]["trials"])
+    cua_s_n = len(data["cua_sonnet"]["trials"])
+    cua_g_n = len(data["cua_sol"]["trials"])
     hm_s_all = sum(t["passed"] for t in data["hm_sonnet"]["trials"])
     hm_g_all = sum(t["passed"] for t in data["hm_sol"]["trials"])
     cua_s_all = sum(t["passed"] for t in data["cua_sonnet"]["trials"])
     cua_g_all = sum(t["passed"] for t in data["cua_sol"]["trials"])
+    hm_bg_n = sum(1 for k in ("hm_sonnet", "hm_sol") for t in data[k]["trials"] if t["condition"] == "background")
+    cua_bg_n = sum(1 for k in ("cua_sonnet", "cua_sol") for t in data[k]["trials"] if t["condition"] == "background")
     hm_a22 = sum(
         1
         for k in ("hm_sonnet", "hm_sol")
@@ -288,8 +294,8 @@ def render_scorecard(data: dict[str, dict], theme_name: str) -> str:
     )
     b.append(
         f'<text x="24" y="{y_grid_bot + 24}" class="m" font-size="10.8">'
-        f'All 70 trials: hyprmasq {hm_s_all}/70 and {hm_g_all}/70 vs Cua Driver {cua_s_all}/70 and {cua_g_all}/70. '
-        f'A22 undisturbed (bg): hyprmasq {hm_a22}/70, Cua Driver {cua_a22}/70.'
+        f'All {hm_s_n} trials: hyprmasq {hm_s_all}/{hm_s_n} and {hm_g_all}/{hm_g_n} vs Cua Driver {cua_s_all}/{cua_s_n} and {cua_g_all}/{cua_g_n}. '
+        f'A22 undisturbed (bg): hyprmasq {hm_a22}/{hm_bg_n}, Cua Driver {cua_a22}/{cua_bg_n}.'
         f"</text>"
     )
     return svg_wrap(height, theme_name, alt, b)
@@ -352,7 +358,7 @@ def render_tasks(data: dict[str, dict], theme_name: str) -> str:
     b.append(f'<rect x="104" y="{y_leg - 9}" width="11" height="10" class="s7" rx="2"/>')
     b.append(f'<text x="121" y="{y_leg}" class="t2" font-size="11.5">Background driver gap / A22 disturbance</text>')
     b.append(f'<rect x="378" y="{y_leg - 9}" width="11" height="10" class="s6" rx="2"/>')
-    b.append(f'<text x="395" y="{y_leg}" class="t2" font-size="11.5">Other failure (drag lock, AT-SPI, double action)</text>')
+    b.append(f'<text x="395" y="{y_leg}" class="t2" font-size="11.5">Other failure (drag lock, AT-SPI, double/missed action)</text>')
 
     sq = 8.0
     step = 9.5
@@ -432,7 +438,7 @@ def render_usage(data: dict[str, dict], theme_name: str) -> str:
     )
     cols = [
         ("Wall time", 268.0, 96.0, 75.0, lambda tr: med([t["wall_seconds"] for t in tr]), lambda v: f"{v:.1f} s"),
-        ("Tool calls", 424.0, 92.0, 22.0, lambda tr: med([t["tool_calls"] for t in tr]), lambda v: f"{v:.1f}" if v != int(v) else f"{int(v)}"),
+        ("Tool calls", 424.0, 92.0, 22.0, lambda tr: med([t["tool_calls"] for t in tr]), lambda v: f"{v:.1f}"),
         ("Input tokens", 570.0, 96.0, 1100.0, lambda tr: med([t["input_tokens"] for t in tr]) / 1000.0, lambda v: f"{v:.0f}k"),
         ("Cost per trial", 726.0, 86.0, 0.22, lambda tr: med([t["cost_usd"] for t in tr]), lambda v: f"${v:.3f}"),
     ]
@@ -479,9 +485,9 @@ def render_usage(data: dict[str, dict], theme_name: str) -> str:
     hm_g_tot = sum(t["cost_usd"] for t in data["hm_sol"]["trials"])
     cua_g_tot = sum(t["cost_usd"] for t in data["cua_sol"]["trials"])
     b.append(
-        f'<text x="24" y="{y_bot + 24}" class="m" font-size="11">'
-        f'Total 70-trial cost: Sonnet 5.5 ${hm_s_tot:.2f} vs ${cua_s_tot:.2f} ({cua_s_tot / hm_s_tot:.1f}×) · '
-        f'GPT-6.2 Sol ${hm_g_tot:.2f} vs ${cua_g_tot:.2f} ({cua_g_tot / hm_g_tot:.1f}×).'
+        f'<text x="24" y="{y_bot + 24}" class="m" font-size="10.8">'
+        f'Recorded 70-trial totals: Sonnet 5.5 ${hm_s_tot:.2f} vs ${cua_s_tot:.2f} ({cua_s_tot / hm_s_tot:.1f}×) · '
+        f'GPT-6.2 Sol ${hm_g_tot:.2f} vs ${cua_g_tot:.2f} ({cua_g_tot / hm_g_tot:.1f}×, 7 Cua runs partial).'
         f"</text>"
     )
     return svg_wrap(height, theme_name, alt, b)
@@ -491,8 +497,8 @@ def render_cross_os(data: dict[str, dict], theme_name: str) -> str:
     alt = (
         "Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: "
         "local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI's "
-        "published Hugging Face board for macOS, Omarchy, Windows and Ubuntu, comparing "
-        "total passed, background passed, A22 user-undisturbed, median wall time and Scale export.py median cost."
+        "published Hugging Face board (Aside and Cua Driver), comparing total passed, "
+        "background passed, A22 user-undisturbed, median agent_window_s and Scale export.py median cost."
     )
 
     def local_row(label: str, cls: str, key: str) -> tuple:
@@ -501,7 +507,7 @@ def render_cross_os(data: dict[str, dict], theme_name: str) -> str:
         passed = sum(t["passed"] for t in std)
         bg_p = sum(t["passed"] for t in bg)
         undist = sum(1 for t in bg if t["user_undisturbed"])
-        wall = med([t["wall_seconds"] for t in std])
+        wall = med([t.get("agent_window_s", t["wall_seconds"]) for t in std])
         cost_key = "cost_usd_scale_export" if "cost_usd_scale_export" in std[0] else "cost_usd"
         cost = med([t[cost_key] for t in std])
         return (label, "this run · KVM", cls, True, passed, bg_p, undist, wall, cost)
@@ -516,7 +522,7 @@ def render_cross_os(data: dict[str, dict], theme_name: str) -> str:
     x_pass, w_pass = 248.0, 68.0
     x_bg, w_bg = 378.0, 58.0
     x_a22, w_a22 = 496.0, 54.0
-    x_wall, w_wall, max_wall = 612.0, 62.0, 34.0
+    x_wall, w_wall, max_wall = 612.0, 62.0, 35.0
     x_cost, w_cost, max_cost = 738.0, 64.0, 0.31
 
     y_hdr = 98
@@ -528,7 +534,7 @@ def render_cross_os(data: dict[str, dict], theme_name: str) -> str:
 
     b: list[str] = []
     b.append('<text x="24" y="34" class="t" font-size="15" font-weight="600">Across operating systems · Claude Sonnet 5.5 (same 60 BenchLab trials)</text>')
-    b.append('<text x="24" y="53" class="t2" font-size="12.5">Local Omarchy runs beside Scale AI&#x27;s published Hugging Face board (35 foreground + 25 standard background).</text>')
+    b.append('<text x="24" y="53" class="t2" font-size="12.5">Local Omarchy runs beside Scale AI&#x27;s published Hugging Face board (Aside and Cua Driver, 35 fg + 25 bg).</text>')
     b.append('<text x="24" y="72" class="t2" font-size="12.5">Longer bars are better on the left three columns, while shorter bars are faster and cheaper on the right two.</text>')
 
     b.append(f'<text x="{nfmt(x_pass)}" y="{y_hdr}" class="t2" font-size="12" font-weight="600">Passed</text>')
@@ -537,8 +543,8 @@ def render_cross_os(data: dict[str, dict], theme_name: str) -> str:
     b.append(f'<text x="{nfmt(x_bg)}" y="{y_sub}" class="m" font-size="10.2">of 25</text>')
     b.append(f'<text x="{nfmt(x_a22)}" y="{y_hdr}" class="t2" font-size="12" font-weight="600">Undisturbed</text>')
     b.append(f'<text x="{nfmt(x_a22)}" y="{y_sub}" class="m" font-size="10.2">A22 of 25</text>')
-    b.append(f'<text x="{nfmt(x_wall)}" y="{y_hdr}" class="t2" font-size="12" font-weight="600">Median wall</text>')
-    b.append(f'<text x="{nfmt(x_wall)}" y="{y_sub}" class="m" font-size="10.2">s (approx)</text>')
+    b.append(f'<text x="{nfmt(x_wall)}" y="{y_hdr}" class="t2" font-size="12" font-weight="600">Agent window</text>')
+    b.append(f'<text x="{nfmt(x_wall)}" y="{y_sub}" class="m" font-size="10.2">median s</text>')
     b.append(f'<text x="{nfmt(x_cost)}" y="{y_hdr}" class="t2" font-size="12" font-weight="600">Median cost</text>')
     b.append(f'<text x="{nfmt(x_cost)}" y="{y_sub}" class="m" font-size="10.2">export.py</text>')
 
@@ -577,8 +583,8 @@ def render_cross_os(data: dict[str, dict], theme_name: str) -> str:
     b.append(f'<line x1="24" y1="{y_bot}" x2="856" y2="{y_bot}" class="grid"/>')
     b.append(
         f'<text x="24" y="{y_bot + 24}" class="m" font-size="10.4">'
-        f'HF rows (parquet {HF_DATASET_SHA[:8]}) use agent_window_s on EC2. Local rows use prompt_agent wall time on KVM. '
-        f'Costs use Scale export.py ($0.20/M read).'
+        f'All rows use agent_window_s and Scale export.py costs ($0.20/M read). '
+        f'HF rows ran on EC2 (parquet {HF_DATASET_SHA[:8]}), local rows on KVM.'
         f"</text>"
     )
     return svg_wrap(height, theme_name, alt, b)

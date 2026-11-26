@@ -83,7 +83,7 @@ including the Go tests with `-short`, and the flake checks `mcp-tests` (all Go
 tests), `format` (clang-format and gofmt), `vm-test-docs` (the VM test's
 subtest tables) and `bench-calc` (the Calc checker). It runs the other bench
 unit tests above and checks `docs/benchmarks.md`, `docs/comparison.md` and the comparison's two other pages
-against their data with `bench/render.py --check`. It caches the Nix store
+against their data with `bench/render.py --check`, and the CuaDriverBench figures with `bench/cua-driver-bench/render.py --check`. It caches the Nix store
 between runs, so a check whose inputs did not change is not built again. CI
 does not run `go test -race`. `.github/workflows/aur.yml` builds the prebuilt plugins and tools and the AUR packages on PRs that change the plugin, the tools, the MCP server or the packaging, and publishes them on release tags and every hour. The test gate, `./dev.sh gate`, is local; CI does not run it. Before opening a PR, run it on the commit you push and fill
 in the test gate section of

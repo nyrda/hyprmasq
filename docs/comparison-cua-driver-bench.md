@@ -6,8 +6,10 @@ hyprmasq 0.5.1 beside [Cua Driver](https://github.com/trycua/cua) 0.62.1 inside 
 tasks `MB-09`–`MB-11` and `IR-01`–`IR-04` in foreground, plus `MB-09` and `IR-01`–`IR-04` in background, five seeds
 each) together with 10 author-added extended background trials (`MB-10` and `MB-11`, five seeds each) across two
 models: **Claude Sonnet 5.5** (`tools = "driver"` on both drivers, matching Scale AI's headline Omarchy setup) and
-**GPT-6.2 Sol** — 240 standard trials plus 40 extended trials (**280 trials total**), graded by trycua's evaluators,
-GUI-only checks and A22 user-undisturbed sentinel under Scale AI's upstream pass rule.
+**GPT-6.2 Sol** (`tools = "driver"` on hyprmasq, `tools` unset on Cua Driver, deviating from Scale AI's `--set
+...tools=driver` board setting — see [Method](#method)) — 240 standard trials plus 40 extended trials (**280 trials
+total**), graded by trycua's evaluators, GUI-only checks and A22 user-undisturbed sentinel under Scale AI's upstream
+pass rule.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison-cua-driver-bench/scorecard-dark.svg">
@@ -21,7 +23,7 @@ GUI-only checks and A22 user-undisturbed sentinel under Scale AI's upstream pass
 - **The user (A22 background isolation):** hyprmasq passed **70/70** background trials (**50/50** standard, **20/20**
   extended) with **70/70** undisturbed across all eight A22 criteria and 0 GUI-only violations in the tested
   `virtual_cursor = false` configuration. Cua Driver passed **39/70 (55.7 %)** background trials (**33/50** standard,
-  **6/20** extended), failed `MB-09` (`0/10`) and `MB-11` (`0/10`) on every background run, and disturbed the user in
+  **6/20** extended), passed `0/10` on `MB-09` background and `0/10` on `MB-11` background, and disturbed the user in
   **4/35** Sonnet background trials (`MB-11` r2–r4 and `IR-03` r3).
 - **Time and cost (provider API list prices):** on the standard 60-trial suite, Cua Driver took **1.7×** the median
   wall time on both models (`30.7 s` vs `18.4 s` Sonnet, `63.9 s` vs `38.5 s` Sol), **1.9–3.0×** the tool calls (`18.0`
@@ -29,9 +31,9 @@ GUI-only checks and A22 user-undisturbed sentinel under Scale AI's upstream pass
   `$0.069` Sol). Across all 70 trials, Cua Driver took **1.75–1.87×** the median wall time, **2.19–3.27×** the tool
   calls and **2.38–3.80×** the median cost.
 
-hyprmasq's author ran these trials locally with Scale AI's published harness and graders on unmodified `hyprmasq v0.5.1`.
-See [Method](#method) for setup effects, pricing, stopping rules, pre-turn retries and
-[all 280 trial records](../bench/cua-driver-bench/data).
+hyprmasq's author ran these trials locally on unmodified `hyprmasq v0.5.1` using Scale AI's published task definitions
+and graders with local OAuth subscription agent wrappers. See [Method](#method) for setup effects, pricing, stopping
+rules, pre-turn retries and [all 280 trial records](../bench/cua-driver-bench/data).
 
 ## What a run costs
 
@@ -41,9 +43,9 @@ See [Method](#method) for setup effects, pricing, stopping rules, pre-turn retri
 </picture>
 
 - **Cost (all 70 trials, provider list prices):** median `$0.050` Sonnet / `$0.067` Sol for hyprmasq (`$3.73` / `$4.83`
-  total) against `$0.191` / `$0.158` for Cua Driver (`$15.85` / `$12.31` total, **3.80×** / **2.38×** median, **4.25×**
-  / **2.55×** mean, and **3.08×** / **2.51×** paired geometric mean across common passed cells). On Claude Sonnet 5.5,
-  AgentEnv's default `ENABLE_TOOL_SEARCH=false` sends all 65 Cua tool schemas eagerly on every turn (see
+  total) against `$0.191` / `$0.158` for Cua Driver (`$15.85` / `$12.31` recorded total, **3.80×** / **2.38×** median,
+  **4.25×** / **2.55×** mean, and **3.08×** / **2.51×** paired geometric mean across common passed cells). On Claude
+  Sonnet 5.5, AgentEnv's default `ENABLE_TOOL_SEARCH=false` sends all 65 Cua tool schemas eagerly on every turn (see
   [Method](#method)).
 - **Wall time and tool calls:** `16.4 s` and `5.5` calls (Sonnet) or `36.5 s` and `8.0` calls (Sol) for hyprmasq
   (`18.4 s` / `38.5 s` on the standard 60 suite), against `30.7 s` / `18.0` calls (**1.87×** / **3.27×**, paired
@@ -56,7 +58,9 @@ See [Method](#method) for setup effects, pricing, stopping rules, pre-turn retri
 
 **Claude Sonnet 5.5 (`tools = "driver"` on both drivers, Anthropic API list prices)**
 
-| Driver | Suite | Passed | User undisturbed (A22) | Median wall s | Median calls | Median input | Median uncached | Median output | Median cost | Mean cost |
+`Median excl. read` sums base-rate input tokens and cache-write tokens (everything outside cache reads).
+
+| Driver | Suite | Passed | User undisturbed (A22) | Median wall s | Median calls | Median input | Median excl. read | Median output | Median cost | Mean cost |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | hyprmasq 0.5.1 | Foreground (35) | 35/35 (100.0%) | - | 14.4 | 5.0 | 91k | 9k | 728 | $0.050 | $0.054 |
 | hyprmasq 0.5.1 | Standard background (25) | 25/25 (100.0%) | 25/25 | 20.5 | 6.0 | 110k | 10k | 879 | $0.061 | $0.061 |
@@ -69,9 +73,9 @@ See [Method](#method) for setup effects, pricing, stopping rules, pre-turn retri
 | Cua Driver 0.62.1 | Extended background MB-10/11 (10) | 2/10 (20.0%) | 7/10 | 26.7 | 12.5 | 686k | 13k | 2,268 | $0.139 | $0.215 |
 | Cua Driver 0.62.1 | All trials (70) | 47/70 (67.1%) | 31/35 | 30.7 | 18.0 | 968k | 17k | 2,389 | $0.191 | $0.226 |
 
-**GPT-6.2 Sol (OpenAI API list prices)**
+**GPT-6.2 Sol (OpenAI API list prices, 7 Cua runs partial usage)**
 
-| Driver | Suite | Passed | User undisturbed (A22) | Median wall s | Median calls | Median input | Median uncached | Median output | Median cost | Mean cost |
+| Driver | Suite | Passed | User undisturbed (A22) | Median wall s | Median calls | Median input | Median excl. read | Median output | Median cost | Mean cost |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | hyprmasq 0.5.1 | Foreground (35) | 35/35 (100.0%) | - | 36.5 | 8.0 | 178k | 20k | 501 | $0.066 | $0.065 |
 | hyprmasq 0.5.1 | Standard background (25) | 25/25 (100.0%) | 25/25 | 40.5 | 10.0 | 219k | 23k | 561 | $0.071 | $0.078 |
@@ -96,14 +100,15 @@ See [Method](#method) for setup effects, pricing, stopping rules, pre-turn retri
 - **Background pointer tasks:** hyprmasq passed `10/10` on `MB-09` (Wayland drag-and-drop), `10/10` on `MB-10` (hover
   overlay) and `10/10` on `MB-11` (native tooltip) without touching the user's focus or pointer. Upstream omits `MB-10`
   and `MB-11` from background mode because native hover and tooltip interactions normally rely on the shared pointer. In
-  practice Cua Driver passed `6/10` on `MB-10` background undisturbed via synthetic hover and AT-SPI, while failing
+  practice Cua Driver passed `6/10` on `MB-10` background undisturbed via synthetic hover and AT-SPI, while passing
   `0/10` on `MB-11` background because GTK3 popup tooltips do not appear in its background capture.
 - **Foreground:** hyprmasq passed `35/35` on both models, while Cua Driver passed `29/35` on Sonnet 5.5 (failing
   `MB-09`, `IR-01` and `MB-11`) and `31/35` on GPT-6.2 Sol (failing `IR-04` four times, with two `IR-02` passes also
   hitting Codex's 45-tool-call cap after completing the task).
 - **Wall time:** `wall_seconds` is quantized in ~`2.0 s` polling steps. On Sonnet 5.5, hyprmasq was faster in 12 of 14
-  task-condition cells (`10.6–26.5 s`) and tied within polling resolution on `IR-02` (`16.4 s` vs `16.6 s`) and `IR-04`
-  (`24.4 s` vs `24.5 s`) background. On GPT-6.2 Sol, hyprmasq was faster in all 14 cells (`18.7–50.6 s`).
+  task-condition cells (`10.6–26.5 s`, with `MB-10` foreground and background each ahead by one ~`2 s` step) and tied
+  within polling resolution on `IR-02` (`16.4 s` vs `16.6 s`) and `IR-04` (`24.4 s` vs `24.5 s`) background. On GPT-6.2
+  Sol, hyprmasq was faster in all 14 cells (`18.7–50.6 s`).
 
 <details><summary>Numbers: Claude Sonnet 5.5</summary>
 
@@ -164,13 +169,14 @@ criteria and final message live in [bench/cua-driver-bench/data](../bench/cua-dr
 
 <details><summary>All 41 failures by task</summary>
 
-- **`MB-09` background (0/10 across both models, Wayland background drag limitation):** Every trial passed
-  `hyprctl cua:status` (`configured`, `abi.match`, `transport.ready`) before starting, yet every background drag on both
-  Sonnet 5.5 (`0/5`) and GPT-6.2 Sol (`0/5`) started GTK3 drags (`drag_begins: 1` to `9`) and dropped **zero** rows
-  (`move_count: 0`). On Sonnet `r3`, manual press-and-hold also reported `"no native Wayland toplevel"` and missing
-  multi-pointer socket support. Both models kept the user undisturbed and reported `BLOCKED` on all 10 trials. Scale
-  AI's Omarchy notes for Cua Driver 0.47.4 reported the same `MB-09` background failure, and it remains unresolved in
-  `0.62.1`. hyprmasq runs Wayland `wl_data_device` drag-and-drop privately inside unfocused windows and passed `10/10`.
+- **`MB-09` background (0/10 across both models, Wayland background drag limitation):** Cua Driver's adapter enforces a
+  `hyprctl cua:status` readiness gate (`configured`, `abi.match`, `transport.ready` in `hyprland.py`) before each trial
+  starts, yet every background drag on both Sonnet 5.5 (`0/5`) and GPT-6.2 Sol (`0/5`) started GTK3 drags
+  (`drag_begins: 1` to `9`) and dropped **zero** rows (`move_count: 0`). On Sonnet `r3`, manual press-and-hold also
+  reported `"no native Wayland toplevel"` and missing multi-pointer socket support. Both models kept the user
+  undisturbed and reported `BLOCKED` on all 10 trials. Scale AI's Omarchy notes for Cua Driver 0.47.4 reported the same
+  `MB-09` background failure, and it remains unresolved in `0.62.1`. hyprmasq runs Wayland `wl_data_device`
+  drag-and-drop privately inside unfocused windows and passed `10/10`.
 - **`MB-11` background (0/10 across both models, popup tooltip capture limitation):** GTK3 draws tooltips on separate
   popup surfaces that Cua Driver's Hyprland background capture does not composite, and BenchLab's dynamic
   `query-tooltip` text is absent from the static AT-SPI tree. With GPT-6.2 Sol, all five trials hit Codex's
@@ -207,37 +213,40 @@ criteria and final message live in [bench/cua-driver-bench/data](../bench/cua-dr
 ## Across operating systems
 
 Filtering Scale AI's published Hugging Face dataset (`earakely-scale/CuaDriverBench-AgentEnv`, commit `ca3d569e`,
-`results/trials.parquet`) to `on_board = true` and the exact same 60 BenchLab trials with Claude Sonnet 5.5 puts these
-local Omarchy runs beside every OS on Scale AI's board.
+`results/trials.parquet`) to `on_board = true`, `driver in ("aside", "cua-driver")` and the exact same 60 BenchLab
+trials with Claude Sonnet 5.5 sets these local Omarchy runs beside Aside and Cua Driver across all four OSes on Scale
+AI's board. The six omitted Sonnet 5.5 setups (`agent-desktop`, `codex-computer-use` and `macos-harness`) all score at
+or below `43/60` on these 60 trials.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison-cua-driver-bench/cross-os-dark.svg">
-  <img alt="Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI's published Hugging Face board for macOS, Omarchy, Windows and Ubuntu, comparing total passed, background passed, A22 user-undisturbed, median wall time and Scale export.py median cost." src="comparison-cua-driver-bench/cross-os.svg">
+  <img alt="Claude Sonnet 5.5 on the same 60 BenchLab trials across operating systems: local Omarchy runs for hyprmasq 0.5.1 and Cua Driver 0.62.1 beside Scale AI's published Hugging Face board (Aside and Cua Driver), comparing total passed, background passed, A22 user-undisturbed, median agent_window_s and Scale export.py median cost." src="comparison-cua-driver-bench/cross-os.svg">
 </picture>
 
-- **Pass rate and isolation:** on the 60 shared trials, hyprmasq 0.5.1 matches the #1 published setup (`macOS · Aside
-  Computer Use 1.26.1111`, which scored `87/90` on its full macOS suite) at **60/60** passed, **25/25** background and
-  **25/25** undisturbed, while also passing **10/10** on Sonnet `MB-10` and `MB-11` background.
-- **Speed, calls and cost:** both tie at **6.0** median tool calls. Aside is faster (`15.6 s` EC2 `agent_window_s` vs
-  `18.4 s` local KVM `prompt_agent` wall time, approximate across hosts and timing definitions), while hyprmasq is
-  cheaper under Scale AI's uniform `export.py` pricing (`$0.050` median / `$0.054` mean vs `$0.058` / `$0.062`, with
-  Cua Driver costing **2.7–5.7×** as much at the median across macOS, Omarchy, Windows and Ubuntu).
+- **Pass rate and isolation:** on the 60 shared trials, hyprmasq 0.5.1 matches the top Sonnet 5.5 board setup
+  (`macOS · Aside Computer Use 1.26.1111.1046`, `87/90` on its full macOS suite — Aside with Opus 5.5 is `#1` overall
+  at `88/90`) at **60/60** passed, **25/25** background and **25/25** undisturbed, while also passing **10/10** on
+  Sonnet `MB-10` and `MB-11` background.
+- **Speed, calls and cost:** both tie at **6.0** median tool calls. Using the same `agent_window_s` clock across all
+  seven rows, Aside is faster (`15.6 s` on EC2 vs `19.7 s` for hyprmasq on local KVM, approximate across hosts), while
+  hyprmasq is cheaper under Scale AI's uniform `export.py` pricing (`$0.050` median / `$0.054` mean vs `$0.058` /
+  `$0.062`, with Cua Driver costing **2.7–5.7×** as much at the median across macOS, Omarchy, Windows and Ubuntu).
 - **Scope note:** macOS, Windows and Ubuntu Linux also run three multi-app tasks (`G02`–`G04`) not yet ported to
   Omarchy, and Scale AI's published runs ran on EC2 hosts with earlier driver versions.
 
 <details><summary>Numbers: across operating systems (60 BenchLab trials)</summary>
 
-All five HF board rows use `agent_window_s` uniformly on EC2 (`results/trials.parquet`, commit `ca3d569e`). Both local
-Omarchy rows use `prompt_agent` wall time on KVM. All seven rows use Scale AI's `export.py` `cost_usd` formula
-(`$0.20/M` cache reads, `$2.50/M` cache writes) so the cost column is apples-to-apples across the board.
+All seven rows use the same sentinel `agent_window_s` clock (`results/trials.parquet`, commit `ca3d569e` on EC2 for HF
+rows, local KVM sentinel logs for this run) and Scale AI's `export.py` `cost_usd` formula (`$0.20/M` cache reads,
+`$2.50/M` cache writes) so the cost column is apples-to-apples across the board.
 
-| Setup (Claude Sonnet 5.5, same 60 BenchLab trials) | FG (of 35) | BG (of 25) | Undisturbed | Median wall s | Median calls | Mean cost (`export.py`) | Median cost (`export.py`) |
+| Setup (Claude Sonnet 5.5, same 60 BenchLab trials) | FG (of 35) | BG (of 25) | Undisturbed | Median `agent_window_s` | Median calls | Mean cost (`export.py`) | Median cost (`export.py`) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| macOS · Aside Computer Use `1.26.1111` *(HF board #1)* | **35/35** | **25/25** | **25/25** | **15.6 s** | **6.0** | $0.062 | $0.058 |
-| **Omarchy · hyprmasq 0.5.1** *(this run)* | **35/35** | **25/25** | **25/25** | 18.4 s | **6.0** | **$0.054** | **$0.050** |
+| macOS · Aside Computer Use `1.26.1111.1046` *(Sonnet #1)* | **35/35** | **25/25** | **25/25** | **15.6 s** | **6.0** | $0.062 | $0.058 |
+| **Omarchy · hyprmasq 0.5.1** *(this run)* | **35/35** | **25/25** | **25/25** | 19.7 s | **6.0** | **$0.054** | **$0.050** |
 | macOS · Cua Driver `0.47.10` *(HF board)* | **35/35** | 17/25 | 22/25 | 20.0 s | 8.0 | $0.154 | $0.134 |
 | Omarchy · Cua Driver `0.47.4` *(HF board)* | 34/35 | 18/25 | 22/25 | 30.2 s | 18.0 | $0.276 | $0.245 |
-| **Omarchy · Cua Driver 0.62.1** *(this run)* | 29/35 | 16/25 | 24/25 | 30.7 s | 18.0 | $0.317 | $0.258 |
+| **Omarchy · Cua Driver 0.62.1** *(this run)* | 29/35 | 16/25 | 24/25 | 32.4 s | 18.0 | $0.317 | $0.258 |
 | Windows · Cua Driver `0.38.0` *(HF board)* | 33/35 | 11/25 | 11/25 | 21.8 s | 8.0 | $0.281 | $0.285 |
 | Ubuntu Linux · Cua Driver `0.38.0` *(HF board)* | **35/35** | 5/25 | 9/25 | 27.3 s | 14.0 | $0.259 | $0.243 |
 
@@ -253,22 +262,26 @@ retries are folded below.
 
 - **No BenchLab tuning:** `hyprmasq v0.5.1` was compiled directly from its published release tarball and run unmodified
   with no task-specific logic in `driver.py`.
+- **Subscription agent wrappers and Codex version:** Local runs used local OAuth subscription wrappers (`claude-sub`
+  for Claude Code `2.1.322` and `codex-sub` for Codex CLI `0.171.0`, bumping the framework's pinned `0.162.1` CLI)
+  while keeping Scale AI's verbatim task prompts, system prompts, graders and `ENABLE_TOOL_SEARCH=false` default.
 - **`ENABLE_TOOL_SEARCH=false` on Claude Sonnet 5.5:** Scale AI's `agentenv-framework` sets
   `ENABLE_TOOL_SEARCH=false` by default in `claude_bridge.py`, so Claude Code sends every MCP tool schema eagerly on
-  every turn. On Sonnet 5.5, median `input_tokens / model_calls` was `41.4k` for Cua Driver's 65-tool manifest vs
-  `10.8k` for hyprmasq's 6 tools (`3.85×`), compared with `28.9k` vs `16.9k` (`1.71×`) on Codex/Sol where tool loading
-  is deferred. See [comparison.md](comparison.md#deferred-tool-loading-toolsearch) for a 384-run `ToolSearch` control
-  measuring eager vs deferred schemas on Cua Driver.
-- **`tools = "driver"` on Sonnet 5.5 vs stock `tools` on GPT-6.2 Sol:** On Sonnet 5.5, both drivers ran with
-  `tools = "driver"` (`0` `computer_*` calls on either driver). On GPT-6.2 Sol, hyprmasq ran with `tools = "driver"` (6
-  tools) while Cua Driver 0.62.1 kept `tools` unset in `desktop-benchlab-omarchy-cua-latest/env.toml` (matching stock
-  `desktop-benchlab-omarchy/env.toml`). Auditing the 70 local Sol trajectories showed **0 `computer_*` calls across all
-  35 background trials (739 calls)** and **57 `computer_*` calls across 18 of 35 foreground trials (9.5 % of 598
-  foreground calls, 4.3 % of 1,337 total calls)**: `computer_screenshot` (32), `computer_drag` (15, used on all five
-  `MB-09` foreground passes) and `computer_click` (10). All four `IR-04` foreground failures and both 45-call `IR-02`
-  foreground passes also invoked `computer_*` tools (1–5 calls each). Because there is no Cua Sol `tools = "driver"`
-  control arm, this is reported as an observation without causal claims. The published JSON stores per-trial totals in
-  `computer_tool_calls`.
+  every turn. Counting distinct `message.id` turns (matching `export.py`), median `input_tokens / model_calls` on
+  Sonnet 5.5 was `69.0k` for Cua Driver's 65-tool manifest vs `15.2k` for hyprmasq's 6 driver tools (`4.54×`),
+  compared with `28.9k` vs `16.9k` (`1.71×`) on Codex/Sol where tool loading is deferred. See
+  [comparison.md](comparison.md#deferred-tool-loading-toolsearch) for a 384-run `ToolSearch` control measuring eager vs
+  deferred schemas on Cua Driver.
+- **`tools = "driver"` on Sonnet 5.5 vs `tools` unset on Cua Driver GPT-6.2 Sol:** On Sonnet 5.5, both drivers ran
+  with `tools = "driver"` (`0` `computer_*` calls on either driver). On GPT-6.2 Sol, hyprmasq ran with
+  `tools = "driver"` while Cua Driver 0.62.1 left `tools` unset in `desktop-benchlab-omarchy-cua-latest/env.toml`
+  (deviating from Scale AI's board, which passes `--set envs/<computer>.tools=driver` on Linux). Auditing the 70 local
+  Sol trajectories showed **0 `computer_*` calls across all 35 background trials (739 calls)** and **57 `computer_*`
+  calls across 18 of 35 foreground trials (9.5 % of 598 foreground calls, 4.3 % of 1,337 total calls)**:
+  `computer_screenshot` (32), `computer_drag` (15, used on all five `MB-09` foreground passes) and `computer_click`
+  (10). All four `IR-04` foreground failures and both 45-call `IR-02` foreground passes also invoked `computer_*` tools
+  (1–5 calls each). Because there is no Cua Sol `tools = "driver"` control arm, this is reported as an observation
+  without causal claims. The published JSON stores per-trial totals in `computer_tool_calls`.
 - **`virtual_cursor = false` (non-default):** hyprmasq's plugin default is `virtual_cursor = true` (see
   [automation.md](automation.md)). The benchmark drop-in sets `virtual_cursor = false` so hyprmasq does not draw a
   software cursor icon or click ripple over windows, and `place_new_windows = true` (already the default). The `70/70`
@@ -289,8 +302,8 @@ retries are folded below.
   task and the same 35 task seeds are reused across foreground and background, so treat them as descriptive of this
   suite.
 - **Local KVM host vs EC2:** Both local sweeps ran on the same Linux host (two concurrent KVM VMs per sweep). Scale
-  AI's published Hugging Face runs ran on EC2 hosts with earlier driver releases and record `agent_window_s`, so
-  cross-board wall times are only approximate.
+  AI's published Hugging Face runs ran on EC2 hosts with earlier driver releases, so cross-board `agent_window_s`
+  comparisons remain approximate across hosts.
 
 </details>
 
@@ -299,27 +312,32 @@ retries are folded below.
 - **VM and compositor:** Scale AI's `agentenv-cua-driver-bench` bundle (commit
   `f6bf21798c76f5d0f01f22c586d17e1c2386f29b`, trycua taskpack commit `69b459b33ca0`, `agentenv-framework==0.9.1649`),
   Omarchy 4.5.0 base image under KVM (`1920×1080`, Hyprland `0.56.2-1`).
-- **Claude Sonnet 5.5:** Claude Code `2.1.322`, `builtin_tools: {"only": ["Skill", "Read"]}`, default effort,
-  `ENABLE_TOOL_SEARCH=false` (AgentEnv default), verbatim `tasks/omarchy-*.json` system prompt and briefs, 360 s
-  timeout and 45-turn cap.
-- **GPT-6.2 Sol:** Codex CLI `0.171.0`, `builtin_tools: {"disable": "*"}`, `medium` reasoning effort, verbatim Linux
-  system prompt and briefs, 360 s timeout and 45-tool-call cap.
+- **Claude Sonnet 5.5:** Claude Code `2.1.322` (via local `claude-sub` OAuth wrapper), `builtin_tools: {"only":
+  ["Skill", "Read"]}`, default effort, `ENABLE_TOOL_SEARCH=false` (AgentEnv default), verbatim `tasks/omarchy-*.json`
+  system prompt and briefs, 360 s timeout and 45-turn cap.
+- **GPT-6.2 Sol:** Codex CLI `0.171.0` (via local `codex-sub` OAuth wrapper, bumping the framework's `0.162.1`),
+  `builtin_tools: {"disable": "*"}`, `medium` reasoning effort, verbatim Linux system prompt and briefs, 360 s timeout
+  and 45-tool-call cap.
 - **hyprmasq 0.5.1:** `hyprmasq.so` compiled from the verified `v0.5.1` source tarball against Omarchy's pinned
   `hyprland 0.56.2-1` headers (matching how the bundle compiles `cua-hyprland-plugin.so`), with prebuilt `v0.5.1` tools
   (`hyprmasq-input`, `hyprmasq-launch`, `hyprmasq-mcp`, `hyprmasq-reaper`), `virtual_cursor = false` and
-  `place_new_windows = true`. Under `tools = "driver"`, the agent sees only `hyprmasq-mcp`'s six tools (`windows`,
-  `screenshot`, `act`, `launch`, `release`, `close`).
+  `place_new_windows = true`. Under `tools = "driver"`, the agent receives only `hyprmasq-mcp`'s six driver tools
+  (`windows`, `screenshot`, `act`, `launch`, `release`, `close`) alongside the harness's built-in tools (`Read`,
+  `Skill` and six `mcp__peer_agents__*` tools on Claude Code, identical on both drivers).
 - **Cua Driver 0.62.1:** `cua-driver-rs-v0.62.1` and its matching `cua-hyprland-plugin 0.62.1` built with its official
   build kit against Omarchy's `hyprland 0.56.2-1`, exposing its live 65-tool / 11-resource MCP manifest. The upgrade
-  recipe lives in [bench/cua-driver-bench/cua-driver-0.62.1](../bench/cua-driver-bench/cua-driver-0.62.1).
+  overlay and `driver.patch` live in
+  [bench/cua-driver-bench/cua-driver-0.62.1](../bench/cua-driver-bench/cua-driver-0.62.1).
 
 </details>
 
 <details><summary>Timing, cost, retries and reproducibility</summary>
 
-- **Wall time:** `wall_seconds` measures the full `prompt_agent` step from prompt start to finish (including all model
-  turns, settle waits, captures, AT-SPI walks and input), quantized in ~`2.0 s` polling steps, excluding only
-  AgentEnv's fixed VM boot, snapshot and grading overhead.
+- **Wall time and `agent_window_s`:** `wall_seconds` measures the full `prompt_agent` step from prompt start to finish
+  (including all model turns, settle waits, captures, AT-SPI walks and input), quantized in ~`2.0 s` polling steps,
+  excluding only AgentEnv's fixed VM boot, snapshot and grading overhead. `agent_window_s` measures the sentinel's arm
+  to disarm interval (identical to Scale AI's `results/trials.parquet` column) and is used uniformly across all seven
+  rows of the cross-OS comparison.
 - **Cost:** All local tables, headlines, `scorecard.svg` and `usage.svg` use provider API list prices:
   - **Claude Sonnet 5.5:** `$2.00` uncached input, `$0.10` cache read, `$4.00` 1-hour cache write and `$10.00` output
     per million tokens (matching [bench/laptop/analyze.py](../bench/laptop/analyze.py) and Claude Code's
@@ -338,9 +356,10 @@ retries are folded below.
   other trial was retried, excluded or overridden.
 - **Reproducibility:** [bench/cua-driver-bench/README.md](../bench/cua-driver-bench/README.md) documents how to install
   both `hyprmasq 0.5.1` and the `cua-driver 0.62.1` upgrade overlay into `agentenv-cua-driver-bench` and run all four
-  sweeps. `python3 bench/cua-driver-bench/summarize.py` recomputes every table on this page from
-  [bench/cua-driver-bench/data](../bench/cua-driver-bench/data) and the pinned HF parquet snapshot, and
-  `python3 bench/cua-driver-bench/render.py --check` verifies all eight SVG figures.
+  sweeps. `python3 bench/cua-driver-bench/summarize.py` recomputes all local tables from
+  [bench/cua-driver-bench/data](../bench/cua-driver-bench/data) and formats the cross-OS table using embedded constants
+  extracted from the pinned HF parquet revision (`ca3d569e`), and `python3 bench/cua-driver-bench/render.py --check`
+  verifies all eight SVG figures.
 
 </details>
 

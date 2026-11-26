@@ -29,7 +29,7 @@
       "total_seconds": 174.67,
       "tool_calls": 46,
       "computer_tool_calls": 0,
-      "model_calls": 66,
+      "model_calls": 29,
       "input_tokens": 2227967,
       "cached_input_tokens": 2197669,
       "cache_write_tokens": 30240,
@@ -42,7 +42,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.59343
+      "cost_usd_scale_export": 0.59343,
+      "agent_window_s": 79.707
     },
     {
       "task": "MB-09",
@@ -63,7 +64,7 @@
       "total_seconds": 175.86,
       "tool_calls": 25,
       "computer_tool_calls": 0,
-      "model_calls": 38,
+      "model_calls": 21,
       "input_tokens": 1447290,
       "cached_input_tokens": 1432559,
       "cache_write_tokens": 14689,
@@ -112,7 +113,8 @@
         "done_count": 0
       },
       "assistant_final_text": "BLOCKED: I couldn't reorder the list. The first drag was posted but moved nothing, and every later input to BenchLab (drag, click, key press, bring-to-front) was refused as \"primary_target_busy\" or \"foreground_dnd\". The list is still in its original order, and I did not press Done.\n\nA second window, \"Bench Sentinel\", is open on the desktop. I left it alone because the task names only BenchLab.",
-      "cost_usd_scale_export": 0.364798
+      "cost_usd_scale_export": 0.364798,
+      "agent_window_s": 45.605
     },
     {
       "task": "MB-09",
@@ -133,7 +135,7 @@
       "total_seconds": 174.89,
       "tool_calls": 35,
       "computer_tool_calls": 0,
-      "model_calls": 51,
+      "model_calls": 21,
       "input_tokens": 1574326,
       "cached_input_tokens": 1547755,
       "cache_write_tokens": 26529,
@@ -182,7 +184,8 @@
         "done_count": 0
       },
       "assistant_final_text": "BLOCKED. The first drag was posted but didn't move anything, and it seems to have left the app stuck in a drag-and-drop state. Since then every click, key press and drag against BenchLab has been refused as `primary_target_busy`. Foreground attempts failed with `foreground_dnd`. I tried releasing the mouse button and pressing Escape, but neither cleared it.\n\nThe list is unchanged, still Test projector, Share notes, Print slides, Draft agenda, Update roster. I did not press Done, and BenchLab is still open.",
-      "cost_usd_scale_export": 0.433957
+      "cost_usd_scale_export": 0.433957,
+      "agent_window_s": 51.566
     },
     {
       "task": "MB-09",
@@ -203,7 +206,7 @@
       "total_seconds": 175.44,
       "tool_calls": 41,
       "computer_tool_calls": 0,
-      "model_calls": 60,
+      "model_calls": 27,
       "input_tokens": 2034316,
       "cached_input_tokens": 2006464,
       "cache_write_tokens": 27798,
@@ -216,7 +219,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.541056
+      "cost_usd_scale_export": 0.541056,
+      "agent_window_s": 84.643
     },
     {
       "task": "MB-09",
@@ -237,7 +241,7 @@
       "total_seconds": 176.68,
       "tool_calls": 31,
       "computer_tool_calls": 0,
-      "model_calls": 44,
+      "model_calls": 19,
       "input_tokens": 1372819,
       "cached_input_tokens": 1352436,
       "cache_write_tokens": 20345,
@@ -286,7 +290,8 @@
         "done_count": 0
       },
       "assistant_final_text": "BLOCKED: I couldn't reorder the list, and I did not press Done. My first drag was posted but moved nothing, and the list still reads Collect badges, Book room, Order lunch, Test projector, Archive files.\n\nAfter that, every drag, click and key press on BenchLab was refused with `primary_target_busy`. Bringing the window to the front failed with `foreground_dnd`, which suggests the compositor believes a drag-and-drop is still in progress. The driver reports no mouse button held, so I found nothing I could release. BenchLab is still open.",
-      "cost_usd_scale_export": 0.373856
+      "cost_usd_scale_export": 0.373856,
+      "agent_window_s": 54.894
     },
     {
       "task": "MB-10",
@@ -307,7 +312,7 @@
       "total_seconds": 175.5,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 6,
       "input_tokens": 389079,
       "cached_input_tokens": 380771,
       "cache_write_tokens": 8296,
@@ -320,7 +325,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.103938
+      "cost_usd_scale_export": 0.103938,
+      "agent_window_s": 11.31
     },
     {
       "task": "MB-10",
@@ -341,7 +347,7 @@
       "total_seconds": 172.85,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 6,
       "input_tokens": 389116,
       "cached_input_tokens": 384465,
       "cache_write_tokens": 4639,
@@ -354,7 +360,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.096225
+      "cost_usd_scale_export": 0.096225,
+      "agent_window_s": 16.805
     },
     {
       "task": "MB-10",
@@ -375,7 +382,7 @@
       "total_seconds": 171.47,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 7,
       "input_tokens": 453354,
       "cached_input_tokens": 445128,
       "cache_write_tokens": 8212,
@@ -388,7 +395,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.117554
+      "cost_usd_scale_export": 0.117554,
+      "agent_window_s": 16.321
     },
     {
       "task": "MB-10",
@@ -409,7 +417,7 @@
       "total_seconds": 225.0,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 5,
       "input_tokens": 323070,
       "cached_input_tokens": 318324,
       "cache_write_tokens": 4736,
@@ -422,7 +430,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.083765
+      "cost_usd_scale_export": 0.083765,
+      "agent_window_s": 13.469
     },
     {
       "task": "MB-10",
@@ -443,7 +452,7 @@
       "total_seconds": 225.2,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 5,
       "input_tokens": 323080,
       "cached_input_tokens": 314655,
       "cache_write_tokens": 8415,
@@ -456,7 +465,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.092078
+      "cost_usd_scale_export": 0.092078,
+      "agent_window_s": 13.512
     },
     {
       "task": "MB-11",
@@ -477,7 +487,7 @@
       "total_seconds": 259.77,
       "tool_calls": 15,
       "computer_tool_calls": 0,
-      "model_calls": 21,
+      "model_calls": 11,
       "input_tokens": 754588,
       "cached_input_tokens": 738873,
       "cache_write_tokens": 15693,
@@ -505,7 +515,8 @@
         }
       },
       "assistant_final_text": "I typed RF-2490 into the Code field and clicked Submit, but I clicked Submit twice, not once. The first click was an accident: I issued it in the same batch as the typing, so it fired with the field still empty. The second click came after the code was in the field. I never saw a confirmation or result from either click, so I can't tell whether the app accepted the code or counted the empty submission.\n\nRF-2490 was the tooltip text on the Flag icon. BenchLab is still open.\n\nDONE",
-      "cost_usd_scale_export": 0.207601
+      "cost_usd_scale_export": 0.207601,
+      "agent_window_s": 23.292
     },
     {
       "task": "MB-11",
@@ -526,7 +537,7 @@
       "total_seconds": 259.53,
       "tool_calls": 14,
       "computer_tool_calls": 0,
-      "model_calls": 20,
+      "model_calls": 13,
       "input_tokens": 916173,
       "cached_input_tokens": 897782,
       "cache_write_tokens": 18365,
@@ -539,7 +550,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.244031
+      "cost_usd_scale_export": 0.244031,
+      "agent_window_s": 25.441
     },
     {
       "task": "MB-11",
@@ -560,7 +572,7 @@
       "total_seconds": 197.46,
       "tool_calls": 14,
       "computer_tool_calls": 0,
-      "model_calls": 22,
+      "model_calls": 13,
       "input_tokens": 917613,
       "cached_input_tokens": 896519,
       "cache_write_tokens": 21068,
@@ -573,7 +585,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.253226
+      "cost_usd_scale_export": 0.253226,
+      "agent_window_s": 35.414
     },
     {
       "task": "MB-11",
@@ -594,7 +607,7 @@
       "total_seconds": 197.46,
       "tool_calls": 15,
       "computer_tool_calls": 0,
-      "model_calls": 21,
+      "model_calls": 14,
       "input_tokens": 979532,
       "cached_input_tokens": 962626,
       "cache_write_tokens": 16878,
@@ -607,7 +620,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.254866
+      "cost_usd_scale_export": 0.254866,
+      "agent_window_s": 31.675
     },
     {
       "task": "MB-11",
@@ -628,7 +642,7 @@
       "total_seconds": 173.47,
       "tool_calls": 16,
       "computer_tool_calls": 0,
-      "model_calls": 22,
+      "model_calls": 15,
       "input_tokens": 1037468,
       "cached_input_tokens": 1025429,
       "cache_write_tokens": 12009,
@@ -641,7 +655,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.255738
+      "cost_usd_scale_export": 0.255738,
+      "agent_window_s": 32.242
     },
     {
       "task": "IR-01",
@@ -662,7 +677,7 @@
       "total_seconds": 173.05,
       "tool_calls": 22,
       "computer_tool_calls": 0,
-      "model_calls": 28,
+      "model_calls": 17,
       "input_tokens": 1179657,
       "cached_input_tokens": 1163078,
       "cache_write_tokens": 16545,
@@ -675,7 +690,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.296936
+      "cost_usd_scale_export": 0.296936,
+      "agent_window_s": 34.172
     },
     {
       "task": "IR-01",
@@ -696,7 +712,7 @@
       "total_seconds": 171.42,
       "tool_calls": 38,
       "computer_tool_calls": 0,
-      "model_calls": 54,
+      "model_calls": 33,
       "input_tokens": 2472839,
       "cached_input_tokens": 2444280,
       "cache_write_tokens": 28493,
@@ -738,7 +754,8 @@
         }
       },
       "assistant_final_text": "I submitted the form once, but I can't confirm it went through, because BenchLab showed no change after I pressed Submit.\n\nI entered Lucas Moreau, lucas.moreau@example.com, Operations and 38 seats. A second Submit button appeared on the page, and I pressed only the first one. I checked the Bench Sentinel window for a result, but it was blank. I didn't press Submit again, to avoid a double submission.\n\nThe \"Allow BenchLab to access Contacts?\" dialog appeared, and a second copy of it showed up when I pressed Next an extra time. I clicked Don't Allow on both. I installed nothing, restarted nothing, and left BenchLab open.\n\nDONE",
-      "cost_usd_scale_export": 0.61236
+      "cost_usd_scale_export": 0.61236,
+      "agent_window_s": 68.389
     },
     {
       "task": "IR-01",
@@ -759,7 +776,7 @@
       "total_seconds": 171.81,
       "tool_calls": 24,
       "computer_tool_calls": 0,
-      "model_calls": 29,
+      "model_calls": 13,
       "input_tokens": 921149,
       "cached_input_tokens": 901335,
       "cache_write_tokens": 19788,
@@ -772,7 +789,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.258579
+      "cost_usd_scale_export": 0.258579,
+      "agent_window_s": 32.65
     },
     {
       "task": "IR-01",
@@ -793,7 +811,7 @@
       "total_seconds": 177.08,
       "tool_calls": 22,
       "computer_tool_calls": 0,
-      "model_calls": 33,
+      "model_calls": 17,
       "input_tokens": 1204172,
       "cached_input_tokens": 1183941,
       "cache_write_tokens": 20197,
@@ -835,7 +853,8 @@
         }
       },
       "assistant_final_text": "I filled in the form and pressed Submit once, but BenchLab never showed a confirmation, so I can't say whether the submission went through.\n\nAfter the click the window looked the same as before, with the Team and Seats fields still showing and no success message. The step-2 screen also showed two Submit buttons, and I pressed the first one only.\n\nWhat I entered:\n- **Full name:** Freya Johansson\n- **Work email:** freya.johansson@example.com\n- **Team:** Design. It already showed Design, so I didn't change it.\n- **Seats:** 26\n\nMy clicks on \"Next\" opened two \"Allow BenchLab to access Photos?\" dialogs. I chose \"Don't Allow\" on both, since the task doesn't need Photos access. BenchLab is still open.\n\nDONE",
-      "cost_usd_scale_export": 0.316929
+      "cost_usd_scale_export": 0.316929,
+      "agent_window_s": 37.301
     },
     {
       "task": "IR-01",
@@ -856,7 +875,7 @@
       "total_seconds": 177.1,
       "tool_calls": 25,
       "computer_tool_calls": 0,
-      "model_calls": 32,
+      "model_calls": 21,
       "input_tokens": 1496789,
       "cached_input_tokens": 1475969,
       "cache_write_tokens": 20778,
@@ -869,7 +888,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.374583
+      "cost_usd_scale_export": 0.374583,
+      "agent_window_s": 40.125
     },
     {
       "task": "IR-02",
@@ -890,7 +910,7 @@
       "total_seconds": 166.85,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 13,
+      "model_calls": 8,
       "input_tokens": 529389,
       "cached_input_tokens": 517547,
       "cache_write_tokens": 11826,
@@ -903,7 +923,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.146846
+      "cost_usd_scale_export": 0.146846,
+      "agent_window_s": 21.215
     },
     {
       "task": "IR-02",
@@ -924,7 +945,7 @@
       "total_seconds": 166.1,
       "tool_calls": 11,
       "computer_tool_calls": 0,
-      "model_calls": 17,
+      "model_calls": 10,
       "input_tokens": 670112,
       "cached_input_tokens": 656504,
       "cache_write_tokens": 13588,
@@ -937,7 +958,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.181311
+      "cost_usd_scale_export": 0.181311,
+      "agent_window_s": 24.929
     },
     {
       "task": "IR-02",
@@ -958,7 +980,7 @@
       "total_seconds": 185.03,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 14,
+      "model_calls": 9,
       "input_tokens": 598205,
       "cached_input_tokens": 586270,
       "cache_write_tokens": 11917,
@@ -971,7 +993,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.160153
+      "cost_usd_scale_export": 0.160153,
+      "agent_window_s": 21.331
     },
     {
       "task": "IR-02",
@@ -992,7 +1015,7 @@
       "total_seconds": 184.69,
       "tool_calls": 11,
       "computer_tool_calls": 0,
-      "model_calls": 16,
+      "model_calls": 11,
       "input_tokens": 732547,
       "cached_input_tokens": 720794,
       "cache_write_tokens": 11731,
@@ -1005,7 +1028,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.18619
+      "cost_usd_scale_export": 0.18619,
+      "agent_window_s": 22.477
     },
     {
       "task": "IR-02",
@@ -1026,7 +1050,7 @@
       "total_seconds": 190.45,
       "tool_calls": 9,
       "computer_tool_calls": 0,
-      "model_calls": 14,
+      "model_calls": 7,
       "input_tokens": 464792,
       "cached_input_tokens": 452516,
       "cache_write_tokens": 12262,
@@ -1039,7 +1063,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.133666
+      "cost_usd_scale_export": 0.133666,
+      "agent_window_s": 17.467
     },
     {
       "task": "IR-03",
@@ -1060,7 +1085,7 @@
       "total_seconds": 191.03,
       "tool_calls": 33,
       "computer_tool_calls": 0,
-      "model_calls": 49,
+      "model_calls": 33,
       "input_tokens": 2550449,
       "cached_input_tokens": 2518755,
       "cache_write_tokens": 31628,
@@ -1073,7 +1098,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.625913
+      "cost_usd_scale_export": 0.625913,
+      "agent_window_s": 85.969
     },
     {
       "task": "IR-03",
@@ -1094,7 +1120,7 @@
       "total_seconds": 193.51,
       "tool_calls": 35,
       "computer_tool_calls": 0,
-      "model_calls": 49,
+      "model_calls": 22,
       "input_tokens": 1639945,
       "cached_input_tokens": 1613667,
       "cache_write_tokens": 26234,
@@ -1107,7 +1133,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.429956
+      "cost_usd_scale_export": 0.429956,
+      "agent_window_s": 57.946
     },
     {
       "task": "IR-03",
@@ -1128,7 +1155,7 @@
       "total_seconds": 193.31,
       "tool_calls": 50,
       "computer_tool_calls": 0,
-      "model_calls": 78,
+      "model_calls": 32,
       "input_tokens": 2632784,
       "cached_input_tokens": 2587771,
       "cache_write_tokens": 44949,
@@ -1141,7 +1168,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.695585
+      "cost_usd_scale_export": 0.695585,
+      "agent_window_s": 100.113
     },
     {
       "task": "IR-03",
@@ -1162,7 +1190,7 @@
       "total_seconds": 234.91,
       "tool_calls": 40,
       "computer_tool_calls": 0,
-      "model_calls": 55,
+      "model_calls": 36,
       "input_tokens": 2795826,
       "cached_input_tokens": 2760099,
       "cache_write_tokens": 35655,
@@ -1175,7 +1203,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.700501
+      "cost_usd_scale_export": 0.700501,
+      "agent_window_s": 85.256
     },
     {
       "task": "IR-03",
@@ -1196,7 +1225,7 @@
       "total_seconds": 234.67,
       "tool_calls": 34,
       "computer_tool_calls": 0,
-      "model_calls": 49,
+      "model_calls": 24,
       "input_tokens": 1787668,
       "cached_input_tokens": 1759524,
       "cache_write_tokens": 28096,
@@ -1209,7 +1238,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.464981
+      "cost_usd_scale_export": 0.464981,
+      "agent_window_s": 55.08
     },
     {
       "task": "IR-04",
@@ -1230,7 +1260,7 @@
       "total_seconds": 177.27,
       "tool_calls": 18,
       "computer_tool_calls": 0,
-      "model_calls": 24,
+      "model_calls": 13,
       "input_tokens": 908292,
       "cached_input_tokens": 891373,
       "cache_write_tokens": 16893,
@@ -1243,7 +1273,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.242039
+      "cost_usd_scale_export": 0.242039,
+      "agent_window_s": 28.619
     },
     {
       "task": "IR-04",
@@ -1264,7 +1295,7 @@
       "total_seconds": 177.38,
       "tool_calls": 16,
       "computer_tool_calls": 0,
-      "model_calls": 23,
+      "model_calls": 16,
       "input_tokens": 1113860,
       "cached_input_tokens": 1096722,
       "cache_write_tokens": 17106,
@@ -1277,7 +1308,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.285013
+      "cost_usd_scale_export": 0.285013,
+      "agent_window_s": 33.302
     },
     {
       "task": "IR-04",
@@ -1298,7 +1330,7 @@
       "total_seconds": 172.6,
       "tool_calls": 16,
       "computer_tool_calls": 0,
-      "model_calls": 20,
+      "model_calls": 12,
       "input_tokens": 814450,
       "cached_input_tokens": 800302,
       "cache_write_tokens": 14124,
@@ -1311,7 +1343,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.216228
+      "cost_usd_scale_export": 0.216228,
+      "agent_window_s": 25.45
     },
     {
       "task": "IR-04",
@@ -1332,7 +1365,7 @@
       "total_seconds": 172.36,
       "tool_calls": 16,
       "computer_tool_calls": 0,
-      "model_calls": 22,
+      "model_calls": 13,
       "input_tokens": 879109,
       "cached_input_tokens": 865284,
       "cache_write_tokens": 13799,
@@ -1345,7 +1378,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.226906
+      "cost_usd_scale_export": 0.226906,
+      "agent_window_s": 27.719
     },
     {
       "task": "IR-04",
@@ -1366,7 +1400,7 @@
       "total_seconds": 152.48,
       "tool_calls": 19,
       "computer_tool_calls": 0,
-      "model_calls": 25,
+      "model_calls": 12,
       "input_tokens": 823881,
       "cached_input_tokens": 808552,
       "cache_write_tokens": 15305,
@@ -1379,7 +1413,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.224911
+      "cost_usd_scale_export": 0.224911,
+      "agent_window_s": 27.077
     },
     {
       "task": "MB-09",
@@ -1409,7 +1444,7 @@
       "total_seconds": 161.7,
       "tool_calls": 18,
       "computer_tool_calls": 0,
-      "model_calls": 28,
+      "model_calls": 16,
       "input_tokens": 1094994,
       "cached_input_tokens": 1019907,
       "cache_write_tokens": 75055,
@@ -1458,7 +1493,8 @@
         "done_count": 0
       },
       "assistant_final_text": "BLOCKED: I couldn't reorder the list. Every background drag I tried (several start and end points, durations of 500\u20132000 ms) was posted, but the list never changed. It still reads Send invites, Print slides, Update roster, Order lunch, Test projector.\n\nThe only other routes were foreground delivery, which would bring BenchLab forward, and the held-button and parallel-drag tools, which fail on this Wayland session. I didn't use foreground delivery because you asked me to keep the User activity window in front. I did not press Done, since the order is wrong. BenchLab is still open.",
-      "cost_usd_scale_export": 0.427473
+      "cost_usd_scale_export": 0.427473,
+      "agent_window_s": 42.089
     },
     {
       "task": "MB-09",
@@ -1488,7 +1524,7 @@
       "total_seconds": 162.65,
       "tool_calls": 24,
       "computer_tool_calls": 0,
-      "model_calls": 35,
+      "model_calls": 13,
       "input_tokens": 907428,
       "cached_input_tokens": 886973,
       "cache_write_tokens": 20429,
@@ -1537,7 +1573,8 @@
         "done_count": 0
       },
       "assistant_final_text": "BLOCKED: I couldn't reorder the list without breaking the \"stay in the background\" rule. Every background drag I sent to BenchLab was posted but changed nothing. The list still reads Test projector, Order lunch, Share notes, Send invites, Update roster. I tried different drag distances, durations and step counts, and hovering first. Drags are the only way to reorder items, and the only remaining option was `delivery_mode:\"foreground\"`. That would bring BenchLab to the front, which you ruled out, so I didn't use it. I did not press Done, since the order is still wrong.",
-      "cost_usd_scale_export": 0.271759
+      "cost_usd_scale_export": 0.271759,
+      "agent_window_s": 48.712
     },
     {
       "task": "MB-09",
@@ -1567,7 +1604,7 @@
       "total_seconds": 165.66,
       "tool_calls": 22,
       "computer_tool_calls": 0,
-      "model_calls": 32,
+      "model_calls": 16,
       "input_tokens": 1098424,
       "cached_input_tokens": 1081808,
       "cache_write_tokens": 16584,
@@ -1616,7 +1653,8 @@
         "done_count": 0
       },
       "assistant_final_text": "BLOCKED: I couldn't reorder the list. Dragging a row in BenchLab had no effect in background mode, and the list is still in its original order. I tried the drag tool several times with different speeds and distances, and tried holding the mouse button manually. I did not press Done.\n\nThe manual press-and-hold failed with \"no native Wayland toplevel\". The multi-pointer drag needs a compositor socket that isn't set up. The only other route is foreground delivery, which would raise BenchLab over the User activity window, and you told me not to do that.",
-      "cost_usd_scale_export": 0.298216
+      "cost_usd_scale_export": 0.298216,
+      "agent_window_s": 44.042
     },
     {
       "task": "MB-09",
@@ -1646,7 +1684,7 @@
       "total_seconds": 166.49,
       "tool_calls": 19,
       "computer_tool_calls": 0,
-      "model_calls": 30,
+      "model_calls": 13,
       "input_tokens": 891104,
       "cached_input_tokens": 876372,
       "cache_write_tokens": 14706,
@@ -1695,7 +1733,8 @@
         "done_count": 0
       },
       "assistant_final_text": "BLOCKED: I couldn't reorder the list, and I didn't press Done. The list is still in its original order: Share notes, Send invites, Order lunch, Draft agenda, Book room.\n\nThe first background drag was posted but moved nothing. Every later background drag was refused with \"input point outside attested logical target geometry\". The User activity window covers the lower-right part of BenchLab, which may be why. The only other route the tool offered was a foreground drag, which would bring BenchLab to the front. You told me to keep User activity in front, so I didn't use it.\n\nThe first drag started at a point that was covered by the User activity window, so it may have clicked into that window. I did not type anything.",
-      "cost_usd_scale_export": 0.249171
+      "cost_usd_scale_export": 0.249171,
+      "agent_window_s": 38.473
     },
     {
       "task": "MB-09",
@@ -1725,7 +1764,7 @@
       "total_seconds": 165.62,
       "tool_calls": 24,
       "computer_tool_calls": 0,
-      "model_calls": 36,
+      "model_calls": 16,
       "input_tokens": 1131377,
       "cached_input_tokens": 1110715,
       "cache_write_tokens": 20630,
@@ -1774,7 +1813,8 @@
         "done_count": 0
       },
       "assistant_final_text": "BLOCKED: I couldn't reorder the list. Every background drag I tried, with different start points, speeds and drop positions, did nothing. The driver said it posted the events but couldn't confirm a drop, and the list order never changed in the window. A foreground drag would have meant bringing BenchLab to the front over the User activity window, so I didn't try it. I did not press Done. BenchLab is still open and the list still reads Collect badges, Book room, Order lunch, Test projector, Archive files.",
-      "cost_usd_scale_export": 0.318992
+      "cost_usd_scale_export": 0.318992,
+      "agent_window_s": 48.56
     },
     {
       "task": "MB-10",
@@ -1804,7 +1844,7 @@
       "total_seconds": 164.68,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 8,
+      "model_calls": 7,
       "input_tokens": 452974,
       "cached_input_tokens": 445504,
       "cache_write_tokens": 7456,
@@ -1817,7 +1857,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.114579
+      "cost_usd_scale_export": 0.114579,
+      "agent_window_s": 13.016
     },
     {
       "task": "MB-10",
@@ -1847,7 +1888,7 @@
       "total_seconds": 163.24,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 9,
+      "model_calls": 7,
       "input_tokens": 453994,
       "cached_input_tokens": 445667,
       "cache_write_tokens": 8313,
@@ -1860,7 +1901,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.118234
+      "cost_usd_scale_export": 0.118234,
+      "agent_window_s": 16.293
     },
     {
       "task": "MB-10",
@@ -1890,7 +1932,7 @@
       "total_seconds": 163.59,
       "tool_calls": 7,
       "computer_tool_calls": 0,
-      "model_calls": 11,
+      "model_calls": 7,
       "input_tokens": 455267,
       "cached_input_tokens": 446463,
       "cache_write_tokens": 8790,
@@ -1930,7 +1972,8 @@
         "last_click_overlay_visible": true
       },
       "assistant_final_text": "I clicked \"Pin\" in BenchLab, but I couldn't confirm that it registered. The tool reported the click as unverifiable, and the window gave no visible sign afterward (the title still read \"BenchLab \u2014 hover\").\n\nI clicked it twice, which may have double-fired. The first click went through the accessibility tree while the buttons were still hidden, and it may not have registered. I then moved the agent cursor over the \"Actions\" area, which made the buttons appear, and clicked Pin again by pixel position.\n\nI didn't click any other action button, and BenchLab is still open. I stayed in the background and didn't touch the \"User activity\" window.\n\nDONE",
-      "cost_usd_scale_export": 0.122316
+      "cost_usd_scale_export": 0.122316,
+      "agent_window_s": 15.183
     },
     {
       "task": "MB-10",
@@ -1960,7 +2003,7 @@
       "total_seconds": 196.07,
       "tool_calls": 7,
       "computer_tool_calls": 0,
-      "model_calls": 11,
+      "model_calls": 7,
       "input_tokens": 455403,
       "cached_input_tokens": 450317,
       "cache_write_tokens": 5072,
@@ -2000,7 +2043,8 @@
         "last_click_overlay_visible": true
       },
       "assistant_final_text": "I clicked \"Export\" using a click aimed at the hidden Export button, then clicked it again at its screen position once the toolbar was visible. BenchLab gave no confirmation either time, so I can't tell whether the export ran, or whether it ran once or twice. My first click was on the hidden button, and I don't know whether it counted. I didn't click any other action button, and BenchLab is still open.\n\nDONE",
-      "cost_usd_scale_export": 0.112921
+      "cost_usd_scale_export": 0.112921,
+      "agent_window_s": 15.096
     },
     {
       "task": "MB-10",
@@ -2030,7 +2074,7 @@
       "total_seconds": 195.83,
       "tool_calls": 8,
       "computer_tool_calls": 0,
-      "model_calls": 12,
+      "model_calls": 8,
       "input_tokens": 524374,
       "cached_input_tokens": 518106,
       "cache_write_tokens": 6252,
@@ -2070,7 +2114,8 @@
         "last_click_overlay_visible": true
       },
       "assistant_final_text": "I clicked \"Share\" once, but I couldn't confirm that BenchLab registered the click. The window gave no visible change, and its title stayed \"BenchLab \u2014 hover\".\n\nI first sent an accessibility click on the hidden Share button, which also gave no visible result. I then hovered the Actions area so the buttons appeared and clicked Share again by pixel. So Share may have been clicked twice. I clicked no other action button, left BenchLab open, and sent no input to the User activity window.\n\nDONE",
-      "cost_usd_scale_export": 0.130533
+      "cost_usd_scale_export": 0.130533,
+      "agent_window_s": 18.397
     },
     {
       "task": "MB-11",
@@ -2100,7 +2145,7 @@
       "total_seconds": 204.61,
       "tool_calls": 27,
       "computer_tool_calls": 0,
-      "model_calls": 46,
+      "model_calls": 22,
       "input_tokens": 1673734,
       "cached_input_tokens": 1642470,
       "cache_write_tokens": 31220,
@@ -2132,7 +2177,8 @@
         "status": "Ready"
       },
       "assistant_final_text": "I couldn't read the code from the Flag tooltip, so I didn't type anything into the Code field and didn't press Submit.\n\nThe four icons don't render in BenchLab. The window shows only the labels Flag, Truck, Clock and Cube, with blank space above them. I hovered the Flag label and several points above it. I also clicked at the Flag label and just above it. No tooltip appeared in the BenchLab window or in a full-screen capture, and no separate tooltip window showed up in the window list. The accessibility tree exposes only the labels, the Code field and Submit, so the tooltip text isn't there either.\n\nThe only other approach I can think of is moving the real mouse pointer. I avoided it because it could shift focus away from the User activity window. BenchLab is still open, and I never activated, raised or clicked into any other window.\n\nBLOCKED",
-      "cost_usd_scale_export": 0.460162
+      "cost_usd_scale_export": 0.460162,
+      "agent_window_s": 61.673
     },
     {
       "task": "MB-11",
@@ -2162,7 +2208,7 @@
       "total_seconds": 205.73,
       "tool_calls": 30,
       "computer_tool_calls": 0,
-      "model_calls": 45,
+      "model_calls": 24,
       "input_tokens": 1875005,
       "cached_input_tokens": 1840672,
       "cache_write_tokens": 34285,
@@ -2185,7 +2231,8 @@
         "submitted_value": "HG-8941"
       },
       "assistant_final_text": "DONE",
-      "cost_usd_scale_export": 0.504313
+      "cost_usd_scale_export": 0.504313,
+      "agent_window_s": 55.564
     },
     {
       "task": "MB-11",
@@ -2215,7 +2262,7 @@
       "total_seconds": 183.89,
       "tool_calls": 29,
       "computer_tool_calls": 0,
-      "model_calls": 48,
+      "model_calls": 28,
       "input_tokens": 2256897,
       "cached_input_tokens": 2220655,
       "cache_write_tokens": 36186,
@@ -2238,7 +2285,8 @@
         "submitted_value": "GL-1465"
       },
       "assistant_final_text": "DONE",
-      "cost_usd_scale_export": 0.589108
+      "cost_usd_scale_export": 0.589108,
+      "agent_window_s": 72.568
     },
     {
       "task": "MB-11",
@@ -2268,7 +2316,7 @@
       "total_seconds": 183.97,
       "tool_calls": 30,
       "computer_tool_calls": 0,
-      "model_calls": 48,
+      "model_calls": 23,
       "input_tokens": 1815809,
       "cached_input_tokens": 1775573,
       "cache_write_tokens": 40190,
@@ -2300,7 +2348,8 @@
         "status": "Ready"
       },
       "assistant_final_text": "BLOCKED: I couldn't read the Clock tooltip, so I didn't type a code or press Submit.\n\nHovering through the driver's background pointer produced no tooltip on any icon. The icons also don't render in the window. Nothing in the accessibility tree changed during the hovers.\n\nI then tried moving the real pointer, which was a mistake. That briefly moved focus to BenchLab and away from \"User activity\". I moved the pointer back and \"User activity\" has focus again, but the user's typing may have been interrupted for a moment. Nothing was typed or clicked in that window.\n\nBenchLab is still open and unchanged.",
-      "cost_usd_scale_export": 0.518752
+      "cost_usd_scale_export": 0.518752,
+      "agent_window_s": 81.86
     },
     {
       "task": "MB-11",
@@ -2330,7 +2379,7 @@
       "total_seconds": 177.48,
       "tool_calls": 17,
       "computer_tool_calls": 0,
-      "model_calls": 27,
+      "model_calls": 12,
       "input_tokens": 847836,
       "cached_input_tokens": 830404,
       "cache_write_tokens": 17408,
@@ -2362,7 +2411,8 @@
         "status": "Ready"
       },
       "assistant_final_text": "BLOCKED: I couldn't read the Flag tooltip. I hovered the Flag icon at several points through the driver's background pointer, but no tooltip appeared in the BenchLab window or on the desktop. The icons themselves don't render. The only alternative was moving the real pointer, which could shift focus away from the User activity window, so I didn't try it. I typed nothing into the Code field and didn't press Submit.",
-      "cost_usd_scale_export": 0.243759
+      "cost_usd_scale_export": 0.243759,
+      "agent_window_s": 38.325
     },
     {
       "task": "IR-01",
@@ -2392,7 +2442,7 @@
       "total_seconds": 144.76,
       "tool_calls": 18,
       "computer_tool_calls": 0,
-      "model_calls": 24,
+      "model_calls": 17,
       "input_tokens": 1160855,
       "cached_input_tokens": 1087154,
       "cache_write_tokens": 73667,
@@ -2405,7 +2455,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.427246
+      "cost_usd_scale_export": 0.427246,
+      "agent_window_s": 31.073
     },
     {
       "task": "IR-01",
@@ -2435,7 +2486,7 @@
       "total_seconds": 174.8,
       "tool_calls": 31,
       "computer_tool_calls": 0,
-      "model_calls": 46,
+      "model_calls": 29,
       "input_tokens": 2098174,
       "cached_input_tokens": 2075272,
       "cache_write_tokens": 22844,
@@ -2477,7 +2528,8 @@
         }
       },
       "assistant_final_text": "DONE",
-      "cost_usd_scale_export": 0.51186
+      "cost_usd_scale_export": 0.51186,
+      "agent_window_s": 44.579
     },
     {
       "task": "IR-01",
@@ -2507,7 +2559,7 @@
       "total_seconds": 180.36,
       "tool_calls": 28,
       "computer_tool_calls": 0,
-      "model_calls": 40,
+      "model_calls": 25,
       "input_tokens": 1792782,
       "cached_input_tokens": 1772272,
       "cache_write_tokens": 20460,
@@ -2549,7 +2601,8 @@
         }
       },
       "assistant_final_text": "DONE\n\nI filled in the name, email, team (Finance) and seats (6), then pressed Submit once. BenchLab showed no confirmation afterwards, and no new window or dialog opened, so I can't confirm the submission registered.\n\n- **Contacts access:** My first click on Next opened two \"Allow BenchLab to access Contacts?\" dialogs, because I clicked Next twice. I clicked \"Don't Allow\" on both.\n- **Two Submit buttons:** The second step showed two Submit buttons. I pressed the first one and left the second alone.\n- **Background only:** I stayed in the background throughout and didn't touch the User activity window.",
-      "cost_usd_scale_export": 0.443124
+      "cost_usd_scale_export": 0.443124,
+      "agent_window_s": 39.749
     },
     {
       "task": "IR-01",
@@ -2579,7 +2632,7 @@
       "total_seconds": 178.94,
       "tool_calls": 17,
       "computer_tool_calls": 0,
-      "model_calls": 23,
+      "model_calls": 15,
       "input_tokens": 1014736,
       "cached_input_tokens": 1000428,
       "cache_write_tokens": 14278,
@@ -2592,7 +2645,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.257881
+      "cost_usd_scale_export": 0.257881,
+      "agent_window_s": 26.55
     },
     {
       "task": "IR-01",
@@ -2622,7 +2676,7 @@
       "total_seconds": 214.61,
       "tool_calls": 26,
       "computer_tool_calls": 0,
-      "model_calls": 36,
+      "model_calls": 26,
       "input_tokens": 1833334,
       "cached_input_tokens": 1814165,
       "cache_write_tokens": 19117,
@@ -2664,7 +2718,8 @@
         }
       },
       "assistant_final_text": "I filled in the workspace form and pressed Submit once. BenchLab gave no confirmation, and the form looks the same afterwards, so I can't verify the submission went through. I didn't press Submit again, to avoid sending it twice.\n\n- **Step 1:** I entered Amara Nwosu and amara.nwosu@example.com.\n- **Contacts prompt:** Two \"Allow BenchLab to access Contacts?\" dialogs appeared, because I had pressed Next twice. I chose \"Don't Allow\" on both, since the task doesn't need that access.\n- **Step 2:** Team already showed Design, and I set Seats to 18.\n- **Focus:** I worked entirely in the background. The \"User activity\" window was never raised or touched. BenchLab is still open.\n\nDONE",
-      "cost_usd_scale_export": 0.442539
+      "cost_usd_scale_export": 0.442539,
+      "agent_window_s": 39.403
     },
     {
       "task": "IR-02",
@@ -2694,7 +2749,7 @@
       "total_seconds": 214.28,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 7,
       "input_tokens": 462196,
       "cached_input_tokens": 451084,
       "cache_write_tokens": 11098,
@@ -2707,7 +2762,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.13021
+      "cost_usd_scale_export": 0.13021,
+      "agent_window_s": 15.403
     },
     {
       "task": "IR-02",
@@ -2737,7 +2793,7 @@
       "total_seconds": 217.18,
       "tool_calls": 10,
       "computer_tool_calls": 0,
-      "model_calls": 15,
+      "model_calls": 8,
       "input_tokens": 535370,
       "cached_input_tokens": 523200,
       "cache_write_tokens": 12154,
@@ -2750,7 +2806,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.146627
+      "cost_usd_scale_export": 0.146627,
+      "agent_window_s": 17.377
     },
     {
       "task": "IR-02",
@@ -2780,7 +2837,7 @@
       "total_seconds": 217.08,
       "tool_calls": 6,
       "computer_tool_calls": 0,
-      "model_calls": 10,
+      "model_calls": 6,
       "input_tokens": 391314,
       "cached_input_tokens": 382172,
       "cache_write_tokens": 9130,
@@ -2793,7 +2850,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.109773
+      "cost_usd_scale_export": 0.109773,
+      "agent_window_s": 13.447
     },
     {
       "task": "IR-02",
@@ -2823,7 +2881,7 @@
       "total_seconds": 245.66,
       "tool_calls": 11,
       "computer_tool_calls": 0,
-      "model_calls": 15,
+      "model_calls": 11,
       "input_tokens": 733447,
       "cached_input_tokens": 721600,
       "cache_write_tokens": 11825,
@@ -2836,7 +2894,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.185997
+      "cost_usd_scale_export": 0.185997,
+      "agent_window_s": 22.38
     },
     {
       "task": "IR-02",
@@ -2866,7 +2925,7 @@
       "total_seconds": 245.26,
       "tool_calls": 11,
       "computer_tool_calls": 0,
-      "model_calls": 16,
+      "model_calls": 11,
       "input_tokens": 739044,
       "cached_input_tokens": 726319,
       "cache_write_tokens": 12703,
@@ -2879,7 +2938,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.193105
+      "cost_usd_scale_export": 0.193105,
+      "agent_window_s": 25.24
     },
     {
       "task": "IR-03",
@@ -2909,7 +2969,7 @@
       "total_seconds": 184.3,
       "tool_calls": 32,
       "computer_tool_calls": 0,
-      "model_calls": 44,
+      "model_calls": 28,
       "input_tokens": 2065373,
       "cached_input_tokens": 2040697,
       "cache_write_tokens": 24620,
@@ -2922,7 +2982,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.509391
+      "cost_usd_scale_export": 0.509391,
+      "agent_window_s": 73.78
     },
     {
       "task": "IR-03",
@@ -2952,7 +3013,7 @@
       "total_seconds": 184.51,
       "tool_calls": 22,
       "computer_tool_calls": 0,
-      "model_calls": 32,
+      "model_calls": 17,
       "input_tokens": 1209662,
       "cached_input_tokens": 1189048,
       "cache_write_tokens": 20580,
@@ -2965,7 +3026,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.319648
+      "cost_usd_scale_export": 0.319648,
+      "agent_window_s": 33.412
     },
     {
       "task": "IR-03",
@@ -2995,7 +3057,7 @@
       "total_seconds": 192.55,
       "tool_calls": 49,
       "computer_tool_calls": 0,
-      "model_calls": 73,
+      "model_calls": 45,
       "input_tokens": 3510031,
       "cached_input_tokens": 3475076,
       "cache_write_tokens": 34865,
@@ -3042,7 +3104,8 @@
         }
       },
       "assistant_final_text": "claude CLI exited with code 1: Reached maximum number of turns (45)",
-      "cost_usd_scale_export": 0.844018
+      "cost_usd_scale_export": 0.844018,
+      "agent_window_s": 78.747
     },
     {
       "task": "IR-03",
@@ -3072,7 +3135,7 @@
       "total_seconds": 192.23,
       "tool_calls": 28,
       "computer_tool_calls": 0,
-      "model_calls": 39,
+      "model_calls": 26,
       "input_tokens": 1871534,
       "cached_input_tokens": 1850301,
       "cache_write_tokens": 21181,
@@ -3085,7 +3148,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.457667
+      "cost_usd_scale_export": 0.457667,
+      "agent_window_s": 39.209
     },
     {
       "task": "IR-03",
@@ -3115,7 +3179,7 @@
       "total_seconds": 194.66,
       "tool_calls": 43,
       "computer_tool_calls": 0,
-      "model_calls": 60,
+      "model_calls": 29,
       "input_tokens": 2205939,
       "cached_input_tokens": 2175860,
       "cache_write_tokens": 30021,
@@ -3128,7 +3192,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.56125
+      "cost_usd_scale_export": 0.56125,
+      "agent_window_s": 49.32
     },
     {
       "task": "IR-04",
@@ -3158,7 +3223,7 @@
       "total_seconds": 193.83,
       "tool_calls": 18,
       "computer_tool_calls": 0,
-      "model_calls": 23,
+      "model_calls": 16,
       "input_tokens": 1098570,
       "cached_input_tokens": 1082383,
       "cache_write_tokens": 16155,
@@ -3171,7 +3236,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.282928
+      "cost_usd_scale_export": 0.282928,
+      "agent_window_s": 29.181
     },
     {
       "task": "IR-04",
@@ -3201,7 +3267,7 @@
       "total_seconds": 175.38,
       "tool_calls": 12,
       "computer_tool_calls": 0,
-      "model_calls": 16,
+      "model_calls": 10,
       "input_tokens": 672281,
       "cached_input_tokens": 660074,
       "cache_write_tokens": 12187,
@@ -3214,7 +3280,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.178212
+      "cost_usd_scale_export": 0.178212,
+      "agent_window_s": 20.26
     },
     {
       "task": "IR-04",
@@ -3244,7 +3311,7 @@
       "total_seconds": 175.32,
       "tool_calls": 16,
       "computer_tool_calls": 0,
-      "model_calls": 20,
+      "model_calls": 14,
       "input_tokens": 955773,
       "cached_input_tokens": 940563,
       "cache_write_tokens": 15182,
@@ -3257,7 +3324,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.247844
+      "cost_usd_scale_export": 0.247844,
+      "agent_window_s": 25.333
     },
     {
       "task": "IR-04",
@@ -3287,7 +3355,7 @@
       "total_seconds": 199.72,
       "tool_calls": 12,
       "computer_tool_calls": 0,
-      "model_calls": 20,
+      "model_calls": 10,
       "input_tokens": 671845,
       "cached_input_tokens": 658907,
       "cache_write_tokens": 12918,
@@ -3300,7 +3368,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.178396
+      "cost_usd_scale_export": 0.178396,
+      "agent_window_s": 19.076
     },
     {
       "task": "IR-04",
@@ -3330,7 +3399,7 @@
       "total_seconds": 200.32,
       "tool_calls": 17,
       "computer_tool_calls": 0,
-      "model_calls": 22,
+      "model_calls": 13,
       "input_tokens": 877052,
       "cached_input_tokens": 862902,
       "cache_write_tokens": 14124,
@@ -3343,7 +3412,8 @@
       "failed_checks": null,
       "final_state": null,
       "assistant_final_text": null,
-      "cost_usd_scale_export": 0.229032
+      "cost_usd_scale_export": 0.229032,
+      "agent_window_s": 25.124
     }
   ],
   "pricing_note": "cost_usd uses Anthropic Claude Sonnet 5.5 API list prices ($2.00 uncached, $0.10 cache read, $4.00 1h cache write, $10.00 output, matching cost_usd_reported and bench/laptop/analyze.py); cost_usd_scale_export preserves Scale AI export.py's rate ($0.20 cache read, $2.50 cache write) for cross-OS HF board parity."

@@ -25,7 +25,8 @@ with clang-format and Go formatting with gofmt, `vm-test-docs`, which checks the
 VM test's [subtest tables](vm-test.md#subtests) against its code, and
 `bench-calc`, the Calc checker with LibreOffice. It also runs the other
 [bench unit tests](#benchmarks), and checks `docs/benchmarks.md` and
-`docs/comparison.md` against their data with `bench/render.py --check`. It runs on PRs and pushes to `main`, and keeps
+`docs/comparison.md` against their data with `bench/render.py --check` and the CuaDriverBench figures with
+`bench/cua-driver-bench/render.py --check`. It runs on PRs and pushes to `main`, and keeps
 the Nix store between runs in the GitHub Actions cache. A package or check
 whose inputs did not change since the cached run is not built again, so a PR of
 docs alone builds no plugin and runs no Go tests. A branch runs CI once at a
@@ -78,7 +79,8 @@ through the flake, and there is no other supported setup.
 2. Run the checks: `clang-format -i` on changed C and C++ files,
    `gofmt -w` on changed Go files, `go vet ./...` and `go test ./...` in `mcp/`
    (with `-race` when you change concurrency or process handling), the
-   [bench unit tests](#benchmarks), `python3 bench/render.py --check`, and
+   [bench unit tests](#benchmarks), `python3 bench/render.py --check`,
+   `python3 bench/cua-driver-bench/render.py --check`, and
    `nix build .#checks.x86_64-linux.vm-test-docs`. CI runs them too, apart
    from `go vet` and the race detector.
 3. Run the test gate, `./dev.sh gate`, on the commit you push. It is the local
