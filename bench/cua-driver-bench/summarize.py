@@ -59,7 +59,7 @@ def load_datasets() -> list[dict]:
 def summarize(datasets: list[dict]) -> None:
     print("## Suite summary\n")
     print(
-        "| Driver | Suite | Passed | Undisturbed | Med agent s | Med calls | Med in | Med uncached | Med out |"
+        "| Driver | Suite | Passed | Undisturbed | Med wall s | Med calls | Med in | Med uncached | Med out |"
     )
     print("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for ds in datasets:

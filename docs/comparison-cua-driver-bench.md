@@ -17,7 +17,7 @@ each window its own virtual pointer seat and composites popups offscreen.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison-cua-driver-bench/scorecard-dark.svg">
-  <img alt="CuaDriverBench on Omarchy 4.5 with GPT-6.2 Sol: pass rates with 95 % Wilson intervals, median agent time, tool calls and input tokens for hyprmasq 0.5.1 and Cua Driver 0.62.1 across standard, foreground, background and extended background suites." src="comparison-cua-driver-bench/scorecard.svg">
+  <img alt="CuaDriverBench on Omarchy 4.5 with GPT-6.2 Sol: pass rates with 95 % Wilson intervals, median wall time, tool calls and input tokens for hyprmasq 0.5.1 and Cua Driver 0.62.1 across standard, foreground, background and extended background suites." src="comparison-cua-driver-bench/scorecard.svg">
 </picture>
 
 - **Standard Omarchy suite (60 trials):** hyprmasq passed **60/60 (100.0%)**
@@ -31,13 +31,14 @@ each window its own virtual pointer seat and composites popups offscreen.
   (`35/35` each) passed all eight A22 user-undisturbed criteria with zero
   GUI-only violations.
 - **Speed and tokens:** across all 70 trials, Cua Driver 0.62.1 took **1.75x**
-  the median agent time (`63.9 s` vs `36.5 s`), **2.19x** the tool calls
-  (`17.5` vs `8.0`), **3.13x** the input tokens (`577k` vs `184k`), **1.99x**
-  the uncached input tokens (`44k` vs `22k`) and **2.75x** the output tokens
-  (`1,386` vs `504`). Paired across the 10 task-condition cells where both
-  passed at least 3 of 5 runs (passed runs only), Cua Driver's per-cell
-  geometric mean was **1.82x** the agent time, **2.08x** the tool calls,
-  **3.12x** the input tokens and **2.19x** the uncached input tokens.
+  the median wall time (`63.9 s` vs `36.5 s`, prompt start to finish including
+  all model turns and tool calls), **2.19x** the tool calls (`17.5` vs `8.0`),
+  **3.13x** the input tokens (`577k` vs `184k`), **1.99x** the uncached input
+  tokens (`44k` vs `22k`) and **2.75x** the output tokens (`1,386` vs `504`).
+  Paired across the 10 task-condition cells where both passed at least 3 of 5
+  runs (passed runs only), Cua Driver's per-cell geometric mean was **1.82x**
+  the wall time, **2.08x** the tool calls, **3.12x** the input tokens and
+  **2.19x** the uncached input tokens.
 
 The hyprmasq driver package, per-trial JSON records and summary script live in
 [bench/cua-driver-bench](../bench/cua-driver-bench).
@@ -46,10 +47,10 @@ The hyprmasq driver package, per-trial JSON records and summary script live in
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison-cua-driver-bench/usage-dark.svg">
-  <img alt="Median agent time, tool calls and input tokens per trial for hyprmasq 0.5.1 and Cua Driver 0.62.1 across foreground, standard background, extended background and all 70 trials." src="comparison-cua-driver-bench/usage.svg">
+  <img alt="Median wall time, tool calls and input tokens per trial for hyprmasq 0.5.1 and Cua Driver 0.62.1 across foreground, standard background, extended background and all 70 trials." src="comparison-cua-driver-bench/usage.svg">
 </picture>
 
-| Driver | Suite | Passed | User undisturbed (A22) | Median agent s | Median calls | Median input | Median uncached | Median output |
+| Driver | Suite | Passed | User undisturbed (A22) | Median wall s | Median calls | Median input | Median uncached | Median output |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | hyprmasq 0.5.1 | Foreground (35) | 35/35 (100.0%) | - | 36.5 | 8.0 | 178k | 20k | 501 |
 | hyprmasq 0.5.1 | Standard background (25) | 25/25 (100.0%) | 25/25 | 40.5 | 10.0 | 219k | 23k | 561 |
@@ -72,11 +73,12 @@ output tokens (on passed trials alone, Cua Driver's median remained `60.7 s`,
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison-cua-driver-bench/tasks-dark.svg">
-  <img alt="Every trial of CuaDriverBench on Omarchy 4.5, task by task: five squares per driver showing each seed's outcome (passed, driver limitation or AT-SPI/turn-limit failure) alongside median agent time on a log scale." src="comparison-cua-driver-bench/tasks.svg">
+  <img alt="Every trial of CuaDriverBench on Omarchy 4.5, task by task: five squares per driver showing each seed's outcome (passed, driver limitation or AT-SPI/turn-limit failure) alongside median wall time on a log scale." src="comparison-cua-driver-bench/tasks.svg">
 </picture>
 
-Each cell shows passed trials out of 5, followed by median agent time, median
-tool calls and median input tokens across all 5 seeds (`r1` through `r5`).
+Each cell shows passed trials out of 5, followed by median wall time (prompt
+start to finish, including all tool calls), median tool calls and median input
+tokens across all 5 seeds (`r1` through `r5`).
 
 ### Foreground
 
@@ -199,6 +201,10 @@ isolates the driver difference.
   tools), whereas Scale AI's `2026-11-11` runs passed
   `--set envs/<computer>.tools=driver`. Exposing the extra primitives did not
   cause any A22 disturbance (`35/35` undisturbed).
+- **Timing:** wall time (`agent_seconds` in the raw JSON) measures the full
+  `prompt_agent` step from prompt start to finish, including all model turns
+  and every tool call (settle waits, captures, AT-SPI walks and input), and
+  excludes only AgentEnv's fixed VM boot, snapshot and grading overhead.
 - **Grading:** every trial was graded with upstream `artifacts/grader/grade.py`
   and `artifacts/gui_only/verify.py` (trycua's per-probe evaluator, GUI-only
   guard and all eight A22 criteria on `sentinel.jsonl`). No trials were

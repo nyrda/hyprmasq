@@ -11,7 +11,7 @@ its pointer uses kernel `/dev/uinput`.
 > The runs below use hyprmasq's own 16-task benchmark. For an independent external benchmark, see
 > [CuaDriverBench on Omarchy](comparison-cua-driver-bench.md), where hyprmasq 0.5.1 ran beside Cua Driver 0.62.1 inside
 > Scale AI's [CuaDriverBench-AgentEnv](https://huggingface.co/spaces/earakely-scale/CuaDriverBench-AgentEnv) harness on
-> Omarchy 4.5 with GPT-6.2 Sol (70/70 vs 50/70 passed, 1.75× faster median agent time and 3.13× fewer input tokens).
+> Omarchy 4.5 with GPT-6.2 Sol (70/70 vs 50/70 passed, 1.75× faster median wall time and 3.13× fewer input tokens).
 
 <!-- render v3-hyprmasq,v3-hyprmasq-chromium,v3-cua,v3-cua-chromium,v3-hypruse,v3-hypruse-chromium,v3-computer-use-linux,v3-computer-use-linux-chromium,v3-failures scorecard -->
 <picture>

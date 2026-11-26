@@ -160,7 +160,7 @@ def select_suite(trials: list[dict], key: str) -> list[dict]:
 def render_scorecard(hm: dict, cua: dict, theme_name: str) -> str:
     alt = (
         "CuaDriverBench on Omarchy 4.5 with GPT-6.2 Sol: pass rates with 95 % Wilson intervals, "
-        "median agent time, tool calls and input tokens for hyprmasq 0.5.1 and Cua Driver 0.62.1 "
+        "median wall time, tool calls and input tokens for hyprmasq 0.5.1 and Cua Driver 0.62.1 "
         "across standard, foreground, background and extended background suites."
     )
     suites = [
@@ -190,7 +190,7 @@ def render_scorecard(hm: dict, cua: dict, theme_name: str) -> str:
     b: list[str] = []
     b.append('<text x="24" y="34" class="t" font-size="15" font-weight="600">CuaDriverBench on Omarchy 4.5 · GPT-6.2 Sol</text>')
     b.append('<text x="24" y="53" class="t2" font-size="12.5">140 trials (70 per driver), Codex CLI 0.171.0 at medium effort. The dot is the pass rate and the line its</text>')
-    b.append('<text x="24" y="72" class="t2" font-size="12.5">95 % Wilson interval. Right columns show median agent time, tool calls and input tokens across all trials.</text>')
+    b.append('<text x="24" y="72" class="t2" font-size="12.5">95 % Wilson interval. Wall time runs from prompt start to finish, including all tool calls.</text>')
 
     # Legend on header line
     b.append(f'<rect x="24" y="{y_hdr - 9}" width="10" height="10" class="s0" rx="2"/>')
@@ -210,7 +210,7 @@ def render_scorecard(hm: dict, cua: dict, theme_name: str) -> str:
         b.append(f'<line x1="{nfmt(tx)}" y1="{y_grid_top}" x2="{nfmt(tx)}" y2="{y_grid_bot}" class="grid"/>')
 
     b.append(f'<text x="{nfmt(x_time)}" y="{y_hdr}" class="t2" font-size="12" text-anchor="middle">Median</text>')
-    b.append(f'<text x="{nfmt(x_time)}" y="{y_hdr + 15}" class="t2" font-size="12" text-anchor="middle">agent s</text>')
+    b.append(f'<text x="{nfmt(x_time)}" y="{y_hdr + 15}" class="t2" font-size="12" text-anchor="middle">wall s</text>')
     b.append(f'<text x="{nfmt(x_calls)}" y="{y_hdr}" class="t2" font-size="12" text-anchor="middle">Median</text>')
     b.append(f'<text x="{nfmt(x_calls)}" y="{y_hdr + 15}" class="t2" font-size="12" text-anchor="middle">calls</text>')
     b.append(f'<text x="{nfmt(x_in)}" y="{y_hdr}" class="t2" font-size="12" text-anchor="middle">Median</text>')
@@ -286,7 +286,7 @@ def render_tasks(hm: dict, cua: dict, theme_name: str) -> str:
     alt = (
         "Every trial of CuaDriverBench on Omarchy 4.5, task by task: five squares per driver showing "
         "each seed's outcome (passed, driver limitation or AT-SPI/turn-limit failure) alongside median "
-        "agent time on a log scale."
+        "wall time on a log scale."
     )
     hm_by: dict[tuple[str, str], list[dict]] = {}
     cua_by: dict[tuple[str, str], list[dict]] = {}
@@ -320,8 +320,8 @@ def render_tasks(hm: dict, cua: dict, theme_name: str) -> str:
 
     b: list[str] = []
     b.append('<text x="24" y="34" class="t" font-size="15" font-weight="600">Every trial, task by task</text>')
-    b.append('<text x="24" y="53" class="t2" font-size="12.5">Left: one square per seed (r1 to r5), coloured by outcome. Right: median agent time per task on a</text>')
-    b.append('<text x="24" y="72" class="t2" font-size="12.5">log scale, further left is faster. A hollow dot marks a task where Cua Driver passed fewer than 3 of 5.</text>')
+    b.append('<text x="24" y="53" class="t2" font-size="12.5">Left: one square per seed (r1 to r5), coloured by outcome. Right: median wall time (including tool</text>')
+    b.append('<text x="24" y="72" class="t2" font-size="12.5">calls) on a log scale, further left is faster. Hollow dot: Cua Driver passed fewer than 3 of 5.</text>')
 
     # Legend
     b.append(f'<rect x="24" y="{y_leg - 9}" width="11" height="10" class="pass" rx="2"/>')
@@ -336,7 +336,7 @@ def render_tasks(hm: dict, cua: dict, theme_name: str) -> str:
     b.append(f'<rect x="{nfmt(x_hm)}" y="{y_col + 5}" width="104" height="3" class="s0" rx="1.5"/>')
     b.append(f'<text x="{nfmt(x_cua)}" y="{y_col}" class="t" font-size="11.5" font-weight="600">Cua Driver 0.62.1</text>')
     b.append(f'<rect x="{nfmt(x_cua)}" y="{y_col + 5}" width="104" height="3" class="s1" rx="1.5"/>')
-    b.append(f'<text x="{nfmt(x_t0)}" y="{y_col}" class="t2" font-size="11.5" font-weight="600">Median agent time (log scale)</text>')
+    b.append(f'<text x="{nfmt(x_t0)}" y="{y_col}" class="t2" font-size="11.5" font-weight="600">Median wall time (log scale)</text>')
 
     for tick in (10, 30, 100, 200):
         px = tx(float(tick))
@@ -402,7 +402,7 @@ def render_tasks(hm: dict, cua: dict, theme_name: str) -> str:
 
 def render_usage(hm: dict, cua: dict, theme_name: str) -> str:
     alt = (
-        "Median agent time, tool calls and input tokens per trial for hyprmasq 0.5.1 and "
+        "Median wall time, tool calls and input tokens per trial for hyprmasq 0.5.1 and "
         "Cua Driver 0.62.1 across foreground, standard background, extended background and all 70 trials."
     )
     suites = [
@@ -414,7 +414,7 @@ def render_usage(hm: dict, cua: dict, theme_name: str) -> str:
 
     # Three columns matching docs/comparison/usage.svg
     cols = [
-        ("Agent time", 254.0, 140.0, 80.0, lambda sub: med([t["agent_seconds"] for t in sub]), lambda v: f"{v:.1f} s"),
+        ("Wall time", 254.0, 140.0, 80.0, lambda sub: med([t["agent_seconds"] for t in sub]), lambda v: f"{v:.1f} s"),
         ("Tool calls", 464.0, 130.0, 32.0, lambda sub: med([t["tool_calls"] for t in sub]), lambda v: f"{v:.1f}" if v != int(v) else f"{int(v)}"),
         ("Input tokens", 664.0, 136.0, 720.0, lambda sub: med([t["input_tokens"] for t in sub]) / 1000.0, lambda v: f"{v:.0f}k"),
     ]
@@ -427,8 +427,8 @@ def render_usage(hm: dict, cua: dict, theme_name: str) -> str:
 
     b: list[str] = []
     b.append('<text x="24" y="34" class="t" font-size="15" font-weight="600">Speed, tool calls and tokens</text>')
-    b.append('<text x="24" y="53" class="t2" font-size="12.5">Medians across every trial, passed or not. Across all 70 trials, hyprmasq used 12.89M input tokens</text>')
-    b.append('<text x="24" y="72" class="t2" font-size="12.5">(1.67M uncached) against 42.92M (3.55M uncached) for Cua Driver 0.62.1.</text>')
+    b.append('<text x="24" y="53" class="t2" font-size="12.5">Medians across every trial, passed or not. Wall time runs from prompt start to finish, including all</text>')
+    b.append('<text x="24" y="72" class="t2" font-size="12.5">tool calls. Over 70 trials: 12.89M input (1.67M uncached) vs 42.92M (3.55M uncached).</text>')
 
     b.append(f'<rect x="24" y="{y_hdr - 9}" width="10" height="10" class="s0" rx="2"/>')
     b.append(f'<text x="39" y="{y_hdr}" class="t" font-size="12" font-weight="600">hyprmasq 0.5.1</text>')
