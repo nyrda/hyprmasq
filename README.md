@@ -188,13 +188,26 @@ run it on a Google AI subscription. See the [benchmarks](docs/benchmarks.md).
 
 ## Comparison with other tools
 
-A November 2026 snapshot of hyprmasq beside Cua Driver, `computer-use-linux`
-and `hypruse` on 16 Linux desktop tasks while a user worked in another window.
-hyprmasq left the user's view alone on every run and finished faster at lower
-cost. See [the comparison](docs/comparison.md) for the full breakdown,
-deferred tool loading (`ToolSearch`), rules and every run, plus
-[the macOS addendum](docs/comparison-macos.md) and
-[CuaDriverBench on Omarchy](docs/comparison-cua-driver-bench.md).
+**External task suite (`CuaDriverBench` on Omarchy).** Unmodified hyprmasq
+0.5.1 run locally beside Cua Driver 0.62.1 inside Scale AI's
+[CuaDriverBench-AgentEnv](https://huggingface.co/spaces/earakely-scale/CuaDriverBench-AgentEnv)
+harness on Omarchy 4.5. hyprmasq passed every standard and extended trial
+without disturbing the user, and matched the top published Sonnet 5.5 setup
+(`macOS · Aside`) on the shared suite. See
+[CuaDriverBench on Omarchy](docs/comparison-cua-driver-bench.md) for the
+cross-OS board, method and all 280 trials.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/comparison-cua-driver-bench/scorecard-dark.svg">
+  <img alt="CuaDriverBench on Omarchy 4.5 across 280 trials (Claude Sonnet 5.5 and GPT-6.2 Sol): standard 60-trial Omarchy suite pass rate with descriptive 95 % Wilson interval, extended MB-10/11 background pass bar, and standard-suite median wall time, tool calls and API list-price cost as multiples of hyprmasq 0.5.1." src="docs/comparison-cua-driver-bench/scorecard.svg">
+</picture>
+
+**hyprmasq's own 16-task suite.** A November 2026 snapshot of hyprmasq beside
+Cua Driver, `computer-use-linux` and `hypruse` on 16 Linux desktop tasks while
+a user worked in another window. hyprmasq left the user's view alone on every
+run and finished faster at lower cost. See [the comparison](docs/comparison.md)
+for the full breakdown, deferred tool loading (`ToolSearch`), rules and every
+run, plus [the macOS addendum](docs/comparison-macos.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/comparison/scorecard-dark.svg">
