@@ -78,6 +78,7 @@ class HyprmasqDriver(ComputerDriverEnvironment):
         self._closing: set[asyncio.Task] = set()
         self._input_lock = asyncio.Lock()
         self._last_window: str | None = None
+        self._last_active: str | None = None
 
     def forwarded_tools(self) -> list[ForwardedTool]:
         return [
@@ -245,6 +246,8 @@ class HyprmasqDriver(ComputerDriverEnvironment):
     async def _target_window(self, x: float, y: float) -> tuple[str, float, float]:
         clients = await _hyprctl_json("clients")
         active_ws = await _hyprctl_json("activeworkspace")
+        active = await _hyprctl_json("activewindow")
+        active_addr = active.get("address") if isinstance(active, dict) else None
         ws_id = active_ws.get("id") if isinstance(active_ws, dict) else None
         if not isinstance(clients, list):
             raise DeviceUnavailable("hyprctl clients failed")
@@ -259,11 +262,11 @@ class HyprmasqDriver(ComputerDriverEnvironment):
             if at[0] <= x < at[0] + size[0] and at[1] <= y < at[1] + size[1]:
                 matches.append(c)
         if not matches:
-            active = await _hyprctl_json("activewindow")
-            if isinstance(active, dict) and active.get("address"):
+            if active_addr:
                 at = active.get("at") or [0, 0]
-                self._last_window = active["address"]
-                return active["address"], float(at[0]), float(at[1])
+                self._last_window = active_addr
+                self._last_active = active_addr
+                return active_addr, float(at[0]), float(at[1])
             raise DeliveryFailed(f"no window at ({x}, {y})")
         # Prefer fullscreen, then floating, then most recently focused (lowest focusHistoryID).
         matches.sort(key=lambda c: (
@@ -274,6 +277,7 @@ class HyprmasqDriver(ComputerDriverEnvironment):
         win = matches[0]
         at = win.get("at") or [0, 0]
         self._last_window = win["address"]
+        self._last_active = active_addr
         return win["address"], float(at[0]), float(at[1])
 
     async def _target_point(self, x: float, y: float) -> tuple[str, float, float]:
@@ -282,9 +286,19 @@ class HyprmasqDriver(ComputerDriverEnvironment):
 
     async def _keyboard_target(self) -> str:
         active = await _hyprctl_json("activewindow")
-        if isinstance(active, dict) and active.get("address"):
-            self._last_window = active["address"]
-            return active["address"]
+        cur_active = active.get("address") if isinstance(active, dict) else None
+        if self._last_window and cur_active == self._last_active:
+            clients = await _hyprctl_json("clients")
+            if isinstance(clients, list) and any(
+                c.get("address") == self._last_window and c.get("mapped") and not c.get("hidden")
+                for c in clients
+            ):
+                return self._last_window
+            self._last_window = None
+        if cur_active:
+            self._last_window = cur_active
+            self._last_active = cur_active
+            return cur_active
         if self._last_window:
             return self._last_window
         raise DeliveryFailed("no focused window for keyboard input")
