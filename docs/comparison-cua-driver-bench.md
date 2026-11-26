@@ -215,8 +215,9 @@ criteria and final message live in [bench/cua-driver-bench/data](../bench/cua-dr
 Filtering Scale AI's published Hugging Face dataset (`earakely-scale/CuaDriverBench-AgentEnv`, commit `ca3d569e`,
 `results/trials.parquet`) to `on_board = true`, `driver in ("aside", "cua-driver")` and the exact same 60 BenchLab
 trials with Claude Sonnet 5.5 sets these local Omarchy runs beside Aside and Cua Driver across all four OSes on Scale
-AI's board. The six omitted Sonnet 5.5 setups (`agent-desktop`, `codex-computer-use` and `macos-harness`) all score at
-or below `43/60` on these 60 trials.
+AI's board. The five other 60-trial Sonnet 5.5 setups (`agent-desktop` on Linux, macOS and Windows, `codex-computer-use` on macOS
+and `macos-harness`) pass at most `43/60` of these trials, and Windows `codex-computer-use` has only the 35 foreground
+trials on the board (`33/35`).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="comparison-cua-driver-bench/cross-os-dark.svg">
@@ -232,7 +233,7 @@ or below `43/60` on these 60 trials.
   hyprmasq is cheaper under Scale AI's uniform `export.py` pricing (`$0.050` median / `$0.054` mean vs `$0.058` /
   `$0.062`, with Cua Driver costing **2.7–5.7×** as much at the median across macOS, Omarchy, Windows and Ubuntu).
 - **Scope note:** macOS, Windows and Ubuntu Linux also run three multi-app tasks (`G02`–`G04`) not yet ported to
-  Omarchy, and Scale AI's published runs ran on EC2 hosts with earlier driver versions.
+  Omarchy, and Scale AI's published runs ran on EC2 hosts with earlier driver and Claude Code releases.
 
 <details><summary>Numbers: across operating systems (60 BenchLab trials)</summary>
 
