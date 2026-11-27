@@ -539,6 +539,29 @@ func (c *Client) Wait(ctx context.Context, addr string, a WaitArgs) (WaitReply, 
 	return r, err
 }
 
+// Drawn is what a window drew after a value of its commit counter.
+type Drawn struct {
+	// The counter now, and the socket whose counter it is.
+	Commits  int64   `json:"commits"`
+	SocketID *string `json:"socketId"`
+	// How many commits came after the value.
+	CommitsSince int64 `json:"commitsSince"`
+	// Every one of those commits was part of an animation, and the plugin still knows what each of them damaged. False
+	// when one of them drew anything else.
+	OnlyAnimation bool `json:"onlyAnimation"`
+	// With OnlyAnimation, the boxes that those commits damaged, in window-local logical pixels: outside them the
+	// window shows what it showed at that value of the counter.
+	Animated []IntRect `json:"animated"`
+}
+
+// Drawn asks what the window drew after since, a value of its commit counter. A plugin without the command answers
+// with the error code invalid_arguments.
+func (c *Client) Drawn(ctx context.Context, addr string, since int64) (Drawn, error) {
+	var r Drawn
+	err := c.Plugin(ctx, fmt.Sprintf("drawn %s since %d", addr, since), &r)
+	return r, err
+}
+
 // Cancel ends the wait with that id, and reports whether there was one.
 func (c *Client) Cancel(ctx context.Context, id string) (bool, error) {
 	var r struct {

@@ -47,6 +47,7 @@ hyprctl hyprmasq eis close "$addr"
 | `wait <addr> [QUIET-MS [TIMEOUT-MS]]` | `settled` or `timeout` | Wait until the window has drawn nothing for QUIET-MS. See [Waiting](#waiting). |
 | `wait <addr> since COMMITS [expect MS] [quiet MS] [deadline MS] [id WORD] [ignore animations] [drags ID]` | how it ended | Wait for a change since a commit counter value, then for quiet. Needs a socket. |
 | `cancel <word>` | `cancelled` or `no pending wait` | End the pending `wait … since` with that `id`. |
+| `drawn <addr> since COMMITS` | `nothing`, `animation` or `changes` | What the window drew after a commit counter value. Needs a socket. See [Waiting](#waiting). |
 | `state <addr>` | `key: value` lines | Size, scale, socket, counter, lease, capabilities and more. See [Window state](#window-state). |
 | `lease <addr> <ms> <owner>` | `held N ms by OWNER` | Start or renew the window's focus lease, 1 to 600000 ms. Needs a socket. See [Focus lease](#focus-lease). |
 | `lease <addr> release [owner]` | `released` or `no lease released` | End the lease. With `owner`, only if that owner holds it. |
@@ -81,6 +82,7 @@ errors are JSON too, with `hyprctl` exiting 0, so check `ok`:
 | `wait` | `{"ok":true,"settled":true,"waited":230,"frames":0,"framesSinceInput":3}` |
 | `wait … since` | `{"ok":true,"ended":"quiet","commits":131,"socketId":"9f3a61c2-3","redrawObserved":true,"commitsSince":8,"quietMs":200,"elapsedMs":412,"resizing":false,"animated":[]}` |
 | `cancel` | `{"ok":true,"cancelled":true}` |
+| `drawn` | `{"ok":true,"commits":131,"socketId":"9f3a61c2-3","commitsSince":2,"onlyAnimation":true,"animated":[{"x":440,"y":572,"width":1,"height":12}]}` |
 | `lease` | `{"ok":true,"held":true,"remainingMs":60000,"owner":"my-script"}` |
 | `lease … release` | `{"ok":true,"released":true}` |
 | `eis open` | `{"ok":true,"path":"/run/user/1000/hyprmasq/<instance>/<addr>.eis","socketId":"9f3a61c2-3"}` |
@@ -177,6 +179,25 @@ a monitor that DPMS turned off, gets a frame callback every 16 ms and is not tol
 keeps drawing. Compare counter values only when their `socketId` is the same:
 the counter starts again at 0 when a socket is reopened, and a COMMITS above
 the counter is an error.
+
+**`drawn <addr> since COMMITS`** tells what the window drew after a counter
+value, without waiting: `nothing`, `animation` when every frame since was part
+of an animation, as the `quiet` phase above tells them, or `changes`. It
+answers whether a screenshot with that counter value still shows the window,
+apart from what animates. In the JSON reply, `commitsSince` counts the frames,
+`onlyAnimation` is true for `nothing` and `animation`, and `animated` then has
+the boxes that those frames redrew, in window-local logical pixels. Outside
+these boxes the window shows what it showed at COMMITS. Each frame is judged
+as it comes, by the frames before it, so a frame that comes later never makes
+an earlier one an animation. Each box that it redraws must also lie where an
+earlier frame redrew a box of about its size. So what a window draws within
+the box of an animation counts as that animation, and what it draws around
+one does not, such as the whole line of a caret that blinks, which a wait
+takes for the animation. `onlyAnimation` is false, with an empty `animated`,
+when a frame drew anything else, when a popup or a subsurface appeared or
+went away, and when the plugin no longer knows what a frame redrew, which it
+forgets about 3 seconds later. It needs an open socket, and a
+COMMITS above the counter is an error.
 
 The default deadline of 4500 ms keeps the reply within `hyprctl`'s 5-second
 limit. A program that writes the request to Hyprland's socket,

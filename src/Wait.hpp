@@ -49,6 +49,11 @@ namespace hyprmasq::wait {
         bool changedSinceFrames() const {
             return lastChange > m_lastFrames;
         }
+        // The boxes that the commits after since, a value of commits, damaged, joined as the animations of a wait are,
+        // when each of those commits was part of an animation and drew where a commit before it had drawn. Nothing when
+        // one of them did not, or when the damage of one is no longer remembered. So a caller that holds a frame with
+        // that counter knows where the window may differ from it, and that it drew nothing else.
+        std::optional<std::vector<CBox>> animationSince(uint64_t since) const;
 
         uint64_t          commits          = 0; // never reset
         Time::steady_tp   lastCommit       = Time::steadyNow();
@@ -78,7 +83,8 @@ namespace hyprmasq::wait {
 
         PHLWINDOWREF                            m_window;
         std::map<CWLSurfaceResource*, SWatched> m_surfaces;
-        std::deque<SDamage>                     m_damage; // the boxes that commits damaged in the last few seconds
+        std::deque<SDamage>                     m_damage;         // the boxes that commits damaged in the last few seconds
+        uint64_t                                m_forgotten  = 0; // the commit of the last box that left m_damage
         wl_event_source*                        m_rescan     = nullptr;
         Time::steady_tp                         m_lastFrames = {};
         bool                                    m_fed        = false;

@@ -196,11 +196,41 @@ Without edits in the call, the first view waits until the window has drawn
 nothing for 100 ms, apart from an animation such as a scrollbar's fade, and is
 taken again if it drew, as a hidden window often has a frame to catch up with.
 If the images cannot be aligned confidently, a control takes the wheel, the
-window goes on drawing outside its scrollbar before the first notch, fails to
-settle or time runs short, it stops. A failed measurement or
-no movement is not a claim that the page ended. Repeating patterns, animations
-and separate panes can prevent measurement; inspect the returned view and
-use ordinary notch scrolling there.
+window fails to settle or time runs short, it stops. It also stops, with
+`reference_changed`, when the window drew new content between a view that it
+measures from and the wheel notches that follow, since the view no longer
+shows what the notches moved.
+
+An animation does not stop it, such as a caret that blinks in a focused text
+field, a spinner or a scrollbar that fades. Right before each step's input the
+server asks the plugin, with [`drawn`](automation.md#waiting), what the window
+drew since the view. When every frame was part of an animation, the scroll
+goes on, and the measurement leaves out the boxes that those frames redrew,
+together with the boxes of the animations that the waits report. The plugin
+judges each frame as it comes, by the frames before it, so what the scroll
+itself sets off, such as a scrollbar that shows, excuses nothing that came
+before it. New content that the window draws within the box of an animation
+is not told from the animation. So an animation under the pointer stops the
+scroll, where such content could be what takes the wheel, and elsewhere it
+stays within a box that the measurement does not read.
+
+When a frame was not part of an animation, nothing of the step has been sent
+yet. It is often the start of an animation, such as the first two frames of a
+caret's fade, which the plugin takes for an animation from the third frame
+on. So the server waits until the window has drawn nothing but animation for
+100 ms, takes the view again, and goes on from it when it shows the same as
+the view before, outside the boxes of the animations known by then and the
+scrollbar's strip. New content elsewhere fails that comparison. A step takes
+its view again at most twice. After that, or when the comparison fails, the
+step goes out and the scroll stops.
+
+With a plugin that has no `drawn` command, any frame between a view and the
+input stops the scroll, unless every animation known before it lies in the
+scrollbar's strip.
+
+A failed measurement or no movement is not a claim that the page ended.
+Repeating patterns, large animations and separate panes can prevent
+measurement. Inspect the returned view and use ordinary notch scrolling there.
 
 `deadline_ms` covers the edits and every scrolling step. The checks that hold
 back a trailing scroll after failed or unsettled input apply here too.

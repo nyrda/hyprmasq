@@ -78,9 +78,10 @@ with subtest("page scrolling keeps overlap on Qt, GTK and browser pages at diffe
             scr_edit, scr_origin = scr_page, 0
             keep(scr_page, f"sc-{scr_log}")
             if scr_toolkit == "gtk4" and scr_page.data.get("scroll", {}).get("ended") == "reference_changed":
-                # Unknown redraws must stop the first request. The returned shot
-                # can then carry the observed scrollbar-only animation into the
-                # next request, without ignoring animation in the content.
+                # Unknown redraws must stop the first request: the first two frames
+                # of the scrollbar's fade are no animation yet. By the next request
+                # the plugin knows the fade for one, and tells its frames from other
+                # drawing.
                 assert scr_page.data["scroll"]["notches"] == 1, scr_page
                 assert "moved_px" not in scr_page.data["scroll"], scr_page
                 scr_animation = scr_page.data["wait"].get("animated", [])
@@ -153,6 +154,88 @@ with subtest("a page scroll stops when a control takes the wheel without claimin
     assert snapshot() == (99, scr_user), snapshot()
     machine.succeed(f"kill {client('hm-page-control')['pid']}")
     wait_for("the page control closed", lambda: client("hm-page-control") is None)
+
+
+
+def scr_probe_scrolls(log):
+    """The viewport positions and page sizes that a GTK 4 page probe logged."""
+    return [[int(n) for n in e.split()[1:]] for _, e in probe_events(log) if e.startswith("scroll ")]
+
+
+def scr_measured_page(page, log, origin):
+    """Checks a page scroll of a GTK 4 page probe that ended at page against the probe's own position, from origin, and
+    returns that position. An animation above the page must not make the view look taller than the page is."""
+    assert not page.is_error and page.data["scroll"]["ended"] == "page", page
+    position = scr_settled(lambda: [value for value, _ in scr_probe_scrolls(log)])
+    moved, viewport = page.data["scroll"]["moved_px"], scr_probe_scrolls(log)[-1][1]
+    assert abs(position - origin - moved) <= 3 and viewport * 0.5 < abs(moved) < viewport, (origin, position, viewport, page)
+    assert abs(moved) < page.data["scroll"]["viewport_px"] <= viewport + 3, (viewport, page)
+    return position
+
+
+with subtest("a page scroll goes on while a caret blinks in a focused text field"):
+    # The entry above the page keeps the keyboard focus, so its caret blinks, fading in and out, while the page scrolls.
+    # A view of the hidden window sends it a frame callback, at which the caret draws its next step: right after the
+    # view, before the input. Told from the counter alone, that stopped three of four page scrolls at reference_changed.
+    # GTK stops the blinking ten seconds after the last key, so every other request types a letter before it scrolls.
+    # One request may still stop: the first two frames of a fade are no animation yet, and the view that the scroll then
+    # takes again shows the same only once the plugin has told the caret's box.
+    output_mode(1280, 800)
+    scr_caret = scr_hidden("env GDK_BACKEND=wayland hyprmasq-scroll-probe hm-page-caret", "page-caret", "hm-page-caret", 104)
+    scr_page = scr_agent.call("act", {"shot": scr_shot_of(scr_caret), "actions": [[20, 20], ["type", "caret"]], "capture": "window"})
+    assert not scr_page.is_error and "entry caret" in [event for _, event in probe_events("page-caret")], scr_page
+    scr_origin, scr_stops = 0, 0
+    for scr_step, scr_direction in enumerate(["down", "down", "up", "up", "down", "down", "up", "up"]):
+        scr_request = {"shot": scr_page.data["shot"]["id"], "next_page": {"x": 100, "y": 400, "direction": scr_direction}}
+        if scr_step % 2:
+            scr_request["actions"] = [["type", "s"]]
+        scr_page = scr_agent.call("act", scr_request)
+        machine.log(f"page-caret {scr_direction}: {json.dumps(scr_page.data['scroll'])} {json.dumps(scr_page.data['wait'])}")
+        if scr_page.data["scroll"]["ended"] == "reference_changed":
+            assert "moved_px" not in scr_page.data["scroll"], scr_page
+            scr_origin, scr_stops = scr_settled(lambda: [value for value, _ in scr_probe_scrolls("page-caret")]), scr_stops + 1
+            continue
+        scr_origin = scr_measured_page(scr_page, "page-caret", scr_origin)
+    assert scr_stops <= 1, scr_stops
+    assert snapshot() == (99, scr_user), snapshot()
+    machine.succeed(f"kill {client('hm-page-caret')['pid']}")
+    wait_for("the page probe closed", lambda: client("hm-page-caret") is None)
+
+with subtest("a page scroll goes on beside a spinner, and stops when the window draws new content before its input"):
+    # The page is on the user's workspace, so it draws when it wants to. A spinner beside its entry draws every frame.
+    spawn("env GDK_BACKEND=wayland hyprmasq-scroll-probe hm-page-spin --spinner --second hm-page-spin-2", "page-spin")
+    wait_for("the spinner page", lambda: client("hm-page-spin") is not None and client("hm-page-spin-2") is not None, timeout=120)
+    scr_spin, scr_second = client("hm-page-spin")["address"], client("hm-page-spin-2")["address"]
+    float_window(scr_second, 40, 40, 200, 100)
+    dispatch(f'hl.dsp.focus({{ window = "address:{scr_user}" }})')
+    wait_for("the user's focus", lambda: snapshot() == (99, scr_user))
+    scr_view = scr_agent.call("screenshot", {"window": scr_spin}).data["shot"]
+    scr_point = {"x": 100, "y": scr_view["height"] // 2}
+    scr_page = scr_agent.call("act", {"window": scr_spin, "shot": scr_view["id"], "next_page": scr_point})
+    machine.log(f"page-spin: {json.dumps(scr_page.data['scroll'])} {json.dumps(scr_page.data['wait'])}")
+    scr_origin = scr_measured_page(scr_page, "page-spin", 0)
+    assert any(box["y"] < 48 and box["width"] > 8 and box["height"] > 8 for box in scr_page.data["wait"].get("animated", [])), scr_page
+    # A pause in the app's second window holds its send lock. The page scroll takes its first view and waits for the
+    # lock. Meanwhile the app shows a notice above the page, which moves the page down: new content between the view
+    # and the input, with the spinner turning all along.
+    scr_holding = scr_agent.start("act", {"window": scr_second, "actions": [["pause", 5000]], "capture": "none"}, token="hm-pg-holding")
+    wait_for("the pause", lambda: any(p.get("message") == "sending input" for p in scr_agent.progress("hm-pg-holding")), timeout=10)
+    scr_queued = scr_agent.start("act", {"window": scr_spin, "shot": scr_page.data["shot"]["id"], "next_page": scr_point, "deadline_ms": 25000}, token="hm-pg-queued")
+    wait_for("the page scroll waits", lambda: any(p.get("message") == "waiting for input to other windows of the same app" for p in scr_agent.progress("hm-pg-queued")), timeout=10)
+    machine.succeed(f"kill -USR1 {client('hm-page-spin')['pid']}")
+    wait_for("the notice", lambda: "notice" in [event for _, event in probe_events("page-spin")], timeout=10)
+    scr_stopped = scr_agent.result(scr_queued)
+    machine.log(f"page-spin, new content: {json.dumps(scr_stopped.data['scroll'])} {json.dumps(scr_stopped.data['wait'])}")
+    assert not scr_stopped.is_error and scr_stopped.data["scroll"]["ended"] == "reference_changed", scr_stopped
+    assert scr_stopped.data["scroll"]["notches"] == 1 and "moved_px" not in scr_stopped.data["scroll"], scr_stopped
+    assert not scr_agent.result(scr_holding).is_error
+    # The view that it returned shows the notice, and the next page is measured from it.
+    scr_origin = scr_settled(lambda: [value for value, _ in scr_probe_scrolls("page-spin")])
+    scr_page = scr_agent.call("act", {"window": scr_spin, "shot": scr_stopped.data["shot"]["id"], "next_page": scr_point})
+    scr_measured_page(scr_page, "page-spin", scr_origin)
+    assert snapshot() == (99, scr_user), snapshot()
+    machine.succeed(f"kill {client('hm-page-spin')['pid']}")
+    wait_for("the spinner page closed", lambda: client("hm-page-spin") is None and client("hm-page-spin-2") is None)
 
 assert scr_agent.stop() == 0
 machine.succeed(f"kill {next(c['pid'] for c in clients() if c['address'] == scr_user)}")

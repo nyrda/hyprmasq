@@ -85,6 +85,11 @@ func (s *Server) send(clientCtx, sendCtx context.Context, r *actRequest, steps [
 		}
 	}
 
+	if r.beforeInput != nil {
+		if err := r.beforeInput(sendCtx, cur); err != nil {
+			return out, cur, err
+		}
+	}
 	p.set("sending input")
 	// The lease keeps the emulated focus that the input gives, so it is taken first. It keeps the focus from ending
 	// while the batch runs and the window redraws.

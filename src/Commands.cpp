@@ -31,6 +31,7 @@ namespace hyprmasq {
             "  hyprctl hyprmasq wait <window-address> [quiet-ms [timeout-ms]]\n"
             "  hyprctl hyprmasq wait <window-address> since <commits> [expect ms] [quiet ms] [deadline ms] [id word] [ignore animations] [drags id]\n"
             "  hyprctl hyprmasq cancel <word>\n"
+            "  hyprctl hyprmasq drawn <window-address> since <commits>\n"
             "  hyprctl hyprmasq state <window-address>\n"
             "  hyprctl hyprmasq launch <workspace-hex> <token> <shell-command-line-hex>\n"
             "  hyprctl hyprmasq launched\n"
@@ -415,6 +416,17 @@ namespace hyprmasq {
         // Clients that talk to Hyprland's socket themselves wait as long as the reply takes.
         constexpr int MAX_CHANGE_WAIT_MS = 60000;
 
+        // The whole window-local logical pixels that cover each box, as a JSON array's members.
+        std::string boxesJson(const std::vector<CBox>& boxes) {
+            std::string json;
+            for (const auto& box : boxes) {
+                const int x = sc<int>(std::floor(box.x)), y = sc<int>(std::floor(box.y));
+                json += std::format(R"({}{{"x":{},"y":{},"width":{},"height":{}}})", json.empty() ? "" : ",", x, y, sc<int>(std::ceil(box.x + box.w)) - x,
+                                    sc<int>(std::ceil(box.y + box.h)) - y);
+            }
+            return json;
+        }
+
         SResponse changeWait(eOutputFormat format, const PHLWINDOW& window, const std::vector<std::string>& args) {
             wait::SChangeOptions  options;
             std::set<std::string> seen;
@@ -464,20 +476,40 @@ namespace hyprmasq {
                 if (result.error)
                     return error(format, *result.error);
                 if (format == FORMAT_JSON) {
-                    // The whole window-local logical pixels that cover each animation.
-                    std::string animated;
-                    for (const auto& box : result.animated) {
-                        const int x = sc<int>(std::floor(box.x)), y = sc<int>(std::floor(box.y));
-                        animated += std::format(R"({}{{"x":{},"y":{},"width":{},"height":{}}})", animated.empty() ? "" : ",", x, y, sc<int>(std::ceil(box.x + box.w)) - x,
-                                                sc<int>(std::ceil(box.y + box.h)) - y);
-                    }
                     return std::format(
                         R"({{"ok":true,"ended":"{}","commits":{},"socketId":{},"redrawObserved":{},"commitsSince":{},"quietMs":{},"elapsedMs":{},"resizing":{},"animated":[{}]}})",
                         result.ended, result.commits, jsonString(result.socketId), result.commitsSince > 0, result.commitsSince, result.quietMs, result.elapsedMs, result.resizing,
-                        animated);
+                        boxesJson(result.animated));
                 }
                 return std::string{result.ended};
             });
+        }
+
+        // drawn <window> since <commits> tells what the window drew after that value of its commit counter, see "What a
+        // window drew since a frame" in docs/automation.md.
+        std::string drawnCommand(eOutputFormat format, const std::vector<std::string>& args) {
+            if (args.size() != 3 || args[1] != "since")
+                return usage(format);
+            const auto since = parseNumber<uint64_t>(args[2]);
+            if (!since)
+                return error(format, eErrorCode::INVALID_ARGUMENTS, "since needs a commit counter value, a whole number of at least 0");
+            const auto window = windowFromAddress(args[0]);
+            if (!window)
+                return windowGone(format, args[0]);
+            const auto socket = socketState(window);
+            if (!socket)
+                return error(format, eErrorCode::NO_SOCKET, std::format("no open socket for {}", windowAddress(window)));
+            const auto& content = *socket->content;
+            // The counter never falls, so a higher value came from another counter, such as one of an earlier socket.
+            if (*since > content.commits)
+                return error(format, eErrorCode::INVALID_ARGUMENTS, std::format("since {} is above the commit counter, {}", *since, content.commits));
+            const auto boxes = content.animationSince(*since);
+            if (format == FORMAT_JSON)
+                return std::format(R"({{"ok":true,"commits":{},"socketId":{},"commitsSince":{},"onlyAnimation":{},"animated":[{}]}})", content.commits, jsonString(socket->id),
+                                   content.commits - *since, boxes.has_value(), boxes ? boxesJson(*boxes) : "");
+            if (content.commits == *since)
+                return "nothing";
+            return boxes ? "animation" : "changes";
         }
 
         // clipboard set <text> makes the text the agent's clipboard, for the agent's paste, and clipboard reports how far
@@ -602,6 +634,8 @@ namespace hyprmasq {
             return waitCommand(format, args);
         if (words[1] == "state")
             return state(format, args);
+        if (words[1] == "drawn")
+            return drawnCommand(format, args);
         if (words[1] == "launched")
             return launched(format, args);
         if (words[1] == "launch")
