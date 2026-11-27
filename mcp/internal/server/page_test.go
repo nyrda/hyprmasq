@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"github.com/nyrda/hyprmasq/mcp/internal/hypr"
+	"image"
 	"math"
 	"strconv"
 	"strings"
@@ -122,6 +123,30 @@ func TestPageBordersAreNotFixedPanes(t *testing.T) {
 	v = alignViews(grayOf(panes(0), 320, 200), grayOf(panes(42), 320, 200), nil, func() bool { return false })
 	if v.sure {
 		t.Fatalf("a fixed content pane: %+v", v)
+	}
+}
+
+// An animation that stays in place over the content that scrolls, as a banner that fades, differs between the views at
+// every shift. Its box, which the plugin tells, is left out of the comparison of the shifts too, so the shift of the
+// content around it is as sure as without it.
+func TestScrollShiftAroundAnAnimationInTheContent(t *testing.T) {
+	box := image.Rect(100, 60, 180, 160)
+	animating := func(offset float64, level uint8) func(x, y float64) uint8 {
+		return func(x, y float64) uint8 {
+			if image.Pt(int(x), int(y)).In(box) {
+				return level
+			}
+			return page(offset)(x, y)
+		}
+	}
+	a, b := grayOf(animating(0, 0), 320, 200), grayOf(animating(42, 255), 320, 200)
+	v := alignViews(a, b, []image.Rectangle{box}, func() bool { return false })
+	if !v.sure || v.shift != 42 || v.top != 20 || v.bottom != 200 {
+		t.Errorf("with the animation's box: %+v", v)
+	}
+	// Without the box the same pixels are a change that no shift explains.
+	if v := alignViews(a, b, nil, func() bool { return false }); v.sure {
+		t.Errorf("without the animation's box: %+v", v)
 	}
 }
 

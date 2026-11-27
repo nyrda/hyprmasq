@@ -3,7 +3,6 @@ package server
 import (
 	"image"
 	"math"
-	"slices"
 )
 
 const (
@@ -55,28 +54,39 @@ type viewAlignment struct {
 // The boxes of animated, in the images' pixels, hold animations, as a caret that blinks or a spinner, which draw on
 // their own between the two views. A difference within them tells neither which rows scrolled nor which columns
 // changed: a spinner in a toolbar would else make the rows from it down to the list below look like part of what
-// scrolled, and the view taller than it is.
+// scrolled, and the view taller than it is. Nor does it tell the shift: an animation over the content that scrolls
+// differs at every shift, and would make the true one look no better than the others.
 func alignViews(a, b grayImage, animated []image.Rectangle, stop func() bool) viewAlignment {
 	if a.w != b.w || a.h != b.h || a.h < 16 {
 		return viewAlignment{}
 	}
 	h, w := b.h, b.w
+	// The pixels that an animation's box holds, in either view: the boxes are places of the window, not of the content.
+	var masked []bool
+	for _, box := range animated {
+		box = box.Intersect(image.Rect(0, 0, w, h))
+		if box.Empty() {
+			continue
+		}
+		if masked == nil {
+			masked = make([]bool, w*h)
+		}
+		for y := box.Min.Y; y < box.Max.Y; y++ {
+			row := masked[y*w+box.Min.X : y*w+box.Max.X]
+			for x := range row {
+				row[x] = true
+			}
+		}
+	}
 	same := make([]bool, h)
 	changed := make([]bool, w)
 	kept := 0
-	var across []image.Rectangle
 	for y := 0; y < h; y++ {
 		ra, rb := a.pix[y*w:(y+1)*w], b.pix[y*w:(y+1)*w]
-		across = across[:0]
-		for _, box := range animated {
-			if y >= box.Min.Y && y < box.Max.Y {
-				across = append(across, box)
-			}
-		}
 		same[y] = true
 		for x := range rb {
 			if d := rb[x] - ra[x]; d > 16 || d < -16 {
-				if len(across) > 0 && slices.ContainsFunc(across, func(box image.Rectangle) bool { return x >= box.Min.X && x < box.Max.X }) {
+				if masked != nil && masked[y*w+x] {
 					continue
 				}
 				same[y], changed[x] = false, true
@@ -184,10 +194,17 @@ func alignViews(a, b grayImage, animated []image.Rectangle, stop func() bool) vi
 		for y := lo; y < hi; y += rowStep {
 			ra, rb := a.pix[(y+o)*w:], b.pix[y*w:]
 			for i := 0; i < len(cols); i += colStep {
+				// A pixel of the content that an animation covers in either view says nothing of this shift.
+				if masked != nil && (masked[y*w+cols[i]] || masked[(y+o)*w+cols[i]]) {
+					continue
+				}
 				d := float64(rb[cols[i]] - ra[cols[i]])
 				sum += d * d
 				n++
 			}
+		}
+		if n == 0 {
+			return math.Inf(1)
 		}
 		return sum / float64(n)
 	}
