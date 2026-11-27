@@ -18,8 +18,8 @@ of an earlier result is replaced by what the replay's own result gave in its pla
   the zoom is a part of, since a replay need not get the same zooms: see Mapping.shot.
 
 A replay that goes another way than the recording stops, and says where and why: a result that is an error where the
-recording had none, input that was not delivered as far, a window that closed in one and not the other, and a window, a
-shot or a point that the replay has nothing for. Such a replay is no sample of the tool's time, and no failure of the
+recording had none, input that was not delivered as far, a window that closed in one and not the other, a page scroll
+that ended at another view, and a window, a shot or a point that the replay has nothing for. Such a replay is no sample of the tool's time, and no failure of the
 task's checker either.
 
 Each line of the output is an event, as an agent's: the start, each call, and the end with what was sent and whether
@@ -55,6 +55,8 @@ LISTED = re.compile(r'(0x[0-9a-f]+) · (.*?) "(.*)" · workspace .+? \((?:hidden
 NAMED = re.compile(r'(0x[0-9a-f]+) \((.*?) "((?:[^"\\]|\\.)*)"(?:, launched|, same pid)?\) on workspace ')
 LAUNCHED = re.compile(r'launched (0x[0-9a-f]+) (\S+) "((?:[^"\\]|\\.)*)"')
 ERROR = re.compile(r"error (\w+):")
+# How a page scroll ended (pageScrollOut.text in page.go): by the view it moved, or the notches it stopped after and why.
+PAGE = re.compile(r"^Page scroll (?:moved the view (\d+) logical px|stopped after (\d+) wheel notches \((\w+)\))", re.M)
 SPLIT = ("before the scroll: ", "after the scroll: ")
 
 
@@ -72,6 +74,7 @@ KINDS = {
     "no_error": "a result is no error where the recording's was one",
     "delivery": "input was delivered up to another action than in the recording",
     "window_closed": "the window closed in one of the two and not in the other",
+    "scroll": "a page scroll ended at another view than in the recording",
     "window": "a call names a window that the replay's results gave no window for",
     "shot": "a call names a shot that the replay's results gave no shot for",
     "coordinates": "a point could not be mapped to the replay's shot",
@@ -248,10 +251,12 @@ def read_result(side, tool, args, message):
     - shots: the id of the result's shot as main, of the shot before a scroll as before, and of each shot of another
       window under that window's address;
     - kind: of the main shot, changes or full, and zooms: how many zooms it has;
-    - timeout: whether its wait ran into its deadline.
+    - timeout: whether its wait ran into its deadline;
+    - scroll: how a page scroll ended, the logical pixels it moved the view or the notches and the reason it stopped
+      at, or None.
     """
     out = {"error": None, "delivered": None, "closed": False, "windows": [], "shots": {}, "kind": None, "zooms": 0,
-           "timeout": False, "summary": ""}
+           "timeout": False, "scroll": None, "summary": ""}
     if "result" not in message:
         error = message.get("error") or {}
         out["error"] = f"rpc {error.get('code')}"
@@ -292,6 +297,11 @@ def read_result(side, tool, args, message):
         if tool == "launch" and out["windows"]:
             window = out["windows"][-1][0]
     out["windows"] = [(actlog.canonical(address), cls, title) for address, cls, title in out["windows"]]
+    # The text says it for every client.
+    page = PAGE.search(text) if tool == "act" else None
+    if page:
+        out["scroll"] = f"moved the view {page.group(1)} px" if page.group(1) else (
+            f"stopped after {page.group(2)} notches ({page.group(3)})")
     out["error"] = code or ("tool" if result.get("isError") else None)
     # An error that sent nothing says so in its text only when it has a shot: the error tells it either way.
     if out["error"] and out["delivered"] and not out["delivered"][0]:
@@ -541,6 +551,10 @@ def compare(recorded, replayed):
     if recorded["closed"] != replayed["closed"]:
         return Divergence("window_closed", ("the window closed only in the replay" if replayed["closed"] else
                                             "the window closed only in the recording") + f"; {said}"), notes
+    if recorded["scroll"] != replayed["scroll"]:
+        # The next calls' points are of the view that the recording's scroll ended at.
+        return Divergence("scroll", f"the page scroll {replayed['scroll'] or 'did not run'}, and in the recording it "
+                          f"{recorded['scroll'] or 'did not run'}"), notes
     return None, notes
 
 

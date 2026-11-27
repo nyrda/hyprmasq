@@ -45,7 +45,7 @@ class Server:
         return self.result(lines, {"windows": listed})
 
     def act(self, shot, base=None, zooms=(), done=(1, 1), size=(1280, 720), frame=WINDOW, closed=False, new=(),
-            source=None, before=None):
+            source=None, before=None, scroll=None):
         """act's result: a changes shot of base with its zooms, each (id, image width, image height, x, y, width,
         height), or a full shot; new windows as (address, class, title, shot, width, height); the window a closed one
         came from as (address, class, title, shot); and the changes shot before a scroll as (shot, base, zooms)."""
@@ -87,6 +87,8 @@ class Server:
         for address, cls, title, *_ in new:
             parts.append(f'new window {address} ({cls} "{title}", same pid) on workspace web (hidden)')
         lines = [" · ".join(parts)] + lines + (zoom_lines if "shot" in content else [])
+        if scroll:
+            lines.append(f"Page scroll {scroll}")
         if source:
             lines.append(f"shot {source[3]} 1280×720 of {source[0]}, the window it came from")
         for address, cls, title, new_shot, width, height in new:
@@ -392,7 +394,7 @@ class Results(unittest.TestCase):
         if not structured:
             del result["structuredContent"]
         out = replay.read_result(replay.Side(), r["tool"], r["arguments"], {"result": result})
-        return {k: out[k] for k in ("error", "delivered", "closed", "windows", "shots", "kind", "zooms", "timeout")}
+        return {k: out[k] for k in ("error", "delivered", "closed", "windows", "shots", "kind", "zooms", "timeout", "scroll")}
 
     def test_the_text_tells_what_the_structured_content_tells(self):
         for name in self.recorded:
@@ -405,7 +407,8 @@ class Results(unittest.TestCase):
             "windows": {"shots": {"0x5a1c40b6ceb0": "s1"}, "kind": None},
             "windows-all": {"shots": {}, "windows": 3},
             "changes": {"shots": {"main": "s2"}, "kind": "changes", "zooms": 2, "delivered": (2, 2)},
-            "split": {"shots": {"main": "s4", "before": "s2"}, "kind": "full", "delivered": (18, 18)},
+            "split": {"shots": {"main": "s4", "before": "s2"}, "kind": "full", "delivered": (18, 18),
+                      "scroll": "stopped after 5 notches (reference_changed)"},
             "new-window": {"shots": {"main": "s19", dialog: "s21"}, "zooms": 1,
                            "windows": [(dialog, "soffice", "Text Import")]},
             "source": {"shots": {calc: "s22"}, "closed": True,
@@ -439,6 +442,9 @@ class Divergence(unittest.TestCase):
             "no_error": (s.error("stale_shot", "the window changed"), s.act("s2", "s1", [])),
             "delivery": (s.act("s2", "s1", [], done=(3, 3)), s.act("s2", "s1", [], done=(2, 3))),
             "window_closed": (s.act("s2", "s1", []), s.act("s2", closed=True, source=(*B, "s2"))),
+            # The same call, but the view stopped elsewhere: the next call's points are of the recording's view.
+            "scroll": (s.act("s2", before=("s9", "s1", []), scroll="moved the view 842 logical px, leaving overlap."),
+                       s.act("s2", before=("s9", "s1", []), scroll="stopped after 9 wheel notches (reference_changed).")),
         }
         for kind, (recorded, replayed) in cases.items():
             with self.subTest(kind=kind):
