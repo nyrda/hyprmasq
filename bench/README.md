@@ -529,6 +529,8 @@ Two more options apply to all hosts:
 
 `run.json` of a dispatched run records `dispatch`: its `slot`, `balance`, the limits that applied to its agent
 (`max_concurrent`) and `waited_seconds`, how long a full limit held its unit back from free slots before it started.
+It also records the run's place among its unit's builds, `position`, `builds` and `ran_after`, see
+[Comparing builds](#comparing-builds).
 For example, three slots here, three on a 12-thread server with one core each, and the API runs limited:
 
 ```sh
@@ -555,6 +557,40 @@ Each task gets a results directory of its own, `TASK` or `TASK-VARIANT` under `-
 Without `--out`, the directory is `bench/results/DATE-N-tasks`. With several `--source`, each `--out` holds the
 tasks' directories of its build. A single `--task` writes into `--out` itself, as before. Running the same command
 again resumes every task with its runs that have no `summary.json`.
+
+### Comparing builds
+
+Several `--source` are builds that one dispatch runs side by side, each into its own `--out`. Without `--out`, a
+build's directory ends in the first ten digits of its commit, `bench/results/DATE-TASK-COMMIT` or
+`bench/results/DATE-N-tasks-COMMIT`. An agent's repetition of a task is one unit: one slot runs it for every build,
+one run after the other, so that the builds' runs share a machine and an hour.
+
+#### The order of the builds
+
+A run's place in its unit is not neutral. The run that follows another run of the same task can find the provider's
+cache warm, and it starts later. So the order is balanced for each agent. It is a rotation of the builds as `--source`
+gives them, which moves on by one with each repetition, each task and each agent. With three builds or more, every
+second block of as many repetitions, and of as many tasks, rotates the builds in reverse, so that a build does not
+always run right after the same other one. Two builds have one rotation, which is also their reversal.
+
+For the builds `a` and `b` and two agents over three repetitions of one task, the first agent runs `a b`, `b a`,
+`a b` and the second `b a`, `a b`, `b a`. Three builds run `a b c`, `b c a`, `c a b` in the first agent's repetitions
+1 to 3 and `c b a`, `b a c`, `a c b` in its repetitions 4 to 6.
+
+An agent's builds take each place equally often where the repetitions, counted from 1, or the tasks are a multiple of
+the builds, and as nearly as their count allows otherwise. Four builds of 15 tasks in 3 repetitions are 45 units an
+agent, and each build runs 11 or 12 times at each place. The order follows from the repetition and from the places of
+the task and the agent among `--task` and `--agent`, not from the runs that are left. So the same command plans the
+runs of a resume in the same order, and `--rep 3` alone plans the third repetition as `--reps 3` does. A unit that
+lacks a build's run, because that run is done, keeps the others in their order.
+
+`run.json` records the place in `dispatch`: `position`, counted from 1, `builds`, how many builds the order has, and
+`ran_after`, how many runs of its unit the slot ran right before it. A run that a resume ran without the others, or
+that went to another machine after a failure, keeps its `position` and has a smaller `ran_after`.
+
+Dispatches before this order reversed the builds from one unit to the next. With an even number of agents that gave
+each agent one order for all its units, so one agent's baseline always ran first and the other's always last. Their
+runs record no `position`.
 
 ### API keys on other machines
 
@@ -611,7 +647,8 @@ more than one, and names the machine and the harness's version of every run. The
 hyprmasq's own time in `analyze.py` depend on the machine's CPU, since the VM draws in software. So compare two
 builds only over the same machines, with the same runs on each, interleaved in time, or machine by machine. Given
 several `--source`, the dispatcher does the first: each agent's repetition of every build is one unit that one
-machine runs, the builds one after the other, their order alternating from unit to unit. Units go to whichever
+machine runs, the builds one after the other, in an order that is balanced for each agent, see
+[Comparing builds](#comparing-builds). Units go to whichever
 machine is free, so a faster machine runs more of them, unless `--balance` gives each machine an equal share of
 each agent's units. Read agents against each other per machine too. A run
 that goes to another machine after a failure, or that a resume runs again while its unit's other builds finished,
@@ -619,9 +656,9 @@ can land on another machine than they did; the report's table per machine shows 
 harness versions as well: machines that update their CLIs apart can run different versions of one harness, and
 `run.json` and the report's runs list show which.
 
-`dispatch_test.py` tests the planning of several tasks, the scheduling with its shares and limits, the hosts' agents,
-the slots' cores, the shared lock, and the way of claude-api's key to a machine with `api-keys`, with fake `ssh`,
-`rsync`, `git` and `run.py`, without machines: `python3 bench/dispatch_test.py`. `harness_test.py` tests pi's
+`dispatch_test.py` tests the planning of several tasks, the order of the builds, the scheduling with its shares and
+limits, the hosts' agents, the slots' cores, the shared lock, and the way of claude-api's key to a machine with
+`api-keys`, with fake `ssh`, `rsync`, `git` and `run.py`, without machines: `python3 bench/dispatch_test.py`. `harness_test.py` tests pi's
 isolation, claude-api's key and its check, the names of runs, the reading of a recorded pi stream and the pinning of
 a run's VM, with fake `pi`, `claude` and test driver: `python3 bench/harness_test.py`.
 

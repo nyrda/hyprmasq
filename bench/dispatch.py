@@ -17,8 +17,9 @@ HARNESS:MODEL@EFFORT with *, a pattern without @ matching the agent at any effor
 machine's API keys, claude-api and pi, run only on `local`, but claude-api also on a host with api-keys, which gets
 the key through the run's SSH session. The commits of this checkout and of each --source are shipped to every host:
 the checkouts must be clean. Each --source is a build with its own results directory, the --out in the same order;
-the runs of builds go to the same host one after the other. Several --task run in one queue, each into its own
-directory TASK[-VARIANT] under each --out. cores= runs each slot's VM on that many physical cores of its own.
+the runs of builds go to the same host one after the other, in an order that gives each build each place equally often
+for every agent (unit_order). Several --task run in one queue, each into its own directory TASK[-VARIANT] under each
+--out. cores= runs each slot's VM on that many physical cores of its own.
 --balance gives each host an equal share of every task's and agent's runs, and --max-concurrent limits the runs at
 once of the agents that match a pattern, over all hosts and tasks. --backend, --prompt, --browser and --desktop go to
 every run, as run.py takes them. bin= puts a directory first on the host's PATH, where a series keeps the harnesses it
@@ -184,9 +185,13 @@ class Build:
 class Job:
     """One run: a build's agent and repetition."""
 
-    def __init__(self, build, harness, model, rep, effort=None):
+    def __init__(self, build, harness, model, rep, effort=None, position=None, builds=None):
         self.build, self.harness, self.model, self.rep, self.effort = build, harness, model, rep, effort
         self.name = run.run_name(harness, model, rep, effort)
+        # Its place in the order of its unit's builds, from 1, and how many builds that order has: those of the plan,
+        # also when a resume runs it without the others.
+        self.position, self.builds = position, builds
+        self.ran_after = 0  # the runs of its unit that its slot ran right before it
         self.tried = []  # the hosts it failed on before its run started
         self.outcome = "not run"
         self.waited = 0.0  # seconds a --max-concurrent limit held it back from free slots
@@ -206,23 +211,40 @@ class Unit:
         self.waited = 0.0
 
 
+def unit_order(n, rep, task, agent):
+    """The order in which a unit runs its n builds, as their indices, for a repetition, counted from 1, and the numbers
+    of its task and its agent among the dispatch's, from 0. It is a rotation of the builds as given, which moves on by
+    one with each repetition, task and agent: so n repetitions or n tasks in a row put each build in each place once,
+    for every agent, and agents that run the same task at the same time differ in their order. With three builds and
+    more, every second block of n repetitions and of n tasks rotates the builds reversed, so that a build does not
+    always run right after the same other one. Two builds have no second direction, as their reversal is their
+    rotation. An agent's builds so take each place equally often, exactly where the repetitions from 1 or the tasks
+    are a multiple of n, and as nearly as their count allows otherwise. The order follows from the repetition, the task
+    and the agent alone, not from the units planned, which a resume has fewer of."""
+    order = list(range(n))
+    if n > 2 and ((rep - 1) // n + task // n) % 2:
+        order.reverse()
+    shift = (rep - 1 + task + agent) % n
+    return order[shift:] + order[:shift]
+
+
 def plan(builds, agents, reps):
     """The units of the runs that have no summary.json yet. Repetitions go round the tasks, and each task's round
-    round the agents, as in run.py: so an agent's runs, and a provider's, spread over the whole dispatch. The order of
-    the builds alternates from one unit to the next, so that neither always runs first."""
+    round the agents, as in run.py: so an agent's runs, and a provider's, spread over the whole dispatch. A unit runs
+    its builds in unit_order, and each job records its place in it. A unit that lacks a build's run, which is done,
+    keeps the others in that order and at those places."""
     pending = [set(run.pending_runs(b.out, reps, agents)) for b in builds]
     tasks = list(dict.fromkeys((b.task, b.variant) for b in builds))
     units = []
     for rep in reps:
-        for task in tasks:
-            for harness, model, effort in agents:
-                jobs = [Job(b, harness, model, rep, effort) for b, p in zip(builds, pending)
-                        if (b.task, b.variant) == task and (rep, harness, model, effort) in p]
-                if not jobs:
-                    continue
-                if len(units) % 2:
-                    jobs.reverse()
-                units.append(Unit(jobs))
+        for t, task in enumerate(tasks):
+            arms = [(b, p) for b, p in zip(builds, pending) if (b.task, b.variant) == task]
+            for a, (harness, model, effort) in enumerate(agents):
+                jobs = [Job(arms[i][0], harness, model, rep, effort, position, len(arms))
+                        for position, i in enumerate(unit_order(len(arms), rep, t, a), 1)
+                        if (rep, harness, model, effort) in arms[i][1]]
+                if jobs:
+                    units.append(Unit(jobs))
     return units
 
 
@@ -431,6 +453,8 @@ def run_slot(host, slot, queue, ready, execute):
                 break
             # The unit waited for a limit before its first job; the others follow at once.
             job.waited = unit.waited if i == 0 else 0.0
+            # What ran here right before it: not the runs of a dispatch before this one, or of another host.
+            job.ran_after = sum(earlier.outcome in ("done", "failed") for earlier in unit.jobs[:i])
             try:
                 job.outcome = execute(host, slot, job)
             except Exception as e:  # a bug or a local error: the run stays without summary.json, for a resume
@@ -624,11 +648,13 @@ class Remote:
         command += ["--max-calls", str(b.config["max_calls"])] if b.config.get("max_calls") else []
         command += ["--lock", host.lock] if host.lock else []
         command += ["--cpus", run.format_cpus(host.cpus[slot])] if host.cpus else []
-        # What run.json records of the dispatch: the slot, the limits on the agent and how long it waited for them.
+        # What run.json records of the dispatch: the slot, the limits on the agent and how long it waited for them,
+        # and where the run stood among its unit's builds, for a look at what the place does (compare.py).
         limits = {p: n for p, n in self.queue.limits if agent_matches(p, job.harness, job.model, job.effort)}
         command += ["--dispatch", json.dumps({"slot": slot, "balance": self.queue.balance, "max_concurrent": limits,
                                               "waited_seconds": round(job.waited, 1),
-                                              "host": host.label or host.target})]
+                                              "host": host.label or host.target, "position": job.position,
+                                              "builds": job.builds, "ran_after": job.ran_after})]
         q = shlex.quote
         # claude-api's key goes to a host with api-keys on the stdin of the run's start alone; local has its own.
         send = self.keys if job.harness in SENDS_KEY and not host.local else None

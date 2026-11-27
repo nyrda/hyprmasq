@@ -59,7 +59,7 @@ class Runs(unittest.TestCase):
         with self.assertRaises(ValueError):
             run.check_run_options(parser.parse_args(["--task", "board"]), parser)
 
-    def test_plan_skips_finished_runs_and_alternates_builds(self):
+    def test_plan_skips_finished_runs(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
             finish(a, "codex-gpt-1")
             builds = [dispatch.Build(a, {"path": "/a", "commit": "a" * 40}),
@@ -69,8 +69,8 @@ class Runs(unittest.TestCase):
                 [[(j.build.out, j.name) for j in u.jobs] for u in units],
                 [[(b, "codex-gpt-1")],
                  [(b, "claude-opus-1"), (a, "claude-opus-1")],
-                 [(a, "codex-gpt-2"), (b, "codex-gpt-2")],
-                 [(b, "claude-opus-2"), (a, "claude-opus-2")]],
+                 [(b, "codex-gpt-2"), (a, "codex-gpt-2")],
+                 [(a, "claude-opus-2"), (b, "claude-opus-2")]],
             )
 
     def tasks(self, *argv):
@@ -107,8 +107,8 @@ class Runs(unittest.TestCase):
             self.assertEqual(
                 [(u.jobs[0].build.task, u.jobs[0].name, [j.build.commit[0] for j in u.jobs]) for u in units],
                 [("forgejo", "codex-gpt-1", ["a", "b"]), ("forgejo", "claude-opus-1", ["b", "a"]),
-                 ("calc", "codex-gpt-1", ["a", "b"]), ("calc", "claude-opus-1", ["b", "a"]),
-                 ("forgejo", "codex-gpt-2", ["a", "b"]), ("forgejo", "claude-opus-2", ["b", "a"]),
+                 ("calc", "codex-gpt-1", ["b", "a"]), ("calc", "claude-opus-1", ["a", "b"]),
+                 ("forgejo", "codex-gpt-2", ["b", "a"]), ("forgejo", "claude-opus-2", ["a", "b"]),
                  ("calc", "codex-gpt-2", ["b"]), ("calc", "claude-opus-2", ["b", "a"])],
             )
 
@@ -118,6 +118,94 @@ class Runs(unittest.TestCase):
             build = dispatch.Build(a, {"path": "/a", "commit": "a" * 40})
             units = dispatch.plan([build], [("codex", "gpt", None), ("codex", "gpt", "high")], [1])
             self.assertEqual([(j.name, j.effort) for u in units for j in u.jobs], [("codex-gpt-high-1", "high")])
+
+
+class Order(unittest.TestCase):
+    """The order of the builds within a unit: each agent's builds take each place equally often."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+
+    def builds(self, count, tasks=("forgejo",)):
+        """The builds a to d of each task, in the order dispatch.py's main makes them: a source's tasks together."""
+        builds = [dispatch.Build(os.path.join(self.dir.name, f"{commit}-{task}"),
+                                 {"path": "/" + commit, "commit": commit * 40, "task": task, "variant": None})
+                  for commit in "abcd"[:count] for task in tasks]
+        for b in builds:
+            os.makedirs(b.out, exist_ok=True)
+        return builds
+
+    def orders(self, units):
+        """Each unit's builds in the order they run, by task, harness and repetition."""
+        return {(u.jobs[0].build.task, u.jobs[0].harness, u.jobs[0].rep): "".join(j.build.commit[0] for j in u.jobs)
+                for u in units}
+
+    def places(self, units):
+        """How often each agent ran each build at each place of a unit."""
+        places = collections.defaultdict(collections.Counter)
+        for (task, harness, rep), order in self.orders(units).items():
+            places[harness].update(enumerate(order))
+        return places
+
+    def test_two_builds_take_turns_for_each_of_two_agents(self):
+        # The order once followed the count of units planned, which with two agents gave each agent one order for
+        # all its units: its baseline always ran first, or always last.
+        orders = self.orders(dispatch.plan(self.builds(2), AGENTS, [1, 2, 3]))
+        self.assertEqual([orders["forgejo", "codex", rep] for rep in (1, 2, 3)], ["ab", "ba", "ab"])
+        self.assertEqual([orders["forgejo", "claude", rep] for rep in (1, 2, 3)], ["ba", "ab", "ba"])
+
+    def test_as_many_repetitions_as_builds_put_each_build_in_each_place_once(self):
+        agents = [("codex", "gpt", None), ("claude", "opus", None), ("agy", "neon", None)]
+        for count in (2, 3, 4):
+            for n_agents in (1, 2, 3):
+                units = dispatch.plan(self.builds(count, ("forgejo", "calc")), agents[:n_agents], range(1, count + 1))
+                by_task = collections.defaultdict(collections.Counter)
+                for (task, harness, rep), order in self.orders(units).items():
+                    by_task[task, harness].update(enumerate(order))
+                self.assertEqual(len(by_task), 2 * n_agents)
+                for key, seen in by_task.items():
+                    self.assertEqual(sorted(seen.items()), [((place, commit), 1) for place in range(count)
+                                                            for commit in "abcd"[:count]], (count, n_agents, key))
+
+    def test_an_agents_builds_take_each_place_as_often_over_its_tasks(self):
+        tasks = [f"task{i}" for i in range(15)]
+        # Four builds of fifteen tasks in three repetitions, as the comparison that could not be read: 45 units an
+        # agent, so each build 11 or 12 times at each place. And as many tasks as builds in one repetition: once each.
+        for count, n_tasks, reps, least, most in ((4, 15, 3, 11, 12), (2, 15, 3, 22, 23), (3, 3, 1, 1, 1)):
+            places = self.places(dispatch.plan(self.builds(count, tasks[:n_tasks]), AGENTS, range(1, reps + 1)))
+            for harness in ("codex", "claude"):
+                counts = [places[harness][place, commit] for place in range(count) for commit in "abcd"[:count]]
+                self.assertEqual((min(counts), max(counts)), (least, most), (count, n_tasks, reps, harness))
+
+    def test_three_builds_run_in_both_directions(self):
+        # Rotations of one direction alone would run b right after a in two of three units and never a after b.
+        after = collections.Counter()
+        for order in self.orders(dispatch.plan(self.builds(3), AGENTS[:1], range(1, 7))).values():
+            after.update(zip(order, order[1:]))
+        self.assertEqual(after, {pair: 2 for pair in (("a", "b"), ("b", "c"), ("c", "a"), ("b", "a"), ("c", "b"),
+                                                      ("a", "c"))})
+
+    def test_a_resume_plans_the_order_and_the_places_of_the_runs_that_are_left(self):
+        builds = self.builds(3)
+        a, b, c = (x.out for x in builds)
+        whole = {(u.jobs[0].harness, u.jobs[0].rep): [(j.build.out, j.position, j.builds) for j in u.jobs]
+                 for u in dispatch.plan(builds, AGENTS, [1, 2, 3])}
+        self.assertEqual(whole["codex", 2], [(b, 1, 3), (c, 2, 3), (a, 3, 3)])
+        # A unit that is done, one that lacks its middle build, and one that lacks its first.
+        for out, name in ((a, "codex-gpt-1"), (b, "codex-gpt-1"), (c, "codex-gpt-1"), (c, "codex-gpt-2"),
+                          (b, "claude-opus-1")):
+            finish(out, name)
+        left = {(u.jobs[0].harness, u.jobs[0].rep): [(j.build.out, j.position, j.builds) for j in u.jobs]
+                for u in dispatch.plan(builds, AGENTS, [1, 2, 3])}
+        done = {(a, "codex", 1), (b, "codex", 1), (c, "codex", 1), (c, "codex", 2), (b, "claude", 1)}
+        self.assertEqual(left, {key: [job for job in jobs if (job[0], *key) not in done]
+                                for key, jobs in whole.items() if key != ("codex", 1)})
+        self.assertEqual(left["codex", 2], [(b, 1, 3), (a, 3, 3)])
+        # The repetitions asked for alone are planned as they are among all.
+        only = {(u.jobs[0].harness, u.jobs[0].rep): [(j.build.out, j.position, j.builds) for j in u.jobs]
+                for u in dispatch.plan(builds, AGENTS, [3])}
+        self.assertEqual(only, {key: jobs for key, jobs in left.items() if key[1] == 3})
 
 
 class Budgets(unittest.TestCase):
