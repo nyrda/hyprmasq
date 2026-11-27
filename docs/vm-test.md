@@ -25,7 +25,9 @@ not take.
 GTK 3 app on X11 with a combo box, or a scrolled column, which logs alike, and
 so does `slider-probe.py`, a slider in Qt 6, GTK 3 or Tk. `scroll-probe.py`
 is a GTK 4 app with an entry above a scrolling page, which logs the positions
-of its viewport. Chromium opens
+of its viewport. It can show a spinner beside the entry and open a second
+window, and on SIGUSR1 it shows a notice above the page, which moves the page
+down. Chromium opens
 `guest/select.html`, a page with a `<select>`, `guest/scroll.html`, a long
 page, and `guest/clip.html`, a textarea that logs its pastes, which log to its
 console.
@@ -174,7 +176,7 @@ the VM, such as a window or a log, is declared by hand.
 | `qt-popups` | `core` | A click after the Enter that picks an item of a Qt dropdown: it reaches the window once the list has closed, and `act` holds it back when Enter opened the list again, as it does with the platform theme of GTK. Hooks that leave the arguments Hyprland passes them as they came, so that the list's popup lives until the app closes it. |
 | `key-pace` | `core` | Repeated plain keys, with every press counted on Qt 6, GTK 3 and Tk sliders, and keys held for a time, which the toolkits repeat. |
 | `scrolling` | `core` | `act`'s scroll at the end of a batch, which comes after the changes of the input before it or is held back, a dropdown that takes the wheel, and scrolls on X11 that move by every notch. |
-| `paging` | `core`, `input` | Measured page scrolls, overlap, edit verification and controls that take the wheel. |
+| `paging` | `core`, `input` | Measured page scrolls, overlap, edit verification, controls that take the wheel, and animations and new content before a step's input. |
 | `unload` | `core`, `waits`, `suspended` | Unloading and loading the plugin again, with pending waits on the busy window of `waits` and the Qt window of `suspended`, selections and screenshot writes. |
 | `idle` | `core` | An idle client, hypridle, and DPMS: windows that map and unmap on a hidden workspace and the agent's input end neither, real input does. |
 | `hooks` | `core` | Sharing Hyprland with another plugin that hooks a function of hyprmasq's: hooks that hyprmasq installs only while input is in use, also by two senders at once, refusals that name the function, and a hook held at load. |
@@ -534,13 +536,16 @@ rows in GTK 3 and logs where it is scrolled to, and Chromium opens
 ### `paging`
 
 The Qt, GTK 3 and GTK 4 list probes and an X11 Chromium page log their true scroll
-positions. These tests check page movement at two window heights.
+positions. These tests check page movement at two window heights, and what a
+page scroll does when the window draws between a view and the input after it.
 
 | Subtest | Checks |
 | --- | --- |
-| page scrolling keeps overlap on Qt, GTK and browser pages at different window heights | At output heights of 800 and 600 pixels, native Qt, GTK 3 and GTK 4 lists and an X11 Chromium page scroll down and back up through `next_page`. Each app logs its true scroll position. The result must measure that position within 3 logical pixels, keep overlap, return a full new view after settling, and leave the user's focus alone. Qt ticks a fixed check box before scrolling and logs its viewport height and row spacing. The inferred moving band may omit up to one row of blank label margins. GTK 4 edits a fixed entry using a shot ID and point pair, tabs out and moves the pointer into the viewport before scrolling. Both calls show the edit before the new view. If unknown redraws stop GTK 4 after one notch, no measured distance is claimed; the next request uses the returned scrollbar-animation evidence and must complete a measured page. |
+| page scrolling keeps overlap on Qt, GTK and browser pages at different window heights | At output heights of 800 and 600 pixels, native Qt, GTK 3 and GTK 4 lists and an X11 Chromium page scroll down and back up through `next_page`. Each app logs its true scroll position. The result must measure that position within 3 logical pixels, keep overlap, return a full new view after settling, and leave the user's focus alone. Qt ticks a fixed check box before scrolling and logs its viewport height and row spacing. The inferred moving band may omit up to one row of blank label margins. GTK 4 edits a fixed entry using a shot ID and point pair, tabs out and moves the pointer into the viewport before scrolling. Both calls show the edit before the new view. If unknown redraws stop GTK 4 after one notch, as the first two frames of its scrollbar's fade, no measured distance is claimed, and only the scrollbar animated. The next request, by which the plugin knows the fade for an animation, must complete a measured page. |
 | a page scroll goes on when its first view releases a frame that the hidden window held back | Chromium at 1280×800 with pauses of 0.5 s and the GTK 4 page at 800×600 with pauses of 3 s scroll down and up twice, each request ending at `page`, not at `reference_changed` after one notch. |
 | a page scroll stops when a control takes the wheel without claiming the page ended | A page request over the Qt probe's dropdown sends one notch, selects Venus once, and stops. It reports no page completion or page end, and leaves the user's focus alone. |
+| a page scroll goes on while a caret blinks in a focused text field | The hidden GTK 4 page keeps the keyboard focus in its entry above the page after text was typed into it, so the caret fades in and out. Eight `next_page` requests go down and up, every other one after typing a letter in the same call, which keeps the caret blinking. Each one that ends at `page` measures the probe's own position within 3 logical pixels, keeps overlap, and reports a viewport that is not taller than the page, although the caret draws above it. At most one may stop at `reference_changed`, without a measured distance: the first two frames of a fade are no animation yet. The user's focus stays. |
+| a page scroll goes on beside a spinner, and stops when the window draws new content before its input | The GTK 4 page is on the user's workspace with a spinner beside its entry, which draws every frame. A `next_page` request ends at `page`, measures the probe's position, reports the spinner among the wait's animations, and its viewport is not taller than the page. Then a pause in the app's second window holds the app's send lock, a second `next_page` request takes its first view and waits for the lock, and the probe shows a notice above the page. That request stops at `reference_changed` after one notch without a measured distance. A third request from the view that it returned ends at `page` again. The user's focus stays. |
 
 ### `unload`
 
