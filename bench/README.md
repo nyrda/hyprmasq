@@ -468,6 +468,7 @@ python3 bench/dispatch.py --host local,lock=/tmp/vm.lock --host me@box --host me
     --task forgejo --agent codex:gpt-6.1-sol --reps 6 --source ../hyprmasq-main --out bench/results/my-run
 python3 bench/dispatch.py --host ... --source ../hyprmasq-main --source ../hyprmasq-feature \
     --out bench/results/main --out bench/results/feature   # two builds, each into its own directory
+python3 bench/compare.py bench/results/main bench/results/feature   # the second build against the first
 python3 bench/dispatch.py --host ... --task forgejo --task board:dnd --task form \
     --out bench/results/suite                              # three tasks in one queue, a directory each
 python3 bench/dispatch.py --host ... --reps 0              # only ship the commits and build the drivers
@@ -611,6 +612,51 @@ second time.
 
 The dispatcher names the second build of a commit `COMMIT-2` in what it prints, and its default directory ends so.
 The same `--out` twice is refused, as for any two builds.
+
+#### compare.py
+
+```sh
+python3 bench/compare.py bench/results/main bench/results/feature --control bench/results/main-control
+```
+
+The first directory is the baseline, and any number of other builds may follow. Each is a build's `--out`: with
+several tasks, the directory that holds the tasks' directories. It pairs a build's run with the baseline's run of the
+same task, agent and repetition, and prints for each agent and build:
+
+- the runs passed, and the passes lost and gained with the checker's failures
+- for the wall time, the time in tools, the tool calls, the model's requests, the cost, the input tokens and the
+  growth of the context: the two means, the mean of the pairs' differences, a 95 % bootstrap interval of that mean
+  over the pairs, and the difference as a share of the baseline's mean
+- `Resolves`, half the interval's width as a share of the baseline's mean
+
+With `--control` it prints the control against the baseline first, as the noise floor. The control's range of a
+measure is the end of its interval that lies farther from zero, taken to both sides, since two results of one build
+differ by chance in either direction. Each difference of the other builds is marked `inside` or `outside` that
+range, and so are their passes lost and gained against the control's. A control whose commit is not the baseline's
+is named.
+
+For each agent it then prints the means by position in the unit, over all the builds given, and how many runs each
+build has at each position. These come from the runs that record a `position` and ran right after the runs before
+them in their unit. Runs of earlier dispatches record none, and it says so.
+
+Runs that the infrastructure stopped (`infrastructure` in `summary.json`) stay out with their pairs and are counted.
+Runs without a partner stay out and are counted too. It reads `summary.json` as it is, which `report.py` writes again
+from a run's files after a change to the measures.
+
+What it cannot do:
+
+- It cannot show an effect smaller than `Resolves`. With 45 pairs for an agent that was about ±5 % of the wall time
+  and ±6 % of the cost, so a gain of 2 % stays unseen however real. More pairs narrow the interval with the square
+  root of their count: a quarter of the width takes sixteen times the runs.
+- A difference inside the control's range is not evidence of an effect. A difference outside it is one draw against
+  one draw of the noise, and a second control can differ more.
+- It is no test. About one interval in twenty of two equal builds excludes zero, and every agent and build has seven
+  measures.
+- It cannot tell a build's effect from its place in the unit where the order was not balanced. The means by position
+  show whether the place matters.
+- It prints no table per task. Three repetitions say little about one task alone.
+
+`compare_test.py` tests it on small results directories: `python3 bench/compare_test.py`.
 
 ### API keys on other machines
 

@@ -204,6 +204,7 @@ Full benchmark runs are not a PR gate. The unit tests are:
 
 ```sh
 python3 bench/analyze_test.py
+python3 bench/compare_test.py
 python3 bench/dispatch_test.py
 python3 bench/harness_test.py
 python3 bench/laptop/run_form_test.py

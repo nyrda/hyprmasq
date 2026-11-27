@@ -19,8 +19,8 @@ the key through the run's SSH session. The commits of this checkout and of each 
 the checkouts must be clean. Each --source is a build with its own results directory, the --out in the same order;
 the runs of builds go to the same host one after the other, in an order that gives each build each place equally often
 for every agent (unit_order). A checkout given twice is two builds, the second a control arm that says how much two
-results of one build differ. Several --task run in one queue, each into its own directory TASK[-VARIANT] under each
---out. cores= runs each slot's VM on that many physical cores of its own.
+results of one build differ, and compare.py compares the builds' results. Several --task run in one queue, each into its own
+directory TASK[-VARIANT] under each --out. cores= runs each slot's VM on that many physical cores of its own.
 --balance gives each host an equal share of every task's and agent's runs, and --max-concurrent limits the runs at
 once of the agents that match a pattern, over all hosts and tasks. --backend, --prompt, --browser and --desktop go to
 every run, as run.py takes them. bin= puts a directory first on the host's PATH, where a series keeps the harnesses it
