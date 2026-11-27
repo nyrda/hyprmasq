@@ -18,7 +18,8 @@ machine's API keys, claude-api and pi, run only on `local`, but claude-api also 
 the key through the run's SSH session. The commits of this checkout and of each --source are shipped to every host:
 the checkouts must be clean. Each --source is a build with its own results directory, the --out in the same order;
 the runs of builds go to the same host one after the other, in an order that gives each build each place equally often
-for every agent (unit_order). Several --task run in one queue, each into its own directory TASK[-VARIANT] under each
+for every agent (unit_order). A checkout given twice is two builds, the second a control arm that says how much two
+results of one build differ. Several --task run in one queue, each into its own directory TASK[-VARIANT] under each
 --out. cores= runs each slot's VM on that many physical cores of its own.
 --balance gives each host an equal share of every task's and agent's runs, and --max-concurrent limits the runs at
 once of the agents that match a pattern, over all hosts and tasks. --backend, --prompt, --browser and --desktop go to
@@ -174,12 +175,26 @@ class Host:
 
 
 class Build:
-    """One hyprmasq commit to benchmark on one task variant, and its results directory."""
+    """One hyprmasq commit to benchmark on one task variant, and its results directory. Two builds may have one
+    commit, as a control arm has the baseline's: what tells builds apart is the results directory, and name in what the
+    dispatcher prints (build_names)."""
 
-    def __init__(self, out, config):
+    def __init__(self, out, config, name=None):
         self.out, self.config = out, config
         self.checkout, self.commit = config["path"], config["commit"]
         self.task, self.variant = config.get("task"), config.get("variant")
+        self.name = name or self.commit[:10]
+
+
+def build_names(commits):
+    """A name for each build of a dispatch, from its commit: the commit's first ten digits, and for a commit given
+    again, as for a control arm, its count after them, such as 0123456789-2. The default results directories end in
+    these names, so they must differ."""
+    seen, names = collections.Counter(), []
+    for commit in commits:
+        seen[commit] += 1
+        names.append(commit[:10] + (f"-{seen[commit]}" if seen[commit] > 1 else ""))
+    return names
 
 
 class Job:
@@ -197,7 +212,7 @@ class Job:
         self.waited = 0.0  # seconds a --max-concurrent limit held it back from free slots
 
     def __repr__(self):
-        return f"{self.name} of {self.build.commit[:10]}"
+        return f"{self.name} of {self.build.name}"
 
 
 class Unit:
@@ -607,21 +622,24 @@ class Remote:
                 test "$(git -C {shlex.quote(tree)} rev-parse HEAD)" = {commit} || {{ echo "{tree} is not at {commit}"; exit 1; }}
                 test -z "$(git -C {shlex.quote(tree)} status --porcelain)" || {{ echo "{tree} has changes"; exit 1; }}
             """)
+        identities = {}  # by driver directory: the builds of one commit, as a control arm's, share their drivers
         for b in self.builds:
-            say(f"[{host}] building the driver of {b.commit[:10]} for {run.results_name(b.task, b.variant)}")
             driver_dir = self.driver_dir(host, b)
-            call = (f"run.build_driver({driver_dir!r}, {self.tree(host, b.commit)!r}, {b.task!r}, "
-                    f"{b.variant!r}, {self.args.display!r}, {self.args.backend!r}, {self.args.browser!r}, "
-                    f"{self.args.desktop!r}, container={bool(getattr(self.args, 'container', False))!r})")
-            identity = (f"print(json.dumps(run.driver_identity({driver_dir + '/driver'!r}, {driver_dir!r}, "
-                        f"{self.args.backend!r})))")
-            built = self.sh(host, f"""
-                mkdir -p {shlex.quote(driver_dir)}
-                cd {shlex.quote(self.tree(host, self.harness['commit']))}/bench && python3 -c {shlex.quote('import json, run; ' + call + '; ' + identity)}
-            """)
+            if driver_dir not in identities:
+                say(f"[{host}] building the driver of {b.commit[:10]} for {run.results_name(b.task, b.variant)}")
+                call = (f"run.build_driver({driver_dir!r}, {self.tree(host, b.commit)!r}, {b.task!r}, "
+                        f"{b.variant!r}, {self.args.display!r}, {self.args.backend!r}, {self.args.browser!r}, "
+                        f"{self.args.desktop!r}, container={bool(getattr(self.args, 'container', False))!r})")
+                identity = (f"print(json.dumps(run.driver_identity({driver_dir + '/driver'!r}, {driver_dir!r}, "
+                            f"{self.args.backend!r})))")
+                built = self.sh(host, f"""
+                    mkdir -p {shlex.quote(driver_dir)}
+                    cd {shlex.quote(self.tree(host, self.harness['commit']))}/bench && python3 -c {shlex.quote('import json, run; ' + call + '; ' + identity)}
+                """)
+                identities[driver_dir] = json.loads(built.splitlines()[-1])
+                say(f"[{host}] {run.results_name(b.task, b.variant)}: {identities[driver_dir]['driver']}")
             # A resume adds no run of another build to a directory, as check_resume does for the rest.
-            identity = json.loads(built.splitlines()[-1])
-            say(f"[{host}] {run.results_name(b.task, b.variant)}: {identity['driver']}")
+            identity = identities[driver_dir]
             differ = run.check_identity(b.out, identity)
             if differ:
                 raise RuntimeError(f"[{host}] {b.out} has runs that another build ran: "
@@ -882,9 +900,9 @@ def main():
     if args.out and len(args.out) != len(sources):
         parser.error(f"{len(args.out)} --out for {len(sources)} builds: give one per --source, or none")
     builds = []
-    for i, source in enumerate(sources):
-        state = checkout_state(source, parser, "the source")
-        suffix = f"-{state['commit'][:10]}" if len(sources) > 1 else ""
+    states = [checkout_state(source, parser, "the source") for source in sources]
+    for i, (source, name) in enumerate(zip(sources, build_names([state["commit"] for state in states]))):
+        suffix = f"-{name}" if len(sources) > 1 else ""
         out = args.out[i] if args.out else None
         if not out and len(tasks) > 1:
             out = run.results_dir(f"{len(tasks)}-tasks{suffix}")
@@ -895,7 +913,7 @@ def main():
                 "user_reply": args.user_reply or (task, variant) in reply_tasks,
             })
             config = {**run.run_config(source, task, variant, budget), "bench_commit": harness["commit"]}
-            builds.append(Build(results_out(out, task, variant, len(tasks), suffix), config))
+            builds.append(Build(results_out(out, task, variant, len(tasks), suffix), config, name))
     if len({b.out for b in builds}) < len(builds):
         parser.error("two builds have the same --out")
     for b in builds:
@@ -939,7 +957,7 @@ def main():
     counts = collections.Counter(job.outcome for u in units for job in u.jobs)
     say("runs: " + ", ".join(f"{n} {outcome}" for outcome, n in counts.items()))
     for b in builds:
-        say(f"\n{b.out} ({b.commit[:10]}, {run.results_name(b.task, b.variant)}):\n" + report.report(b.out))
+        say(f"\n{b.out} ({b.name}, {run.results_name(b.task, b.variant)}):\n" + report.report(b.out))
 
 
 if __name__ == "__main__":

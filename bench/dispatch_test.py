@@ -643,10 +643,14 @@ KEY = "sk-ant-api03-dispatch-test-key"
 HEADERS = "anthropic-workspace-id: wrkspc_1\nx-other: 2"
 
 # Stand-ins for ssh, rsync and git, which log their arguments, environment and stdin to $FAKE_LOG and run the remote
-# command here; and for the remote run.py, which writes a run directory with what it saw of the key.
+# command here; and for the remote run.py, which writes a run directory with what it saw of the key, and logs where it
+# ran and what it was told of the dispatch to $FAKE_RUNS. The fake git makes the worktree it is asked to add, and names
+# a checkout's commit: the checkout's directory if that is named as a commit is, or else forty h, the benchmark's own.
+# As a module, the fake run.py builds no driver and logs which it was asked for.
 FAKE_SSH = """
 import json, os, subprocess, sys
-args, data = sys.argv[1:], sys.stdin.buffer.read()
+args = sys.argv[1:]
+data = b"" if "-O" in args else sys.stdin.buffer.read()  # a control command reads no input, as ssh's own
 with open(os.environ["FAKE_LOG"], "a") as f:
     f.write(json.dumps({"tool": "ssh", "argv": args, "env": dict(os.environ), "stdin": data.decode()}) + "\\n")
 if "-O" in args:
@@ -664,34 +668,66 @@ shutil.copytree(sys.argv[-2].split(":", 1)[1], sys.argv[-1], dirs_exist_ok=True)
 """
 FAKE_GIT = """
 import json, os, sys
+args = sys.argv[1:]
 with open(os.environ["FAKE_LOG"], "a") as f:
-    f.write(json.dumps({"tool": "git", "argv": sys.argv[1:], "env": dict(os.environ)}) + "\\n")
+    f.write(json.dumps({"tool": "git", "argv": args, "env": dict(os.environ)}) + "\\n")
+if args[2:4] == ["worktree", "add"]:
+    os.makedirs(args[-2])
+elif args[2:] == ["rev-parse", "HEAD"]:
+    name = os.path.basename(args[1])
+    print(name if len(name) == 40 else "h" * 40)
+"""
+FAKE_TOOL = """
+import sys
+print("fake", *sys.argv[1:])
 """
 FAKE_RUN = """
 import glob, hashlib, json, os, sys
-sys.path.insert(0, os.environ["FAKE_BENCH"])
-import run
-args = sys.argv[1:]
-harness, model, effort = run.parse_agent(args[args.index("--agent") + 1])
-d = os.path.join(args[args.index("--out") + 1], run.run_name(harness, model, int(args[args.index("--rep") + 1]), effort))
-os.makedirs(d)
-key = os.environ.get(run.API_KEY_ENV, "")
-in_ps = []
-for path in glob.glob("/proc/[0-9]*/cmdline"):
-    try:
-        if key and key.encode() in open(path, "rb").read():
-            in_ps.append(path)
-    except OSError:
-        pass
-seen = {"key": hashlib.sha256(key.encode()).hexdigest(),
-        "headers": hashlib.sha256(os.environ.get(run.API_HEADERS_ENV, "").encode()).hexdigest(), "in_ps": in_ps,
-        "backend": args[args.index("--backend") + 1], "prompt": args[args.index("--prompt") + 1],
-        "browser": args[args.index("--browser") + 1]}
-json.dump(seen, open(os.path.join(d, "seen.json"), "w"))
-open(os.path.join(d, "agent.jsonl"), "w").write(key if os.environ.get("FAKE_LEAK") else "{}")
-if not os.environ.get("FAKE_LEAK"):
-    json.dump({"passed": True, "wall_seconds": 1, "calls": 1, "tool_seconds": 1}, open(os.path.join(d, "summary.json"), "w"))
-print("[fake] done", flush=True)
+
+
+def log(**record):
+    with open(os.environ["FAKE_RUNS"], "a") as f:
+        f.write(json.dumps(record) + "\\n")
+
+
+def build_driver(out, source, task, *rest, **options):
+    log(built=out, source=source, task=task)
+
+
+def driver_identity(driver, out, backend):
+    return {"driver": driver, "skill": None}
+
+
+def main():
+    sys.path.insert(0, os.environ["FAKE_BENCH"])
+    import run
+    args = sys.argv[1:]
+    harness, model, effort = run.parse_agent(args[args.index("--agent") + 1])
+    name = run.run_name(harness, model, int(args[args.index("--rep") + 1]), effort)
+    d = os.path.join(args[args.index("--out") + 1], name)
+    os.makedirs(d)
+    log(run=name, out=d, source=args[args.index("--source") + 1], dispatch=json.loads(args[args.index("--dispatch") + 1]))
+    key = os.environ.get(run.API_KEY_ENV, "")
+    in_ps = []
+    for path in glob.glob("/proc/[0-9]*/cmdline"):
+        try:
+            if key and key.encode() in open(path, "rb").read():
+                in_ps.append(path)
+        except OSError:
+            pass
+    seen = {"key": hashlib.sha256(key.encode()).hexdigest(),
+            "headers": hashlib.sha256(os.environ.get(run.API_HEADERS_ENV, "").encode()).hexdigest(), "in_ps": in_ps,
+            "backend": args[args.index("--backend") + 1], "prompt": args[args.index("--prompt") + 1],
+            "browser": args[args.index("--browser") + 1]}
+    json.dump(seen, open(os.path.join(d, "seen.json"), "w"))
+    open(os.path.join(d, "agent.jsonl"), "w").write(key if os.environ.get("FAKE_LEAK") else "{}")
+    if not os.environ.get("FAKE_LEAK"):
+        json.dump({"passed": True, "wall_seconds": 1, "calls": 1, "tool_seconds": 1}, open(os.path.join(d, "summary.json"), "w"))
+    print("[fake] done", flush=True)
+
+
+if __name__ == "__main__":
+    main()
 """
 
 
@@ -699,16 +735,18 @@ def sha(text):
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-class ApiKeys(unittest.TestCase):
-    """claude-api's key on a host with api-keys: through a run's stdin into its environment, and nowhere else."""
+class FakeMachine(unittest.TestCase):
+    """A host that is this machine behind the fake ssh, rsync and git, with the fake run.py as its shipped benchmark."""
 
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.dir.cleanup)
         root = self.dir.name
-        self.bin, self.base, self.out, self.log = (os.path.join(root, n) for n in ("bin", "base", "out", "fake.log"))
+        self.bin, self.base, self.out, self.log, self.runs = (
+            os.path.join(root, n) for n in ("bin", "base", "out", "fake.log", "fake-runs.log"))
         os.makedirs(self.bin)
-        for name, code in (("ssh", FAKE_SSH), ("rsync", FAKE_RSYNC), ("git", FAKE_GIT)):
+        for name, code in (("ssh", FAKE_SSH), ("rsync", FAKE_RSYNC), ("git", FAKE_GIT), ("nix-build", FAKE_TOOL),
+                           ("codex", FAKE_TOOL)):
             with open(os.path.join(self.bin, name), "w") as f:
                 f.write(f"#!{sys.executable}\n{code}")
             os.chmod(os.path.join(self.bin, name), 0o755)
@@ -719,6 +757,7 @@ class ApiKeys(unittest.TestCase):
             f.write(FAKE_RUN)
         # The dispatcher's own environment holds the key, as the user's may: ssh and the others must not get it.
         env = mock.patch.dict(os.environ, {"PATH": self.bin + os.pathsep + os.environ["PATH"], "FAKE_LOG": self.log,
+                                           "FAKE_RUNS": self.runs,
                                            "FAKE_BENCH": os.path.dirname(os.path.abspath(__file__)),
                                            run.API_KEY_ENV: KEY, "ANTHROPIC_API_KEY": KEY})
         env.start()
@@ -726,6 +765,17 @@ class ApiKeys(unittest.TestCase):
         poll = mock.patch.object(dispatch, "POLL_SECONDS", 0.05)
         poll.start()
         self.addCleanup(poll.stop)
+
+    def ran(self):
+        """What the fake run.py logged: the drivers it was asked to build, and the runs."""
+        if not os.path.exists(self.runs):
+            return []
+        with open(self.runs) as f:
+            return [json.loads(line) for line in f]
+
+
+class ApiKeys(FakeMachine):
+    """claude-api's key on a host with api-keys: through a run's stdin into its environment, and nowhere else."""
 
     def execute(self, spec, harness, backend="hyprmasq", prompt="task", browser="firefox"):
         """Runs one job of the harness on the host; returns its outcome, the dispatcher's output and the fakes' log."""
@@ -817,6 +867,65 @@ class ApiKeys(unittest.TestCase):
         with open(self.log) as f:
             calls = [json.loads(line) for line in f]
         self.assertTrue(any("--user-reply" in " ".join(c["argv"]) for c in calls if c["tool"] == "ssh"))
+
+
+class ControlArm(FakeMachine):
+    """A checkout given twice as --source is two builds: the second says how much two results of one build differ."""
+
+    def setUp(self):
+        super().setUp()
+        self.source = os.path.join(self.dir.name, "c" * 40)  # the fake git names its commit after it
+        os.makedirs(self.source)
+        self.baseline, self.control = os.path.join(self.out, "baseline"), os.path.join(self.out, "control")
+
+    def main(self):
+        """Runs dispatch.py with the checkout as two builds, and returns what it printed. It writes no report, which
+        reads more of a run than the fake run.py leaves."""
+        argv = ["dispatch.py", "--host", f"me@box,dir={self.base}", "--task", "forgejo", "--agent", "codex:m",
+                "--reps", "2", "--source", self.source, "--source", self.source, "--out", self.baseline,
+                "--out", self.control]
+        printed = io.StringIO()
+        with mock.patch.object(sys, "argv", argv), mock.patch.object(dispatch.report, "report", return_value=""), \
+                contextlib.redirect_stdout(printed):
+            dispatch.main()
+        return printed.getvalue()
+
+    def test_both_arms_run_every_run_into_their_own_directories_from_one_driver(self):
+        printed = self.main()
+        for out in (self.baseline, self.control):
+            self.assertEqual([dispatch.outcome_of(os.path.join(out, name)) for name in ("codex-m-1", "codex-m-2")],
+                             ["done", "done"], out)
+            with open(os.path.join(out, "source.json")) as f:
+                self.assertEqual(json.load(f)["commit"], "c" * 40)
+        self.assertEqual(len([r for r in self.ran() if "built" in r]), 1)
+        runs = [r for r in self.ran() if "run" in r]
+        # Every run ran the one commit, in a directory of the host that no other run of the dispatch had.
+        self.assertEqual({r["source"] for r in runs}, {os.path.join(self.base, "trees", "c" * 40)})
+        self.assertEqual(len({r["out"] for r in runs}), 4)
+        # The arms take turns at each place, and each run records its place among the two builds.
+        self.assertEqual([(r["run"], r["dispatch"]["position"], r["dispatch"]["builds"], r["dispatch"]["ran_after"])
+                          for r in runs],
+                         [("codex-m-1", 1, 2, 0), ("codex-m-1", 2, 2, 1), ("codex-m-2", 1, 2, 0), ("codex-m-2", 2, 2, 1)])
+        # What it prints tells the arms' runs apart.
+        for line in ("codex-m-1 of cccccccccc: passed", "codex-m-1 of cccccccccc-2: passed",
+                     "codex-m-2 of cccccccccc-2: starting\n[me@box] [fake] done\n[me@box] codex-m-2 of cccccccccc-2: passed"):
+            self.assertIn(line, printed)
+
+    def test_a_control_directory_with_another_builds_runs_is_refused(self):
+        # The second arm's driver is the first's, built once: its directory is still checked against it.
+        finish(self.control, "codex-m-1")
+        with open(os.path.join(self.control, "codex-m-1", "run.json"), "w") as f:
+            json.dump({"harness": "codex", "model": "m", "rep": 1, "identity": {"driver": "/nix/store/another"}}, f)
+        printed = self.main()
+        self.assertIn(f"cannot run jobs: [me@box] {self.control} has runs that another build ran: codex-m-1 (driver)",
+                      printed)
+        self.assertEqual([r for r in self.ran() if "run" in r], [])
+
+    def test_builds_of_one_commit_get_names_and_default_directories_of_their_own(self):
+        names = dispatch.build_names(["a" * 40, "b" * 40, "a" * 40])
+        self.assertEqual(names, ["aaaaaaaaaa", "bbbbbbbbbb", "aaaaaaaaaa-2"])
+        outs = [dispatch.results_out(os.path.join(self.out, "3-tasks-" + name), "calc", None, 3) for name in names]
+        self.assertEqual(len(set(outs)), 3)
 
 
 if __name__ == "__main__":

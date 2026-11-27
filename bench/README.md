@@ -592,6 +592,26 @@ Dispatches before this order reversed the builds from one unit to the next. With
 each agent one order for all its units, so one agent's baseline always ran first and the other's always last. Their
 runs record no `position`.
 
+#### A control arm
+
+Give the baseline's checkout twice, each time with its own `--out`:
+
+```sh
+python3 bench/dispatch.py --host ... --task form --reps 6 \
+    --source ../hyprmasq-main --source ../hyprmasq-main --source ../hyprmasq-feature \
+    --out bench/results/main --out bench/results/main-control --out bench/results/feature
+```
+
+The two are builds like any other. Each has its results directory, its `source.json`, its place in the units' order
+and its runs, and both run the one driver, which a machine builds once. What the control differs from the baseline by
+is what two results of one build differ by. In one comparison of 45 pairs, two results of one server differed by
+8.8 % in an agent's tool calls and by 5 passes. Without a control nothing says how large that is for the agents and
+tasks at hand, and a branch's difference of the same size reads as an effect. A control costs the baseline's runs a
+second time.
+
+The dispatcher names the second build of a commit `COMMIT-2` in what it prints, and its default directory ends so.
+The same `--out` twice is refused, as for any two builds.
+
 ### API keys on other machines
 
 `pi` runs go only to `local`: it reads its keys from its own files, which a machine would need written. `claude-api`
@@ -657,8 +677,9 @@ harness versions as well: machines that update their CLIs apart can run differen
 `run.json` and the report's runs list show which.
 
 `dispatch_test.py` tests the planning of several tasks, the order of the builds, the scheduling with its shares and
-limits, the hosts' agents, the slots' cores, the shared lock, and the way of claude-api's key to a machine with
-`api-keys`, with fake `ssh`, `rsync`, `git` and `run.py`, without machines: `python3 bench/dispatch_test.py`. `harness_test.py` tests pi's
+limits, the hosts' agents, the slots' cores, the shared lock, a dispatch with a control arm, and the way of
+claude-api's key to a machine with `api-keys`, with fake `ssh`, `rsync`, `git` and `run.py`, without machines:
+`python3 bench/dispatch_test.py`. `harness_test.py` tests pi's
 isolation, claude-api's key and its check, the names of runs, the reading of a recorded pi stream and the pinning of
 a run's VM, with fake `pi`, `claude` and test driver: `python3 bench/harness_test.py`.
 
