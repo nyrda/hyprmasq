@@ -30,7 +30,7 @@ class Compare(unittest.TestCase):
         return os.path.join(self.dir.name, build)
 
     def run_of(self, build, task, rep, harness="codex", wall=10.0, calls=4, passed=True, failures=(), cost=0.02,
-               infrastructure=None, dispatch=None, commit=None):
+               infrastructure=None, dispatch=None, commit=None, replay=None):
         """Writes a finished run as run.py and report.py leave it, as far as compare.py reads it: into the build's
         directory of the task, or with task None into the build's directory itself, as a dispatch of one task does."""
         results = os.path.join(self.path(build), task) if task else self.path(build)
@@ -43,7 +43,7 @@ class Compare(unittest.TestCase):
                        "failures": list(failures), "wall_seconds": wall, "tool_seconds": wall / 2, "calls": calls,
                        "context": {"request_count": calls + 1, "growth_input_tokens": 1000 * calls},
                        "usage": {"cost_usd": cost, "input_tokens": 10000 * calls},
-                       "infrastructure": infrastructure}, f)
+                       "infrastructure": infrastructure, **({"replay": replay} if replay is not None else {})}, f)
         with open(os.path.join(run_dir, "run.json"), "w") as f:
             json.dump({"harness": harness, "model": "gpt", "rep": rep, **({"dispatch": dispatch} if dispatch else {})}, f)
 
@@ -113,6 +113,15 @@ class Compare(unittest.TestCase):
         rows, part = table(text, "codex:gpt", "feature")
         self.assertEqual((rows["Wall s"]["Pairs"], rows["Wall s"]["Difference"]), ("3", "+2.0"))
         self.assertIn("Passes lost 0, gained 0.", part)
+
+    def test_replays_are_pointed_to_the_tool_that_reads_them(self):
+        # A replay's summary has the replay's outcome. compare.py pairs by agent, and each recording is one.
+        for rep in (1, 2, 3):
+            self.run_of("main", "calc", rep)
+            self.run_of("feature", "calc", rep)
+            self.run_of("replayed", "calc", rep, replay={"diverged": None})
+        self.assertNotIn("replay_report.py", self.compare("feature"))
+        self.assertIn("replay_report.py reads replays by recording", self.compare("replayed"))
 
     def test_a_measure_that_no_run_has_is_left_empty(self):
         for rep in (1, 2, 3):

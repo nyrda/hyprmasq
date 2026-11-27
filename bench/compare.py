@@ -20,6 +20,10 @@ It then prints the means by the runs' place in their unit, where run.json record
 Runs that the infrastructure stopped (summary.json's infrastructure) stay out, with the pairs they belong to, and are
 counted. It reads summary.json as it is: report.py writes it again from a run's files.
 
+It is for runs with a model. Replays of recorded runs (run.py's harness replay) are read with replay_report.py, which
+compares builds by recording and leaves out the replays that diverged: here each recording would be an agent of its
+own, which it says when it meets one.
+
 What it cannot do. The interval says how well these pairs know the mean difference: half its width, as a share of the
 baseline's mean, is the smallest effect they can tell from none, and a smaller one stays unseen however real. A
 difference inside the control's range is not evidence of an effect. One outside it is one draw against one draw of the
@@ -87,6 +91,7 @@ class Results:
     def __init__(self, path, name):
         self.path, self.name = path, name
         self.runs, self.stopped, self.commits = {}, [], set()
+        self.replays = 0  # runs that replayed a recording, which replay_report.py reads
         for task, directory in task_dirs(path).items():
             source = load_json(os.path.join(directory, "source.json")) or {}
             self.commits.add(source.get("commit"))
@@ -98,6 +103,7 @@ class Results:
                 if summary.get("infrastructure"):
                     self.stopped.append((os.path.relpath(run_dir, path), summary["infrastructure"].get("kind")))
                     continue
+                self.replays += summary.get("replay") is not None
                 agent = run.agent_spec(summary["harness"], summary["model"], (summary.get("effort") or {}).get("requested"))
                 dispatched = (load_json(os.path.join(run_dir, "run.json")) or {}).get("dispatch") or {}
                 position, ran_after = dispatched.get("position"), dispatched.get("ran_after")
@@ -266,6 +272,10 @@ def compare(baseline, others=(), control=None):
                      + ", ".join(f"{n} {kind}" for kind, n in sorted(kinds.items())) + "): "
                      + ", ".join(name for name, _ in r.stopped))
         out.append(line)
+    if any(r.replays for r in results):
+        out += ["", "These results hold replays of recorded runs. Each recording counts as an agent of its own here, and "
+                    "a replay that diverged from its recording counts as a run that failed: replay_report.py reads "
+                    "replays by recording, and leaves the diverged ones out."]
     if control_results and control_results.commits != base.commits:
         out += ["", f"The control is not the baseline's build: commit {control_results.commit()} against "
                     f"{base.commit()}. What it differs by is then not the noise alone."]

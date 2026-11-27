@@ -622,6 +622,9 @@ The same `--out` twice is refused, as for any two builds.
 python3 bench/compare.py bench/results/main bench/results/feature --control bench/results/main-control
 ```
 
+It compares runs with a model. Replays of recorded runs are read with `replay_report.py`, which compares builds by
+recording and leaves out the replays that diverged, see [Replaying a recorded run](#replaying-a-recorded-run).
+
 The first directory is the baseline, and any number of other builds may follow. Each is a build's `--out`: with
 several tasks, the directory that holds the tasks' directories. It pairs a build's run with the baseline's run of the
 same task, agent and repetition, and prints for each agent and build:
