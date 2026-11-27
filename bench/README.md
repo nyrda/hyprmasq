@@ -84,6 +84,7 @@ python3 bench/run.py --backend cua --prompt comparison --source ../hyprmasq-0.56
 python3 bench/run.py --backend hypruse --prompt comparison  # hypruse, or computer-use-linux, instead of hyprmasq
 python3 bench/run.py --task board --browser chromium    # Chromium as the user's browser instead of Firefox
 python3 bench/run.py --desktop omarchy                  # Omarchy's key binds, portals and packages, for every backend
+python3 bench/run.py --agent replay:codex-gpt-6.1-sol-1 --recordings bench/results/my-run  # a recorded run's calls again, no model
 python3 bench/report.py bench/results/my-run            # the report again
 ```
 
@@ -147,6 +148,8 @@ slot such a list.
 - `agy`: the Antigravity CLI, with the user's Google login, such as `agy:gemini-4-neon@high`. MODEL is a model that
   `agy models` lists without its effort, and `@EFFORT` picks its variant, such as `gemini-4-neon-high`. See
   [Antigravity](#antigravity).
+- `replay`: no agent and no model. MODEL names a recorded run, whose tool calls are sent again, and it takes no
+  `@EFFORT`. See [Replaying a recorded run](#replaying-a-recorded-run).
 
 `@EFFORT` sets the reasoning effort, such as `codex:gpt-6.1-sol@high`; see [Effort](#effort). The default is
 `codex:gpt-6.1-sol`, `codex:gpt-6.1-terra`, `codex:gpt-6-astra`, `claude:claude-opus-5-5` and
@@ -758,6 +761,246 @@ what the guest freed. With `--backend cua`, the script reads the window with `ge
 walk, scrolls and presses a key, and the report adds the driver's own `walk_ms`, what the VM's cores change most. If it saw
 another QEMU on the machine while it ran, it says not to trust the numbers.
 
+## Replaying a recorded run
+
+A change to hyprmasq's timing, such as a wait, the pacing of input or the watch after an act, is worth one to a few
+percent of a run. Runs with a model cannot resolve that. In a comparison of 360 runs, two identical servers differed
+by 8.8 % in calls, and the intervals for wall time were about ±5 %, mostly because the model chooses other actions in
+every run. A replay takes the model out: it sends the tool calls of a recorded run again, to the build under test, and
+the task's checker grades what they did.
+
+```sh
+python3 bench/run.py --container --task form --variant 25 --source ../hyprmasq-feature \
+    --agent replay:codex-gpt-6.1-terra-medium-1 --recordings bench/results/recorded --out bench/results/replayed
+python3 bench/dispatch.py --host local,slots=4,lock=/tmp/vm.lock --container --task form:25 --task calc \
+    --agent replay:codex-gpt-6.1-terra-medium-1 --agent replay:claude-claude-sonnet-5-5-medium-1 --reps 3 \
+    --recordings bench/results/recorded --source ../hyprmasq-main --source ../hyprmasq-feature \
+    --out bench/results/replay-main --out bench/results/replay-feature
+python3 bench/replay_report.py bench/results/replay-feature --against bench/results/replay-main
+```
+
+`replay` is a kind of agent beside `claude` and `codex`, and its model names a recording: the name of a run directory
+with its `mcp.jsonl` under `--recordings DIR`. DIR is a results directory, or the directory of the tasks' results
+directories that `dispatch.py` writes, where the recording of each task is `DIR/TASK[-VARIANT]/RUN`. A model that is an
+absolute path names the run directory itself. `--reps` replays each recording that many times, into
+`replay-RUN-1`, `replay-RUN-2` and so on. `run.py` refuses a recording of another task, variant or backend before any
+VM boots. With `dispatch.py` the recordings are read on each host, at the path they have on the dispatching machine.
+
+A replayed run is a run like any other. `run.py` boots the task's VM or container and starts `replay.py` in the
+agent's place, which starts `mcp_tap.py` as an agent's MCP client does. So the run has its `mcp.jsonl`, `run.json`,
+the checker's grade and `summary.json`, and `report.py`, `analyze.py` with its split of the `act` calls' time and
+`dispatch.py` with several `--source` read and make it as they do an agent's run. It has no prompt, no login, no
+debrief and no usage. `summary.json` adds `replay` (see [Measures](#measures)).
+
+### What a replay sends
+
+- **The same client.** `hyprmasq-mcp` answers a client by its name: Claude Code gets its results as text alone, and
+  other clients get structured content as well. The replay sends every message of the recording's client as it was
+  recorded, in the recorded order: the handshake, or for Claude Code the discovery request that takes its place, the
+  tools listing, and each call with its `_meta`, which holds Claude Code's client name and the progress token that
+  makes the server send progress.
+- **Windows.** A window's address is another in every session of Hyprland. Each result of the replay is read beside
+  the recording's result of the same call, and the windows they name are paired by class and title, in order, and what
+  is left by class alone, since a title can hold a time. A recorded call that names a window gets the replay's window
+  for it. An address can be another window's once its window has closed, so the latest pair holds.
+- **Shots.** A shot's id counts every shot the session got so far, zooms included, so it differs as soon as one result
+  has another number of zooms. Shots are paired by their part in the result of the same call: the result's own shot,
+  the shot before a scroll, and the shot of each other window that the result names, such as a new window or the
+  window that a closed one came from.
+- **Zooms into changes.** A replay need not get the same zooms again: a caret that blinks or a change that comes a
+  frame later makes other boxes. Where the replay's result has a zoom of the same box and size, a recorded call that
+  gave its points in the zoom's pixels gets that zoom (`same_zoom` in the summary's `arguments`). Otherwise its points
+  are rebased onto the changes shot that the zoom is a part of, through the window's logical pixels (`rebased`). `act`
+  compares with the same shot either way and checks its targets against the same image. The result states the zoom's
+  box in the pixels of a shot that is shrunk to 1280 pixels, so one edge of the box can stand for two logical pixels.
+  The zoom's image size settles most of these: of the 803 zooms in the recordings used here, the box gives the frame of
+  463 to the pixel. For the others the rebased point is within half a logical pixel of the recorded one, and
+  `arguments` counts those calls as `rebased_within_half_a_pixel`. A point outside the zoom, which `act` refused, is
+  sent outside the shot, so that it is refused again.
+- **Other frames.** Where the two shots show another box of the window, as when a popup reaches outside it in one of
+  them, the point goes through the window's logical pixels too. Claude Code's results state no frames. They are read
+  from what made each shot, as `actlog.py` reads them for the attributions. Where that gives none, as for the shot of
+  a new window, the pixels are taken as the same when the two images have the same size (`assumed`).
+
+### Divergence
+
+A replay can go another way than the recording. It then stops, and `replay.diverged` in `summary.json` says at which
+call and why:
+
+| Kind | What happened |
+| --- | --- |
+| `error` | A result is an error where the recording's was none, or another error |
+| `no_error` | A result is no error where the recording's was one |
+| `delivery` | Input was delivered up to another action than in the recording |
+| `window_closed` | The window closed in one of the two and not in the other |
+| `scroll` | A page scroll (`next_page`) ended at another view: it moved another distance, or stopped after other notches or for another reason |
+| `window`, `shot` | A call names a window or a shot that the replay's results gave nothing for, such as the shot of a dialog that did not open |
+| `coordinates` | A point could not be mapped: a frame is unknown and the two images differ in size |
+| `connection` | The server closed the connection or did not answer within 600 s |
+| `stopped` | The replay ended without saying how it went: it ran into `--timeout`, or failed, see `agent.stderr` |
+
+A diverged replay is not a failure of the task's checker, and `passed` stays what the checker said. It is no sample of
+the tool's time either: `replay_report.py` counts only replays that passed and did not diverge. What differs without
+stopping the replay is counted in `replay.differences`: a full shot where the recording had a changes shot, another
+number of zooms, a wait that timed out in one of the two, and another number of windows or shots in a result.
+
+A replay that reaches its end without diverging can still fail the checker, as the checks above see the results and
+not the screen. Such a replay is counted as failed by the checker.
+
+### The gap between calls
+
+The recording holds the model's thinking time between calls, a median of 2.3 s in the recordings used here, during
+which pages loaded and animations ended. `--replay-gap` sets what the replay waits between the answer to one call and
+the next call:
+
+- `none`: nothing. The next call follows at once, faster than any agent.
+- `recorded` or `recorded:CAP`: the recording's own gap, up to CAP seconds.
+- a number: that many seconds before every tool call.
+
+The default is `1`. Each of the 90 recordings described [below](#what-the-method-resolves) was replayed once at each
+setting, on the build that recorded them:
+
+| Gap | Replayed to a pass | Diverged | Failed by the checker | Median seconds a replay |
+| --- | --- | --- | --- | --- |
+| `none` | 79 | 10 `scroll` | 1 | 17 |
+| `1` | 83 | 6 `scroll`, 1 `error` | 0 | 31 |
+| `recorded:5` | 82 | 7 `scroll`, 1 `error` | 0 | 49 |
+
+- The recording's own gaps buy nothing over one second: as many replays pass, and each takes over half as long again.
+- Without a gap, one replay failed that passes with one. Its `act` typed a commit message while Forgejo still
+  uploaded a file, and returned with `quiet 200 ms except animation`, the upload's spinner. The next call pressed
+  Commit at once, before the upload was done. The recording's agent took 1.3 s to send that call. This is what a gap
+  hides: a wait that ends before the window is ready for the next action. One second is about the shortest gap the
+  recordings' agents took, whose tenth percentile is 1.06 s, so a replay at `1` fails for a wait that a fast agent
+  would also outrun, and not for one that only a client without a model outruns. Use `none` to find those.
+- The gap does not change the tool's time. Against `1`, the seconds in tools a replay were +0.02 s without a gap
+  (95 % interval −0.11 to +0.17 s, of 20.7 s) and −0.10 s with the recording's gaps (−0.19 to +0.01 s).
+- The results repeat closely. In the replays that passed, one result at `1` and none at `recorded:5` had another
+  number of zooms than the recording's, and eight without a gap had other zooms or another kind of shot. No recorded
+  call named one of those zooms, so no point had to be rebased.
+
+### Reading replays
+
+`replay_report.py DIR` reads the replays under a results directory, or under the directory of several tasks' results
+directories:
+
+- **Coverage**: by task and by the client that recorded, the recordings that replayed to a pass every time, sometimes
+  and never, and the replays that diverged, by kind, or that the checker failed.
+- **Repeatability**: over the recordings with at least two samples, the spread between repetitions of the seconds in
+  tools and of each part of the `act` calls' time, as `analyze.py` splits it (see [Measures](#measures)): the standard
+  deviation within a recording, and that of the suite's sum over the repetitions. And each repetition against the
+  first, read as two builds would be: the difference that the method finds where there is none.
+- **Difference**, with `--against BASE`: DIR minus BASE over the recordings that are a sample in both, each by the mean
+  of its samples, with a 95 % bootstrap interval over the recordings.
+
+To compare two builds, give `dispatch.py` both as `--source`, so that each recording's replays on the two builds run
+back to back on one slot, and pass the results of one to `--against` the other.
+
+### What the method resolves
+
+Measured on 27 Nov 2026 with 90 recordings of main (`4c2252f`): 15 tasks, each three times by Claude Code with
+Sonnet 5.5, whose results are text alone, and three times by Codex with GPT-6.1 Terra, whose results have structured
+content. All 90 had passed. They were replayed in GPU containers on a Ryzen 7 5800X3D, four at once, on the build that
+recorded them, with a gap of one second.
+
+**Coverage.** Each recording was replayed three times.
+
+| Recordings | Of them | Replay to a pass every time | Sometimes | Never |
+| --- | --- | --- | --- | --- |
+| Without a page scroll | 57 | 56 | 0 | 1 |
+| With page scrolls, none stopped for `reference_changed` | 17 | 17 | 0 | 0 |
+| With a page scroll that stopped for `reference_changed` | 16 | 10 | 2 | 4 |
+| All | 90 | 83 | 2 | 5 |
+
+- By client: 42 of Claude Code's 45 recordings and 41 of Codex's 45 replay to a pass every time.
+- By task: every recording of board (both variants), calc, files, forgejo, inkscape, pano, trace and of the forms
+  `gtk3-25`, `qt-25` and `tk-25` replays every time. The others are in the forms `25` (1 of 6 never),
+  `25-no-dropdowns` (2 of 6 sometimes) and `qt-25-no-dropdowns` (3 of 6 never) and in thunderbird (1 of 6 never).
+- No replay was failed by the checker: all 18 of 270 that did not pass had diverged, 15 at a page scroll and 3 at an
+  error.
+- **Page scrolls.** `next_page` stops when the window draws under it, and says `reference_changed`. Whether it does
+  depends on when a caret blinks or a scrollbar fades. So the same call moves a page in one run and stops after one
+  notch in the next, and the calls after it aim at another view. A recording with such a stop replays reliably in 10
+  of 16 cases. Choose recordings without one for a timing comparison, or record on a build where page scrolls end
+  the same way every time.
+- **Thunderbird.** One recording clicks in the message list while Thunderbird still fills it. In the replay the
+  window changed around the point since the shot, and `act` refused the click with `stale_shot`, in all three
+  repetitions.
+- No task has content that differs from run to run: no task shuffles, draws random numbers or shows an address, and
+  each starts from fixed profiles and data. What differs is timing, as above. In a container the clock is the
+  host's, where a VM starts at a fixed time, which changed nothing that a recorded call aims at.
+
+**Repeatability.** Over the 84 recordings with at least two replays that passed, 252 replays:
+
+| Seconds a run | Mean | SD between repetitions | Median range | Largest range | The suite's sum over 83 recordings, three repetitions |
+| --- | --- | --- | --- | --- | --- |
+| In tools | 21.77 | 0.260 (1.19 %) | 0.046 | 1.968 | 1797.5 s ± 3.3 s (0.19 %) |
+| `wait` | 4.33 | 0.095 | 0.015 | 0.795 | 360.2 s ± 0.9 s |
+| `watch` | 4.43 | 0.062 | 0.000 | 0.737 | 369.3 s ± 0.5 s |
+| `input` | 7.69 | 0.000 | 0.000 | 0.000 | 631.6 s ± 0.0 s |
+| `rest` | 4.24 | 0.227 | 0.034 | 1.973 | 345.8 s ± 2.2 s |
+
+- Half of the recordings repeat their time in tools within 0.05 s, 0.2 % of a run. A quarter differ by more than
+  0.25 s between repetitions, and the widest by 2 s. Five of the eight widest are recordings of the Tk form, whose
+  time moves in steps of about a second in the `rest`.
+- A repetition against another, read as two builds would be: the second against the first differed by +0.05 % in
+  tool time (95 % interval −0.26 % to +0.36 %), the third by +0.34 % (−0.01 % to +0.73 %), over 83 recordings.
+  That is the noise floor of a comparison with one replay a recording. The same comparison with a model in the loop
+  had intervals of about ±5 %.
+- `input` does not vary at all: it is computed from the actions sent, which are the same.
+
+**Sensitivity.** `hyprmasq-mcp --new-window-grace-ms`, 500 by default, is how long `act` goes on watching after its
+wait. The same recordings were replayed once with `--mcp-args=--new-window-grace-ms 250`, at the same time as the
+three repetitions at 500, on the fourth slot. Over the 81 recordings that passed in both:
+
+| A run's | At 500 ms | Difference at 250 ms | 95 % interval |
+| --- | --- | --- | --- |
+| Seconds in tools | 21.53 | −1.726 (−8.0 %) | −2.034 to −1.428 |
+| `watch` by `analyze.py` | 4.44 | −1.758 | −2.046 to −1.473 |
+| `wait` | 4.37 | +0.025 | −0.005 to +0.060 |
+| `rest` | 4.11 | +0.004 | −0.064 to +0.061 |
+| Watched acts | 7.6 | 0 | |
+
+- The count of watched acts predicts 7.6 × 0.25 s = 1.90 s a run. The replays measured 1.73 s, 227 ms an act. The
+  difference to the count, +0.18 s (+0.03 to +0.34 s), is real: where the window draws again within the watch, the
+  watch lasts until that redraw has settled, and a shorter grace saves less.
+- `analyze.py` knows that case from the results. Its `watch` part fell by 1.76 s, and the measured tool time agrees
+  with it to +0.03 s (−0.03 to +0.09 s), 0.15 % of a run.
+- The intervals of the two differences are wide because recordings have between 1 and 19 watched acts, not because
+  the measurement is noisy.
+- The replays still pass at 250 ms: 81 of 90, against 82 to 84 of 90 in the passes at 500 ms. The 9 that did not had
+  diverged, 8 at a page scroll and the Thunderbird recording at its `stale_shot`, and none was failed by the checker.
+
+**Zooms.** In the 252 replays that passed, 201 calls gave their points in a zoom into a change, and every one found
+the same zoom in the replay's result: no point had to be rebased. To try the rebasing, the recordings of the seven
+tasks with such calls were replayed once with the same zoom never taken. 39 of 42 passed, with 65 calls rebased, 21
+of them within half a pixel. The three others diverged where they do without it, two at a page scroll and the
+Thunderbird recording. Where a page logs its presses, in board and trace, the 468 presses of 72 replays landed on the
+same page pixel as in the recording. Their recordings name no zoom.
+
+**A newer build.** Main has changed since the recordings: `47c5cea` lets a page scroll go on through an animation
+and stops it for new content. Replayed once on it, 72 of the 90 recordings passed. 17 diverged at a page scroll: 8
+where the scroll now moved a page and had stopped in the recording, 5 the other way round and 4 that stopped at
+another notch. The Thunderbird recording diverged as before. So the recordings of the paging tasks are too old for
+that build, which is what a change to a call's behaviour looks like in a replay. Over the 71 recordings that pass on
+both builds, the seconds in tools were +0.10 s on the newer one (+0.5 %, 95 % interval +0.01 to +0.20 s), all of it in
+`rest`. The two builds did not run side by side here, and the third repetition on the older build alone was +0.34 %
+against the first, so this is at the edge of what one pass after another resolves.
+
+### What a replay cannot tell
+
+A replay measures what the tool takes for a fixed sequence of actions. It cannot tell whether a change makes an agent
+act differently, take more or fewer calls, or fail a task for a reason that the recorded actions do not exercise. A
+result that reads differently, such as other zooms or another hint, changes nothing in a replay and can change every
+later step of an agent. A change that makes the tool faster by returning before the window has settled passes a replay
+as long as the gap between the calls covers the rest. So a timing change that passes a replay still needs a run with a
+model before it ships: the replay says what the change does to the tool's time, and the run with a model whether
+agents still succeed with it.
+
+A replay needs a build whose results still pair with the recording's. A change to what a call does, such as another
+default or a page scroll that stops elsewhere, shows as divergence, which says that the recordings are too old for
+that build and not that the build is wrong. Record again on the new build then.
+
 ## The capability check
 
 `capability.py` tries each route of each tool on each app with no model, in a fresh VM per tool, mode and fixture, and asks the
@@ -998,6 +1241,7 @@ conversation's SQLite database, `transcript-ID.db`, with every request it made, 
 | `checks` | The checker's details, such as the user's notes for the Forgejo task. |
 | `user` | From Hyprland's events in the VM: windows that opened on the user's visible workspace, the seconds the keyboard focus was away from the user's window, and switches of the visible workspace, `no_view_change` when there were none; desktop input that Cua Driver delivered while the user's window held the focus (`desktop_input_to_user_window`: only steps the tool says it ran and did not fail, a batch's at its start, and never a `run_script`'s operations, which name no target; hyprmasq sends no desktop input, so it is Cua Driver's alone), its desktop hotkeys that match a compositor bind of `omarchy-desktop.lua`, as a workspace switch, apart (`desktop_shortcuts`), and how far the user's pointer was from where it started when the run ended (`cursor_displacement_px`: a pointer that moved and came back has 0). None of it sees what changed inside the user's window, and a run that did little has `no_view_change` as easily as a careful one: report it beside the result. |
 | `user_work` | Whether the user's own work survived, where the user works during the run (Forgejo): `kept` when all they typed is saved and nothing went elsewhere, with `lost_chars`. Apart from `passed`. |
+| `replay` | Of a replayed run alone (see [Replaying a recorded run](#replaying-a-recorded-run)): its `recording`, `gap` and `client`, the run it is of as `recorded`, the tool calls `calls_recorded` and `calls_sent`, how their `arguments` were mapped, the `differences` between its results and the recording's that did not stop it, and `diverged`: `null`, or the `call`, the `kind` and the `detail` of where the replay left the recording's way. Apart from `passed`, which stays the checker's. |
 | `start_state` | What `vm.py` showed before the run so that hidden windows drew: each workspace, how long, and whether the screen settled. |
 | `usage` | Tokens, with the cache reads and writes among the input tokens, and turns for Claude Code and pi (whose tokens and cost include its compaction requests), from the agent's event stream, with its final answer. The cost in USD is the one Claude Code and pi compute. For Codex it is what the run's requests in its transcript would cost at OpenAI's API list prices (`OPENAI_PRICES` in `report.py`), each at the prices for its prompt's length. |
 | `context` | How large the agent's context got, from the prompt tokens of each of the run's requests, cache reads and writes included: `request_count`, `first_input_tokens`, `peak_input_tokens`, `last_input_tokens`, `growth_input_tokens` (last minus first, which a compaction can make negative) and `compactions`, the times the harness compacted the session's history. Codex's come from the `token_count` records of its transcript, the requests until they add up to the run's totals, and the `compacted` records up to the last of them. Claude Code's come from the usage of each assistant message in its stream and its `compact_boundary` events, pi's from the usage of each reply in its stream and its `compaction_end` events. The debrief's requests do not count. `null` where the logs do not give the size of every request, and `compactions` is `null` where Codex announced more compactions than it recorded. `laptop/analyze.py` computes it the same way. |
@@ -1037,7 +1281,7 @@ partly typed action and a cancelled call: `python3 bench/analyze_test.py`.
 | --- | --- |
 | `summary.json` | The measures above. |
 | `run.json` | Harness, model, version, the agent's start, end, exit status and session id, and the machine: host name, CPU, threads and memory. The CPUs the VM ran on (`cpus`, `null` for any), the host's load while the VM was up (`host_load`: every 15 s the load average, the CPUs' clock, the benchmark's own and any other QEMU processes and whether the host's guard held, with their worst) and, for a dispatched run, its slot and the limits it waited for (`dispatch`). The effort asked for and the one the harness ran at (see [Effort](#effort)). For Claude Code, the credentials its init events named; for pi, the thinking level. The `backend`, the `prompt`, the accessibility session (`accessibility`), and `timeouts`: the seconds the agent and one tool call may take, the same for both backends (600 s a tool call, for every harness). |
-| `agent.jsonl`, `agent.stderr` | The agent's event stream, timestamped. |
+| `agent.jsonl`, `agent.stderr` | The agent's event stream, timestamped. Of a replay, the events of `replay.py`: its start, each call with its time and what differed from the recording, and its end. |
 | `mcp.jsonl` | Every MCP message, timestamped, with images replaced by their size and hash. |
 | `ready.json`, `vm-result.json` | The VM's state at the start; the grade, the phase events and the state at the end. |
 | `start-screen.png`, `end-*.png` | The screen at the start, for every backend, and at the end the screen and, with hyprmasq, every window. |

@@ -757,6 +757,11 @@ class Report(unittest.TestCase):
         # The suite's sum is over the recordings with a sample in every repetition: a and b.
         self.assertEqual(r["suite_recordings"], 2)
         self.assertEqual([round(v, 1) for v in r["suite_sums"]], [30.0, 30.2, 31.0])
+        # Each repetition against the first, over the recordings that are a sample in both: a, b and c, then a and b.
+        against = replay_report.between_repetitions(samples)
+        self.assertEqual({rep: d["tool"]["pairs"] for rep, d in against.items()}, {2: 3, 3: 2})
+        self.assertAlmostEqual(against[2]["tool"]["mean"], (0.2 + 0.0 + 0.5) / 3)
+        self.assertAlmostEqual(against[3]["tool"]["mean"], (0.4 + 0.6) / 2)
 
     def test_the_difference_pairs_recordings_by_the_mean_of_their_samples(self):
         base = [sample("a", 1, 10.0, watch=2.0), sample("a", 2, 10.4, watch=2.0), sample("b", 1, 20.0, watch=1.0),

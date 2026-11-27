@@ -11,16 +11,16 @@ The client's messages go out as they were recorded, the handshake and the `_meta
 server answers the client it answered then: it gives Claude Code its results as text alone. What a recorded call names
 of an earlier result is replaced by what the replay's own result gave in its place:
 
-- a window's address, which is another in every session of Hyprland, by the window of the same class and title;
-- a shot's id, which counts every shot the session got, by the shot with the same part in the replay's result: the
-  result's shot, the one before a scroll, or the one of a window that the result names;
-- coordinates in the pixels of a zoom into a change, by the same point of the window in the pixels of the shot that
-  the zoom is a part of, since a replay need not get the same zooms: see Mapping.shot.
+- A window's address, which is another in every session of Hyprland, by the window of the same class and title.
+- A shot's id, which counts every shot the session got, by the shot with the same part in the replay's result: the
+  result's shot, the one before a scroll, or the one of a window that the result names.
+- Coordinates in the pixels of a zoom into a change, where the replay got no zoom of the same box, by the same
+  point of the window in the pixels of the shot that the zoom is a part of: see Mapping.shot.
 
 A replay that goes another way than the recording stops, and says where and why: a result that is an error where the
 recording had none, input that was not delivered as far, a window that closed in one and not the other, a page scroll
-that ended at another view, and a window, a shot or a point that the replay has nothing for. Such a replay is no sample of the tool's time, and no failure of the
-task's checker either.
+that ended at another view, and a window, a shot or a point that the replay has nothing for. Such a replay is no
+sample of the tool's time, and no failure of the task's checker either.
 
 Each line of the output is an event, as an agent's: the start, each call, and the end with what was sent and whether
 the replay diverged, which report.py reads into the run's summary.json as `replay`.
@@ -246,14 +246,14 @@ def read_result(side, tool, args, message):
     """What the response to a tools/call tells, from its structured content or else from its text, and remembers its
     shots in side:
 
-    - error: the error's code, None for a result that is none;
-    - delivered: (done, total) of an act's actions, or None;
-    - closed: whether the window closed;
-    - windows: the windows it names with their class and title, as (address, class, title), in order;
+    - error: the error's code, None for a result that is none.
+    - delivered: (done, total) of an act's actions, or None.
+    - closed: whether the window closed.
+    - windows: the windows it names with their class and title, as (address, class, title), in order.
     - shots: the id of the result's shot as main, of the shot before a scroll as before, and of each shot of another
-      window under that window's address;
-    - kind: of the main shot, changes or full, and zooms: how many zooms it has;
-    - timeout: whether its wait ran into its deadline;
+      window under that window's address.
+    - kind: of the main shot, changes or full, and zooms: how many zooms it has.
+    - timeout: whether its wait ran into its deadline.
     - scroll: how a page scroll ended, the logical pixels it moved the view or the notches and the reason it stopped
       at, or None.
     """

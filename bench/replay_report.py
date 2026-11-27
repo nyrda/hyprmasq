@@ -9,7 +9,8 @@ that dispatch.py makes. It prints three tables:
 - Coverage: of the recordings, by task and by the client that recorded them, how many replayed to a pass in every
   repetition, and why the others did not: the replay diverged from the recording, or the task's checker failed it.
 - Repeatability: for the recordings with at least two repetitions that passed without diverging, the spread between
-  repetitions of the time in tools and of each part of the act calls' time that analyze.py splits it into.
+  repetitions of the time in tools and of each part of the act calls' time that analyze.py splits it into. And each
+  repetition against the first, as if they were two builds: the difference that the method finds where there is none.
 - With --against, the difference DIR minus that directory, over the recordings that are a sample in both, each by
   the mean of its repetitions, with a 95 % bootstrap interval over the recordings.
 
@@ -77,7 +78,7 @@ def times(run_dir):
 
 
 def sample(run_dir):
-    """A replayed run: its recording, its outcome and its times; None for a run that is no replay."""
+    """A replayed run: its recording, its outcome and its times. None for a run that is no replay."""
     with open(os.path.join(run_dir, "summary.json")) as f:
         summary = json.load(f)
     outcome = summary.get("replay")
@@ -182,6 +183,14 @@ def difference(samples, base, metrics=METRICS + ("watched_acts",)):
     return out
 
 
+def between_repetitions(samples, metrics=("tool",)):
+    """Each repetition against the first, as difference() compares two builds: what the method measures between two
+    sets of replays of the same build, which a difference between builds has to exceed."""
+    reps = sorted({s["rep"] for s in samples})
+    first = [s for s in samples if s["rep"] == reps[0]] if reps else []
+    return {rep: difference([s for s in samples if s["rep"] == rep], first, metrics) for rep in reps[1:]}
+
+
 def table(header, rows):
     lines = ["| " + " | ".join(header) + " |", "| " + " | ".join("---" for _ in header) + " |"]
     return "\n".join(lines + ["| " + " | ".join(str(c) for c in row) + " |" for row in rows])
@@ -221,14 +230,24 @@ def repeatability_table(samples):
                   "Largest range", "Suite's sum, mean ± SD of the repetitions"], rows)
 
 
-def difference_table(samples, base):
+def difference_rows(differences, label=None):
     rows = []
-    for metric, d in difference(samples, base).items():
+    for metric, d in differences.items():
         unit = "" if metric == "watched_acts" else " s"
         share = f"{100 * d['mean'] / d['base_mean']:+.2f} %" if d["base_mean"] else "–"
-        rows.append([metric, d["pairs"], f"{d['base_mean']:.3f}{unit}", f"{d['mean']:+.3f}{unit}",
+        rows.append([label or metric, d["pairs"], f"{d['base_mean']:.3f}{unit}", f"{d['mean']:+.3f}{unit}",
                      f"[{d['low']:+.3f}, {d['high']:+.3f}]", share])
-    return table(["A run's", "Recordings", "Base", "Difference", "95 % interval", "Of the base"], rows)
+    return rows
+
+
+def difference_table(samples, base):
+    return table(["A run's", "Recordings", "Base", "Difference", "95 % interval", "Of the base"],
+                 difference_rows(difference(samples, base)))
+
+
+def repetitions_table(samples):
+    rows = [row for rep, d in between_repetitions(samples).items() for row in difference_rows(d, f"{rep} against 1")]
+    return table(["Repetition", "Recordings", "Seconds in tools", "Difference", "95 % interval", "Of the base"], rows)
 
 
 def main(argv):
@@ -249,6 +268,8 @@ def main(argv):
             why = f"diverged ({s['diverged']}): {s['detail']}" if s["diverged"] else "failed: " + "; ".join(s["failures"])
             print(f"- {s['task']} {s['recording']} #{s['rep']}: {why}"[:400])
     print("\nRepeatability\n\n" + repeatability_table(samples))
+    if len({s["rep"] for s in samples}) > 1:
+        print("\nRepetitions against each other\n\n" + repetitions_table(samples))
     base = load(options["--against"]) if options["--against"] else None
     if base:
         print(f"\nDifference against {options['--against']}\n\n" + difference_table(samples, base))
