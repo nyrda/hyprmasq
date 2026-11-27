@@ -4,11 +4,11 @@
     run.py [--agent HARNESS:MODEL[@EFFORT]]... [--reps N | --rep N...] [--out DIR] [--timeout SECONDS] [--cid CID]
            [--cpus LIST] [--lock FILE] [--no-debrief] [--backend hyprmasq|cua|hypruse|computer-use-linux]
            [--prompt task|comparison]
-           [--browser firefox|chromium]
+           [--browser firefox|chromium] [--recordings DIR] [--replay-gap GAP]
 
 HARNESS is claude (Claude Code), codex (Codex CLI) or agy (Antigravity CLI), which use the logins of the user running
-this; claude-api (Claude Code billed to the user's Anthropic API key); or pi, with MODEL as PROVIDER/MODEL of the user's
-pi setup.
+this; claude-api (Claude Code billed to the user's Anthropic API key); pi, with MODEL as PROVIDER/MODEL of the user's
+pi setup; or replay, no agent at all, which sends the tool calls of the recorded run that MODEL names again (replay.py).
 EFFORT is the reasoning effort the harness runs the model at, one of the harness's levels in EFFORTS; without it,
 the harness's default. Each run gets RESULTS/<harness>-<model>[-<effort>]-<rep>/, with any / in the model as _,
 holding the agent's event stream, the MCP log, screenshots, the VM's logs, the grade, the debrief and summary.json.
@@ -38,13 +38,16 @@ import tempfile
 import threading
 import time
 
+import replay
 import report
 
 BENCH = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_AGENTS = ["codex:gpt-6.1-sol", "codex:gpt-6.1-terra", "codex:gpt-6-astra",
                   "claude:claude-opus-5-5", "claude:claude-sonnet-5-5"]
 
-HARNESSES = ("agy", "claude", "claude-api", "codex", "pi")
+HARNESSES = ("agy", "claude", "claude-api", "codex", "pi", "replay")
+# The harness that is no agent: it sends a recorded run's tool calls again, with no model, login or program of its own.
+REPLAY = "replay"
 # Harnesses that use API keys of this machine: dispatch.py sends their runs to another one only for claude-api, whose
 # key it passes to a machine named with api-keys; pi reads its keys from its files.
 LOCAL_ONLY = ("claude-api", "pi")
@@ -57,6 +60,7 @@ EFFORTS = {
     "codex": ("none", "minimal", "low", "medium", "high", "xhigh", "max"),
     "pi": ("off", "minimal", "low", "medium", "high", "xhigh", "max"),
     "agy": ("low", "medium", "high", "xhigh", "max"),
+    "replay": (),
 }
 # Where claude-api's key and request headers come from when the environment does not give them.
 API_KEY_ENV, API_HEADERS_ENV = "HYPRMASQ_BENCH_ANTHROPIC_API_KEY", "HYPRMASQ_BENCH_ANTHROPIC_HEADERS"
@@ -94,7 +98,8 @@ TOOL_TIMEOUT = 600
 SKILL_MENTION = {"codex": "${skill} ", "claude": "/{skill} "}
 # pi and agy run only with hyprmasq: Cua documents pi with its CLI and computer-use-linux with pi's native tools, not
 # their MCP servers, the other backends' skills are not set up for agy, and the comparisons run Claude Code and Codex.
-HYPRMASQ_ONLY = ("agy", "pi")
+# A replay maps the windows and shots of hyprmasq's results.
+HYPRMASQ_ONLY = ("agy", "pi", "replay")
 
 
 def hyprmasq_only(harness):
@@ -191,7 +196,8 @@ def parse_agent(spec):
     if not model:
         raise ValueError(f"{spec} is not HARNESS:MODEL[@EFFORT]")
     if at and effort not in EFFORTS[harness]:
-        raise ValueError(f"{harness} takes no effort {effort!r} in {spec}: one of {', '.join(EFFORTS[harness])}")
+        raise ValueError(f"{harness} takes no effort {effort!r} in {spec}"
+                         + (f": one of {', '.join(EFFORTS[harness])}" if EFFORTS[harness] else ""))
     return harness, model, effort
 
 
@@ -278,6 +284,48 @@ def tap_command(cid, log, max_calls=0, spent=0):
     which spent were made before, through an earlier tap of the run."""
     return [sys.executable, os.path.join(BENCH, "mcp_tap.py"), str(cid), "5000", log] + (
         [str(max_calls)] + ([str(spent)] if spent else []) if max_calls > 0 else [])
+
+
+def find_recording(recordings, task, variant, model):
+    """The run directory of the recording that a replay's model names: a run's name in the directory of --recordings,
+    under the task's results directory there, as dispatch.py lays out several tasks, or in it; or a path of its own.
+    Refuses a recording of another task or variant, whose calls fit no window here, and of another backend."""
+    if os.path.isabs(model):
+        candidates = [model]
+    elif recordings:
+        candidates = [os.path.join(recordings, results_name(task, variant), model), os.path.join(recordings, model)]
+    else:
+        raise RuntimeError(f"replay:{model} names a run in the directory of --recordings, which is not given")
+    path = next((c for c in candidates if os.path.exists(os.path.join(c, "mcp.jsonl"))), None)
+    if not path:
+        raise RuntimeError(f"no recording {model}: no mcp.jsonl in " + " or ".join(candidates))
+    recorded = {}
+    with contextlib.suppress(OSError, ValueError), open(os.path.join(path, "run.json")) as f:
+        recorded = json.load(f)
+    if recorded and (recorded.get("task"), recorded.get("variant")) != (task, variant):
+        raise RuntimeError(f"{path} is a recording of {results_name(recorded.get('task') or '?', recorded.get('variant'))}, "
+                           f"not of {results_name(task, variant)}")
+    if recorded.get("backend", "hyprmasq") != "hyprmasq":
+        raise RuntimeError(f"{path} is a recording of {recorded['backend']}: a replay maps hyprmasq's results")
+    return path
+
+
+def recorded_run(path):
+    """What run.json of a replay says of its recording: the agent that made it, and the build it ran on."""
+    out = {}
+    with contextlib.suppress(OSError, ValueError), open(os.path.join(path, "run.json")) as f:
+        run = json.load(f)
+        out = {"harness": run.get("harness"), "model": run.get("model"), "rep": run.get("rep"),
+               "effort": (run.get("effort") or {}).get("requested"), "harness_version": run.get("harness_version"),
+               "driver": (run.get("identity") or {}).get("driver")}
+    with contextlib.suppress(OSError, ValueError), open(os.path.join(path, "summary.json")) as f:
+        out["passed"] = json.load(f).get("passed")
+    return out
+
+
+def replay_command(recording, tap, gap):
+    """The replay of a recording as the run's agent: replay.py, which starts the tap as an agent's MCP client does."""
+    return [sys.executable, os.path.join(BENCH, "replay.py"), recording, "--gap", gap, "--", *tap]
 
 
 # What the user answers, with --user-reply, an agent that ended its turn without saying "Done", which every task's
@@ -934,6 +982,9 @@ def ran_effort(harness, run_dir, cwd, session, thinking, config=None, model=None
     """The effort the harness says the agent ran at, and where it says so; None where it says nothing. Codex gives it
     in the metadata of each MCP tool call, Claude Code in the requests its transcript logs (its stream-json has
     none), pi in its session's thinking level, and agy in the model variant its conversation's database names."""
+    if harness == REPLAY:
+        # No model ran: the effort in a replayed call's metadata is the recording's.
+        return None, None
     if harness == "pi":
         found = [thinking] if thinking else []
     elif harness == "agy":
@@ -1094,7 +1145,8 @@ class DebriefKeyError(RuntimeError):
 
 def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeout, debrief, cpus=None,
             dispatched=None, backend="hyprmasq", prompt_kind="task", browser="firefox", max_calls=0, desktop="bare",
-            chromium_options="", mcp_args="", user_reply=False, container=False, tool_search=True):
+            chromium_options="", mcp_args="", user_reply=False, container=False, tool_search=True, recordings=None,
+            replay_gap=replay.DEFAULT_GAP):
     task_dir = os.path.join(BENCH, "tasks", task)
     run_dir = os.path.join(out, run_name(harness, model, rep, effort))
     label = f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}]"
@@ -1104,6 +1156,8 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
     auth = check_api_auth(api_env) if api_env else None
     if harness == "claude":
         renew_claude_login(login_margin(timeout))
+    # A replay's recording, before the VM boots: a run without one fails here.
+    recording = find_recording(recordings, task, variant, model) if harness == REPLAY else None
     os.makedirs(os.path.join(run_dir, "tmp"))
     os.makedirs(os.path.join(run_dir, "driver-out"))
     # A fresh directory outside any project: harnesses load instructions such as AGENTS.md from the directory
@@ -1120,7 +1174,7 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
     # The variables of the agent's process: claude-api's key or pi's directory, and the agent home, with a backend's
     # skill in it.
     agent_vars = dict(api_env or {})
-    if harness != "pi":
+    if harness not in ("pi", REPLAY):
         home, home_env = agent_home(harness, skill_link(out, backend) if backend in SKILLS else None,
                                     SKILLS[backend][0] if backend in SKILLS else "")
         agent_vars.update(home_env)
@@ -1144,8 +1198,12 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             if harness == "agy":
                 eager = server_tools(mcp_target, os.path.join(run_dir, "mcp-tools.jsonl"))
                 agy_mcp_config(home, SERVER[backend], tap, eager)
-            command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort, backend=backend,
-                                    read_dir=read_dir, tap_env=tap_env, tool_search=tool_search)
+            if harness == REPLAY:
+                # No prompt and no model: the recording's calls, through the tap, which logs them as an agent's.
+                command = replay_command(recording, tap, replay_gap)
+            else:
+                command = agent_command(harness, model, prompt, tap, sessions=sessions, effort=effort, backend=backend,
+                                        read_dir=read_dir, tap_env=tap_env, tool_search=tool_search)
             print(f"{label} agent running", flush=True)
             agent = run_agent(command, cwd, os.path.join(run_dir, "agent.jsonl"),
                               os.path.join(run_dir, "agent.stderr"), timeout, agent_vars,
@@ -1175,7 +1233,8 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
             "timed_out": agent["timed_out"], "session": agent["session"],
             # With --user-reply, the user's one reply to an agent that ended without saying "Done", or None.
             "user_reply_enabled": user_reply, "user_reply": reply,
-            "harness_version": version([agy_executable() if harness == "agy" else executable(harness), "--version"]),
+            "harness_version": None if harness == REPLAY else version(
+                [agy_executable() if harness == "agy" else executable(harness), "--version"]),
             "machine": machine(),
             # The CPUs the VM ran on, or None where it could run on any.
             "cpus": format_cpus(cpus) if cpus else None,
@@ -1185,6 +1244,9 @@ def run_one(driver, task, variant, harness, model, effort, rep, out, cid, timeou
         }
         if dispatched:
             run["dispatch"] = dispatched
+        if harness == REPLAY:
+            # The recording, the gap between its calls, and the run that it is of.
+            run["replay"] = {"recording": recording, "gap": replay_gap, "recorded": recorded_run(recording)}
         if family(harness) == "claude":
             # Where Claude Code's init event says its credentials came from: ANTHROPIC_API_KEY, or none for a login.
             run["api_key_source"] = agent["api_key_source"]
@@ -1376,7 +1438,9 @@ def run_config(source, task, variant, args):
             "prompt_sha256": file_sha256([task_file(task_dir, variant, PROMPTS[args.prompt]),
                                           task_file(task_dir, variant, "debrief.md")]),
             "timeout": args.timeout, "max_calls": args.max_calls, "debrief": not args.no_debrief,
-            "user_reply": args.user_reply, "tool_search": not getattr(args, "no_tool_search", False)}
+            "user_reply": args.user_reply, "tool_search": not getattr(args, "no_tool_search", False),
+            "recordings": os.path.abspath(args.recordings) if getattr(args, "recordings", None) else None,
+            "replay_gap": getattr(args, "replay_gap", replay.DEFAULT_GAP)}
 
 
 def check_identity(out, identity):
@@ -1421,12 +1485,12 @@ def check_resume(out, config, parser, agents):
 
 # What results directories from before the backend and prompt options ran with.
 DEFAULT_CONFIG = {"backend": "hyprmasq", "prompt": "task", "browser": "firefox", "desktop": "bare", "container": False,
-                  "chromium_options": "", "mcp_args": "", "user_reply": False}
+                  "chromium_options": "", "mcp_args": "", "user_reply": False, "replay_gap": replay.DEFAULT_GAP}
 # What must be the same for runs to go into one results directory. The driver and the skill are the run's own (run.json's
 # identity, check_identity), and bench_dirty says a commit does not name the benchmark's code.
 IDENTITY_KEYS = ("commit", "task", "variant", "display", "backend", "prompt", "browser", "desktop", "container",
                  "chromium_options", "mcp_args", "bench_commit", "bench_dirty", "prompt_sha256", "timeout", "max_calls",
-                 "debrief", "user_reply", "tool_search")
+                 "debrief", "user_reply", "tool_search", "replay_gap")
 
 
 def pending_runs(out, reps, agents):
@@ -1475,6 +1539,12 @@ def add_run_options(parser, tasks=False):
     parser.add_argument("--container", action="store_true",
                         help="run the benchmark in a systemd-nspawn container on the host's GPU instead of a QEMU VM")
     parser.add_argument("--mcp-args", default="", help="options of hyprmasq-mcp in the VM, such as --max-image-size 1920")
+    parser.add_argument("--recordings", metavar="DIR",
+                        help="where the recordings of replay agents are: a results directory with the run directory "
+                             "that each replay:RUN names, or the directory of the tasks' results directories")
+    parser.add_argument("--replay-gap", default=replay.DEFAULT_GAP, metavar="GAP",
+                        help="how long a replay waits between calls: none, recorded (the recording's own gap), "
+                             f"recorded:CAP (up to CAP seconds) or a number of seconds; by default {replay.DEFAULT_GAP}")
     parser.add_argument("--chromium-options", default="",
                         help="more options of the user's Chromium, as the user started it, such as "
                              "--remote-debugging-port=0 for a browser whose remote debugging was on before the agent came")
@@ -1503,8 +1573,22 @@ def check_runs(args, parser):
     only = sorted({harness for harness, _, _ in agents if harness in HYPRMASQ_ONLY})
     if args.backend != "hyprmasq" and only:
         parser.error(hyprmasq_only(only[0]))
+    try:
+        replay.parse_gap(args.replay_gap)
+    except ValueError as e:
+        parser.error(f"--replay-gap: {e}")
     reps = sorted(set(args.rep)) if args.rep else list(range(1, args.reps + 1))
     return agents, reps
+
+
+def check_recordings(agents, recordings, tasks, parser):
+    """Refuses replay agents whose recordings are not there, for each of the tasks as (task, variant), before any run."""
+    for harness, model, _ in agents:
+        for task, variant in tasks if harness == REPLAY else ():
+            try:
+                find_recording(recordings, task, variant, model)
+            except RuntimeError as e:
+                parser.error(str(e))
 
 
 def check_task(task, variant, parser, prompt="task", browser="firefox"):
@@ -1560,6 +1644,7 @@ def main():
     parser.add_argument("--dispatch", type=json.loads, help=argparse.SUPPRESS)  # what dispatch.py adds to run.json
     args = parser.parse_args()
     agents, reps = check_run_options(args, parser)
+    check_recordings(agents, args.recordings, [(args.task, args.variant)], parser)
     try:
         cpus = parse_cpus(args.cpus) if args.cpus else None
         if cpus and not set(cpus) <= os.sched_getaffinity(0):
@@ -1586,7 +1671,8 @@ def main():
                 run_one(driver, args.task, args.variant, harness, model, effort, rep, out, args.cid, args.timeout,
                         not args.no_debrief, cpus, args.dispatch, args.backend, args.prompt, args.browser,
                         args.max_calls, args.desktop, args.chromium_options, args.mcp_args, args.user_reply,
-                        container=args.container, tool_search=not args.no_tool_search)
+                        container=args.container, tool_search=not args.no_tool_search, recordings=args.recordings,
+                        replay_gap=args.replay_gap)
         except Exception as e:  # one broken run does not end the benchmark
             print(f"[{harness} {model}{f' @{effort}' if effort else ''} #{rep}] error: {e}", flush=True)
     print(report.report(out))

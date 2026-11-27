@@ -742,6 +742,8 @@ def agy_context(stream):
 def context_usage(harness, stream, transcript, usage):
     """How large the agent's context got in a run, from the harness's own logs, the debrief's requests left out.
     None where they do not give the size of every request."""
+    if harness == "replay":
+        return None
     if harness in ("claude", "claude-api"):
         return claude_context(stream)
     if harness == "pi":
@@ -769,11 +771,40 @@ def add(a, b):
     return None if a is None or b is None else a + b
 
 
+def replay_outcome(stream, run):
+    """How a replay went (run.py's harness replay), from the events of replay.py: its recording and gap, the client
+    whose messages it sent, the tool calls recorded and sent, how their arguments were mapped, what differed in the
+    results without mattering, and `diverged`: None for a replay that went the recording's way to its end, and
+    otherwise the call, the kind and the detail of where it left it, which is no failure of the task's checker. A
+    replay that ended without saying so, stopped at its timeout or broken, counts as diverged."""
+    events = [e["line"] for e in stream if (e.get("line") or {}).get("type") == "replay"]
+    start = next((e for e in events if e.get("event") == "start"), {})
+    end = next((e for e in reversed(events) if e.get("event") == "end"), None)
+    out = {**(run.get("replay") or {}), "client": start.get("client")}
+    if end is None:
+        calls = sum(1 for e in events if e.get("event") == "call")
+        return {**out, "calls_recorded": None, "calls_sent": calls, "arguments": {}, "differences": {},
+                "diverged": {"call": calls, "tool": None, "kind": "stopped",
+                             "detail": "the replay ended before it said how it went: see agent.stderr"}}
+    return {**out, **{k: end.get(k) for k in ("calls_recorded", "calls_sent", "arguments", "differences", "diverged")}}
+
+
+def replay_text(outcome):
+    """A replay's outcome in a line, in place of an agent's last message."""
+    diverged = outcome.get("diverged")
+    if diverged:
+        return (f"Replay diverged at call {diverged.get('call')} of {outcome.get('calls_recorded')} "
+                f"({diverged.get('kind')}): {diverged.get('detail')}")
+    return f"Replayed {outcome.get('calls_sent')} of {outcome.get('calls_recorded')} calls."
+
+
 def agent_usage(harness, stream, transcript=()):
     """Tokens and turns from the agent's own event stream, and its final answer. input_tokens counts every prompt
     token, cache reads and writes included. cost_usd is the harness's own figure, except for Codex, whose transcript
-    gives the requests to price at the API's list prices."""
+    gives the requests to price at the API's list prices. A replay has no model, and so no usage."""
     usage = {}
+    if harness == "replay":
+        return {"final": replay_text(replay_outcome(stream, {}))}
     if harness in ("claude", "claude-api"):
         # A result is its process's alone: after the user's reply (run.py --user-reply), the run's usage is the sum.
         results = [e["line"] for e in stream if e["line"].get("type") == "result"]
@@ -1124,6 +1155,8 @@ def metrics(run_dir):
         # What an agy run and its debrief spent of each bucket of its login's quota (run.py's agy_quota).
         **({"quota_spent": quota_spent(*(((run.get("agy") or {}).get("quota") or {}).get(k) for k in ("before", "after")))}
            if run["harness"] == "agy" else {}),
+        # How a replay went, apart from the checker's grade: a replay that diverged is no sample of the tool's time.
+        **({"replay": replay_outcome(stream, run)} if run["harness"] == "replay" else {}),
         "versions": ready.get("versions"),
         "machine": run.get("machine"),
         "desktop": run.get("desktop", "bare"),
@@ -1259,6 +1292,8 @@ def report(results_dir):
             + (f", {r['harness_version']}" if r.get("harness_version") else "")
             + (f", refusals {', '.join(f'{k} {v}' for k, v in sorted(r['refusals'].items()))}"
                if r.get("refusals") else "")
+            + (f", replay diverged at call {r['replay']['diverged'].get('call')} ({r['replay']['diverged'].get('kind')})"
+               if (r.get("replay") or {}).get("diverged") else "")
             + (f" — {'; '.join(r['failures'])}" if r["failures"] else "")
         )
     with open(os.path.join(results_dir, "report.md"), "w") as f:

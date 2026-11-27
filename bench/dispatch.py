@@ -589,7 +589,8 @@ class Remote:
             return host.prepared
 
     def _prepare(self, host):
-        harnesses = sorted({run.executable(h) for h, m, e in self.agents if host.takes(h, m, e)})
+        # A replay is no program of the host's: run.py runs it from the shipped benchmark.
+        harnesses = sorted({run.executable(h) for h, m, e in self.agents if host.takes(h, m, e) and h != run.REPLAY})
         say(f"[{host}] preparing")
         info = self.sh(host, f"""
             for tool in git nix-build pkill python3 rsync setsid {' '.join(harnesses)}; do
@@ -659,6 +660,10 @@ class Remote:
         command += ["--container"] if getattr(self.args, "container", False) else []
         command += ["--chromium-options=" + self.args.chromium_options] if self.args.chromium_options else []
         command += ["--mcp-args=" + self.args.mcp_args] if self.args.mcp_args else []
+        if job.harness == run.REPLAY:
+            # The recordings are read on the host, at the path they have here.
+            command += ["--replay-gap", self.args.replay_gap]
+            command += ["--recordings", os.path.abspath(self.args.recordings)] if self.args.recordings else []
         command += ["--variant", b.variant] if b.variant else []
         command += ["--no-debrief"] if self.args.no_debrief else []
         command += ["--no-tool-search"] if getattr(self.args, "no_tool_search", False) else []
@@ -874,6 +879,7 @@ def main():
     args = parser.parse_args()
     agents, reps = run.check_runs(args, parser)
     tasks = parse_tasks(args, parser)
+    run.check_recordings(agents, args.recordings, tasks, parser)
     budgets = parse_budgets(args.task_max_calls or [], tasks, parser)
     reply_tasks = parse_task_set(args.user_reply_task or [], tasks, parser)
     try:
