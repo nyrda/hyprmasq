@@ -788,6 +788,8 @@ directories that `dispatch.py` writes, where the recording of each task is `DIR/
 absolute path names the run directory itself. `--reps` replays each recording that many times, into
 `replay-RUN-1`, `replay-RUN-2` and so on. `run.py` refuses a recording of another task, variant or backend before any
 VM boots. With `dispatch.py` the recordings are read on each host, at the path they have on the dispatching machine.
+A results directory keeps the recordings it replayed: a resume with another `--recordings` is refused, since runs of
+one name would then replay other calls.
 
 A replayed run is a run like any other. `run.py` boots the task's VM or container and starts `replay.py` in the
 agent's place, which starts `mcp_tap.py` as an agent's MCP client does. So the run has its `mcp.jsonl`, `run.json`,

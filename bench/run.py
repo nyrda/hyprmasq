@@ -296,7 +296,8 @@ def find_recording(recordings, task, variant, model):
         candidates = [os.path.join(recordings, results_name(task, variant), model), os.path.join(recordings, model)]
     else:
         raise RuntimeError(f"replay:{model} names a run in the directory of --recordings, which is not given")
-    path = next((c for c in candidates if os.path.exists(os.path.join(c, "mcp.jsonl"))), None)
+    # Absolute: the replay runs in a directory of its own, as an agent does.
+    path = next((os.path.abspath(c) for c in candidates if os.path.exists(os.path.join(c, "mcp.jsonl"))), None)
     if not path:
         raise RuntimeError(f"no recording {model}: no mcp.jsonl in " + " or ".join(candidates))
     recorded = {}
@@ -1490,7 +1491,7 @@ DEFAULT_CONFIG = {"backend": "hyprmasq", "prompt": "task", "browser": "firefox",
 # identity, check_identity), and bench_dirty says a commit does not name the benchmark's code.
 IDENTITY_KEYS = ("commit", "task", "variant", "display", "backend", "prompt", "browser", "desktop", "container",
                  "chromium_options", "mcp_args", "bench_commit", "bench_dirty", "prompt_sha256", "timeout", "max_calls",
-                 "debrief", "user_reply", "tool_search", "replay_gap")
+                 "debrief", "user_reply", "tool_search", "replay_gap", "recordings")
 
 
 def pending_runs(out, reps, agents):

@@ -27,6 +27,7 @@ import sys
 
 import analyze
 import report
+import run
 
 # The times of a run, in seconds: the time in tools, and the parts of its act calls' time (analyze.split).
 PARTS = ("wait", "watch", "input", "pauses", "rest")
@@ -77,6 +78,18 @@ def times(run_dir):
     return out
 
 
+def task_name(run_dir):
+    """The task of a run with its variant, as run.py names a task's results directory, from run.json. Not from the name
+    of the directory that holds the run: with one task that is the --out itself, which two builds name differently,
+    and their runs of one recording would then pair with nothing."""
+    try:
+        with open(os.path.join(run_dir, "run.json")) as f:
+            recorded = json.load(f)
+        return run.results_name(recorded["task"], recorded.get("variant"))
+    except (OSError, ValueError, KeyError):
+        return os.path.basename(os.path.dirname(run_dir))
+
+
 def sample(run_dir):
     """A replayed run: its recording, its outcome and its times. None for a run that is no replay."""
     with open(os.path.join(run_dir, "summary.json")) as f:
@@ -86,7 +99,7 @@ def sample(run_dir):
         return None
     diverged = outcome.get("diverged")
     return {
-        "task": os.path.basename(os.path.dirname(run_dir)), "recording": summary["model"], "rep": summary["rep"],
+        "task": task_name(run_dir), "recording": summary["model"], "rep": summary["rep"],
         "client": (outcome.get("client") or "unknown").split(" ")[0],
         "passed": bool(summary.get("passed")), "diverged": diverged.get("kind") if diverged else None,
         "detail": (diverged or {}).get("detail"), "failures": summary.get("failures") or [],

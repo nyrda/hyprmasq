@@ -338,12 +338,17 @@ def to_shot(shot, point):
     return ((point[0] - f["x"]) * shot["width"] / f["width"], (point[1] - f["y"]) * shot["height"] / f["height"])
 
 
+def across(a, b, x, y):
+    """A point in shot a's pixels as the same point of the window in shot b's, wherever it lies."""
+    return tuple(tidy(v) for v in to_shot(b, actlog.to_window(a, (x, y))))
+
+
 def carry(a, b, x, y):
-    """A point in shot a's pixels as the same point of the window in shot b's. A point outside a, which act refused
-    with out_of_bounds, stays outside b, as it may lie within a shot that shows more of the window."""
+    """A point that input goes to, in shot a's pixels, as the same point of the window in shot b's. A point outside a,
+    which act refused with out_of_bounds, stays outside b, as it may lie within a shot that shows more of the window."""
     if not (0 <= x < a["width"] and 0 <= y < a["height"]):
         return tidy(b["width"] + abs(x)), tidy(b["height"] + abs(y))
-    return tuple(tidy(v) for v in to_shot(b, actlog.to_window(a, (x, y))))
+    return across(a, b, x, y)
 
 
 def tidy(value):
@@ -481,7 +486,8 @@ class Mapping:
             self.counts["rebased" if base else "moved"] += 1
             if base and not self.recorded.exact.get(shot):
                 self.counts["rebased_within_half_a_pixel"] += 1
-            return other, lambda x, y: carry(a, b, x, y)
+            # corner: a rectangle's corner, which may lie on the shot's far edge, and not a point that input goes to.
+            return other, lambda x, y, corner=False: (across if corner else carry)(a, b, x, y)
         if not base and self.recorded.size.get(shot) and self.recorded.size.get(shot) == self.replayed.size.get(other):
             self.counts["assumed"] += 1
             return other, None
@@ -496,8 +502,8 @@ class Mapping:
         shot, point = self.shot(region["shot"])
         out = {**region, "shot": shot}
         if point and all(is_number(region.get(k)) for k in ("x", "y", "width", "height")):
-            x0, y0 = point(region["x"], region["y"])
-            x1, y1 = point(region["x"] + region["width"], region["y"] + region["height"])
+            x0, y0 = point(region["x"], region["y"], corner=True)
+            x1, y1 = point(region["x"] + region["width"], region["y"] + region["height"], corner=True)
             out.update(x=x0, y=y0, width=tidy(x1 - x0), height=tidy(y1 - y0))
         return out
 

@@ -522,6 +522,24 @@ class Divergence(unittest.TestCase):
         x, y = sent["actions"][0]
         self.assertTrue(x >= 1280 or y >= 720, msg=sent)
 
+    def test_a_region_that_ends_at_a_zooms_edge_is_the_same_box_of_the_shot_it_is_part_of(self):
+        """A region's far corner lies on the zoom's edge, where a point of input would be outside it. It is a
+        rectangle's corner, so it goes to the same place of the window as any other."""
+        s = Server(True)
+        region = {"shot": "s3", "x": 0, "y": 0, "width": 478, "height": 125}
+        calls = [("windows", {"match": "firefox"}, s.windows(A, shot="s1")),
+                 ("act", {"shot": "s1", "actions": [[100, 100]]}, s.act("s2", "s1", [ZOOM])),
+                 ("screenshot", {"window": A[0], "region": region}, s.screenshot("s4", A[0], "s3", (0, 0, 478, 125), (956, 250)))]
+        # The replay's zoom is of another box, so the region goes to the changes shot, in whose pixels the recording's
+        # zoom was the box 0,34 319×167.
+        end, fake = play(calls, [s.windows(B, shot="s1"), s.act("s2", "s1", [("s3", 480, 240, 2, 40, 320, 160)]),
+                                 s.screenshot("s4", B[0], "s2", (0, 34, 319, 84), (956, 250))])
+        self.assertIsNone(end["diverged"])
+        sent = fake.calls()[2]["region"]
+        self.assertEqual(sent["shot"], "s2")
+        for key, want in (("x", 0), ("y", 34), ("width", 319), ("height", 83.5)):
+            self.assertAlmostEqual(sent[key], want, delta=1, msg=sent)
+
     def test_a_new_windows_shot_of_the_same_size_keeps_its_pixels_without_a_frame(self):
         text = Server(False)
         dialog = ("0xddd0", "soffice", "Text Import")
@@ -675,10 +693,29 @@ class Harness(unittest.TestCase):
             self.assertEqual(run.find_recording(root, "form", "25", "codex-1"), suite)
             self.assertEqual(run.find_recording(os.path.join(root, "form-25"), "form", "25", "codex-1"), suite)
             self.assertEqual(run.find_recording(None, "form", "25", suite), suite)
+            # A relative directory, as a command line gives it: the replay runs in a directory of its own, where a
+            # relative path would name nothing.
+            found = run.find_recording(os.path.relpath(root), "form", "25", "codex-1")
+            self.assertTrue(os.path.isabs(found) and os.path.samefile(found, suite), found)
             for recordings, task, variant, model in ((root, "form", "25", "codex-2"), (os.path.join(root, "calc"), "form", "25", "codex-1"),
                                                      (root, "calc", None, "cua-1"), (None, "form", "25", "codex-1")):
                 with self.subTest(model=model, task=task, recordings=recordings), self.assertRaises(RuntimeError):
                     run.find_recording(recordings, task, variant, model)
+
+    def test_a_results_directory_keeps_the_recordings_it_replayed(self):
+        """Runs of one name replay other calls from another directory of recordings, and replay_report.py reads the
+        repetitions of a name as one recording's."""
+        parser = argparse.ArgumentParser()
+        parser.error = lambda message: (_ for _ in ()).throw(ValueError(message))
+        config = {"commit": "c", "task": "calc", "variant": None, "recordings": "/recorded/main", "replay_gap": "1"}
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "replay-codex-gpt-1-1"))
+            open(os.path.join(out, "replay-codex-gpt-1-1", "summary.json"), "w").close()
+            with open(os.path.join(out, "source.json"), "w") as f:
+                json.dump(config, f)
+            run.check_resume(out, dict(config), parser, [])
+            with self.assertRaisesRegex(ValueError, "another recordings"):
+                run.check_resume(out, {**config, "recordings": "/recorded/feature"}, parser, [])
 
     def test_the_replay_is_started_with_its_recording_gap_and_the_tap(self):
         command = run.replay_command("/r/run", ["python3", "mcp_tap.py", "unix:/s", "5000", "/out/mcp.jsonl"], "none")
@@ -741,6 +778,23 @@ class Report(unittest.TestCase):
                           "diverged": {"shot": 1, "error": 1}, "failed": 1})
         self.assertEqual(rows[("form-25", "claude-code")]["all"], 1)
         self.assertEqual(rows[("calc", "codex-mcp-client")]["recordings"], 1)
+
+    def test_a_runs_task_is_its_own_and_not_the_name_of_its_results_directory(self):
+        """One task's results lie in --out itself, which two builds name differently: their replays of one recording
+        pair by the task that run.json records."""
+        with tempfile.TemporaryDirectory() as root:
+            names = []
+            for out, task, variant in (("baseline", "form", "25"), ("changed", "form", "25"), ("calc-results", "calc", None)):
+                run_dir = os.path.join(root, out, "replay-codex-gpt-1-1")
+                os.makedirs(run_dir)
+                with open(os.path.join(run_dir, "run.json"), "w") as f:
+                    json.dump({"task": task, "variant": variant}, f)
+                names.append(replay_report.task_name(run_dir))
+            self.assertEqual(names, ["form-25", "form-25", "calc"])
+            # A run without run.json keeps the name of its directory.
+            bare = os.path.join(root, "form-25", "replay-codex-gpt-1-1")
+            os.makedirs(bare)
+            self.assertEqual(replay_report.task_name(bare), "form-25")
 
     def test_repeatability_is_the_spread_within_a_recording_over_its_samples(self):
         samples = [sample("a", 1, 10.0), sample("a", 2, 10.2), sample("a", 3, 10.4),
