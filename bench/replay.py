@@ -45,8 +45,10 @@ import actlog
 SESSION_START = ("initialize", "server/discover")
 # How long a call may take, as run.py's TOOL_TIMEOUT gives every harness.
 CALL_TIMEOUT = 600
-# The gap between calls that run.py takes without --replay-gap: see "Replaying a recorded run" in bench/README.md.
-DEFAULT_GAP = "recorded:5"
+# The gap between calls that run.py takes without --replay-gap, in seconds: about the shortest that the agents of the
+# recordings took, whose tenth percentile is 1.06 s. As many recordings replay to a pass with it as with the recording's
+# own gaps, and more than without a gap: see "Replaying a recorded run" in bench/README.md.
+DEFAULT_GAP = "1"
 
 # A window as windows lists it (windowLine in mcp/internal/server/windows.go), as a result names one that opened or that
 # a closed one came from (windowsText and sourceText in summary.go), and as launch names its own (launch.go). Go's %q
