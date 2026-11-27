@@ -339,9 +339,36 @@ namespace hyprmasq::wait {
         for (const auto& box : boxes)
             m_damage.push_back({.at = now, .box = box, .commit = commits});
         lastAnimated = isAnimated ? std::move(boxes) : std::vector<CBox>{};
-        while (!m_damage.empty() && (now - m_damage.front().at > HISTORY || m_damage.size() > MAX_DAMAGE))
+        while (!m_damage.empty() && (now - m_damage.front().at > HISTORY || m_damage.size() > MAX_DAMAGE)) {
+            m_forgotten = m_damage.front().commit;
             m_damage.pop_front();
+        }
         committed.emit();
+    }
+
+    std::optional<std::vector<CBox>> CContentWatch::animationSince(uint64_t since) const {
+        // A commit that is part of an animation has boxes, so every commit after since is in m_damage unless it left it.
+        if (lastChangeCommit > since || m_forgotten > since)
+            return std::nullopt;
+        // A commit also counts as part of an animation when its box only overlaps the boxes before it, as one that
+        // redraws the whole line that a caret blinks in. That is enough for a wait, which looks at the window again
+        // afterwards. Here it is not: a box has to lie where an earlier commit drew a box of the same thing, within the
+        // logical pixel that its edge can reach into.
+        const auto drawnBefore = [&](const SDamage& d) {
+            return std::ranges::any_of(m_damage, [&](const SDamage& e) {
+                return e.commit < d.commit && area(e.box) <= SAME_BOX * area(d.box) && d.box.x >= e.box.x - 1 && d.box.y >= e.box.y - 1 &&
+                    d.box.x + d.box.w <= e.box.x + e.box.w + 1 && d.box.y + d.box.h <= e.box.y + e.box.h + 1;
+            });
+        };
+        std::vector<CBox> boxes;
+        for (const auto& d : m_damage) {
+            if (d.commit <= since)
+                continue;
+            if (!drawnBefore(d))
+                return std::nullopt;
+            merge(boxes, d.box);
+        }
+        return boxes;
     }
 
     bool CContentWatch::animated(const CBox& box, Time::steady_tp now) const {

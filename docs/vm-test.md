@@ -154,7 +154,7 @@ the VM, such as a window or a log, is declared by hand.
 | `core` | | Screenshots of the colored foot windows that most areas use, the socket lifecycle and input to a hidden shell. Every area needs it, some through another. |
 | `typing` | `core` | `type` under a German keymap, and through the Compose table of the target's locale. |
 | `input` | `core` | `hyprmasq-input`: pacing, actions, JSON results, its cleanup, and input that closes its window. |
-| `waits` | `core` | Both forms of `wait`, `state`, error codes, the commit counter, frame callbacks for hidden windows, and an unload during a wait. |
+| `waits` | `core` | Both forms of `wait`, `state`, `drawn`, error codes, the commit counter, frame callbacks for hidden windows, and an unload during a wait. |
 | `shots` | `core` | Screenshot sizes, detail images, popups, edge pixels, the pointer device, resizes, starved windows and animations. |
 | `leases` | `core` | Focus leases, and what a sender's disconnect releases. |
 | `launch` | `core` | `hyprmasq-launch`, a shared Wayland connection, and windows that emulated input opens. It starts the log of Hyprland's events that `shared-focus` reads. |
@@ -245,6 +245,7 @@ and the code drift apart.
 | a hidden window keeps drawing during a long wait | Through Hyprland's socket, a wait with a 2-second quiet time keeps a hidden shell drawing for the 3 seconds it prints after the last key, and answers once it is quiet, later than `hyprctl` would wait. |
 | a hidden window keeps drawing while a sender pauses between inputs | A hidden shell that keeps printing goes on drawing while a connected sender sleeps for more than a second after its input, and stops once the sender has gone. |
 | a wait keeps a window drawing that is hidden while it runs | A shell that keeps printing, visible when a `wait … since` starts and hidden 0.3 s later, goes on drawing until the wait times out. |
+| drawn tells the frames of an animation since a counter value from other drawing | A digit that counts ten times a second at the top left of a hidden foot window becomes an animation. After a wait that fed the window frame callbacks for a second, `drawn … since` the counter before it reports only animation, at least three frames and boxes at the top left, and `animation` as text. From the counter of that reply it reports nothing. A line that the script then prints further down makes it report changes with no boxes, and from the counter after the line only animation again. The digit's whole line, printed in one frame, is an animation to a wait that ignores animations, and changes to `drawn`. Without a socket it fails with `no_socket`, and with a counter value above the counter or other words with `invalid_arguments`. |
 | unloading answers pending waits with code unloaded | A pending `wait … since` answers with code `unloaded`, and the reloaded plugin has no sockets. |
 | unloading removes the socket directories that the plugin made, while nothing else is in them | The unload removes the instance's socket directory and `$XDG_RUNTIME_DIR/hyprmasq` that the plugin made, each only while nothing else is in it: another instance's directory keeps the shared one, and another program's file keeps the instance's. |
 

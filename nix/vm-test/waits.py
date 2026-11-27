@@ -287,6 +287,62 @@ with subtest("a wait keeps a window drawing that is hidden while it runs"):
     assert reply["ended"] == "timeout" and reply["quietMs"] < 3000, reply
     dispatch(f'hl.dsp.window.close({{ window = "address:{painter}" }})')
 
+with subtest("drawn tells the frames of an animation since a counter value from other drawing"):
+    # A digit at the top left of a hidden foot window counts ten times a second, a small box that keeps redrawing: the
+    # plugin takes it for an animation once it has redrawn for a second. A line that the script prints further down
+    # once a file is there is a change. Once another file is there, it prints the digit's whole line, a box around the
+    # digit's, which the plugin's waits take for the animation and drawn does not. Waits give the window its frame
+    # callbacks.
+    machine.succeed("printf '%s\\n' 'printf \"\\033[?25l\"; i=0' 'while :; do printf \"\\033[1;1H%d\" $((i % 10)); i=$((i + 1)); if [ -e /tmp/hm-p-line ]; then rm -f /tmp/hm-p-line; printf \"\\033[9;1Hline\"; fi; if [ -e /tmp/hm-p-wide ]; then rm -f /tmp/hm-p-wide; printf \"\\033[1;1H%d and the rest of its line\" $((i % 10)); fi; sleep 0.1; done' > /tmp/hm-p-tick.sh")
+    focus_workspace(21)
+    ticking = foot("hm-p-ticking", "sh /tmp/hm-p-tick.sh")
+    focus_workspace(4)
+    assert json.loads(hypr(f"-j hyprmasq drawn {ticking} since 0"))["code"] == "no_socket"
+    open_socket(ticking)
+
+    def drawn_since(commits):
+        return json.loads(hypr(f"-j hyprmasq drawn {ticking} since {commits}"))
+
+    def feed(commits, arguments):
+        return json.loads(hypr(f"-j hyprmasq wait {ticking} since {commits} {arguments} ignore animations"))
+
+    # The window settles once the digit has become an animation, and then draws nothing else for a second.
+    settled = feed(window_state(ticking)["commits"], "expect 3000 quiet 300 deadline 4000")
+    assert settled["ok"] and settled["ended"] == "quiet" and settled["animated"], settled
+    base = settled["commits"]
+    assert feed(base, "expect 1000 quiet 100 deadline 3000")["ended"] == "no_redraw"
+    animation = drawn_since(base)
+    assert animation["ok"] and animation["onlyAnimation"] and animation["commitsSince"] == animation["commits"] - base >= 3, animation
+    assert animation["animated"] and all(box["x"] <= 2 and box["y"] <= 2 and box["height"] < 60 for box in animation["animated"]), animation
+    assert hypr(f"hyprmasq drawn {ticking} since {base}") == "animation"
+    # Without frame callbacks the hidden window draws nothing, so nothing came after the counter of that reply.
+    nothing = drawn_since(animation["commits"])
+    assert nothing["onlyAnimation"] and nothing["commitsSince"] == 0 and nothing["animated"] == [], nothing
+    assert hypr(f"hyprmasq drawn {ticking} since {animation['commits']}") == "nothing"
+    # The line is a frame that is no animation, while the digit goes on counting.
+    alice("touch /tmp/hm-p-line")
+    lined = feed(animation["commits"], "expect 2000 quiet 300 deadline 4000")
+    assert lined["ended"] == "quiet" and lined["redrawObserved"], lined
+    machine.succeed("test ! -e /tmp/hm-p-line")
+    changed = drawn_since(base)
+    assert changed["ok"] and not changed["onlyAnimation"] and changed["animated"] == [] and changed["commitsSince"] > animation["commitsSince"], changed
+    assert hypr(f"hyprmasq drawn {ticking} since {base}") == "changes"
+    # What came after the line is the digit alone again.
+    assert feed(lined["commits"], "expect 1000 quiet 100 deadline 3000")["ended"] == "no_redraw"
+    after = drawn_since(lined["commits"])
+    assert after["onlyAnimation"] and after["commitsSince"] >= 3 and after["animated"], after
+    # The digit's line, drawn whole in one frame, is new content around the animation.
+    alice("touch /tmp/hm-p-wide")
+    wide = feed(after["commits"], "expect 1000 quiet 100 deadline 3000")
+    machine.succeed("test ! -e /tmp/hm-p-wide")
+    assert wide["ended"] == "no_redraw" and any(box["width"] > 100 for box in wide["animated"]), wide
+    around = drawn_since(after["commits"])
+    assert around["ok"] and not around["onlyAnimation"] and around["animated"] == [], around
+    above = drawn_since(after["commits"] + 1000)
+    assert not above["ok"] and above["code"] == "invalid_arguments", above
+    assert json.loads(hypr(f"-j hyprmasq drawn {ticking} until 3"))["code"] == "invalid_arguments"
+    dispatch(f'hl.dsp.window.close({{ window = "address:{ticking}" }})')
+
 with subtest("unloading answers pending waits with code unloaded"):
     base = window_state(stated)["commits"]
     hypr_background(f"-j hyprmasq wait {stated} since {base} expect 4000", "/tmp/hm-p-unload")
