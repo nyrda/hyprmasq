@@ -17,7 +17,9 @@ HARNESS:MODEL@EFFORT with *, a pattern without @ matching the agent at any effor
 machine's API keys, claude-api and pi, run only on `local`, but claude-api also on a host with api-keys, which gets
 the key through the run's SSH session. The commits of this checkout and of each --source are shipped to every host:
 the checkouts must be clean. Each --source is a build with its own results directory, the --out in the same order;
-the runs of builds go to the same host one after the other. Several --task run in one queue, each into its own
+the runs of builds go to the same host one after the other, in an order that gives each build each place equally often
+for every agent (unit_order). A checkout given twice is two builds, the second a control arm that says how much two
+results of one build differ, and compare.py compares the builds' results. Several --task run in one queue, each into its own
 directory TASK[-VARIANT] under each --out. cores= runs each slot's VM on that many physical cores of its own.
 --balance gives each host an equal share of every task's and agent's runs, and --max-concurrent limits the runs at
 once of the agents that match a pattern, over all hosts and tasks. --backend, --prompt, --browser and --desktop go to
@@ -173,26 +175,44 @@ class Host:
 
 
 class Build:
-    """One hyprmasq commit to benchmark on one task variant, and its results directory."""
+    """One hyprmasq commit to benchmark on one task variant, and its results directory. Two builds may have one
+    commit, as a control arm has the baseline's: what tells builds apart is the results directory, and name in what the
+    dispatcher prints (build_names)."""
 
-    def __init__(self, out, config):
+    def __init__(self, out, config, name=None):
         self.out, self.config = out, config
         self.checkout, self.commit = config["path"], config["commit"]
         self.task, self.variant = config.get("task"), config.get("variant")
+        self.name = name or self.commit[:10]
+
+
+def build_names(commits):
+    """A name for each build of a dispatch, from its commit: the commit's first ten digits, and for a commit given
+    again, as for a control arm, its count after them, such as 0123456789-2. The default results directories end in
+    these names, so they must differ."""
+    seen, names = collections.Counter(), []
+    for commit in commits:
+        seen[commit] += 1
+        names.append(commit[:10] + (f"-{seen[commit]}" if seen[commit] > 1 else ""))
+    return names
 
 
 class Job:
     """One run: a build's agent and repetition."""
 
-    def __init__(self, build, harness, model, rep, effort=None):
+    def __init__(self, build, harness, model, rep, effort=None, position=None, builds=None):
         self.build, self.harness, self.model, self.rep, self.effort = build, harness, model, rep, effort
         self.name = run.run_name(harness, model, rep, effort)
+        # Its place in the order of its unit's builds, from 1, and how many builds that order has: those of the plan,
+        # also when a resume runs it without the others.
+        self.position, self.builds = position, builds
+        self.ran_after = 0  # the runs of its unit that its slot ran right before it
         self.tried = []  # the hosts it failed on before its run started
         self.outcome = "not run"
         self.waited = 0.0  # seconds a --max-concurrent limit held it back from free slots
 
     def __repr__(self):
-        return f"{self.name} of {self.build.commit[:10]}"
+        return f"{self.name} of {self.build.name}"
 
 
 class Unit:
@@ -206,23 +226,40 @@ class Unit:
         self.waited = 0.0
 
 
+def unit_order(n, rep, task, agent):
+    """The order in which a unit runs its n builds, as their indices, for a repetition, counted from 1, and the numbers
+    of its task and its agent among the dispatch's, from 0. It is a rotation of the builds as given, which moves on by
+    one with each repetition, task and agent: so n repetitions or n tasks in a row put each build in each place once,
+    for every agent, and agents that run the same task at the same time differ in their order. With three builds and
+    more, every second block of n repetitions and of n tasks rotates the builds reversed, so that a build does not
+    always run right after the same other one. Two builds have no second direction, as their reversal is their
+    rotation. An agent's builds so take each place equally often, exactly where the repetitions from 1 or the tasks
+    are a multiple of n, and as nearly as their count allows otherwise. The order follows from the repetition, the task
+    and the agent alone, not from the units planned, which a resume has fewer of."""
+    order = list(range(n))
+    if n > 2 and ((rep - 1) // n + task // n) % 2:
+        order.reverse()
+    shift = (rep - 1 + task + agent) % n
+    return order[shift:] + order[:shift]
+
+
 def plan(builds, agents, reps):
     """The units of the runs that have no summary.json yet. Repetitions go round the tasks, and each task's round
-    round the agents, as in run.py: so an agent's runs, and a provider's, spread over the whole dispatch. The order of
-    the builds alternates from one unit to the next, so that neither always runs first."""
+    round the agents, as in run.py: so an agent's runs, and a provider's, spread over the whole dispatch. A unit runs
+    its builds in unit_order, and each job records its place in it. A unit that lacks a build's run, which is done,
+    keeps the others in that order and at those places."""
     pending = [set(run.pending_runs(b.out, reps, agents)) for b in builds]
     tasks = list(dict.fromkeys((b.task, b.variant) for b in builds))
     units = []
     for rep in reps:
-        for task in tasks:
-            for harness, model, effort in agents:
-                jobs = [Job(b, harness, model, rep, effort) for b, p in zip(builds, pending)
-                        if (b.task, b.variant) == task and (rep, harness, model, effort) in p]
-                if not jobs:
-                    continue
-                if len(units) % 2:
-                    jobs.reverse()
-                units.append(Unit(jobs))
+        for t, task in enumerate(tasks):
+            arms = [(b, p) for b, p in zip(builds, pending) if (b.task, b.variant) == task]
+            for a, (harness, model, effort) in enumerate(agents):
+                jobs = [Job(arms[i][0], harness, model, rep, effort, position, len(arms))
+                        for position, i in enumerate(unit_order(len(arms), rep, t, a), 1)
+                        if (rep, harness, model, effort) in arms[i][1]]
+                if jobs:
+                    units.append(Unit(jobs))
     return units
 
 
@@ -431,6 +468,8 @@ def run_slot(host, slot, queue, ready, execute):
                 break
             # The unit waited for a limit before its first job; the others follow at once.
             job.waited = unit.waited if i == 0 else 0.0
+            # What ran here right before it: not the runs of a dispatch before this one, or of another host.
+            job.ran_after = sum(earlier.outcome in ("done", "failed") for earlier in unit.jobs[:i])
             try:
                 job.outcome = execute(host, slot, job)
             except Exception as e:  # a bug or a local error: the run stays without summary.json, for a resume
@@ -550,7 +589,8 @@ class Remote:
             return host.prepared
 
     def _prepare(self, host):
-        harnesses = sorted({run.executable(h) for h, m, e in self.agents if host.takes(h, m, e)})
+        # A replay is no program of the host's: run.py runs it from the shipped benchmark.
+        harnesses = sorted({run.executable(h) for h, m, e in self.agents if host.takes(h, m, e) and h != run.REPLAY})
         say(f"[{host}] preparing")
         info = self.sh(host, f"""
             for tool in git nix-build pkill python3 rsync setsid {' '.join(harnesses)}; do
@@ -583,21 +623,24 @@ class Remote:
                 test "$(git -C {shlex.quote(tree)} rev-parse HEAD)" = {commit} || {{ echo "{tree} is not at {commit}"; exit 1; }}
                 test -z "$(git -C {shlex.quote(tree)} status --porcelain)" || {{ echo "{tree} has changes"; exit 1; }}
             """)
+        identities = {}  # by driver directory: the builds of one commit, as a control arm's, share their drivers
         for b in self.builds:
-            say(f"[{host}] building the driver of {b.commit[:10]} for {run.results_name(b.task, b.variant)}")
             driver_dir = self.driver_dir(host, b)
-            call = (f"run.build_driver({driver_dir!r}, {self.tree(host, b.commit)!r}, {b.task!r}, "
-                    f"{b.variant!r}, {self.args.display!r}, {self.args.backend!r}, {self.args.browser!r}, "
-                    f"{self.args.desktop!r}, container={bool(getattr(self.args, 'container', False))!r})")
-            identity = (f"print(json.dumps(run.driver_identity({driver_dir + '/driver'!r}, {driver_dir!r}, "
-                        f"{self.args.backend!r})))")
-            built = self.sh(host, f"""
-                mkdir -p {shlex.quote(driver_dir)}
-                cd {shlex.quote(self.tree(host, self.harness['commit']))}/bench && python3 -c {shlex.quote('import json, run; ' + call + '; ' + identity)}
-            """)
+            if driver_dir not in identities:
+                say(f"[{host}] building the driver of {b.commit[:10]} for {run.results_name(b.task, b.variant)}")
+                call = (f"run.build_driver({driver_dir!r}, {self.tree(host, b.commit)!r}, {b.task!r}, "
+                        f"{b.variant!r}, {self.args.display!r}, {self.args.backend!r}, {self.args.browser!r}, "
+                        f"{self.args.desktop!r}, container={bool(getattr(self.args, 'container', False))!r})")
+                identity = (f"print(json.dumps(run.driver_identity({driver_dir + '/driver'!r}, {driver_dir!r}, "
+                            f"{self.args.backend!r})))")
+                built = self.sh(host, f"""
+                    mkdir -p {shlex.quote(driver_dir)}
+                    cd {shlex.quote(self.tree(host, self.harness['commit']))}/bench && python3 -c {shlex.quote('import json, run; ' + call + '; ' + identity)}
+                """)
+                identities[driver_dir] = json.loads(built.splitlines()[-1])
+                say(f"[{host}] {run.results_name(b.task, b.variant)}: {identities[driver_dir]['driver']}")
             # A resume adds no run of another build to a directory, as check_resume does for the rest.
-            identity = json.loads(built.splitlines()[-1])
-            say(f"[{host}] {run.results_name(b.task, b.variant)}: {identity['driver']}")
+            identity = identities[driver_dir]
             differ = run.check_identity(b.out, identity)
             if differ:
                 raise RuntimeError(f"[{host}] {b.out} has runs that another build ran: "
@@ -617,6 +660,10 @@ class Remote:
         command += ["--container"] if getattr(self.args, "container", False) else []
         command += ["--chromium-options=" + self.args.chromium_options] if self.args.chromium_options else []
         command += ["--mcp-args=" + self.args.mcp_args] if self.args.mcp_args else []
+        if job.harness == run.REPLAY:
+            # The recordings are read on the host, at the path they have here.
+            command += ["--replay-gap", self.args.replay_gap]
+            command += ["--recordings", os.path.abspath(self.args.recordings)] if self.args.recordings else []
         command += ["--variant", b.variant] if b.variant else []
         command += ["--no-debrief"] if self.args.no_debrief else []
         command += ["--no-tool-search"] if getattr(self.args, "no_tool_search", False) else []
@@ -624,11 +671,13 @@ class Remote:
         command += ["--max-calls", str(b.config["max_calls"])] if b.config.get("max_calls") else []
         command += ["--lock", host.lock] if host.lock else []
         command += ["--cpus", run.format_cpus(host.cpus[slot])] if host.cpus else []
-        # What run.json records of the dispatch: the slot, the limits on the agent and how long it waited for them.
+        # What run.json records of the dispatch: the slot, the limits on the agent and how long it waited for them,
+        # and where the run stood among its unit's builds, for a look at what the place does (compare.py).
         limits = {p: n for p, n in self.queue.limits if agent_matches(p, job.harness, job.model, job.effort)}
         command += ["--dispatch", json.dumps({"slot": slot, "balance": self.queue.balance, "max_concurrent": limits,
                                               "waited_seconds": round(job.waited, 1),
-                                              "host": host.label or host.target})]
+                                              "host": host.label or host.target, "position": job.position,
+                                              "builds": job.builds, "ran_after": job.ran_after})]
         q = shlex.quote
         # claude-api's key goes to a host with api-keys on the stdin of the run's start alone; local has its own.
         send = self.keys if job.harness in SENDS_KEY and not host.local else None
@@ -830,6 +879,7 @@ def main():
     args = parser.parse_args()
     agents, reps = run.check_runs(args, parser)
     tasks = parse_tasks(args, parser)
+    run.check_recordings(agents, args.recordings, tasks, parser)
     budgets = parse_budgets(args.task_max_calls or [], tasks, parser)
     reply_tasks = parse_task_set(args.user_reply_task or [], tasks, parser)
     try:
@@ -856,9 +906,9 @@ def main():
     if args.out and len(args.out) != len(sources):
         parser.error(f"{len(args.out)} --out for {len(sources)} builds: give one per --source, or none")
     builds = []
-    for i, source in enumerate(sources):
-        state = checkout_state(source, parser, "the source")
-        suffix = f"-{state['commit'][:10]}" if len(sources) > 1 else ""
+    states = [checkout_state(source, parser, "the source") for source in sources]
+    for i, (source, name) in enumerate(zip(sources, build_names([state["commit"] for state in states]))):
+        suffix = f"-{name}" if len(sources) > 1 else ""
         out = args.out[i] if args.out else None
         if not out and len(tasks) > 1:
             out = run.results_dir(f"{len(tasks)}-tasks{suffix}")
@@ -869,7 +919,7 @@ def main():
                 "user_reply": args.user_reply or (task, variant) in reply_tasks,
             })
             config = {**run.run_config(source, task, variant, budget), "bench_commit": harness["commit"]}
-            builds.append(Build(results_out(out, task, variant, len(tasks), suffix), config))
+            builds.append(Build(results_out(out, task, variant, len(tasks), suffix), config, name))
     if len({b.out for b in builds}) < len(builds):
         parser.error("two builds have the same --out")
     for b in builds:
@@ -913,7 +963,7 @@ def main():
     counts = collections.Counter(job.outcome for u in units for job in u.jobs)
     say("runs: " + ", ".join(f"{n} {outcome}" for outcome, n in counts.items()))
     for b in builds:
-        say(f"\n{b.out} ({b.commit[:10]}, {run.results_name(b.task, b.variant)}):\n" + report.report(b.out))
+        say(f"\n{b.out} ({b.name}, {run.results_name(b.task, b.variant)}):\n" + report.report(b.out))
 
 
 if __name__ == "__main__":
