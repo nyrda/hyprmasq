@@ -10,7 +10,7 @@ import (
 )
 
 func scrollShift(a, b grayImage) (int, bool, int, int) {
-	v := alignViews(a, b, func() bool { return false })
+	v := alignViews(a, b, nil, func() bool { return false })
 	return v.shift, v.sure, v.top, v.bottom
 }
 
@@ -107,7 +107,7 @@ func TestPageBordersAreNotFixedPanes(t *testing.T) {
 			return 240
 		}
 	}
-	v := alignViews(grayOf(bordered(0), 800, 600), grayOf(bordered(42), 800, 600), func() bool { return false })
+	v := alignViews(grayOf(bordered(0), 800, 600), grayOf(bordered(42), 800, 600), nil, func() bool { return false })
 	if !v.sure || v.shift != 42 {
 		t.Fatalf("bordered page: %+v", v)
 	}
@@ -119,7 +119,7 @@ func TestPageBordersAreNotFixedPanes(t *testing.T) {
 			return page(offset)(x, y)
 		}
 	}
-	v = alignViews(grayOf(panes(0), 320, 200), grayOf(panes(42), 320, 200), func() bool { return false })
+	v = alignViews(grayOf(panes(0), 320, 200), grayOf(panes(42), 320, 200), nil, func() bool { return false })
 	if v.sure {
 		t.Fatalf("a fixed content pane: %+v", v)
 	}
@@ -233,9 +233,6 @@ func TestPageWithoutBudgetKeepsDeliveredEdits(t *testing.T) {
 	}
 }
 
-// A known fading scrollbar may keep committing between the reference and input.
-// Its evidence must survive both an edit capture and the previous act's shot.
-// An animation in the content still makes that same counter drift refuse more input.
 // A frame can come right after the first view of the scroll, which sends a hidden window the frame callback that it held
 // a frame back for. Nothing has been sent yet, so the view is taken again, and the scroll goes on.
 func TestPageScrollIsNotStoppedByAFrameRightAfterItsFirstView(t *testing.T) {
@@ -250,12 +247,13 @@ func TestPageScrollIsNotStoppedByAFrameRightAfterItsFirstView(t *testing.T) {
 	}
 }
 
-// Frame callbacks can start an animation in the window, which goes on through the first view and the first notch. The
-// wait before the first view tells of it, so a scrollbar's fade does not stop the scroll, while an animation in the
-// content does.
+// Frame callbacks can start an animation in the window, which goes on through the first view and the first notch. A
+// plugin from before the drawn command does not tell what the window drew then. The wait before the first view tells
+// of the animation, so a scrollbar's fade does not stop the scroll, while an animation in the content does.
 func TestPageTakesAnimationsFromTheWaitBeforeItsFirstView(t *testing.T) {
 	for _, strip := range []bool{false, true} {
 		e := newTestEnv(t)
+		e.fake.with(func() { e.fake.noDrawn = true })
 		e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Paint = page(300) })
 		e.screenshot(`{"window":"0xa1"}`)
 		paintOnWaits(e, nil, page(315), page(390), page(450))
@@ -282,11 +280,15 @@ func TestPageTakesAnimationsFromTheWaitBeforeItsFirstView(t *testing.T) {
 	}
 }
 
+// With a plugin from before the drawn command, a known fading scrollbar may keep committing between the reference and
+// input. Its evidence must survive both an edit capture and the previous act's shot. An animation in the content
+// still makes that same counter drift refuse more input.
 func TestPageKeepsScrollbarEvidence(t *testing.T) {
 	for _, prefix := range []bool{false, true} {
 		for _, strip := range []bool{false, true} {
 			t.Run(strconv.FormatBool(prefix)+"/"+strconv.FormatBool(strip), func(t *testing.T) {
 				e := newTestEnv(t)
+				e.fake.with(func() { e.fake.noDrawn = true })
 				e.window("0xa1", "1a", 320, 200, func(w *fakeWindow) { w.Paint = page(300) })
 				e.screenshot(`{"window":"0xa1"}`)
 				paintOnWaits(e, nil, page(300), page(315), page(390), page(450))
@@ -326,5 +328,113 @@ func TestPageKeepsScrollbarEvidence(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A window with an animation, as a caret that blinks in a text field or a spinner, draws between the view that a step
+// measures from and the step's input. The scroll goes on when the plugin tells that nothing but the animation drew, and
+// measures the page as without it: the animation's pixels differ from view to view, in the content and in the toolbar
+// that stays, and neither makes the view look taller. It stops when the window keeps drawing something else, or when
+// the animation is where the wheel goes, and sends no more than the first notch then.
+//
+// A single frame that the plugin does not take for an animation holds the first notch back for another view. The
+// scroll goes on from it when it shows the same as the view before, apart from the animations that the wait before it
+// told: the frame showed nothing new, or was the first of an animation. New content in it stops the scroll.
+func TestPageScrollGoesOnThroughAnimationAndStopsForAChange(t *testing.T) {
+	content, toolbar := hypr.IntRect{X: 20, Y: 40, Width: 2, Height: 12}, hypr.IntRect{X: 100, Y: 4, Width: 10, Height: 10}
+	const (
+		// The animation draws before the input of each step.
+		animation = iota
+		// And the window draws something else before the input of each step.
+		animationAndChanges
+		// The animation draws only after the input of each step, where the wait tells of it.
+		animationAfterInput
+		// A frame that is no animation comes right after each of the views that the scroll takes first, so that one comes
+		// between the last of them and the input, and the box shows the same.
+		oneFrame
+		// That frame changes the box, and the wait after it tells the box as an animation.
+		firstFrameOfAnimation
+		// That frame changes the box, and no wait tells of an animation.
+		newContent
+	)
+	for _, c := range []struct {
+		name  string
+		box   hypr.IntRect
+		draws int
+		ended string
+	}{
+		{"a caret in the content", content, animation, "page"},
+		{"a spinner in the toolbar", toolbar, animation, "page"},
+		{"a spinner in the toolbar that draws after the input", toolbar, animationAfterInput, "page"},
+		{"a caret in the content and changes", content, animationAndChanges, "reference_changed"},
+		{"a spinner in the toolbar and changes", toolbar, animationAndChanges, "reference_changed"},
+		{"an animation under the pointer", hypr.IntRect{X: 90, Y: 40, Width: 20, Height: 20}, animation, "reference_changed"},
+		{"a frame that shows nothing new", content, oneFrame, "page"},
+		{"the first frame of an animation", content, firstFrameOfAnimation, "page"},
+		{"a frame with new content", content, newContent, "reference_changed"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newTestEnv(t)
+			w := e.window("0xa1", "1a", 320, 200)
+			// The box shows another gray level in every view.
+			changing := func(paint func(x, y float64) uint8) func(x, y float64) uint8 {
+				if c.draws == oneFrame {
+					return paint
+				}
+				return func(x, y float64) uint8 {
+					if x >= float64(c.box.X) && x < float64(c.box.X+c.box.Width) && y >= float64(c.box.Y) && y < float64(c.box.Y+c.box.Height) {
+						return uint8(20 + w.Frames*37%200)
+					}
+					return paint(x, y)
+				}
+			}
+			e.fake.with(func() { w.Paint = changing(page(300)) })
+			e.screenshot(`{"window":"0xa1"}`)
+			paintOnWaits(e, nil, changing(page(315)), changing(page(390)), changing(page(450)))
+			e.fake.with(func() {
+				switch c.draws {
+				case animation, animationAndChanges:
+					e.fake.onState = func(w *fakeWindow) {
+						w.animate(c.box)
+						if c.draws == animationAndChanges {
+							w.Commits++
+						}
+					}
+				case oneFrame, firstFrameOfAnimation, newContent:
+					// The scroll takes its first view up to three times while the window draws after it.
+					views := w.Frames
+					e.fake.onScreenshot = func(w *fakeWindow) string {
+						w.HeldFrame = w.Frames < views+1+firstViewRetakes
+						return ""
+					}
+				}
+				if c.draws != animationAfterInput && c.draws != firstFrameOfAnimation {
+					return
+				}
+				wait := e.fake.onWait
+				e.fake.onWait = func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string {
+					var reply map[string]any
+					if err := json.Unmarshal([]byte(wait(w, args, cancel)), &reply); err != nil {
+						panic(err)
+					}
+					reply["animated"] = []hypr.IntRect{c.box}
+					return jsonReply(reply)
+				}
+			})
+			// The shot has two pixels a logical pixel, so the wheel goes to 100,50.
+			res := e.act(`{"window":"0xa1","shot":"s1","next_page":{"x":200,"y":100}}`)
+			if res.IsError || get(t, res, "scroll.ended") != c.ended {
+				t.Fatal(text(res))
+			}
+			if c.ended != "page" {
+				if get(t, res, "scroll.notches") != 1.0 || get(t, res, "scroll.moved_px") != nil {
+					t.Fatal(text(res))
+				}
+				return
+			}
+			if get(t, res, "scroll.moved_px") != 150.0 || get(t, res, "scroll.viewport_px") != 180.0 {
+				t.Fatal(text(res))
+			}
+		})
 	}
 }

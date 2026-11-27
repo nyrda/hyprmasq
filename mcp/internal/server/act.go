@@ -61,6 +61,9 @@ type actRequest struct {
 	// scrolling in two parts, see split.go.
 	from        int
 	joinChanges bool
+	// Called by send with the state that it read last, right before it starts the input, or nil. An error keeps the
+	// input from being sent, and send returns it.
+	beforeInput func(ctx context.Context, cur hypr.State) error
 	// record and caption as given, and the step of the session's recording that the call is, or nil.
 	record  string
 	caption *string

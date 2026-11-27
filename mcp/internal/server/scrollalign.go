@@ -3,6 +3,7 @@ package server
 import (
 	"image"
 	"math"
+	"slices"
 )
 
 const (
@@ -50,7 +51,12 @@ type viewAlignment struct {
 
 // alignViews is scrollShift, and tells too whether nothing changed at all. It gives up, unsure,
 // once stop says so.
-func alignViews(a, b grayImage, stop func() bool) viewAlignment {
+//
+// The boxes of animated, in the images' pixels, hold animations, as a caret that blinks or a spinner, which draw on
+// their own between the two views. A difference within them tells neither which rows scrolled nor which columns
+// changed: a spinner in a toolbar would else make the rows from it down to the list below look like part of what
+// scrolled, and the view taller than it is.
+func alignViews(a, b grayImage, animated []image.Rectangle, stop func() bool) viewAlignment {
 	if a.w != b.w || a.h != b.h || a.h < 16 {
 		return viewAlignment{}
 	}
@@ -58,11 +64,21 @@ func alignViews(a, b grayImage, stop func() bool) viewAlignment {
 	same := make([]bool, h)
 	changed := make([]bool, w)
 	kept := 0
+	var across []image.Rectangle
 	for y := 0; y < h; y++ {
 		ra, rb := a.pix[y*w:(y+1)*w], b.pix[y*w:(y+1)*w]
+		across = across[:0]
+		for _, box := range animated {
+			if y >= box.Min.Y && y < box.Max.Y {
+				across = append(across, box)
+			}
+		}
 		same[y] = true
 		for x := range rb {
 			if d := rb[x] - ra[x]; d > 16 || d < -16 {
+				if len(across) > 0 && slices.ContainsFunc(across, func(box image.Rectangle) bool { return x >= box.Min.X && x < box.Max.X }) {
+					continue
+				}
 				same[y], changed[x] = false, true
 			}
 		}

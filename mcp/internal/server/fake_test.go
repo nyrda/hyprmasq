@@ -251,8 +251,11 @@ type fakeWindow struct {
 	// The socket's id, or "" for one named after the address.
 	SocketID string
 	Commits  int64
-	Lease    *hypr.Lease
-	Caps     hypr.Capabilities
+	// The commits that were part of an animation, by the counter's value at each, with the box that it damaged. Every
+	// other commit drew something else. See animate.
+	animation map[int64]hypr.IntRect
+	Lease     *hypr.Lease
+	Caps      hypr.Capabilities
 	// The box of the window and its popups in window-local logical pixels, or nil for the window alone.
 	PopupBox *hypr.Rect
 	// A frame comes right after the next render of the window, so that the screenshot's counter misses it, and neither
@@ -315,6 +318,8 @@ type fakeHyprland struct {
 	scale   float64
 	iface   int
 	missing bool
+	// The plugin is one from before the drawn command.
+	noDrawn bool
 	waits   map[string]chan struct{}
 	// Called for every wait with its arguments; returns the reply. Nil answers quiet at once.
 	onWait func(w *fakeWindow, args map[string]string, cancel <-chan struct{}) string
@@ -338,6 +343,15 @@ type fakeHyprland struct {
 }
 
 // launchToken finds the token of the launch that the process or a parent of it is, as the plugin does.
+// animate commits a frame of an animation in the box, as a caret that blinks or a spinner.
+func (w *fakeWindow) animate(box hypr.IntRect) {
+	if w.animation == nil {
+		w.animation = map[int64]hypr.IntRect{}
+	}
+	w.Commits++
+	w.animation[w.Commits] = box
+}
+
 func (w *fakeWindow) releaseHeldFrame() {
 	if w.HeldFrame {
 		w.HeldFrame = false
@@ -706,6 +720,27 @@ func (f *fakeHyprland) plugin(words []string) string {
 		ms, _ := strconv.Atoi(words[2])
 		w.Lease = &hypr.Lease{Held: true, RemainingMs: ms, Owner: words[3]}
 		return jsonReply(map[string]any{"ok": true, "held": true, "remainingMs": ms, "owner": words[3]})
+	case "drawn":
+		defer f.mu.Unlock()
+		if f.noDrawn || len(words) != 4 || words[2] != "since" {
+			return pluginError("invalid_arguments", "usage")
+		}
+		since, _ := strconv.ParseInt(words[3], 10, 64)
+		switch {
+		case !w.Socket:
+			return pluginError("no_socket", "no socket")
+		case since > w.Commits:
+			return pluginError("invalid_arguments", fmt.Sprintf("since %d is above the commit counter, %d", since, w.Commits))
+		}
+		only, boxes := true, []hypr.IntRect{}
+		for c := since + 1; c <= w.Commits && only; c++ {
+			box, animated := w.animation[c]
+			only, boxes = animated, append(boxes, box)
+		}
+		if !only {
+			boxes = []hypr.IntRect{}
+		}
+		return jsonReply(map[string]any{"ok": true, "commits": w.Commits, "socketId": w.socketID(), "commitsSince": w.Commits - since, "onlyAnimation": only, "animated": boxes})
 	case "screenshot":
 		defer f.mu.Unlock()
 		reply := f.screenshot(w, words[2:])
