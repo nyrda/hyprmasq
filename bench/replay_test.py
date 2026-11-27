@@ -2,6 +2,9 @@
 """The tests of replay.py, of the replay harness in run.py and report.py and of replay_report.py, on recorded results
 and a fake server, with no VM: python3 replay_test.py"""
 
+import argparse
+import contextlib
+import io
 import json
 import math
 import os
@@ -11,6 +14,8 @@ import tempfile
 import textwrap
 import unittest
 
+import dispatch
+import dispatch_test
 import replay
 import replay_report
 import report
@@ -454,6 +459,17 @@ class Divergence(unittest.TestCase):
                 self.assertEqual(len(fake.calls()), 2)
                 self.assertEqual(fake.closed, 1)
 
+    def test_a_page_scroll_up_that_moved_another_distance_is_a_divergence(self):
+        s = Server(True)
+        calls = [("windows", {"match": "firefox"}, s.windows(A, shot="s1")),
+                 ("act", {"shot": "s1", "actions": [["scroll", 5, 5, -1, "page"]]},
+                  s.act("s2", scroll="moved the view -756 logical px, leaving overlap with the previous view."))]
+        same, _ = play(calls, [s.windows(B, shot="s1"), s.act("s2", scroll="moved the view -756 logical px, leaving overlap.")])
+        self.assertIsNone(same["diverged"])
+        diverged, _ = self.diverged(calls, [s.windows(B, shot="s1"), s.act("s2", scroll="moved the view -610 logical px.")])
+        self.assertEqual(diverged["kind"], "scroll")
+        self.assertIn("-610", diverged["detail"])
+
     def test_another_error_than_the_recordings_is_a_divergence_and_the_same_error_is_none(self):
         s = Server(True)
         calls = [("windows", {"match": "firefox"}, s.windows(A, shot="s1")),
@@ -685,6 +701,27 @@ class Harness(unittest.TestCase):
         self.assertEqual((cut["diverged"]["kind"], cut["calls_sent"]), ("stopped", 1))
         whole = [{"t": 1, "line": {**end, "calls_sent": 5, "diverged": None}}]
         self.assertEqual(report.agent_usage("replay", whole)["final"], "Replayed 5 of 5 calls.")
+
+
+class Dispatched(unittest.TestCase):
+    def test_a_dispatched_replay_runs_with_the_dispatchs_recordings_and_gap(self):
+        """source.json records the gap of a results directory, so every run in it has to get that gap."""
+        fakes = dispatch_test.ApiKeys("test_other_runs_get_no_key")
+        fakes.setUp()
+        self.addCleanup(fakes.doCleanups)
+        host = dispatch.Host("me@box")
+        host.base = fakes.base
+        build = dispatch.Build(fakes.out, {"path": fakes.dir.name, "commit": "b" * 40, "task": "forgejo", "variant": None})
+        args = argparse.Namespace(display="1920x1080@1", timeout=60, max_calls=0, no_debrief=False, user_reply=False,
+                                  backend="hyprmasq", prompt="task", browser="firefox", desktop="bare", chromium_options="",
+                                  mcp_args="", recordings="/recorded/runs", replay_gap="recorded:2")
+        remote = dispatch.Remote(fakes.harness, [build], [("replay", "m", None)], args, fakes.dir.name, dispatch.Queue([]), None)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(remote.execute(host, 0, dispatch.Job(build, "replay", "m", 1)), "done")
+        with open(fakes.log) as f:
+            started = next(" ".join(c["argv"]) for c in map(json.loads, f) if c["tool"] == "ssh" and "setsid" in " ".join(c["argv"]))
+        self.assertIn("--agent replay:m ", started)
+        self.assertIn("--replay-gap recorded:2 --recordings /recorded/runs", started)
 
 
 def sample(recording, rep, tool, valid=True, diverged=None, task="form-25", client="codex-mcp-client", **parts):

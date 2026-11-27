@@ -56,7 +56,7 @@ NAMED = re.compile(r'(0x[0-9a-f]+) \((.*?) "((?:[^"\\]|\\.)*)"(?:, launched|, sa
 LAUNCHED = re.compile(r'launched (0x[0-9a-f]+) (\S+) "((?:[^"\\]|\\.)*)"')
 ERROR = re.compile(r"error (\w+):")
 # How a page scroll ended (pageScrollOut.text in page.go): by the view it moved, or the notches it stopped after and why.
-PAGE = re.compile(r"^Page scroll (?:moved the view (\d+) logical px|stopped after (\d+) wheel notches \((\w+)\))", re.M)
+PAGE = re.compile(r"^Page scroll (?:moved the view (-?\d+) logical px|stopped after (\d+) wheel notches \((\w+)\))", re.M)
 SPLIT = ("before the scroll: ", "after the scroll: ")
 
 
