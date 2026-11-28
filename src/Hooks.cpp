@@ -1,4 +1,5 @@
 #include "Hooks.hpp"
+#include "HookChain.hpp"
 #include "PrivateAccess.hpp"
 #include "Hyprland.hpp"
 
@@ -25,23 +26,27 @@ namespace hyprmasq {
     // One Hyprland function that the plugin hooks, resolved at load. Hyprland's CFunctionHook::hook() takes 64 bytes for
     // the trampolines of a hook each time, which Hyprland never frees, not even when the hook is removed, and a Hyprland
     // session runs for weeks. So the plugin hooks each function with hook() once, keeps that CFunctionHook until it
-    // unloads, removes the hook with unhook(), and installs it again by putting back the jump that hook() wrote, to the
-    // same trampolines, which nothing else writes or frees: PrivateAccess.cpp pins the layout of Hyprland's hook system, and
-    // rehook() checks the trampolines' code before it jumps to it.
+    // unloads, and installs it again by putting back the jump that hook() wrote, to the same trampolines, which nothing
+    // frees: PrivateAccess.cpp pins the layout of Hyprland's hook system, and rehook() checks the trampolines' code
+    // before it jumps to it. A function that another plugin has hooked needs none of that: the hook joins the others
+    // of the function, and leaves them, as HookChain.hpp tells, which takes no memory of Hyprland's.
     class CHook {
       public:
-        std::string    signature;
-        std::string    name; // the function's qualified name, without its parameters
-        void*          address     = nullptr;
-        void*          replacement = nullptr;
-        void**         original    = nullptr;
-        CFunctionHook* function    = nullptr; // from the first install until unhookAll
-        bool           installed   = false;
+        std::string     signature;
+        std::string     name; // the function's qualified name, without its parameters
+        void*           address     = nullptr;
+        void*           replacement = nullptr;
+        void**          original    = nullptr;
+        const uint64_t* calls       = nullptr; // how often the replacement ran since the load
+        CFunctionHook*  function    = nullptr; // from the first install until unhookAll
+        bool            installed   = false;
         // Why it is not installed again: hook() failed, or its trampolines are no longer the plugin's.
         std::optional<std::string> broken;
         int                        claims   = 0;     // installed groups that have it
         bool                       removing = false; // its removal waits for the end of the event loop's iteration
         // What the first hook() set up: its trampolines, the function's first bytes, and the jump that replaced them.
+        // Other plugins' hooks that join the function while this one is its first keep both trampolines in use, also
+        // after this hook has left, and write the address in the first.
         void*                      launch = nullptr;
         void*                      land   = nullptr;
         std::vector<unsigned char> replaced, jump;
@@ -56,8 +61,10 @@ namespace hyprmasq {
     }
 
     namespace {
-        void*                               pluginHandle = nullptr;
-        bool                                loaded       = false; // from the first defineHook until unhookAll
+        // Where the first trampoline of a hook, `movabs rax, address; jmp rax`, has its address.
+        constexpr size_t                    LAUNCH_ADDRESS = 2;
+        void*                               pluginHandle   = nullptr;
+        bool                                loaded         = false; // from the first defineHook until unhookAll
         std::vector<std::unique_ptr<CHook>> defined;
         wl_event_source*                    removals = nullptr;
 
@@ -74,8 +81,15 @@ namespace hyprmasq {
             hook.removing = false;
             if (!hook.installed)
                 return;
-            // Writes the function's first bytes back and takes it out of m_activeHooks, and leaves the trampolines.
-            hook.function->unhook();
+            // Leaves the hooks of other plugins in. As the function's last hook, it writes the function's first bytes
+            // back and takes it out of m_activeHooks, as unhook() does. The trampolines stay.
+            switch (hookchain::leave(*hook.function)) {
+                case hookchain::eLeft::DROPPED: hl::log(Log::WARN, "hyprmasq's hook of {} had gone already: another plugin's hook of it was removed", hook.name); break;
+                case hookchain::eLeft::RESET:
+                    hl::log(Log::WARN, "the hooks of {} could not be read as hyprmasq's left, so the function now runs without any plugin's hook", hook.name);
+                    break;
+                default: break;
+            }
             hook.installed = false;
             *hook.original = nullptr;
         }
@@ -99,8 +113,14 @@ namespace hyprmasq {
             auto&      function = *hook.function;
             const auto size     = hook.replaced.size();
             // A Hyprland that reused the trampolines for another hook would run that hook's code instead. The jump never
-            // goes in then, and neither does a hook() of the function, which would hide it.
-            if (std::memcmp(hook.launch, hook.launchCode.data(), hook.launchCode.size()) != 0 || std::memcmp(hook.land, hook.landCode.data(), hook.landCode.size()) != 0) {
+            // goes in then, and neither does a hook() of the function, which would hide it. Hooks of other plugins that
+            // shared the function since may have left another address in the first trampoline, which is the only part
+            // of either that they write, so that address is put back.
+            const auto sameBut = [](const void* code, const auto& saved, size_t from, size_t to) {
+                const auto* bytes = sc<const unsigned char*>(code);
+                return std::memcmp(bytes, saved.data(), from) == 0 && std::memcmp(bytes + to, saved.data() + to, saved.size() - to) == 0;
+            };
+            if (!sameBut(hook.launch, hook.launchCode, LAUNCH_ADDRESS, LAUNCH_ADDRESS + sizeof(void*)) || std::memcmp(hook.land, hook.landCode.data(), hook.landCode.size()) != 0) {
                 hl::log(Log::ERR, "the trampolines of hyprmasq's hook of {} changed since its first install, so this Hyprland reuses them: not installing it again", hook.name);
                 hook.broken = std::format("Hyprland reused the memory of hyprmasq's hook of {}", hook.name);
                 return hook.broken;
@@ -108,6 +128,7 @@ namespace hyprmasq {
             // The function's first bytes are as hook() found them, which another plugin's hook would have replaced.
             if (activeOf(function) || size == 0 || std::memcmp(hook.address, hook.replaced.data(), size) != 0)
                 return std::format("the code of {} changed since hyprmasq hooked it", hook.name);
+            std::memcpy(hook.launch, hook.launchCode.data(), hook.launchCode.size());
             if (!writeCode(hook.address, hook.jump))
                 return std::format("Hyprland cannot hook {}", hook.name);
             launchTrampolineOf(function) = hook.launch;
@@ -120,28 +141,38 @@ namespace hyprmasq {
             return std::nullopt;
         }
 
-        // Installs the hook, or tells why not.
+        // Why the hook cannot join the hooks that other plugins have of its function.
+        std::optional<std::string> unshareable(const CHook& hook) {
+            if (const auto why = hookchain::refusal(hook.address))
+                return std::format("another plugin hooks {} in a way that hyprmasq cannot share, as {}", hook.name, *why);
+            return std::nullopt;
+        }
+
+        // Installs the hook, or tells why not: with the hooks that other plugins have of its function, or as the
+        // function's first.
         std::optional<std::string> install(CHook& hook) {
             if (hook.broken)
                 return hook.broken;
-            if (hook.function) {
+            if (!hook.function && !(hook.function = HyprlandAPI::createFunctionHook(pluginHandle, hook.address, hook.replacement)))
+                return std::format("Hyprland cannot hook {}", hook.name);
+            if (hookchain::hooked(hook.address)) {
+                if (const auto why = unshareable(hook))
+                    return why;
+                if (const auto why = hookchain::join(*hook.function))
+                    return std::format("hyprmasq cannot share {} with another plugin's hook, as {}", hook.name, *why);
+            } else if (hook.launch) {
                 if (auto why = rehook(hook))
                     return why;
             } else {
-                auto* created = HyprlandAPI::createFunctionHook(pluginHandle, hook.address, hook.replacement);
-                if (!created)
-                    return std::format("Hyprland cannot hook {}", hook.name);
                 // A hook() that fails, for a function whose code it cannot move, takes trampolines too.
-                if (!created->hook()) {
-                    HyprlandAPI::removeFunctionHook(pluginHandle, created);
+                if (!hook.function->hook()) {
                     hook.broken = std::format("Hyprland cannot hook {}", hook.name);
                     return hook.broken;
                 }
-                hook.function = created;
-                hook.launch   = launchTrampolineOf(*created);
-                hook.land     = landTrampolineOf(*created);
-                hook.replaced = originalBytesOf(*created);
-                hook.jump.assign(sc<unsigned char*>(hook.address), sc<unsigned char*>(hook.address) + hookLenOf(*created));
+                hook.launch   = launchTrampolineOf(*hook.function);
+                hook.land     = landTrampolineOf(*hook.function);
+                hook.replaced = originalBytesOf(*hook.function);
+                hook.jump.assign(sc<unsigned char*>(hook.address), sc<unsigned char*>(hook.address) + hookLenOf(*hook.function));
                 std::memcpy(hook.launchCode.data(), hook.launch, hook.launchCode.size());
                 std::memcpy(hook.landCode.data(), hook.land, hook.landCode.size());
             }
@@ -183,7 +214,7 @@ namespace hyprmasq {
         }
     }
 
-    CHook& detail::defineHook(void* handle, const char* symbol, std::string_view signature, void* replacement, void** original) {
+    CHook& detail::defineHook(void* handle, const char* symbol, std::string_view signature, void* replacement, void** original, uint64_t* calls) {
         if (const auto named = demangle(symbol); named != signature)
             throw std::runtime_error(std::format("hyprmasq: the hook of {} names {}", signature, named));
         // Hyprland's executable exports its functions. HyprlandAPI::findFunctionsByName looks them up the same way, after
@@ -203,7 +234,9 @@ namespace hyprmasq {
         hook.address     = address;
         hook.replacement = replacement;
         hook.original    = original;
+        hook.calls       = calls;
         *original        = nullptr;
+        *calls           = 0;
         return hook;
     }
 
@@ -235,36 +268,62 @@ namespace hyprmasq {
         return result;
     }
 
+    std::vector<uint64_t> CHookGroup::calls() const {
+        std::vector<uint64_t> result;
+        for (const auto* hook : m_hooks)
+            result.push_back(*hook->calls);
+        return result;
+    }
+
+    std::vector<size_t> CHookGroup::chains() const {
+        std::vector<size_t> result;
+        for (const auto* hook : m_hooks)
+            result.push_back(hookchain::members(hook->address));
+        return result;
+    }
+
+    bool CHookGroup::shared() const {
+        return m_claims > 0 && std::ranges::any_of(m_hooks, [](const CHook* hook) { return hook->installed && hookchain::members(hook->address) > 1; });
+    }
+
     std::expected<CHookClaim, SError> CHookGroup::claim() {
         if (!loaded)
             return std::unexpected(SError{eErrorCode::UNLOADED, "hyprmasq is unloading"});
-        if (m_claims > 0) {
-            ++m_claims;
-            return CHookClaim{this};
-        }
         const auto refuse = [&](SError error) -> std::unexpected<SError> {
             if (!m_refused || m_refused->message != error.message)
                 hl::log(Log::WARN, "{}", error.message);
             m_refused = error;
             return std::unexpected(std::move(error));
         };
-        // Hyprland's hook() would log an error for each hook that another plugin holds.
-        auto& active = activeHooksOf(*g_pFunctionHookSystem);
+        if (m_claims > 0) {
+            if (auto error = restore())
+                return refuse(std::move(*error));
+            ++m_claims;
+            return CHookClaim{this};
+        }
+        // A function that another plugin hooks is shared with it. Only hooks that are not of Hyprland's hook system,
+        // or not as it leaves them, cannot be joined.
         for (const auto* hook : m_hooks) {
-            if (!hook->installed && active.contains(rc<uint64_t>(hook->address)))
-                return refuse(SError{eErrorCode::HOOK_HELD, std::format("another plugin hooks {}, which hyprmasq needs for {}", hook->name, m_feature)});
+            if (hook->installed || !hookchain::hooked(hook->address))
+                continue;
+            if (const auto why = unshareable(*hook))
+                return refuse(SError{eErrorCode::HOOK_HELD, std::format("{}, which hyprmasq needs for {}", *why, m_feature)});
         }
         std::vector<CHook*> added;
         for (auto* hook : m_hooks) {
-            if (hook->installed)
+            // One that another group has installed stays, unless the removal of another plugin's hook took it out.
+            const bool had = hook->installed;
+            if (had && (detail::hookDepth > 0 || hookchain::linked(*hook->function)))
                 continue;
+            removeNow(*hook);
             if (const auto why = install(*hook)) {
                 // None of them can have a call running through it yet.
                 for (auto* undo : added)
                     removeNow(*undo);
                 return refuse(SError{eErrorCode::INTERNAL, std::format("{}, which hyprmasq needs for {}", *why, m_feature)});
             }
-            added.push_back(hook);
+            if (!had)
+                added.push_back(hook);
         }
         for (auto* hook : m_hooks) {
             ++hook->claims;
@@ -276,6 +335,29 @@ namespace hyprmasq {
             hl::log(Log::INFO, "the hooks for {} are installed again", m_feature);
         m_refused.reset();
         return CHookClaim{this};
+    }
+
+    std::optional<SError> CHookGroup::restore() {
+        // Not while one of the plugin's hooks runs, which may be one of these.
+        if (!loaded || m_claims == 0 || detail::hookDepth > 0)
+            return std::nullopt;
+        const auto dropped = [](const CHook* hook) { return !hook->installed || !hookchain::linked(*hook->function); };
+        // None goes in again while another plugin's hook keeps one of them out.
+        for (const auto* hook : m_hooks) {
+            if (!dropped(hook) || !hookchain::hooked(hook->address))
+                continue;
+            if (const auto why = unshareable(*hook))
+                return SError{eErrorCode::HOOK_HELD, std::format("{}, which hyprmasq needs for {}", *why, m_feature)};
+        }
+        for (auto* hook : m_hooks) {
+            if (!dropped(hook))
+                continue;
+            removeNow(*hook);
+            if (const auto why = install(*hook))
+                return SError{eErrorCode::INTERNAL, std::format("{}, which hyprmasq needs for {}", *why, m_feature)};
+            hl::log(Log::INFO, "hyprmasq's hook of {} is in again", hook->name);
+        }
+        return std::nullopt;
     }
 
     void CHookGroup::release() {
@@ -333,6 +415,7 @@ namespace hyprmasq {
             group->m_refused.reset();
         }
         defined.clear();
+        hookchain::shutdown();
         loaded = false;
     }
 }

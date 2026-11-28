@@ -3,6 +3,8 @@
 //
 //   hyprctl hmprobe grab <window address>   CXDGShellProtocol::addOrStartGrab with the window's first xdg popup
 //   hyprctl hmprobe focus                   CSeatManager::setKeyboardFocus with the surface that has the keyboard focus
+//   hyprctl hmprobe leave <window address>  sends the keyboards and pointers of the window's app a leave, as another
+//                                           plugin that drove the window does when it lets go, and answers "left N"
 //
 // It answers "kept" when the argument still holds the object and the object has as many strong references as before
 // the call, "moved" when the call took the object out of the argument, "references B -> A" when the call kept B
@@ -28,6 +30,7 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/protocols/XDGShell.hpp>
 #include <hyprland/src/protocols/core/Compositor.hpp>
+#include <hyprland/src/protocols/core/Seat.hpp>
 
 #include <dlfcn.h>
 
@@ -100,13 +103,37 @@ namespace {
                 return "error: the window has no xdg popup";
             return call(function("_ZN17CXDGShellProtocol14addOrStartGrabEN9Hyprutils6Memory14CSharedPointerI17CXDGPopupResourceEE"), PROTO::xdgShell.get(), popup);
         }
+        if (request.starts_with("hmprobe leave ")) {
+            for (const auto& window : Desktop::windowState()->windows()) {
+                if (!window || !window->resource() || std::format("0x{:x}", rc<uintptr_t>(window.get())) != request.substr(14))
+                    continue;
+                const auto seat = g_pSeatManager->seatResourceForClient(window->resource()->client());
+                if (!seat)
+                    return "error: the window's app has no seat";
+                int left = 0;
+                for (const auto& keyboard : seat->m_keyboards) {
+                    if (keyboard) {
+                        keyboard->sendLeave();
+                        ++left;
+                    }
+                }
+                for (const auto& pointer : seat->m_pointers) {
+                    if (pointer) {
+                        pointer->sendLeave();
+                        ++left;
+                    }
+                }
+                return std::format("left {}", left);
+            }
+            return "error: no such window";
+        }
         if (request == "hmprobe focus") {
             const auto surface = g_pSeatManager->m_state.keyboardFocus.lock();
             if (!surface)
                 return "error: no keyboard focus";
             return call(function("_ZN12CSeatManager16setKeyboardFocusEN9Hyprutils6Memory14CSharedPointerI18CWLSurfaceResourceEE"), g_pSeatManager.get(), surface);
         }
-        return "usage: hmprobe grab <window address> | hmprobe focus";
+        return "usage: hmprobe grab <window address> | hmprobe focus | hmprobe leave <window address>";
     }
 }
 

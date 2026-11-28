@@ -293,8 +293,16 @@ against a new release, but not what they do:
   together: `nm -D` and `nm -D --demangle` on the new Hyprland list its
   symbol and signature in the same order. Check that each hooked function
   still does what its hook expects, and that `src/plugins/HookSystem.cpp`
-  still refuses a second hook of a function through `m_activeHooks`, which
-  `src/Hooks.cpp` reads to name the function another plugin holds.
+  still refuses a second hook of a function through `m_activeHooks`.
+  `src/HookChain.cpp` shares a function that another plugin has hooked
+  without `hook()`: it reads the function's hooks from `CHookSystem::m_hooks`
+  and from the code that `hook()` wrote, a `jmp rel32` over the function's
+  first bytes to a launch trampoline of `movabs rax, imm64` and `jmp rax`,
+  and writes the address in that trampoline. `src/HookChain.hpp` has the
+  layout. Check it against `hook()` and `unhook()`: a Hyprland that writes
+  other code there makes every function that another plugin hooks refuse with
+  `hook_held`, as before. The two files are the same in every plugin that
+  shares hooks this way, so a change to them goes to those plugins too.
   `src/Hooks.cpp` also installs a hook again without `CFunctionHook::hook()`,
   which takes trampolines that Hyprland never frees: it writes back the jump
   that the first `hook()` wrote, and the state that `unhook()` reset. Check
@@ -305,8 +313,9 @@ against a new release, but not what they do:
   `CHookSystem` and `CFunctionHook` at the pin, which a list of freed
   trampolines would change, and stops the build until this is checked. At
   run time, the plugin compares the trampolines with what the first `hook()`
-  wrote before it installs a hook again, and refuses the feature with code
-  `internal` if they changed.
+  wrote before it installs a hook again, apart from the address in the launch
+  trampoline, which hooks of other plugins that share the function write, and
+  refuses the feature with code `internal` if they changed.
 - A build of Hyprland may rely on what a function it knows does to its
   arguments, as Arch's does with LTO. Arch's Hyprland releases its `SP` that
   it passed `CXDGShellProtocol::addOrStartGrab` by value through the pointer

@@ -40,7 +40,10 @@ The plugin builds against two Hyprland releases from one source: 0.57.2, which
 `flake.lock` pins, and 0.56.2 (`HYPRLAND_VERSION` names both). Use the helpers
 of `src/Hyprland.hpp` for what differs, and `#if HYPRMASQ_HYPRLAND` where no
 helper fits. Check hooked functions and private members against both
-releases' sources. Build for 0.56.2 with `./dev.sh build --hyprland 0.56`.
+releases' sources. `src/HookChain.hpp` and `src/HookChain.cpp` share a hooked
+function with other plugins' hooks, such as those of a plugin that sends
+input to windows the same way, and are the same files in every plugin that
+does so: a change to them goes to those plugins too. Build for 0.56.2 with `./dev.sh build --hyprland 0.56`.
 "Two Hyprland releases" in `docs/development.md` says when a PR also passes
 the test gate on 0.56.2.
 

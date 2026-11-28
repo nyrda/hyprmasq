@@ -638,6 +638,25 @@ namespace hyprmasq::input {
         process();
     }
 
+    namespace {
+        // Whether none of the client's keyboards, or pointers, is on a surface any more, while it has some. The session
+        // enters them on its window and Hyprland's own focus changes leave them there, see CKeptFocus. Another plugin
+        // that drives the same window, or one of the same app, sends them a leave when it lets go, and Hyprland then
+        // drops whatever the session sends them, without a word.
+        template <typename Resource>
+        bool leftBehind(const std::vector<WP<Resource>>& resources) {
+            bool any = false;
+            for (const auto& resource : resources) {
+                if (!resource)
+                    continue;
+                if (surfaceOf(*resource))
+                    return false;
+                any = true;
+            }
+            return any;
+        }
+    }
+
     void SSession::enterKeyboard(const SP<CWLSeatResource>& s, const SP<CWLSurfaceResource>& target, bool restore) {
         wl_array held;
         wl_array_init(&held);
@@ -915,6 +934,9 @@ namespace hyprmasq::input {
         const auto& w   = frame.window;
         const auto& s   = frame.seat;
         const auto  now = frame.time;
+        // Also after another plugin took the keyboards off the window.
+        if (enteredKeyboard && leftBehind(s->m_keyboards))
+            enteredKeyboard.reset();
         if (!enteredKeyboard)
             enterKeyboard(s, w->resource(), frame.restore);
         uint32_t code = eis_event_keyboard_get_key(e);
@@ -986,7 +1008,8 @@ namespace hyprmasq::input {
             enterKeyboard(s, w->resource(), false);
             frame.focusedKeyboard = true;
         }
-        const bool entering = enteredPointer != target;
+        // Also after another plugin took the pointers off the window.
+        const bool entering = enteredPointer != target || leftBehind(s->m_pointers);
         if (entering) {
             if (enteredPointer)
                 leavePointer();
@@ -1134,12 +1157,16 @@ namespace hyprmasq::input {
             if (!claim)
                 return claim.error();
             input = std::move(*claim);
-        }
+        } else if (auto error = hooks::input.restore())
+            return error;
         if (!x11Hooks && xServer()) {
             auto claim = hooks::x11Input.claim();
             if (!claim)
                 return claim.error();
             x11 = std::move(*claim);
+        } else if (x11Hooks) {
+            if (auto error = hooks::x11Input.restore())
+                return error;
         }
         if (input)
             inputHooks = std::move(input);

@@ -59,7 +59,7 @@ hyprctl hyprmasq eis close "$addr"
 | `clipboard set <text-hex>` | `text N` | Make the text, written in hex, the agent's clipboard, which the plugin holds and pastes. `N` is its serial. See [Clipboard and selections](#clipboard-and-selections). |
 | `clipboard` | `text N: A pastes asked for it, E have ended, C with all of it` | How far the pastes of the last text that `clipboard set` made have read it, while it is still the agent's clipboard. |
 | `hooks` | `group mode, state` lines | The plugin's groups of function hooks, whether each is installed, and why its last install was refused. See [Other plugins](#other-plugins). |
-| `hooks check` | `group state` lines | Install each group that is not installed and remove it again at once: `installs`, `installed` for one in use, or `refused` with why, as when another plugin holds a hook or this Hyprland's code cannot be hooked. Whether the running Hyprland takes every hook. |
+| `hooks check` | `group state` lines | Install each group that is not installed and remove it again at once: `installs`, `installed` for one in use, or `refused` with why, as when another plugin holds a hook that cannot be shared or this Hyprland's code cannot be hooked. Whether the running Hyprland takes every hook. |
 | `version` | `hyprmasq 0.5.1 interface 5` | Plugin version and command interface version. |
 | `help` | usage | The command summary. |
 
@@ -93,7 +93,7 @@ errors are JSON too, with `hyprctl` exiting 0, so check `ok`:
 | `clipboard set` | `{"ok":true,"serial":3}` |
 | `clipboard` | `{"ok":true,"serial":3,"held":true,"asked":1,"ended":1,"complete":1}` |
 | `version` | `{"ok":true,"version":"0.5.1","interface":5}` |
-| `hooks` | `{"ok":true,"groups":[{"name":"input","onDemand":true,"installed":false,"claims":0,"installs":3,"functions":["CSeatManager::setKeyboardFocus(…)"],"refused":null}]}` |
+| `hooks` | `{"ok":true,"groups":[{"name":"input","onDemand":true,"installed":false,"shared":false,"claims":0,"installs":3,"functions":["CSeatManager::setKeyboardFocus(…)"],"calls":[12],"chain":[0],"refused":null}]}` |
 | `hooks check` | `{"ok":true,"all":true,"groups":[{"name":"input","state":"installs","refused":null}]}` |
 | an error | `{"ok":false,"error":"no mapped window 0x1234","code":"window_gone"}` |
 
@@ -105,7 +105,7 @@ errors are JSON too, with `hyprctl` exiting 0, so check `ok`:
 | `unsupported` | Not possible for this window, such as a lease on an X11 window, or a `wait` that did not come through Hyprland's request socket. |
 | `internal` | Rendering, file or other failures inside the plugin. |
 | `unloaded` | The plugin was unloaded while the request was pending. |
-| `hook_held` | Another plugin hooks a function that the command needs, which the message names, as for a `lease` or a `launch`. Nothing changed. See [Other plugins](#other-plugins). |
+| `hook_held` | Another plugin hooks a function that the command needs, which the message names, in a way that hyprmasq cannot share, as for a `lease` or a `launch`. Nothing changed. See [Other plugins](#other-plugins). |
 
 `interface` changes with every incompatible change to the commands. New
 fields in replies are not such a change, so ignore fields you do not know.
@@ -421,7 +421,7 @@ line on stdout is one object:
 | `no_devices` | The plugin offered no pointer and keyboard, removed one, or sent no usable keymap. |
 | `input_paused` | The plugin paused input: you held a button or key in a window of the same Wayland connection for over a second, or for an X11 window another window of its X server has the focus. `state`'s `lastPause` says which. |
 | `unconfirmed` | The plugin closed the connection, replaced the pointer while events were unconfirmed, or stopped answering. |
-| `hook_held` | The plugin refused input to the window: another plugin hooks a function that the input needs, which the message names. Nothing was sent. See [Other plugins](#other-plugins). |
+| `hook_held` | The plugin refused input to the window: another plugin hooks a function that the input needs, which the message names, in a way that hyprmasq cannot share. Nothing was sent. See [Other plugins](#other-plugins). |
 | `cancelled` | SIGINT or SIGTERM stopped the run. |
 | `too_many_held`, `out_of_memory` | Too many keys or buttons held at once, or memory exhaustion. |
 
@@ -714,18 +714,42 @@ plugin {
 
 ## Other plugins
 
-Hyprland lets one plugin at a time hook a function, and refuses a second hook
-of it. hyprmasq hooks the functions of most of its features only while the
-feature is in use, so that other plugins can hook them in between. A feature
-whose function another plugin hooks is refused, with code `hook_held` and a
-message that names the function, and the rest of hyprmasq works on. hyprmasq
-also loads while another plugin holds one of its functions: a load fails on
-the build check and on a hooked function that the running Hyprland does not
-have, not on another plugin's hook. The hooks are in groups, which go in all or nothing. Uses
-of a group by several windows, senders and agents share one install, and the
-group goes once the last of them has ended.
+Hyprland's hook system takes one hook for a function, and refuses a second.
+hyprmasq shares a function that another plugin has hooked: its hook joins the
+other, and every call runs through both, the newer hook first and then the
+older, which passes it on to Hyprland. hyprmasq's hook joins without changing
+the function or the other plugin's hook, and leaves again without taking the
+other out. Another plugin that sends input to windows without moving your
+focus needs the same functions as hyprmasq. One that shares hooks the same
+way joins hyprmasq's hooks alike, and the two install and remove theirs in
+any order.
+Neither plugin calls the other: what they share is in Hyprland's hook system.
 
-| Group | Installed | Functions | While another plugin holds one |
+Each hook still acts only on its own windows, so two plugins that drive
+windows of different apps do not meet. Two that drive windows of one app at
+once share that app's one keyboard and pointer state, and may disturb each
+other's input there.
+
+A plugin that knows nothing of shared hooks cannot hook a function while
+hyprmasq's hook is in, since Hyprland refuses it. So hyprmasq hooks the
+functions of most of its features only while the feature is in use. When such
+a plugin removes its own hook, or Hyprland unloads a plugin by force, Hyprland
+puts the function back as it was built, which takes hyprmasq's hook of it out
+too. hyprmasq installs it again at the next sender, lease or other use of the
+feature. Until then the function runs without hyprmasq's hook: a leased
+window loses its emulated focus when your focus changes, for example.
+
+A feature is refused, with code `hook_held` and a message that names the
+function, only where another plugin's hook cannot be joined: one that is not
+of Hyprland's hook system, or whose code is not as that system leaves it. The
+rest of hyprmasq works on. hyprmasq also loads while another plugin holds one
+of its functions: a load fails on the build check and on a hooked function
+that the running Hyprland does not have, not on another plugin's hook. The
+hooks are in groups, which go in all or nothing. Uses of a group by several
+windows, senders and agents share one install, and the group goes once the
+last of them has ended.
+
+| Group | Installed | Functions | While another plugin holds one that cannot be shared |
 | --- | --- | --- | --- |
 | `input` | From a sender's connection to any socket, or the start of a lease, until no socket has a sender or a lease, every window has given back its emulated focus, and a second has passed since the last input | `CXDGShellProtocol::addOrStartGrab`, `CWLDataDeviceProtocol::initiateDrag`, `Desktop::View::CWindow::activate`, `Desktop::View::CWindowPresentation::updateDecorations`, and of `CSeatManager` `setKeyboardFocus`, `setPointerFocus`, `sendKeyboardKey`, `sendKeyboardMods`, `sendPointerButton` and `sendTouchDown` | A sender is refused before anything is sent: `hyprmasq-input` exits with status 3 and `hook_held`. A lease is refused with `hook_held`. |
 | `x11-input` | The same, for the sockets of X11 windows, of Hyprland's XWayland or of xwayland-satellite, and until half a second after the X focus has gone back | `CXWM::activateSurface`, `CXWM::handleFocusIn`, `CXWM::setClipboardToWayland`, `CXWM::handleSelectionXFixesNotify`, `Desktop::View::CWindow::onActivationRequest`, `Desktop::CFocusState::rawWindowFocus` | Input to X11 windows is refused the same way. Input to Wayland windows goes on. |
@@ -759,10 +783,18 @@ it installs the hook again, and refuses the feature with code `internal`,
 which `hooks` shows.
 
 `hyprctl hyprmasq hooks` lists the groups, one line each, such as
-`input on demand, not installed`. In JSON, `onDemand`, `installed`, `claims`,
-the uses that keep the group installed, `installs`, how often it went in since
-the load, `functions`, and `refused`, the `code` and `message` of the last
-refused install if none succeeded since, or `null`.
+`input on demand, not installed`, or
+`input on demand, installed, shared with another plugin` while another
+plugin hooks one of the group's functions too. In JSON, `onDemand`,
+`installed`, `shared`, `claims`, the uses that keep the group installed,
+`installs`, how often it went in since the load, `functions`, and `refused`,
+the `code` and `message` of the last refused install if none succeeded since,
+or `null`. `calls` and `chain` have a number for each of `functions`, in the
+same order: how often hyprmasq's hook of the function ran since the load, and
+how many hooks the function's calls run through now, hyprmasq's and other
+plugins'. `chain` is 0 for a function that no plugin hooks, also for one whose
+hook the removal of another plugin's hook took out, and for one whose hooks
+hyprmasq cannot read, as during a `hook_held` refusal.
 
 ## Security model
 

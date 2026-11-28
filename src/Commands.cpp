@@ -572,15 +572,20 @@ namespace hyprmasq {
             for (const auto* group : hooks::all()) {
                 const auto& refused = group->refused();
                 if (format == FORMAT_JSON) {
-                    std::string functions;
+                    std::string functions, calls, chains;
                     for (const auto function : group->functions())
                         functions += (functions.empty() ? "" : ",") + jsonString(function);
-                    out += std::format(R"({}{{"name":{},"onDemand":{},"installed":{},"claims":{},"installs":{},"functions":[{}],"refused":{}}})", out.empty() ? "" : ",",
-                                       jsonString(group->name()), group->onDemand(), group->installed(), group->claims(), group->installs(), functions,
-                                       refused ? std::format(R"({{"code":"{}","message":{}}})", codeName(refused->code), jsonString(refused->message)) : "null");
+                    for (const auto count : group->calls())
+                        calls += (calls.empty() ? "" : ",") + std::to_string(count);
+                    for (const auto count : group->chains())
+                        chains += (chains.empty() ? "" : ",") + std::to_string(count);
+                    out += std::format(
+                        R"({}{{"name":{},"onDemand":{},"installed":{},"shared":{},"claims":{},"installs":{},"functions":[{}],"calls":[{}],"chain":[{}],"refused":{}}})",
+                        out.empty() ? "" : ",", jsonString(group->name()), group->onDemand(), group->installed(), group->shared(), group->claims(), group->installs(), functions,
+                        calls, chains, refused ? std::format(R"({{"code":"{}","message":{}}})", codeName(refused->code), jsonString(refused->message)) : "null");
                 } else
-                    out += std::format("{} {}, {}{}\n", group->name(), group->onDemand() ? "on demand" : "at load", group->installed() ? "installed" : "not installed",
-                                       refused ? ", refused: " + refused->message : "");
+                    out += std::format("{} {}, {}{}{}\n", group->name(), group->onDemand() ? "on demand" : "at load", group->installed() ? "installed" : "not installed",
+                                       group->shared() ? ", shared with another plugin" : "", refused ? ", refused: " + refused->message : "");
             }
             if (format == FORMAT_JSON)
                 return R"({"ok":true,"groups":[)" + out + "]}";
