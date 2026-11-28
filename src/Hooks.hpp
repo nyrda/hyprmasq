@@ -39,13 +39,15 @@ namespace hyprmasq {
     template <typename F, F Function>
     struct SPinned {};
 
-    // Hyprland hooks a function for one plugin at a time, and refuses a second hook of it. So the plugin resolves every
-    // function it hooks at load, and installs the hooks in groups, one for each feature, most only while their feature is
-    // in use: a feature whose group another plugin's hook refuses is refused, with the function named, and the rest of the
-    // plugin goes on. A group is installed all or nothing. Groups that share a hook install it once, and it goes with the
-    // last of them. Removing a hook frees the code that calls through it run in, so while a hook of the plugin runs, a
-    // removal waits for the end of the event loop's iteration, and an install before then keeps the hook. See "Other
-    // plugins" in docs/automation.md. Main thread only.
+    // Hyprland's CFunctionHook::hook() takes a function for one hook, and refuses a second. So a function that another
+    // plugin has hooked is shared with it: the plugin's hook joins those of the function, and a call runs through all of
+    // them, the newest first, see HookChain.hpp. The plugin resolves every function it hooks at load, and installs the
+    // hooks in groups, one for each feature, most only while their feature is in use. A feature is refused, with the
+    // function named, only where another plugin's hook cannot be joined, because it is not of Hyprland's hook system or
+    // not as that leaves it, and the rest of the plugin goes on. A group is installed all or nothing. Groups that share a
+    // hook install it once, and it goes with the last of them. Removing a hook frees the code that calls through it run
+    // in, so while a hook of the plugin runs, a removal waits for the end of the event loop's iteration, and an install
+    // before then keeps the hook. See "Other plugins" in docs/automation.md. Main thread only.
     class CHook;
     class CHookGroup;
 
@@ -73,24 +75,28 @@ namespace hyprmasq {
         struct SCounted;
         template <typename R, typename... A, R (*Replacement)(A...)>
         struct SCounted<Replacement> {
+            static inline uint64_t calls = 0;
             static R call(A... args) {
                 SHookCall running;
+                ++calls;
                 return Replacement(args...);
             }
         };
-        CHook& defineHook(void* handle, const char* symbol, std::string_view signature, void* replacement, void** original);
+        CHook& defineHook(void* handle, const char* symbol, std::string_view signature, void* replacement, void** original, uint64_t* calls);
     }
 
     // Resolves the Hyprland function with this symbol, for example "_ZN4CXWM13handleFocusInEP20xcb_focus_in_event_t",
     // and checks it, without hooking it. Signature is what the symbol demangles to, here
     // "CXWM::handleFocusIn(xcb_focus_in_event_t*)", which a function with C linkage has as its symbol too, so that a
     // symbol cannot name another function than its signature says. Throws if Hyprland has no function of that symbol.
-    // While a group with the hook is installed, Replacement takes the function's calls, and original points to the
-    // function's original, which only Replacement calls. F is the function's pointer type, see SPinned.
+    // While a group with the hook is installed, Replacement takes the function's calls, and original points to what
+    // Replacement, and only it, passes them on to: the function's original, or the hook of another plugin that hooked the
+    // function before. F is the function's pointer type, see SPinned.
     template <typename F, auto Replacement>
     CHook& defineHook(void* handle, const char* symbol, std::string_view signature, HookFn<F>& original) {
         static_assert(std::is_same_v<decltype(Replacement), HookFn<F>>, "a hook takes the parameters of its function");
-        return detail::defineHook(handle, symbol, signature, reinterpret_cast<void*>(&detail::SCounted<Replacement>::call), reinterpret_cast<void**>(&original));
+        return detail::defineHook(handle, symbol, signature, reinterpret_cast<void*>(&detail::SCounted<Replacement>::call), reinterpret_cast<void**>(&original),
+                                  &detail::SCounted<Replacement>::calls);
     }
 
     // Keeps a group installed while it lives.
@@ -116,9 +122,14 @@ namespace hyprmasq {
         CHookGroup& operator=(const CHookGroup&) = delete;
 
         void add(CHook& hook);
-        // Installs the hooks of the group that are not installed, all or none, unless the plugin has unloaded. The error
-        // names a function: code hook_held while another plugin hooks it, internal if Hyprland cannot hook it.
+        // Installs the hooks of the group that are not installed, all or none, unless the plugin has unloaded, and again
+        // those that the removal of another plugin's hook took out. The error names a function: code hook_held while
+        // another plugin hooks it in a way that cannot be shared, internal if Hyprland cannot hook it.
         std::expected<CHookClaim, SError> claim();
+        // A plugin that knows nothing of shared hooks removes its hook with unhook(), as Hyprland does for a plugin that
+        // it unloads by force, which takes every hook of the function out. Installs those of an installed group again,
+        // or tells why not. claim() does this too.
+        std::optional<SError> restore();
 
         // For `hooks`.
         std::string_view name() const {
@@ -139,6 +150,12 @@ namespace hyprmasq {
             return m_installs;
         }
         std::vector<std::string_view> functions() const;
+        // For each of functions(): how often the plugin's hook of it ran since the load, and how many hooks calls of it
+        // run through now, the plugin's and other plugins', 0 for a function without a hook or whose hooks cannot be read.
+        std::vector<uint64_t> calls() const;
+        std::vector<size_t> chains() const;
+        // Installed, with a function that another plugin hooks too.
+        bool shared() const;
         // Why the last claim was refused, if none succeeded since.
         const std::optional<SError>& refused() const {
             return m_refused;
